@@ -107,9 +107,7 @@ $$
 The strict ODI indicator is therefore
 
 $$
-I_{ODI}
-=
-
+I_{ODI} =
 \mathbf 1
 \left\{
 T_G<\min_iT_i
@@ -199,9 +197,7 @@ For coalition $A$,
 
 $$
 \boxed{
-\mathcal G^{-A}_{t-1}
-=
-
+\mathcal G^{-A}_{t-1} =
 \sigma
 \left(
 \bigcup_{j\notin A}
@@ -213,9 +209,7 @@ $$
 The admissible nuisance family is
 
 $$
-\mathfrak G_A(t-1)
-=
-
+\mathfrak G_A(t-1) =
 \left\{
 \mathcal G:
 \mathcal G\subseteq
@@ -240,9 +234,7 @@ No current-epoch observation from any member of $A$ may enter the exact-exclusio
 For client $i$, with benign reference scores $s_1,\ldots,s_{n_i}$,
 
 $$
-U^M_{i,t}
-=
-
+U^M_{i,t} =
 \frac{
 \#\{k:s_k<S_{i,t}\}
 +\frac12\#\{k:s_k=S_{i,t}\}
@@ -265,9 +257,7 @@ Let $J^{-A}_t\subseteq A^c$ be the outside clients declared available for epoch 
 Then
 
 $$
-H^{-A}_{t-1}
-=
-
+H^{-A}_{t-1} =
 \frac{1}{|J^{-A}_t|}
 \sum_{j\in J^{-A}_t}
 e(B(U^M_{j,t-1})),
@@ -313,9 +303,7 @@ If two centroid distances differ by no more than `context.kmeans.assignment_tie_
 For member $i\in A$ and context cell $c$,
 
 $$
-U^{(-A)}_{i,t}
-=
-
+U^{(-A)}_{i,t} =
 \widehat F_{i,A,c}
 \left(
 U^M_{i,t}
@@ -345,9 +333,7 @@ $$
 $$
 
 $$
-\phi_4(u)
-=
-
+\phi_4(u) =
 3
 \left(
 70u^4-140u^3+90u^2-20u+1
@@ -361,9 +347,7 @@ A sensitivity setting uses the configured alternative prefix length.
 For coalition $A$,
 
 $$
-\Phi_A(U_A)
-=
-
+\Phi_A(U_A) =
 \bigotimes_{i\in A}
 \varphi(U_i).
 $$
@@ -400,15 +384,12 @@ No interaction of the same order as $A$ is included in the design.
 Within a context cell,
 
 $$
-\widehat M_{A,c}
-=
-
+\widehat M_{A,c} =
 \arg\min_M
 \frac1n
 \sum_s
 \left\|
-\Phi_{A,s}
--
+\Phi_{A,s} -
 M^\top X_{<A,s}
 \right\|_2^2
 +
@@ -447,11 +428,8 @@ If $n<k$, the requested fit is unsupported and abstains rather than silently red
 The atom is
 
 $$
-\widehat Z_{A,t}
-=
-
-\Phi_A(U^{(-A)}_{A,t})
--
+\widehat Z_{A,t} =
+\Phi_A(U^{(-A)}_{A,t}) -
 \widehat M_{A,c}^\top
 X_{<A,t}.
 $$
@@ -479,9 +457,7 @@ This prevents the threshold-calibration split from being reused for atom fitting
 For atom coordinate $j$,
 
 $$
-\widetilde Z_{A,t,j}
-=
-
+\widetilde Z_{A,t,j} =
 \frac{
 \widehat Z_{A,t,j}-\widehat\mu_{A,c,j}
 }{
@@ -506,9 +482,7 @@ Signed evidence is used only when an alternative direction is mathematically fix
 For a predeclared unit vector $v_A$,
 
 $$
-X^{signed}_{A,t}
-=
-
+X^{signed}_{A,t} =
 \operatorname{clip}
 \left(
 v_A^\top
@@ -536,14 +510,10 @@ $$
 the one-step evidence factor is
 
 $$
-e^{signed}_{A,t}
-=
-
+e^{signed}_{A,t} =
 \exp
 \left(
-\lambda X^{signed}_{A,t}
--
-
+\lambda X^{signed}_{A,t} -
 \frac{\lambda^2(2b)^2}{8}
 \right).
 $$
@@ -559,9 +529,7 @@ The primary real-data path is sign-agnostic.
 For coalition/context $A,c$, let
 
 $$
-q^{norm}_{A,c}
-=
-
+q^{norm}_{A,c} =
 Q_{\texttt{evidence.operational\_norm\_reference\_quantile}}
 \left(
 |\widetilde Z_{A,t}|_2
@@ -573,9 +541,7 @@ over cross-fitted nuisance-fit innovations.
 Then
 
 $$
-X^{norm}_{A,t}
-=
-
+X^{norm}_{A,t} =
 \operatorname{clip}
 \left(
 \frac{
@@ -596,14 +562,10 @@ $$
 The operational evidence factor is
 
 $$
-e^{op}_{A,t}
-=
-
+e^{op}_{A,t} =
 \exp
 \left(
-\lambda X^{norm}_{A,t}
--
-
+\lambda X^{norm}_{A,t} -
 0.125
 \right).
 $$
@@ -617,9 +579,7 @@ Its real-data error semantics come from independent finite-horizon calibration o
 For active order $r$,
 
 $$
-E_t^{(r)}
-=
-
+E_t^{(r)} =
 \frac{
 1
 }{
@@ -642,9 +602,7 @@ Enabled orders receive equal weight.
 If $\mathcal R$ is the enabled order set,
 
 $$
-E_t
-=
-
+E_t =
 \frac1{|\mathcal R|}
 \sum_{r\in\mathcal R}
 E_t^{(r)}.
@@ -771,9 +729,7 @@ This makes campaign detection delay comparable across methods while finite-horiz
 Statistical lead is
 
 $$
-L_{stat}
-=
-
+L_{stat} =
 \min_iT_i-T_G.
 $$
 
@@ -782,11 +738,8 @@ Reference-harness latency is measured in seconds.
 Operational lead is
 
 $$
-L_{op}
-=
-
-\min_iT_i
--
+L_{op} =
+\min_iT_i -
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
@@ -1523,9 +1476,7 @@ These counts may be replaced only where an experiment contract explicitly declar
 For common-mode score generators,
 
 $$
-Z_t
-=
-
+Z_t =
 \rho Z_{t-1}
 +
 \sqrt{1-\rho^2}\eta_t,
@@ -1540,9 +1491,7 @@ Client loadings are equally spaced from `generators.common_mode.client_loading_m
 Thus
 
 $$
-S_{i,t}
-=
-
+S_{i,t} =
 \beta_iZ_t+\varepsilon_{i,t},
 \qquad
 \varepsilon_{i,t}\overset{iid}{\sim}
@@ -1562,9 +1511,7 @@ The attacked coalition is the lexicographically first three clients unless an ex
 During the attack,
 
 $$
-S_{i,t}
-=
-
+S_{i,t} =
 \beta_iZ_t
 +
 \delta
@@ -1605,9 +1552,7 @@ while every client outside $A$, the latent common-mode process, availability, an
 For the analytic scalar fixture,
 
 $$
-Y_{A,t}
-=
-
+Y_{A,t} =
 \frac1{|A|}
 \sum_{i\in A}
 S_{i,t}.
@@ -1616,9 +1561,7 @@ $$
 A context-member set $B$ produces nuisance statistic
 
 $$
-m_{B,t}
-=
-
+m_{B,t} =
 \frac1{|B|}
 \sum_{j\in B}
 S_{j,t-1}.
@@ -1635,9 +1578,7 @@ g_{\tanh}(m)=\tanh(2m),
 $$
 
 $$
-g_{\text{softplus}}(m)
-=
-
+g_{\text{softplus}}(m) =
 \log(1+e^m)-\log2.
 $$
 
@@ -1650,9 +1591,7 @@ $$
 The scalar innovation fixture is
 
 $$
-R_{A,t}
-=
-
+R_{A,t} =
 Y_{A,t}-\eta_{A,t}.
 $$
 
@@ -1663,25 +1602,19 @@ For each seed and context method, ordinary least squares with an intercept is fi
 The direct derivative is
 
 $$
-D_{\text{direct}}
-=
-
+D_{\text{direct}} =
 \frac{dE[Y_A]}{d\epsilon}.
 $$
 
 Under the additive intervention above, the analytic value is $D_{\text{direct}}=1$. The nuisance and residual derivatives are
 
 $$
-D_{\eta}
-=
-
+D_{\eta} =
 \frac{dE[\eta_A]}{d\epsilon},
 $$
 
 $$
-D_R
-=
-
+D_R =
 \frac{dE[R_A]}{d\epsilon}.
 $$
 
@@ -1706,9 +1639,7 @@ $$
 For a pure order-$r$ coalition $A$,
 
 $$
-p_\theta(u_A)
-=
-
+p_\theta(u_A) =
 1+
 \theta
 \prod_{i\in A}\phi_1(u_i).
@@ -1750,9 +1681,7 @@ $$
 P
 \left(
 X_3=X_1\oplus X_2
-\right)
-=
-
+\right) =
 0.5+0.5\gamma.
 $$
 
@@ -1765,9 +1694,7 @@ $$
 and
 
 $$
-U_i
-=
-
+U_i =
 \frac{X_i+V_i}{2}.
 $$
 
@@ -1805,9 +1732,7 @@ $$
 p_\theta
 (
 u_A\mid C_{t-1}=c
-)
-=
-
+) =
 1+
 \theta c
 \prod_{i\in A}\phi_1(u_i),
@@ -1887,9 +1812,7 @@ No comparator receives attack-informed score normalization.
 For pair $i,j$,
 
 $$
-P_{ij,t}
-=
-
+P_{ij,t} =
 (2U^{(-A)}_{i,t}-1)
 (2U^{(-A)}_{j,t}-1).
 $$
@@ -1905,9 +1828,7 @@ Maximum order: 2.
 For triple $i,j,k$,
 
 $$
-L_{ijk,t}
-=
-
+L_{ijk,t} =
 (2U_i-1)
 (2U_j-1)
 (2U_k-1).
@@ -1976,9 +1897,7 @@ All pair copulas are Gaussian.
 Benign pair parameters are estimated by Kendall's $\tau$, converted through
 
 $$
-\rho
-=
-
+\rho =
 \sin
 \left(
 \frac{\pi}{2}\tau
@@ -2028,31 +1947,23 @@ The raw score is L2 reconstruction residual.
 For client $i$,
 
 $$
-Y_{i,t}
-=
-
+Y_{i,t} =
 U^M_{i,t}-\texttt{comparators.multistream\_cusum.rank\_center},
 $$
 
 $$
-C_{i,0}
-=
-
+C_{i,0} =
 \texttt{comparators.multistream\_cusum.initial\_state},
 $$
 
 $$
-C_{i,t}
-=
-
+C_{i,t} =
 \max
 \left(
 0,
 C_{i,t-1}
 +
-Y_{i,t}
--
-
+Y_{i,t} -
 \texttt{comparators.multistream\_cusum.drift\_subtraction}
 \right).
 $$
@@ -2427,9 +2338,7 @@ No forward fill, backward fill, temporal interpolation, mean imputation, or atta
 For every client/feature, using only `detector_fit`:
 
 $$
-x'
-=
-
+x' =
 \frac{
 x-\operatorname{median}(x)
 }{
@@ -2805,9 +2714,7 @@ The selected method identity and its native target order are written to `stronge
 ## 11.1 Strict ODI
 
 $$
-I_{ODI}
-=
-
+I_{ODI} =
 \mathbf1
 \left\{
 T_G<\min_iT_i
@@ -2836,9 +2743,7 @@ The censored value is never substituted into inferential stopping-time calculati
 ## 11.3 Earliest local stopping time
 
 $$
-T_{\text{local,min}}
-=
-
+T_{\text{local,min}} =
 \min_iT_i.
 $$
 
@@ -2847,9 +2752,7 @@ Same no-stop semantics.
 ## 11.4 Statistical lead
 
 $$
-L_{stat}
-=
-
+L_{stat} =
 T_{\text{local,min}}-T_G.
 $$
 
@@ -2858,11 +2761,8 @@ Defined only when both stops are finite.
 ## 11.5 Operational lead
 
 $$
-L_{op}
-=
-
-T_{\text{local,min}}
--
+L_{op} =
+T_{\text{local,min}} -
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
@@ -2877,9 +2777,7 @@ Defined only when both stops are finite.
 For seed $s$,
 
 $$
-R_{ODI,s}
-=
-
+R_{ODI,s} =
 \frac1{|\mathcal C|}
 \sum_{c\in\mathcal C}
 I_{ODI,c,s}.
@@ -2890,9 +2788,7 @@ The primary real inferential unit is the seed-level rate.
 ## 11.7 Campaign detection rate
 
 $$
-DR_s
-=
-
+DR_s =
 \frac{
 \#\{
 c:T_{G,c,s}\le H
@@ -2907,9 +2803,7 @@ This is independent of ODI qualification.
 ## 11.8 Finite-horizon PFA
 
 $$
-\widehat{PFA}_{H}
-=
-
+\widehat{PFA}_{H} =
 \frac1{N_0}
 \sum_{h=1}^{N_0}
 \mathbf1
@@ -2945,16 +2839,12 @@ Empirical simulation is a theorem-implementation diagnostic and does not replace
 Ordinary least squares over configured small perturbations produces:
 
 $$
-D_\eta
-=
-
+D_\eta =
 \frac{dE[\eta]}{d\epsilon},
 $$
 
 $$
-D_R
-=
-
+D_R =
 \frac{dE[R]}{d\epsilon}.
 $$
 
@@ -2971,9 +2861,7 @@ No alternate coordinate may be selected from observed derivative magnitude. $D_Z
 For each context method $m$, define
 
 $$
-A_{\text{self}}^{(m)}
-=
-
+A_{\text{self}}^{(m)} =
 1-
 \frac{
 |D_R^{(m)}|
@@ -2986,11 +2874,8 @@ $$
 The primary material contrast for each seed is
 
 $$
-\Delta A_{\text{self}}
-=
-
-A_{\text{self}}^{(\text{inclusive})}
--
+\Delta A_{\text{self}} =
+A_{\text{self}}^{(\text{inclusive})} -
 A_{\text{self}}^{(\text{exact})}.
 $$
 
@@ -3001,9 +2886,7 @@ Positive values mean that inclusive context suppresses the direct perturbation r
 For an attack interval,
 
 $$
-\kappa
-=
-
+\kappa =
 \frac1N
 \sum_t\log e_{A,t}.
 $$
@@ -3013,9 +2896,7 @@ $$
 For proper subset $B$,
 
 $$
-\Delta_B
-=
-
+\Delta_B =
 \frac{
 \left\|
 \mu_{1,B}-\mu_{0,B}
@@ -3032,9 +2913,7 @@ $$
 Then
 
 $$
-D_{<A}
-=
-
+D_{<A} =
 \max_{B\subsetneq A}
 \Delta_B.
 $$
@@ -3044,9 +2923,7 @@ $$
 For predeclared signed target coordinate $X_A$,
 
 $$
-D_A
-=
-
+D_A =
 \frac{
 E_1[X_A]-E_0[X_A]
 }{
@@ -3065,9 +2942,7 @@ Fraction of seeded campaign trajectories for which an independently calibrated m
 ## 11.16 Order evidence share
 
 $$
-R_r(t)
-=
-
+R_r(t) =
 \frac{
 E_t^{(r)}
 }{
@@ -3102,9 +2977,7 @@ The metric never affects stopping.
 ## 11.18 Atom NRMSE
 
 $$
-NRMSE
-=
-
+NRMSE =
 \frac{
 \sqrt{
 n^{-1}
@@ -3129,9 +3002,7 @@ $$
 ## 11.19 Atom cosine similarity
 
 $$
-\operatorname{cos}
-=
-
+\operatorname{cos} =
 \frac{
 \sum_t
 \langle
@@ -3155,9 +3026,7 @@ $$
 ## 11.20 Stopping-time difference
 
 $$
-\Delta T
-=
-
+\Delta T =
 T_G^{EMHI}-T_G^{HOFD}.
 $$
 
@@ -3168,11 +3037,8 @@ A companion paired detection-indicator difference must be reported so that missi
 ## 11.21 PFA difference
 
 $$
-\Delta PFA
-=
-
-\widehat PFA^{EMHI}
--
+\Delta PFA =
+\widehat PFA^{EMHI} -
 \widehat PFA^{comparison}.
 $$
 
@@ -3181,9 +3047,7 @@ $$
 Synthetic only:
 
 $$
-MAE
-=
-
+MAE =
 \frac1n
 \sum
 |
@@ -3196,9 +3060,7 @@ $$
 Synthetic only. Let $P_t^\ast$ be the analytically known or independently generated high-precision population projection of $\Phi_{A,t}$ onto the proper-subset design, and let $\widehat P_t=\widehat M_{A,c}^\top X_{<A,t}$ be the fitted projection on an independent evaluation sample. Define
 
 $$
-NRMSE_{\text{proj}}
-=
-
+NRMSE_{\text{proj}} =
 \frac{
 \sqrt{
 n^{-1}\sum_t
@@ -3223,9 +3085,7 @@ Normalization by the full tensor-representation RMS keeps the metric defined whe
 ## 11.24 Standardized null bias
 
 $$
-B_0
-=
-
+B_0 =
 \frac{
 |
 \bar Z
@@ -3242,9 +3102,7 @@ $$
 ## 11.25 Context coverage
 
 $$
-\operatorname{coverage}
-=
-
+\operatorname{coverage} =
 \frac{
 N_{\text{supported coalition-epochs}}
 }{
@@ -3291,9 +3149,7 @@ $$
 ## 11.29 Outside-conditioning power loss
 
 $$
-DR_{\text{NO OUTSIDE CONTEXT}}
--
-
+DR_{\text{NO OUTSIDE CONTEXT}} -
 DR_{\text{EMHI}}.
 $$
 
@@ -3400,9 +3256,7 @@ For the evaluation portion of each real dataset:
 7. compute each participating client's first malicious epoch;
 8. require
 $$
-   \max_i t_i^{first}
--
-
+   \max_i t_i^{first} -
    \min_i t_i^{first}
    \le
    \texttt{campaign.distributed\_first\_activity\_window\_epochs};
@@ -3654,7 +3508,7 @@ For a condition with requested context-cell count $C$:
 4. for every non-target client at epoch $t$, set its outside marginal rank to the deterministic midpoint
    \[
    U^M_{j,t}=\frac{c_t+1/2}{C};
-   \]
+\]
 5. draw every target-client rank independently as Uniform(0,1) from the seed/component substream;
 6. use one initial unscored row so the one-epoch outside lag is defined, then cycle through all $C$ cells in order.
 
@@ -3846,9 +3700,7 @@ Development seeds are `randomness.real_development_roots`; confirmatory seeds ar
 Material order-3 contribution is
 
 $$
-R_{ODI,\text{full}}
--
-
+R_{ODI,\text{full}} -
 R_{ODI,\le2}.
 $$
 
@@ -3916,8 +3768,7 @@ Affected detector scores and downstream evidence are recomputed from the first c
 Campaign detection rate is evaluated on every eligible primary real campaign for Full FedCampaign-EMHI and No-Outside-Context Full Hierarchy using the same seed, detector streams, local policies, finite-horizon calibration target, campaign horizon, and campaign registry. The seed-level power-loss metric is exactly Section 11.29:
 
 $$
-DR_{\text{NO OUTSIDE CONTEXT},s}
--
+DR_{\text{NO OUTSIDE CONTEXT},s} -
 DR_{\text{EMHI},s}.
 $$
 
@@ -4035,16 +3886,16 @@ For each K/seed:
    \[
    Z_t=\rho Z_{t-1}+\sqrt{1-\rho^2}\,\xi_t,
    \qquad \xi_t\sim N(0,1),
-   \]
+\]
    with $\rho=`generators.common_mode.latent_ar_coefficient`$ and $Z_0\sim N(0,1)$. For client index $j$, derive loading
    \[
    \beta_j=\beta_{min}+\frac{j}{\max(K-1,1)}(\beta_{max}-\beta_{min}),
-   \]
+\]
    from the configured common-mode loading bounds. The first feature is
    \[
    X_{j,t,1}=\beta_j Z_t+\varepsilon_{j,t},
    \qquad \varepsilon_{j,t}\sim N(0,\sigma^2),
-   \]
+\]
    with `generators.common_mode.client_noise_standard_deviation` for $\sigma$. Features 2 through $d$ are iid $N(0,1)$, independent across client, feature, and epoch and independent of $Z_t$. All draws use deterministic component substreams;
 3. assign detector families by the production modulo-three rule and fit them using these rows and the production detector hyperparameters. Artifact-fit wall time is recorded separately and excluded from per-epoch latency;
 4. generate an independent nuisance/context stream of the same configured length under the identical law, score it with the fitted detectors, form marginal ranks, and fit complete Full FedCampaign-EMHI context/projection/cross-fit artifacts;
@@ -4153,9 +4004,7 @@ For the authoritative confirmatory seed sequence, $n=10$. Enumerate all $2^n$ si
 ### Two-sided
 
 $$
-p
-=
-
+p =
 \frac{
 \#\{
 |\bar d^\ast|
@@ -4170,9 +4019,7 @@ $$
 ### One-sided positive alternative
 
 $$
-p
-=
-
+p =
 \frac{
 \#\{
 \bar d^\ast
@@ -4208,9 +4055,7 @@ $$
 Generate exactly $B$ deterministic sign assignments from the RNG rooted at `randomness.statistical_analysis_base_seed`. The all-positive observed assignment is included exactly once. The Monte Carlo p-value uses the finite-simulation correction
 
 $$
-p
-=
-
+p =
 \frac{
 1+
 \#\{\text{simulated statistic as or more extreme}\}
@@ -4333,9 +4178,7 @@ $$
 ### ODI rate
 
 $$
-\bar R_{ODI}
-=
-
+\bar R_{ODI} =
 \frac1{n_s}
 \sum_s
 R_{ODI,s}.
@@ -4347,9 +4190,7 @@ $$
 \frac1{n_s}
 \sum_s
 \left(
-R^{full}_{ODI,s}
--
-
+R^{full}_{ODI,s} -
 R^{\le2}_{ODI,s}
 \right).
 $$
