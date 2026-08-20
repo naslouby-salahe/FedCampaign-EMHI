@@ -236,8 +236,8 @@ For client $i$, with benign reference scores $s_1,\ldots,s_{n_i}$,
 $$
 U^M_{i,t} =
 \frac{
-\#\lbrace k:s_k<S_{i,t}\rbrace
-+\frac12\#\lbrace k:s_k=S_{i,t}\rbrace
+\left\lvert\lbrace k:s_k<S_{i,t}\rbrace\right\rvert
++\frac12\left\lvert\lbrace k:s_k=S_{i,t}\rbrace\right\rvert
 +\frac12
 }{
 n_i+1
@@ -682,7 +682,7 @@ For a candidate threshold with $x$ false stops among $n$ horizons, the one-sided
 $$
 U=
 \begin{cases}
-1,&x=n,[4pt]
+1,&x=n,\\[4pt]
 \mathrm{Beta}^{-1}
 \left(
 \texttt{evidence.calibrated＿finite＿horizon.calibration＿confidence};
@@ -2790,9 +2790,9 @@ The primary real inferential unit is the seed-level rate.
 $$
 DR_s =
 \frac{
-\#\lbrace
+\left\lvert\lbrace
 c:T_{G,c,s}\le H
-\rbrace
+\rbrace\right\rvert
 }{
 |\mathcal C|
 }.
@@ -4006,11 +4006,11 @@ For the authoritative confirmatory seed sequence, $n=10$. Enumerate all $2^n$ si
 $$
 p =
 \frac{
-\#\lbrace
+\left\lvert\lbrace
 |\bar d^\ast|
 \ge
 |\bar d|
-\rbrace
+\rbrace\right\rvert
 }{
 2^n
 }.
@@ -4021,11 +4021,11 @@ $$
 $$
 p =
 \frac{
-\#\lbrace
+\left\lvert\lbrace
 \bar d^\ast
 \ge
 \bar d
-\rbrace
+\rbrace\right\rvert
 }{
 2^n
 }.
@@ -4058,7 +4058,7 @@ $$
 p =
 \frac{
 1+
-\#\lbrace\text{simulated statistic as or more extreme}\rbrace
+\left\lvert\lbrace\text{simulated statistic as or more extreme}\rbrace\right\rvert
 }{
 1+B
 }.
