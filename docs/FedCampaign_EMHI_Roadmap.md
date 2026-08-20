@@ -109,9 +109,9 @@ The strict ODI indicator is therefore
 $$
 I_{ODI} =
 \mathbf 1
-\left\{
+\left\lbrace
 T_G<\min_iT_i
-\right\}.
+\right\rbrace.
 $$
 
 A global statistical stop that occurs at or after the earliest local action is still recorded as a global detection; it simply does not qualify as ODI.
@@ -210,11 +210,11 @@ The admissible nuisance family is
 
 $$
 \mathfrak G_A(t-1) =
-\left\{
+\left\lbrace
 \mathcal G:
 \mathcal G\subseteq
 \mathcal G^{-A}_{t-1}
-\right\}.
+\right\rbrace.
 $$
 
 The population principle uses the maximal admissible outside field.
@@ -236,8 +236,8 @@ For client $i$, with benign reference scores $s_1,\ldots,s_{n_i}$,
 $$
 U^M_{i,t} =
 \frac{
-\#\{k:s_k<S_{i,t}\}
-+\frac12\#\{k:s_k=S_{i,t}\}
+\#\lbrace k:s_k<S_{i,t}\rbrace
++\frac12\#\lbrace k:s_k=S_{i,t}\rbrace
 +\frac12
 }{
 n_i+1
@@ -464,7 +464,7 @@ $$
 \max
 (
 \widehat\sigma_{A,c,j},
-\texttt{projection.atom\_scale\_floor}
+\texttt{projection.atom＿scale＿floor}
 )
 }.
 $$
@@ -483,7 +483,7 @@ For a predeclared unit vector $v_A$,
 
 $$
 X^{signed}_{A,t} =
-\operatorname{clip}
+\mathrm{clip}
 \left(
 v_A^\top
 \widetilde Z_{A,t},
@@ -492,7 +492,7 @@ b
 \right),
 $$
 
-with $b=\texttt{evidence.clip\_bound}$.
+with $b=\texttt{evidence.clip＿bound}$.
 
 For the pure polynomial generators, $v_A$ selects the tensor coordinate containing $\phi_1$ for every member of $A$, with sign fixed by the generator coefficient.
 
@@ -530,7 +530,7 @@ For coalition/context $A,c$, let
 
 $$
 q^{norm}_{A,c} =
-Q_{\texttt{evidence.operational\_norm\_reference\_quantile}}
+Q_{\texttt{evidence.operational＿norm＿reference＿quantile}}
 \left(
 |\widetilde Z_{A,t}|_2
 \right)
@@ -542,7 +542,7 @@ Then
 
 $$
 X^{norm}_{A,t} =
-\operatorname{clip}
+\mathrm{clip}
 \left(
 \frac{
 \left\|\widetilde Z_{A,t}\right\|_2
@@ -550,7 +550,7 @@ X^{norm}_{A,t} =
 \max
 (
 q^{norm}_{A,c},
-\texttt{projection.norm\_reference\_floor}
+\texttt{projection.norm＿reference＿floor}
 )
 }
 -1,
@@ -642,7 +642,7 @@ A coalition is materially active when
 $$
 e^{op}_{A,t}
 \ge
-\texttt{distributed\_support.material\_coalition\_evidence\_threshold}.
+\texttt{distributed＿support.material＿coalition＿evidence＿threshold}.
 $$
 
 At epoch $t$, form the union of clients appearing in materially active coalitions during the configured trailing support window.
@@ -670,7 +670,7 @@ The real-data contract is
 $$
 P_0(T_G\le H)
 \le
-\texttt{evidence.calibrated\_finite\_horizon.target\_pfa},
+\texttt{evidence.calibrated＿finite＿horizon.target＿pfa},
 $$
 
 where $H$ is `campaign.evaluation_horizon_epochs`.
@@ -683,9 +683,9 @@ $$
 U=
 \begin{cases}
 1,&x=n,[4pt]
-\operatorname{Beta}^{-1}
+\mathrm{Beta}^{-1}
 \left(
-\texttt{evidence.calibrated\_finite\_horizon.calibration\_confidence};
+\texttt{evidence.calibrated＿finite＿horizon.calibration＿confidence};
 x+1,n-x
 \right),&x<n.
 \end{cases}
@@ -695,7 +695,7 @@ The selected threshold is the smallest candidate from `evidence.calibrated_finit
 
 $$
 U\le
-\texttt{evidence.calibrated\_finite\_horizon.target\_pfa}.
+\texttt{evidence.calibrated＿finite＿horizon.target＿pfa}.
 $$
 
 The minimum horizon count needed even for a zero-false-stop calibration to potentially pass is derived from the target PFA and confidence level; with the authoritative values it is 59.
@@ -743,7 +743,7 @@ L_{op} =
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
-{\texttt{time.real\_data\_epoch\_seconds}}
+{\texttt{time.real＿data＿epoch＿seconds}}
 \right).
 $$
 
@@ -1193,9 +1193,9 @@ For dropout experiments, the required outside-client count is derived as
 $$
 \max
 \left(
-\texttt{context.minimum\_available\_outside\_clients},
+\texttt{context.minimum＿available＿outside＿clients},
 \left\lceil
-\texttt{context.minimum\_available\_outside\_fraction}
+\texttt{context.minimum＿available＿outside＿fraction}
 |A^c|
 \right\rceil
 \right).
@@ -1233,7 +1233,7 @@ Dataset identifiers, paths, target/minimum client counts, eligibility counts, ha
 The model input dimension is derived as
 
 $$
-\texttt{datasets.preprocessing.event\_type\_hash\_bucket\_count}+2.
+\texttt{datasets.preprocessing.event＿type＿hash＿bucket＿count}+2.
 $$
 
 With the primary configuration this evaluates to 66 but 66 is not independently configurable.
@@ -1314,7 +1314,7 @@ The epoch index is
 $$
 \left\lfloor
 \frac{\text{Unix timestamp seconds}}
-{\texttt{time.real\_data\_epoch\_seconds}}
+{\texttt{time.real＿data＿epoch＿seconds}}
 \right\rfloor.
 $$
 
@@ -1327,24 +1327,24 @@ Detector numerical hyperparameters remain authoritative under `detectors`. The f
 #### Isolation Forest
 
 * estimators: `detectors.isolation_forest.trees`;
-* maximum samples: $\min(\texttt{detectors.isolation\_forest.max\_samples\_cap}, n_{\text{detector fit}})$;
+* maximum samples: $\min(\texttt{detectors.isolation＿forest.max＿samples＿cap}, n_{\text{detector fit}})$;
 * maximum features: `detectors.isolation_forest.max_features`;
 * worker jobs: `detectors.isolation_forest.jobs`; verbosity is fixed to 0;
 * bootstrap: disabled;
 * contamination: `auto`;
 * warm start: disabled;
 * random state: deterministic detector substream;
-* anomaly score: $-\operatorname{score_samples}(x)$.
+* anomaly score: $-\mathrm{score_samples}(x)$.
 
 #### One-Class SVM
 
 * kernel: RBF;
 * $\nu$: `detectors.one_class_svm.nu`;
-* gamma: the library `scale` rule, explicitly resolved as $1/(d\operatorname{Var}(X))$;
+* gamma: the library `scale` rule, explicitly resolved as $1/(d\mathrm{Var}(X))$;
 * coefficient zero, solver tolerance, kernel cache, and maximum iterations: the corresponding `detectors.one_class_svm` values;
 * shrinking: enabled;
 * verbose: disabled;
-* anomaly score: $-\operatorname{decision_function}(x)$.
+* anomaly score: $-\mathrm{decision_function}(x)$.
 
 #### Autoencoder
 
@@ -1484,7 +1484,7 @@ Z_t =
 \eta_t\sim N(0,1),
 $$
 
-with $\rho=\texttt{generators.common\_mode.latent\_ar\_coefficient}$. This normalization fixes the stationary latent variance to 1; it is an algorithmic invariant, not a configurable parameter.
+with $\rho=\texttt{generators.common＿mode.latent＿ar＿coefficient}$. This normalization fixes the stationary latent variance to 1; it is an algorithmic invariant, not a configurable parameter.
 
 Client loadings are equally spaced from `generators.common_mode.client_loading_minimum` through `generators.common_mode.client_loading_maximum` in lexicographic client order.
 
@@ -1498,7 +1498,7 @@ S_{i,t} =
 N
 \left(
 0,
-\texttt{generators.common\_mode.client\_noise\_standard\_deviation}^2
+\texttt{generators.common＿mode.client＿noise＿standard＿deviation}^2
 \right).
 $$
 
@@ -1520,7 +1520,7 @@ S_{i,t} =
 \qquad i\in A,
 $$
 
-with $\delta=\texttt{generators.controlled\_campaigns.marginal.score\_shift}$ in raw common-mode score units.
+with $\delta=\texttt{generators.controlled＿campaigns.marginal.score＿shift}$ in raw common-mode score units.
 
 #### Pair-relation campaign
 
@@ -1672,7 +1672,7 @@ A negative or non-finite evaluated density is an invariant violation.
 For each sample:
 
 $$
-X_1,X_2\overset{iid}{\sim}\operatorname{Bernoulli}(0.5).
+X_1,X_2\overset{iid}{\sim}\mathrm{Bernoulli}(0.5).
 $$
 
 Let interaction strength $\gamma$ range over `generators.xor.strengths` and set
@@ -1724,7 +1724,7 @@ Samples are generated by exact rejection sampling using the deterministic sum-of
 
 ### Context-dependent pure triple
 
-Let $C_t\in\{-1,+1\}$ be a stationary two-state Markov chain with same-state probability `generators.context_dependent_triple.markov_same_probability`. The change probability is its complement, $1-\texttt{generators.context\_dependent\_triple.markov\_same\_probability}$. Initial-state probabilities are `generators.context_dependent_triple.initial_state_probabilities`.
+Let $C_t\in\lbrace-1,+1\rbrace$ be a stationary two-state Markov chain with same-state probability `generators.context_dependent_triple.markov_same_probability`. The change probability is its complement, $1-\texttt{generators.context＿dependent＿triple.markov＿same＿probability}$. Initial-state probabilities are `generators.context_dependent_triple.initial_state_probabilities`.
 
 For the target triple,
 
@@ -1770,8 +1770,8 @@ $$
 U'=
 \min
 \left(
-U+\texttt{generators.outside\_contamination.outside\_rank\_shift},
-1-\texttt{context.rank\_clip\_epsilon}
+U+\texttt{generators.outside＿contamination.outside＿rank＿shift},
+1-\texttt{context.rank＿clip＿epsilon}
 \right).
 $$
 
@@ -1948,12 +1948,12 @@ For client $i$,
 
 $$
 Y_{i,t} =
-U^M_{i,t}-\texttt{comparators.multistream\_cusum.rank\_center},
+U^M_{i,t}-\texttt{comparators.multistream＿cusum.rank＿center},
 $$
 
 $$
 C_{i,0} =
-\texttt{comparators.multistream\_cusum.initial\_state},
+\texttt{comparators.multistream＿cusum.initial＿state},
 $$
 
 $$
@@ -1964,7 +1964,7 @@ C_{i,t} =
 C_{i,t-1}
 +
 Y_{i,t} -
-\texttt{comparators.multistream\_cusum.drift\_subtraction}
+\texttt{comparators.multistream＿cusum.drift＿subtraction}
 \right).
 $$
 
@@ -2340,12 +2340,12 @@ For every client/feature, using only `detector_fit`:
 $$
 x' =
 \frac{
-x-\operatorname{median}(x)
+x-\mathrm{median}(x)
 }{
 \max
 (
 Q_{0.75}(x)-Q_{0.25}(x),
-\texttt{datasets.preprocessing.robust\_scaling\_iqr\_floor}
+\texttt{datasets.preprocessing.robust＿scaling＿iqr＿floor}
 )
 }.
 $$
@@ -2716,9 +2716,9 @@ The selected method identity and its native target order are written to `stronge
 $$
 I_{ODI} =
 \mathbf1
-\left\{
+\left\lbrace
 T_G<\min_iT_i
-\right\}.
+\right\rbrace.
 $$
 
 Range:
@@ -2766,7 +2766,7 @@ T_{\text{local,min}} -
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
-{\texttt{time.real\_data\_epoch\_seconds}}
+{\texttt{time.real＿data＿epoch＿seconds}}
 \right).
 $$
 
@@ -2790,9 +2790,9 @@ The primary real inferential unit is the seed-level rate.
 $$
 DR_s =
 \frac{
-\#\{
+\#\lbrace
 c:T_{G,c,s}\le H
-\}
+\rbrace
 }{
 |\mathcal C|
 }.
@@ -2867,7 +2867,7 @@ A_{\text{self}}^{(m)} =
 |D_R^{(m)}|
 }{
 |D_{\text{direct}}|+
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
@@ -2904,8 +2904,8 @@ $$
 }{
 \max
 \left(
-\sqrt{\operatorname{tr}(\Sigma_{0,B})},
-\texttt{numerics.metric\_denominator\_floor}
+\sqrt{\mathrm{tr}(\Sigma_{0,B})},
+\texttt{numerics.metric＿denominator＿floor}
 \right)
 }.
 $$
@@ -2930,7 +2930,7 @@ E_1[X_A]-E_0[X_A]
 \max
 (
 SD_0(X_A),
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 )
 }.
 $$
@@ -2948,7 +2948,7 @@ E_t^{(r)}
 }{
 \sum_{s\in\mathcal R}E_t^{(s)}
 +
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
@@ -2995,14 +2995,14 @@ Z_t^{EMHI}
 |_2^2
 }
 +
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
 ## 11.19 Atom cosine similarity
 
 $$
-\operatorname{cos} =
+\mathrm{cos} =
 \frac{
 \sum_t
 \langle
@@ -3019,7 +3019,7 @@ Z_t^{HOFD}
 |Z_t^{HOFD}|_2^2
 }
 +
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
@@ -3076,7 +3076,7 @@ n^{-1}\sum_t
 \right\|_2^2
 }
 +
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
@@ -3093,8 +3093,8 @@ B_0 =
 }{
 \max
 \left(
-\sqrt{\operatorname{tr}(\widehat\Sigma_Z)},
-\texttt{numerics.metric\_denominator\_floor}
+\sqrt{\mathrm{tr}(\widehat\Sigma_Z)},
+\texttt{numerics.metric＿denominator＿floor}
 \right)
 }.
 $$
@@ -3102,7 +3102,7 @@ $$
 ## 11.25 Context coverage
 
 $$
-\operatorname{coverage} =
+\mathrm{coverage} =
 \frac{
 N_{\text{supported coalition-epochs}}
 }{
@@ -3118,7 +3118,7 @@ Eligibility means:
 ## 11.26 Abstention rate
 
 $$
-1-\operatorname{coverage}.
+1-\mathrm{coverage}.
 $$
 
 ## 11.27 Numerical failure rate
@@ -3142,7 +3142,7 @@ PFA_{\text{EMHI}}
 }{
 PFA_{\text{RAW MEAN}}
 +
-\texttt{numerics.metric\_denominator\_floor}
+\texttt{numerics.metric＿denominator＿floor}
 }.
 $$
 
@@ -3259,16 +3259,16 @@ $$
    \max_i t_i^{first} -
    \min_i t_i^{first}
    \le
-   \texttt{campaign.distributed\_first\_activity\_window\_epochs};
+   \texttt{campaign.distributed＿first＿activity＿window＿epochs};
 $$
 9. define the merged campaign duration as
 $$
-   \texttt{duration\_epochs}=\texttt{end\_epoch}-\texttt{start\_epoch}+1;
+   \texttt{duration＿epochs}=\texttt{end＿epoch}-\texttt{start＿epoch}+1;
 $$
    merged intervening benign epochs are part of the same campaign interval and therefore count toward this duration;
 10. require
 $$
-   \texttt{duration\_epochs}\ge\texttt{campaign.minimum\_duration\_epochs};
+   \texttt{duration＿epochs}\ge\texttt{campaign.minimum＿duration＿epochs};
 $$
 11. require the complete `campaign.prestart_warmup_epochs` pre-campaign warm-up with zero explicit malicious ground-truth epochs across selected clients.
 
@@ -3334,8 +3334,8 @@ Histogram binning uses
 $$
 B(u)=\min
 \left(
-\left\lfloor u\,\texttt{context.outside\_histogram\_bin\_count}\right\rfloor,
-\texttt{context.outside\_histogram\_bin\_count}-1
+\left\lfloor u\,\texttt{context.outside＿histogram＿bin＿count}\right\rfloor,
+\texttt{context.outside＿histogram＿bin＿count}-1
 \right),
 $$
 
@@ -3451,7 +3451,7 @@ For seed $s$, let $D^m_s$ be the mean standardized candidate score on the target
 \[
 D^{truth}_{r_m}=\theta_{ref},
 \qquad
-\theta_{ref}=\texttt{generators.pure\_polynomial.primary\_reference\_theta}.
+\theta_{ref}=\texttt{generators.pure＿polynomial.primary＿reference＿theta}.
 \]
 
 The seed-level standardized target-order estimation error is
@@ -3503,7 +3503,7 @@ This experiment uses the deterministic context-support generator implemented in 
 For a condition with requested context-cell count $C$:
 
 1. use client count `experiments.pure_order_separation_validation.primary_client_count`;
-2. use the first $r$ lexicographic clients as the target coalition for order (r in \{1,2,3\});
+2. use the first $r$ lexicographic clients as the target coalition for order (r in \lbrace1,2,3\rbrace);
 3. define latent support-cell index $c_t=t \bmod C$;
 4. for every non-target client at epoch $t$, set its outside marginal rank to the deterministic midpoint
    \[
@@ -3512,7 +3512,7 @@ For a condition with requested context-cell count $C$:
 5. draw every target-client rank independently as Uniform(0,1) from the seed/component substream;
 6. use one initial unscored row so the one-epoch outside lag is defined, then cycle through all $C$ cells in order.
 
-With `context.outside_histogram_bin_count=8` and every declared (C in \{2,4,8\}), these midpoint values map to distinct deterministic histogram locations. Therefore the requested K-means context cells are identifiable without using the latent label, while the estimator still receives only the roadmap-defined lagged outside histogram and K-means assignment. The latent support-cell index is used only to construct exact support counts and evaluate known truth.
+With `context.outside_histogram_bin_count=8` and every declared (C in \lbrace2,4,8\rbrace), these midpoint values map to distinct deterministic histogram locations. Therefore the requested K-means context cells are identifiable without using the latent label, while the estimator still receives only the roadmap-defined lagged outside histogram and K-means assignment. The latent support-cell index is used only to construct exact support counts and evaluate known truth.
 
 For a requested support value $n$, generate exactly $nC+1$ rows and discard only the initial lag row. This yields exactly $n$ usable nuisance-fit observations in every latent support cell. No oversampling, truncation choice, or random cell balancing is left to the implementation.
 
@@ -3578,9 +3578,9 @@ q_t=\phi_1(U_{1,t})\phi_1(U_{2,t})\phi_1(U_{3,t}),
 using the roadmap's first orthonormal shifted-Legendre basis coordinate. The theorem-route signed statistic supplied directly to Section 4.11 is
 
 \[
-X_t=\operatorname{clip}\!\left(q_t,-b,b\right),
+X_t=\mathrm{clip}\!\left(q_t,-b,b\right),
 \qquad
-b=\texttt{evidence.clip\_bound}.
+b=\texttt{evidence.clip＿bound}.
 \]
 
 The direction is fixed before sampling. Under the declared independent null, $q_t$ has a distribution symmetric about zero, clipping is an odd function, and each trajectory is independent over time; consequently
@@ -3801,7 +3801,7 @@ Support requires:
 * mean seed-level ODI rate at least configured minimum;
 * adjusted primary one-sided test of
 $$
-  R_{ODI,s}-\texttt{claim\_materiality.strong\_local.minimum\_strict\_odi\_rate}
+  R_{ODI,s}-\texttt{claim＿materiality.strong＿local.minimum＿strict＿odi＿rate}
 $$
   passing.
 
@@ -3876,7 +3876,7 @@ Scalability uses a synthetic workload because the real datasets do not provide e
 Let
 
 \[
-d=\texttt{datasets.preprocessing.event\_type\_hash\_bucket\_count}+2.
+d=\texttt{datasets.preprocessing.event＿type＿hash＿bucket＿count}+2.
 \]
 
 For each K/seed:
@@ -3995,7 +3995,7 @@ Let
 $$
 n=
 \left|
-\texttt{randomness.real\_confirmatory\_roots}
+\texttt{randomness.real＿confirmatory＿roots}
 \right|.
 $$
 
@@ -4006,11 +4006,11 @@ For the authoritative confirmatory seed sequence, $n=10$. Enumerate all $2^n$ si
 $$
 p =
 \frac{
-\#\{
+\#\lbrace
 |\bar d^\ast|
 \ge
 |\bar d|
-\}
+\rbrace
 }{
 2^n
 }.
@@ -4021,11 +4021,11 @@ $$
 $$
 p =
 \frac{
-\#\{
+\#\lbrace
 \bar d^\ast
 \ge
 \bar d
-\}
+\rbrace
 }{
 2^n
 }.
@@ -4040,7 +4040,7 @@ For a synthetic paired sample of $n$ independent seed-level differences, use exa
 $$
 2^n
 \le
-\texttt{statistics.synthetic\_sign\_flip\_replicates\_when\_not\_exact}.
+\texttt{statistics.synthetic＿sign＿flip＿replicates＿when＿not＿exact}.
 $$
 
 When this condition holds, enumerate all $2^n$ sign assignments exactly using the same one-/two-sided extremeness rule as Section 14.4.
@@ -4049,7 +4049,7 @@ Otherwise let
 
 $$
 B=
-\texttt{statistics.synthetic\_sign\_flip\_replicates\_when\_not\_exact}.
+\texttt{statistics.synthetic＿sign＿flip＿replicates＿when＿not＿exact}.
 $$
 
 Generate exactly $B$ deterministic sign assignments from the RNG rooted at `randomness.statistical_analysis_base_seed`. The all-positive observed assignment is included exactly once. The Monte Carlo p-value uses the finite-simulation correction
@@ -4058,7 +4058,7 @@ $$
 p =
 \frac{
 1+
-\#\{\text{simulated statistic as or more extreme}\}
+\#\lbrace\text{simulated statistic as or more extreme}\rbrace
 }{
 1+B
 }.
@@ -4171,7 +4171,7 @@ For Primary Strict ODI Evaluation, let
 $$
 n_s=
 \left|
-\texttt{randomness.real\_confirmatory\_roots}
+\texttt{randomness.real＿confirmatory＿roots}
 \right|.
 $$
 
@@ -6092,7 +6092,7 @@ The numerical support, materiality, equivalence, PFA, and latency values are tho
 At the primary self-explanation condition, define the exact-exclusion nuisance-derivative equivalence half-width
 
 \[
-m=\texttt{claim\_materiality.self\_explanation.exact\_exclusion\_nuisance\_derivative\_equivalence\_fraction\_of\_direct}\,|D_{direct}|.
+m=\texttt{claim＿materiality.self＿explanation.exact＿exclusion＿nuisance＿derivative＿equivalence＿fraction＿of＿direct}\,|D_{direct}|.
 \]
 
 `SUPPORTED` when:
@@ -6161,7 +6161,7 @@ Define the confirmatory real order-3 contribution as the mean paired difference
 \frac{1}{|\mathcal S|}\sum_{s\in\mathcal S}
 \left(R_{ODI,full,s}-R_{ODI,\le2,s}\right),
 \qquad
-\mathcal S=\texttt{randomness.real\_confirmatory\_roots}.
+\mathcal S=\texttt{randomness.real＿confirmatory＿roots}.
 \]
 
 `SUPPORTED` when:
