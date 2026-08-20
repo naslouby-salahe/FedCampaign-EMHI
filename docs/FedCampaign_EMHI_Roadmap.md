@@ -74,47 +74,47 @@ A correctly executed unfavorable scientific outcome remains Completed. It must n
 
 ## 2.1 Operational Distributed Insufficiency
 
-There are (K) monitored clients. Client (i) exposes a fixed local detector score
+There are $K$ monitored clients. Client $i$ exposes a fixed local detector score
 
-[
+$$
 S_{i,t}=f_i(X_{i,t}),
-]
+$$
 
-where larger (S_{i,t}) means greater local suspicion.
+where larger $S_{i,t}$ means greater local suspicion.
 
-Each client also owns a fixed local policy (\pi_i) with stopping time
+Each client also owns a fixed local policy $\pi_i$ with stopping time
 
-[
+$$
 T_i=\inf{t:\pi_i\text{ acts at }t}.
-]
+$$
 
 The federation independently produces a statistical global stopping time
 
-[
+$$
 T_G.
-]
+$$
 
-The local policies never participate in computing (T_G).
+The local policies never participate in computing $T_G$.
 
 Strict ODI is
 
-[
+$$
 \boxed{
 T_G<\min_iT_i.
 }
-]
+$$
 
 The strict ODI indicator is therefore
 
-[
+$$
 I_{ODI}
-=======
+=
 
 \mathbf 1
-\left{
+\left\{
 T_G<\min_iT_i
-\right}.
-]
+\right\}.
+$$
 
 A global statistical stop that occurs at or after the earliest local action is still recorded as a global detection; it simply does not qualify as ODI.
 
@@ -122,9 +122,9 @@ This separation is mandatory so that ODI is measured rather than enforced by con
 
 ## 2.2 EMII principle
 
-For every coalition (A\subseteq[K]), nuisance information used to explain (A) must be generated only from predictable information belonging to the complement (A^c).
+For every coalition $A\subseteq[K]$, nuisance information used to explain $A$ must be generated only from predictable information belonging to the complement $A^c$.
 
-Under the admissible outside information, the order-(|A|) innovation is the component of the coalition representation that cannot be represented by any proper subcoalition.
+Under the admissible outside information, the order-$|A|$ innovation is the component of the coalition representation that cannot be represented by any proper subcoalition.
 
 The novelty claim ends at this information-admissibility principle and its operational consequences.
 
@@ -175,10 +175,10 @@ The manuscript must not claim:
 | Research question                                                                                         | Predeclared support rule                                                                                                                                                                                                                                |
 | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Does exact coalition exclusion suppress self-explanation?                                                 | Exact-exclusion nuisance derivative must lie within the configured equivalence margin around zero; inclusive context must show at least the configured material attenuation difference; the primary directional test must pass the primary Holm family. |
-| Can a pure order-(r) alternative preserve all proper subsets while the order-(r) term moves?              | Every proper-subset standardized drift must satisfy the configured upper bound while target-order drift satisfies the configured lower bound and the directional test passes.                                                                           |
+| Can a pure order-$r$ alternative preserve all proper subsets while the order-$r$ term moves?              | Every proper-subset standardized drift must satisfy the configured upper bound while target-order drift satisfies the configured lower bound and the directional test passes.                                                                           |
 | Is the finite order-3 estimator feasible at its declared minimum support?                                 | Mean context coverage, projection NRMSE, standardized null bias, and pooled numerical-failure rate must satisfy the configured feasibility criteria.                                                                                                    |
 | Is the internal projection practically equivalent to exclusion-matched conditional HOFD at large support? | The complete paired CI for atom NRMSE and stopping-time difference must lie inside their configured equivalence regions and cosine similarity must meet its configured minimum.                                                                         |
-| Does FedCampaign-EMHI establish material strict ODI on Corrected OpTC?                                    | Full FedCampaign-EMHI must pass held-out PFA, mean strict-ODI rate, ODI advantage over the exclusion-matched order-(\le2) predecessor, operational-lead materiality, and adjusted directional inference.                                                |
+| Does FedCampaign-EMHI establish material strict ODI on Corrected OpTC?                                    | Full FedCampaign-EMHI must pass held-out PFA, mean strict-ODI rate, ODI advantage over the exclusion-matched order-$\le2$ predecessor, operational-lead materiality, and adjusted directional inference.                                                |
 | Does outside conditioning suppress hard benign coordination without excessive campaign-power loss?        | Common-mode false-campaign suppression and campaign-power-loss criteria must both pass.                                                                                                                                                                 |
 | Does ODI persist against the predeclared stronger local policy?                                           | Mean strict-ODI rate under the strong local policy must meet its configured minimum and adjusted directional inference.                                                                                                                                 |
 | Is execution practical at the declared scale?                                                             | Numerical failure and reference-harness p95 latency must meet their configured limits for every client count in `robustness.scalability_client_counts`; any practical early-warning wording additionally requires the primary operational-lead criterion. |
@@ -191,16 +191,16 @@ No claim threshold, equivalence margin, comparator, effect setting, metric, test
 
 ## 4.1 Information fields
 
-Let (\mathcal F^G_{t-1}) be the global history available before current-epoch evidence is formed.
+Let $\mathcal F^G_{t-1}$ be the global history available before current-epoch evidence is formed.
 
-Let (\mathcal H_{i,t-1}) denote the predictable history generated by client (i).
+Let $\mathcal H_{i,t-1}$ denote the predictable history generated by client $i$.
 
-For coalition (A),
+For coalition $A$,
 
-[
+$$
 \boxed{
 \mathcal G^{-A}_{t-1}
-=====================
+=
 
 \sigma
 \left(
@@ -208,49 +208,49 @@ For coalition (A),
 \mathcal H_{j,t-1}
 \right).
 }
-]
+$$
 
 The admissible nuisance family is
 
-[
+$$
 \mathfrak G_A(t-1)
-==================
+=
 
-{
+\left\{
 \mathcal G:
 \mathcal G\subseteq
 \mathcal G^{-A}_{t-1}
-}.
-]
+\right\}.
+$$
 
 The population principle uses the maximal admissible outside field.
 
 The implementation uses a deterministic compressed context
 
-[
+$$
 C^{-A}_{t-1}
-]
+$$
 
-that is measurable with respect to (\mathcal G^{-A}_{t-1}).
+that is measurable with respect to $\mathcal G^{-A}_{t-1}$.
 
-No current-epoch observation from any member of (A) may enter the exact-exclusion nuisance representation.
+No current-epoch observation from any member of $A$ may enter the exact-exclusion nuisance representation.
 
 ## 4.2 Marginal suspicion rank
 
-For client (i), with benign reference scores (s_1,\ldots,s_{n_i}),
+For client $i$, with benign reference scores $s_1,\ldots,s_{n_i}$,
 
-[
+$$
 U^M_{i,t}
-=========
+=
 
 \frac{
-#{k:s_k<S_{i,t}}
-+\frac12#{k:s_k=S_{i,t}}
+\#\{k:s_k<S_{i,t}\}
++\frac12\#\{k:s_k=S_{i,t}\}
 +\frac12
 }{
 n_i+1
 }.
-]
+$$
 
 This deterministic midrank orientation ensures that larger rank means greater local suspicion.
 
@@ -258,26 +258,26 @@ The rank is clipped using `context.rank_clip_epsilon` from the Configuration YAM
 
 ## 4.3 Outside-context histogram
 
-For a coalition (A), the exact-exclusion implementation uses previous-epoch marginal ranks of available complement clients.
+For a coalition $A$, the exact-exclusion implementation uses previous-epoch marginal ranks of available complement clients.
 
-Let (J^{-A}_t\subseteq A^c) be the outside clients declared available for epoch (t) before current evidence is computed.
+Let $J^{-A}_t\subseteq A^c$ be the outside clients declared available for epoch $t$ before current evidence is computed.
 
 Then
 
-[
+$$
 H^{-A}_{t-1}
-============
+=
 
 \frac{1}{|J^{-A}_t|}
 \sum_{j\in J^{-A}_t}
 e(B(U^M_{j,t-1})),
-]
+$$
 
-where (B(\cdot)) is the equal-width histogram-bin map defined by the authoritative histogram-bin count.
+where $B(\cdot)$ is the equal-width histogram-bin map defined by the authoritative histogram-bin count.
 
-If the outside-availability support rule is not met, coalition (A) abstains.
+If the outside-availability support rule is not met, coalition $A$ abstains.
 
-The histogram edges are derived from the configured bin count and ([0,1]); they are not separately configurable.
+The histogram edges are derived from the configured bin count and $[0,1]$; they are not separately configurable.
 
 ## 4.4 Context clustering
 
@@ -310,19 +310,19 @@ If two centroid distances differ by no more than `context.kmeans.assignment_tie_
 
 ## 4.5 Coalition-conditioned residual ranks
 
-For member (i\in A) and context cell (c),
+For member $i\in A$ and context cell $c$,
 
-[
+$$
 U^{(-A)}_{i,t}
-==============
+=
 
 \widehat F_{i,A,c}
 \left(
 U^M_{i,t}
 \right),
-]
+$$
 
-where (\widehat F_{i,A,c}) is the empirical CDF obtained from nuisance-fit epochs assigned to context (c) for coalition (A).
+where $\widehat F_{i,A,c}$ is the empirical CDF obtained from nuisance-fit epochs assigned to context $c$ for coalition $A$.
 
 The same midrank convention as Section 4.2 is mandatory.
 
@@ -330,53 +330,53 @@ If the coalition/context support is below the order-specific configured minimum,
 
 ## 4.6 Bounded basis
 
-For (u\in[0,1]),
+For $u\in[0,1]$,
 
-[
+$$
 \phi_1(u)=\sqrt3(2u-1),
-]
+$$
 
-[
+$$
 \phi_2(u)=\sqrt5(6u^2-6u+1),
-]
+$$
 
-[
+$$
 \phi_3(u)=\sqrt7(20u^3-30u^2+12u-1),
-]
+$$
 
-[
+$$
 \phi_4(u)
-=========
+=
 
 3
 \left(
 70u^4-140u^3+90u^2-20u+1
 \right).
-]
+$$
 
 The primary basis uses the first `basis.primary_size` functions.
 
 A sensitivity setting uses the configured alternative prefix length.
 
-For coalition (A),
+For coalition $A$,
 
-[
+$$
 \Phi_A(U_A)
-===========
+=
 
 \bigotimes_{i\in A}
 \varphi(U_i).
-]
+$$
 
 Its dimension is derived as
 
-[
+$$
 L^{|A|}.
-]
+$$
 
 ## 4.7 Proper-subset design
 
-For coalition (A), the lower-order design uses the same coalition-specific outside context as the full coalition.
+For coalition $A$, the lower-order design uses the same coalition-specific outside context as the full coalition.
 
 For order 1:
 
@@ -393,15 +393,15 @@ For order 3:
 * every singleton basis coordinate;
 * every pair tensor-basis coordinate for the three proper pairs.
 
-No interaction of the same order as (A) is included in the design.
+No interaction of the same order as $A$ is included in the design.
 
 ## 4.8 Ridge projection
 
 Within a context cell,
 
-[
+$$
 \widehat M_{A,c}
-================
+=
 
 \arg\min_M
 \frac1n
@@ -414,7 +414,7 @@ M^\top X_{<A,s}
 +
 \lambda
 \left\|M_{\text{penalized}}\right\|_F^2.
-]
+$$
 
 The intercept is not penalized.
 
@@ -422,39 +422,39 @@ No predictor-column rescaling is performed.
 
 All projection linear algebra uses float64.
 
-The ridge candidate set, blocked-fold count, MSE tie tolerance, SVD relative cutoff, and condition-number limit are numerical configuration values. Contiguous blocked folds, fold-size-weighted MSE selection, the larger-(\lambda) tie resolution, intercept handling, and SVD solution semantics are fixed algorithmic rules in this section.
+The ridge candidate set, blocked-fold count, MSE tie tolerance, SVD relative cutoff, and condition-number limit are numerical configuration values. Contiguous blocked folds, fold-size-weighted MSE selection, the larger-$\lambda$ tie resolution, intercept handling, and SVD solution semantics are fixed algorithmic rules in this section.
 
-The selected (\lambda) minimizes fold-size-weighted benign validation MSE.
+The selected $\lambda$ minimizes fold-size-weighted benign validation MSE.
 
-Candidates whose MSE values differ by at most `projection.selection_tie_tolerance_mse` are tied; the larger (\lambda) wins.
+Candidates whose MSE values differ by at most `projection.selection_tie_tolerance_mse` are tied; the larger $\lambda$ wins.
 
-For (\lambda=0), the Moore-Penrose solution is computed by SVD with the configured relative singular-value cutoff.
+For $\lambda=0$, the Moore-Penrose solution is computed by SVD with the configured relative singular-value cutoff.
 
 ### Contiguous blocked-fold construction
 
-Every contiguous blocked split in nuisance cross-fitting and projection cross-validation uses the same deterministic boundary rule. For (n) chronologically ordered observations and (k) folds, let
+Every contiguous blocked split in nuisance cross-fitting and projection cross-validation uses the same deterministic boundary rule. For $n$ chronologically ordered observations and $k$ folds, let
 
-[
+$$
 q=\left\lfloor\frac nk\right\rfloor,
 \qquad
 r=n\bmod k.
-]
+$$
 
-Folds are numbered from zero. The first (r) folds contain (q+1) consecutive observations and the remaining (k-r) folds contain (q) consecutive observations. No observation is shuffled. Fold boundaries are therefore identical to splitting the ordered index array into (k) contiguous parts whose sizes differ by at most one, with any remainder assigned to the earliest folds.
+Folds are numbered from zero. The first $r$ folds contain $q+1$ consecutive observations and the remaining $k-r$ folds contain $q$ consecutive observations. No observation is shuffled. Fold boundaries are therefore identical to splitting the ordered index array into $k$ contiguous parts whose sizes differ by at most one, with any remainder assigned to the earliest folds.
 
-If (n<k), the requested fit is unsupported and abstains rather than silently reducing the fold count.
+If $n<k$, the requested fit is unsupported and abstains rather than silently reducing the fold count.
 
 The atom is
 
-[
+$$
 \widehat Z_{A,t}
-================
+=
 
 \Phi_A(U^{(-A)}_{A,t})
 -
 \widehat M_{A,c}^\top
 X_{<A,t}.
-]
+$$
 
 ## 4.9 Cross-fitted benign innovation calibration
 
@@ -476,11 +476,11 @@ This prevents the threshold-calibration split from being reused for atom fitting
 
 ## 4.10 Centering and scaling
 
-For atom coordinate (j),
+For atom coordinate $j$,
 
-[
+$$
 \widetilde Z_{A,t,j}
-====================
+=
 
 \frac{
 \widehat Z_{A,t,j}-\widehat\mu_{A,c,j}
@@ -488,14 +488,14 @@ For atom coordinate (j),
 \max
 (
 \widehat\sigma_{A,c,j},
-\texttt{projection.atom_scale_floor}
+\texttt{projection.atom\_scale\_floor}
 )
 }.
-]
+$$
 
-(\widehat\mu) and (\widehat\sigma) are computed from cross-fitted nuisance-fit innovations.
+$\widehat\mu$ and $\widehat\sigma$ are computed from cross-fitted nuisance-fit innovations.
 
-The standard deviation convention is sample standard deviation with denominator (n-1).
+The standard deviation convention is sample standard deviation with denominator $n-1$.
 
 A context with fewer than two cross-fitted observations is unsupported.
 
@@ -503,11 +503,11 @@ A context with fewer than two cross-fitted observations is unsupported.
 
 Signed evidence is used only when an alternative direction is mathematically fixed before evaluation.
 
-For a predeclared unit vector (v_A),
+For a predeclared unit vector $v_A$,
 
-[
+$$
 X^{signed}_{A,t}
-================
+=
 
 \operatorname{clip}
 \left(
@@ -516,39 +516,39 @@ v_A^\top
 -b,
 b
 \right),
-]
+$$
 
-with (b=\texttt{evidence.clip_bound}).
+with $b=\texttt{evidence.clip\_bound}$.
 
-For the pure polynomial generators, (v_A) selects the tensor coordinate containing (\phi_1) for every member of (A), with sign fixed by the generator coefficient.
+For the pure polynomial generators, $v_A$ selects the tensor coordinate containing $\phi_1$ for every member of $A$, with sign fixed by the generator coefficient.
 
 Under the declared conditional-null contract
 
-[
+$$
 E_0[
 X^{signed}_{A,t}
 \mid
 \mathcal F^G_{t-1}
 ]
 \le0,
-]
+$$
 
 the one-step evidence factor is
 
-[
+$$
 e^{signed}_{A,t}
-================
+=
 
 \exp
 \left(
 \lambda X^{signed}_{A,t}
-------------------------
+-
 
 \frac{\lambda^2(2b)^2}{8}
 \right).
-]
+$$
 
-For the locked values (b=1) and (\lambda=0.5), the compensator is (0.125).
+For the locked values $b=1$ and $\lambda=0.5$, the compensator is $0.125$.
 
 This signed-theorem sequential construction is the only evidence path used to support the conditional e-detector statement.
 
@@ -556,25 +556,25 @@ This signed-theorem sequential construction is the only evidence path used to su
 
 The primary real-data path is sign-agnostic.
 
-For coalition/context (A,c), let
+For coalition/context $A,c$, let
 
-[
+$$
 q^{norm}_{A,c}
-==============
+=
 
-Q_{\texttt{evidence.operational_norm_reference_quantile}}
+Q_{\texttt{evidence.operational\_norm\_reference\_quantile}}
 \left(
 |\widetilde Z_{A,t}|_2
 \right)
-]
+$$
 
 over cross-fitted nuisance-fit innovations.
 
 Then
 
-[
+$$
 X^{norm}_{A,t}
-==============
+=
 
 \operatorname{clip}
 \left(
@@ -584,29 +584,29 @@ X^{norm}_{A,t}
 \max
 (
 q^{norm}_{A,c},
-\texttt{projection.norm_reference_floor}
+\texttt{projection.norm\_reference\_floor}
 )
 }
 -1,
 -b,
 b
 \right).
-]
+$$
 
 The operational evidence factor is
 
-[
+$$
 e^{op}_{A,t}
-============
+=
 
 \exp
 \left(
 \lambda X^{norm}_{A,t}
-----------------------
+-
 
 0.125
 \right).
-]
+$$
 
 This transform is not described as an anytime-valid real-data e-value.
 
@@ -614,41 +614,41 @@ Its real-data error semantics come from independent finite-horizon calibration o
 
 ## 4.13 Within-order aggregation
 
-For active order (r),
+For active order $r$,
 
-[
+$$
 E_t^{(r)}
-=========
+=
 
 \frac{
 1
 }{
 N_{\text{active},r,t}
 }
-\sum_{\substack{|A|=r\A\text{ active}}}
+\sum_{\substack{|A|=r\\A\text{ active}}}
 e^{op}_{A,t}.
-]
+$$
 
-If no coalition of order (r) is active,
+If no coalition of order $r$ is active,
 
-[
+$$
 E_t^{(r)}=1.
-]
+$$
 
 ## 4.14 Across-order aggregation
 
 Enabled orders receive equal weight.
 
-If (\mathcal R) is the enabled order set,
+If $\mathcal R$ is the enabled order set,
 
-[
+$$
 E_t
-===
+=
 
 \frac1{|\mathcal R|}
 \sum_{r\in\mathcal R}
 E_t^{(r)}.
-]
+$$
 
 The equal weight is derived from the enabled-order set and is not configured separately.
 
@@ -658,36 +658,36 @@ Contemporaneous coalition evidence factors are never multiplied in the primary m
 
 The global state is
 
-[
+$$
 G_0=0,
 \qquad
 G_t=(G_{t-1}+1)E_t.
-]
+$$
 
-For a threshold (h), the threshold predicate is
+For a threshold $h$, the threshold predicate is
 
-[
+$$
 G_t\ge h.
-]
+$$
 
 A statistical global stop occurs at the first epoch satisfying both:
 
 1. the threshold predicate;
 2. the distributed-support predicate.
 
-Local-policy state never alters (G_t) and never suppresses the statistical stop.
+Local-policy state never alters $G_t$ and never suppresses the statistical stop.
 
 ## 4.16 Distributed-support predicate
 
 A coalition is materially active when
 
-[
+$$
 e^{op}_{A,t}
 \ge
-\texttt{distributed_support.material_coalition_evidence_threshold}.
-]
+\texttt{distributed\_support.material\_coalition\_evidence\_threshold}.
+$$
 
-At epoch (t), form the union of clients appearing in materially active coalitions during the configured trailing support window.
+At epoch $t$, form the union of clients appearing in materially active coalitions during the configured trailing support window.
 
 The support predicate is true when the union contains at least the configured number of distinct clients.
 
@@ -709,36 +709,36 @@ signed-theorem sequential route is not used to justify the primary real-data fin
 
 The real-data contract is
 
-[
+$$
 P_0(T_G\le H)
 \le
-\texttt{evidence.calibrated_finite_horizon.target_pfa},
-]
+\texttt{evidence.calibrated\_finite\_horizon.target\_pfa},
+$$
 
-where (H) is `campaign.evaluation_horizon_epochs`.
+where $H$ is `campaign.evaluation_horizon_epochs`.
 
 Candidate thresholds are evaluated on non-overlapping benign calibration horizons.
 
-For a candidate threshold with (x) false stops among (n) horizons, the one-sided Clopper-Pearson upper bound is
+For a candidate threshold with $x$ false stops among $n$ horizons, the one-sided Clopper-Pearson upper bound is
 
-[
+$$
 U=
 \begin{cases}
 1,&x=n,[4pt]
 \operatorname{Beta}^{-1}
 \left(
-\texttt{evidence.calibrated_finite_horizon.calibration_confidence};
+\texttt{evidence.calibrated\_finite\_horizon.calibration\_confidence};
 x+1,n-x
 \right),&x<n.
 \end{cases}
-]
+$$
 
 The selected threshold is the smallest candidate from `evidence.calibrated_finite_horizon.threshold_candidates` with
 
-[
+$$
 U\le
-\texttt{evidence.calibrated_finite_horizon.target_pfa}.
-]
+\texttt{evidence.calibrated\_finite\_horizon.target\_pfa}.
+$$
 
 The minimum horizon count needed even for a zero-false-stop calibration to potentially pass is derived from the target PFA and confidence level; with the authoritative values it is 59.
 
@@ -760,7 +760,7 @@ For each real campaign:
 
 1. the configured clean pre-campaign warm-up must exist;
 2. lagged contexts are computed through the warm-up;
-3. at campaign start, global sequential state is reset to (G=0);
+3. at campaign start, global sequential state is reset to $G=0$;
 4. local persistence windows are reset;
 5. global and local policies are evaluated independently for the configured campaign horizon.
 
@@ -770,29 +770,29 @@ This makes campaign detection delay comparable across methods while finite-horiz
 
 Statistical lead is
 
-[
+$$
 L_{stat}
-========
+=
 
 \min_iT_i-T_G.
-]
+$$
 
 Reference-harness latency is measured in seconds.
 
 Operational lead is
 
-[
+$$
 L_{op}
-======
+=
 
 \min_iT_i
 -
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
-{\texttt{time.real_data_epoch_seconds}}
+{\texttt{time.real\_data\_epoch\_seconds}}
 \right).
-]
+$$
 
 Operational lead is defined only when both the global stop and earliest local stop are finite.
 
@@ -1237,16 +1237,16 @@ All core numerical values remain authoritative in the Configuration YAML. They a
 
 For dropout experiments, the required outside-client count is derived as
 
-[
+$$
 \max
 \left(
-\texttt{context.minimum_available_outside_clients},
+\texttt{context.minimum\_available\_outside\_clients},
 \left\lceil
-\texttt{context.minimum_available_outside_fraction}
+\texttt{context.minimum\_available\_outside\_fraction}
 |A^c|
 \right\rceil
 \right).
-]
+$$
 
 ### Rank and context configuration
 
@@ -1258,7 +1258,7 @@ Histogram edges are derived from `context.outside_histogram_bin_count`.
 
 All basis-size, ridge-candidate, projection-tolerance, support-floor, and cross-validation-count values remain authoritative in the Configuration YAML. Projection cross-validation uses contiguous blocked folds.
 
-The projection Gram condition number is calculated on the unregularized (X^\top X) matrix after removing exactly constant zero-variance columns.
+The projection Gram condition number is calculated on the unregularized $X^\top X$ matrix after removing exactly constant zero-variance columns.
 
 A fitted coalition/context artifact abstains if:
 
@@ -1279,9 +1279,9 @@ Dataset identifiers, paths, target/minimum client counts, eligibility counts, ha
 
 The model input dimension is derived as
 
-[
-\texttt{datasets.preprocessing.event_type_hash_bucket_count}+2.
-]
+$$
+\texttt{datasets.preprocessing.event\_type\_hash\_bucket\_count}+2.
+$$
 
 With the primary configuration this evaluates to 66 but 66 is not independently configurable.
 
@@ -1358,12 +1358,12 @@ All timestamps are normalized to UTC.
 
 The epoch index is
 
-[
+$$
 \left\lfloor
 \frac{\text{Unix timestamp seconds}}
-{\texttt{time.real_data_epoch_seconds}}
+{\texttt{time.real\_data\_epoch\_seconds}}
 \right\rfloor.
-]
+$$
 
 Epoch boundaries are therefore globally deterministic.
 
@@ -1374,32 +1374,32 @@ Detector numerical hyperparameters remain authoritative under `detectors`. The f
 #### Isolation Forest
 
 * estimators: `detectors.isolation_forest.trees`;
-* maximum samples: (\min(\texttt{detectors.isolation_forest.max_samples_cap}, n_{\text{detector fit}}));
+* maximum samples: $\min(\texttt{detectors.isolation\_forest.max\_samples\_cap}, n_{\text{detector fit}})$;
 * maximum features: `detectors.isolation_forest.max_features`;
 * worker jobs: `detectors.isolation_forest.jobs`; verbosity is fixed to 0;
 * bootstrap: disabled;
 * contamination: `auto`;
 * warm start: disabled;
 * random state: deterministic detector substream;
-* anomaly score: (-\operatorname{score_samples}(x)).
+* anomaly score: $-\operatorname{score_samples}(x)$.
 
 #### One-Class SVM
 
 * kernel: RBF;
-* (\nu): `detectors.one_class_svm.nu`;
-* gamma: the library `scale` rule, explicitly resolved as (1/(d\operatorname{Var}(X)));
+* $\nu$: `detectors.one_class_svm.nu`;
+* gamma: the library `scale` rule, explicitly resolved as $1/(d\operatorname{Var}(X))$;
 * coefficient zero, solver tolerance, kernel cache, and maximum iterations: the corresponding `detectors.one_class_svm` values;
 * shrinking: enabled;
 * verbose: disabled;
-* anomaly score: (-\operatorname{decision_function}(x)).
+* anomaly score: $-\operatorname{decision_function}(x)$.
 
 #### Autoencoder
 
-The fixed architecture for input dimension (d) is
+The fixed architecture for input dimension $d$ is
 
-[
+$$
 d\rightarrow32\rightarrow8\rightarrow32\rightarrow d.
-]
+$$
 
 The hidden activation is ReLU, the output activation is linear, and the loss is elementwise squared error averaged over features and batch. Optimization uses Adam with learning rate, betas, optimizer epsilon, weight decay, batch size, and epoch count from `detectors.autoencoder`.
 
@@ -1419,7 +1419,7 @@ No early stopping is permitted.
 
 Selected client IDs are sorted lexicographically.
 
-For zero-based client index (j):
+For zero-based client index $j$:
 
 ```text
 j mod 3 = 0 → Isolation Forest
@@ -1437,11 +1437,11 @@ Candidate score thresholds are quantiles of detector scores on `nuisance_fit`, n
 
 Candidate PFA is evaluated on non-overlapping `threshold_and_policy_calibration` horizons.
 
-For a persistence rule (m)-of-(n):
+For a persistence rule $m$-of-$n$:
 
 * the current epoch is included;
-* the last at most (n) epochs are examined;
-* the rule may trigger as soon as at least (m) observations have occurred;
+* the last at most $n$ epochs are examined;
+* the rule may trigger as soon as at least $m$ observations have occurred;
 * an exceedance is `score >= threshold`.
 
 Candidate ordering from least to most stringent is:
@@ -1508,7 +1508,7 @@ SHA256(canonical_utf8(the_exact_object_above))
 
 The first 64 digest bits, in network byte order (most-significant byte first), are interpreted as an unsigned integer.
 
-Libraries restricted to 32-bit seeds receive the value modulo (2^{32}).
+Libraries restricted to 32-bit seeds receive the value modulo $2^{32}$.
 
 No sequential RNG-spawn order may affect a scientific result.
 
@@ -1522,26 +1522,26 @@ These counts may be replaced only where an experiment contract explicitly declar
 
 For common-mode score generators,
 
-[
+$$
 Z_t
-===
+=
 
 \rho Z_{t-1}
 +
 \sqrt{1-\rho^2}\eta_t,
 \qquad
 \eta_t\sim N(0,1),
-]
+$$
 
-with (\rho=\texttt{generators.common_mode.latent_ar_coefficient}). This normalization fixes the stationary latent variance to 1; it is an algorithmic invariant, not a configurable parameter.
+with $\rho=\texttt{generators.common\_mode.latent\_ar\_coefficient}$. This normalization fixes the stationary latent variance to 1; it is an algorithmic invariant, not a configurable parameter.
 
 Client loadings are equally spaced from `generators.common_mode.client_loading_minimum` through `generators.common_mode.client_loading_maximum` in lexicographic client order.
 
 Thus
 
-[
+$$
 S_{i,t}
-=======
+=
 
 \beta_iZ_t+\varepsilon_{i,t},
 \qquad
@@ -1549,9 +1549,9 @@ S_{i,t}
 N
 \left(
 0,
-\texttt{generators.common_mode.client_noise_standard_deviation}^2
+\texttt{generators.common\_mode.client\_noise\_standard\_deviation}^2
 \right).
-]
+$$
 
 ### Controlled attack-generator configuration
 
@@ -1561,9 +1561,9 @@ The attacked coalition is the lexicographically first three clients unless an ex
 
 During the attack,
 
-[
+$$
 S_{i,t}
-=======
+=
 
 \beta_iZ_t
 +
@@ -1571,9 +1571,9 @@ S_{i,t}
 +
 \varepsilon_{i,t},
 \qquad i\in A,
-]
+$$
 
-with (\delta=\texttt{generators.controlled_campaigns.marginal.score_shift}) in raw common-mode score units.
+with $\delta=\texttt{generators.controlled\_campaigns.marginal.score\_shift}$ in raw common-mode score units.
 
 #### Pair-relation campaign
 
@@ -1589,72 +1589,72 @@ The distributed-support predicate must prevent a global campaign declaration cau
 
 ### Self-explanation generator configuration
 
-Primary coalition membership for order (r) is the first (r) lexicographic clients.
+Primary coalition membership for order $r$ is the first $r$ lexicographic clients.
 
 Persistent perturbations are exactly `generators.self_explanation.perturbations`. The derivative regression uses exactly `generators.self_explanation.derivative_regression_perturbations`.
 
-For every root seed, one common-mode latent/noise realization is generated and reused across all perturbation values so that the perturbation grid is paired within seed. For perturbation (\epsilon), every member of the target coalition receives the persistent additive intervention
+For every root seed, one common-mode latent/noise realization is generated and reused across all perturbation values so that the perturbation grid is paired within seed. For perturbation $\epsilon$, every member of the target coalition receives the persistent additive intervention
 
-[
+$$
 S^{(\epsilon)}_{i,t}=S^{(0)}_{i,t}+\epsilon,
 \qquad i\in A,
-]
+$$
 
-while every client outside (A), the latent common-mode process, availability, and noise realization remain unchanged. The intervention begins before the lag-settling segment. Exactly `synthetic.sample_sizes.self_explanation_lag_settling_epochs_discarded` post-intervention epochs are discarded; the following `synthetic.sample_sizes.self_explanation_epochs_per_perturbation` epochs are used for derivative estimation. No perturbation condition is allowed to regenerate a different latent/noise trajectory.
+while every client outside $A$, the latent common-mode process, availability, and noise realization remain unchanged. The intervention begins before the lag-settling segment. Exactly `synthetic.sample_sizes.self_explanation_lag_settling_epochs_discarded` post-intervention epochs are discarded; the following `synthetic.sample_sizes.self_explanation_epochs_per_perturbation` epochs are used for derivative estimation. No perturbation condition is allowed to regenerate a different latent/noise trajectory.
 
 For the analytic scalar fixture,
 
-[
+$$
 Y_{A,t}
-=======
+=
 
 \frac1{|A|}
 \sum_{i\in A}
 S_{i,t}.
-]
+$$
 
-A context-member set (B) produces nuisance statistic
+A context-member set $B$ produces nuisance statistic
 
-[
+$$
 m_{B,t}
-=======
+=
 
 \frac1{|B|}
 \sum_{j\in B}
 S_{j,t-1}.
-]
+$$
 
 The nuisance transformations are fixed as
 
-[
+$$
 g_{\text{linear}}(m)=m,
-]
+$$
 
-[
+$$
 g_{\tanh}(m)=\tanh(2m),
-]
+$$
 
-[
+$$
 g_{\text{softplus}}(m)
-======================
+=
 
 \log(1+e^m)-\log2.
-]
+$$
 
 Define the nuisance statistic after transformation as
 
-[
+$$
 \eta_{A,t}=g(m_{B,t}).
-]
+$$
 
 The scalar innovation fixture is
 
-[
+$$
 R_{A,t}
-=======
+=
 
 Y_{A,t}-\eta_{A,t}.
-]
+$$
 
 Context-member sets are defined in Section 8 and are identical between the fixture and the corresponding context ablation.
 
@@ -1662,34 +1662,34 @@ For each seed and context method, ordinary least squares with an intercept is fi
 
 The direct derivative is
 
-[
+$$
 D_{\text{direct}}
-=================
+=
 
 \frac{dE[Y_A]}{d\epsilon}.
-]
+$$
 
-Under the additive intervention above, the analytic value is (D_{\text{direct}}=1). The nuisance and residual derivatives are
+Under the additive intervention above, the analytic value is $D_{\text{direct}}=1$. The nuisance and residual derivatives are
 
-[
+$$
 D_{\eta}
-===========
+=
 
 \frac{dE[\eta_A]}{d\epsilon},
-]
+$$
 
-[
+$$
 D_R
-===
+=
 
 \frac{dE[R_A]}{d\epsilon}.
-]
+$$
 
-The primary derivative equivalence margin is defined relative to (|D_{\text{direct}}|).
+The primary derivative equivalence margin is defined relative to $|D_{\text{direct}}|$.
 
 ### Pure-order population completion
 
-Unless a generator-specific section states otherwise, synthetic pure-order experiments use the configured experiment client count (K), the target coalition is the lexicographically first (r) clients for order (r), and every non-target client emits an independent (U(0,1)) rank. Non-target clients are mutually independent, independent of the target coalition, and independent across samples/epochs. XOR and mixed-order conditions use the first three clients as their target set and complete the remaining (K-3) clients by the same independent-uniform rule.
+Unless a generator-specific section states otherwise, synthetic pure-order experiments use the configured experiment client count $K$, the target coalition is the lexicographically first $r$ clients for order $r$, and every non-target client emits an independent $U(0,1)$ rank. Non-target clients are mutually independent, independent of the target coalition, and independent across samples/epochs. XOR and mixed-order conditions use the first three clients as their target set and complete the remaining $K-3$ clients by the same independent-uniform rule.
 
 Independent-evaluation pure-order samples are temporally iid. When a pure-order condition is used in a finite-horizon sequential evaluation, null warm-up/calibration epochs are iid draws from the corresponding zero-effect population and campaign epochs are iid draws from the declared nonzero-effect population; the sequential state is reset exactly as specified by the applicable horizon/campaign contract.
 
@@ -1699,40 +1699,40 @@ Development pure-order cells use `randomness.synthetic_development_roots`; confi
 
 Let
 
-[
+$$
 m_r=(\sqrt3)^r.
-]
+$$
 
-For a pure order-(r) coalition (A),
+For a pure order-$r$ coalition $A$,
 
-[
+$$
 p_\theta(u_A)
-=============
+=
 
 1+
 \theta
 \prod_{i\in A}\phi_1(u_i).
-]
+$$
 
 The density is valid only when
 
-[
+$$
 |\theta|
 \le
 \frac1{m_r}.
-]
+$$
 
 The authoritative legal effect grids are `generators.pure_polynomial.theta.order_one`, `generators.pure_polynomial.theta.order_two`, and `generators.pure_polynomial.theta.order_three`.
 
-The previously tempting values (0.20) and (0.40) are not legal for the normalized third-order density because the density would become negative.
+The previously tempting values $0.20$ and $0.40$ are not legal for the normalized third-order density because the density would become negative.
 
 The primary reference effect for inferential pure-order testing is `generators.pure_polynomial.primary_reference_theta` for every order where that value is valid.
 
 Exact samples are generated by rejection sampling from independent uniform proposals with envelope
 
-[
+$$
 M=1+|\theta|m_r.
-]
+$$
 
 A negative or non-finite evaluated density is an invariant violation.
 
@@ -1740,36 +1740,36 @@ A negative or non-finite evaluated density is an invariant violation.
 
 For each sample:
 
-[
+$$
 X_1,X_2\overset{iid}{\sim}\operatorname{Bernoulli}(0.5).
-]
+$$
 
-Let interaction strength (\gamma) range over `generators.xor.strengths` and set
+Let interaction strength $\gamma$ range over `generators.xor.strengths` and set
 
-[
+$$
 P
 \left(
 X_3=X_1\oplus X_2
 \right)
-=======
+=
 
 0.5+0.5\gamma.
-]
+$$
 
 Continuous ranks are produced using independent
 
-[
+$$
 V_i\sim U(0,1)
-]
+$$
 
 and
 
-[
+$$
 U_i
-===
+=
 
 \frac{X_i+V_i}{2}.
-]
+$$
 
 Every univariate and pairwise marginal remains uniform/independent.
 
@@ -1777,19 +1777,19 @@ The primary XOR reference strength is `generators.xor.primary_reference_strength
 
 ### Mixed-order generator
 
-For clients (1,2,3), define the canonical terms
+For clients $1,2,3$, define the canonical terms
 
-[
+$$
 q_1=\phi_1(u_1),
-]
+$$
 
-[
+$$
 q_2=\phi_1(u_1)\phi_1(u_2),
-]
+$$
 
-[
+$$
 q_3=\phi_1(u_1)\phi_1(u_2)\phi_1(u_3).
-]
+$$
 
 The enabled mixed-order term sets are `generators.mixed_order.enabled_term_sets`. Every enabled term receives coefficient `generators.mixed_order.term_coefficient`, so that the complete enabled density remains strictly nonnegative under the basis bounds.
 
@@ -1797,11 +1797,11 @@ Samples are generated by exact rejection sampling using the deterministic sum-of
 
 ### Context-dependent pure triple
 
-Let (C_t\in{-1,+1}) be a stationary two-state Markov chain with same-state probability `generators.context_dependent_triple.markov_same_probability`. The change probability is its complement, (1-\texttt{generators.context_dependent_triple.markov_same_probability}). Initial-state probabilities are `generators.context_dependent_triple.initial_state_probabilities`.
+Let $C_t\in\{-1,+1\}$ be a stationary two-state Markov chain with same-state probability `generators.context_dependent_triple.markov_same_probability`. The change probability is its complement, $1-\texttt{generators.context\_dependent\_triple.markov\_same\_probability}$. Initial-state probabilities are `generators.context_dependent_triple.initial_state_probabilities`.
 
 For the target triple,
 
-[
+$$
 p_\theta
 (
 u_A\mid C_{t-1}=c
@@ -1811,19 +1811,19 @@ u_A\mid C_{t-1}=c
 1+
 \theta c
 \prod_{i\in A}\phi_1(u_i),
-]
+$$
 
 with primary effect `generators.context_dependent_triple.primary_theta`.
 
-Every outside client (j\notin A) emits an informative rank from the interval selected by `generators.context_dependent_triple.outside_rank_intervals` for the current latent state. If the selected interval is ([a_c,b_c]), then
+Every outside client $j\notin A$ emits an informative rank from the interval selected by `generators.context_dependent_triple.outside_rank_intervals` for the current latent state. If the selected interval is $[a_c,b_c]$, then
 
-[
+$$
 U_{j,t}\mid C_t=c\sim U(a_c,b_c).
-]
+$$
 
-Conditional on (C_t), outside clients are mutually independent and independent of the target-coalition rejection-sampling randomness. Interval endpoints are interpreted literally; no midpoint or additional noise model is permitted.
+Conditional on $C_t$, outside clients are mutually independent and independent of the target-coalition rejection-sampling randomness. Interval endpoints are interpreted literally; no midpoint or additional noise model is permitted.
 
-The oracle-context comparator uses the true (C_{t-1}).
+The oracle-context comparator uses the true $C_{t-1}$.
 
 ### Outside-contamination generator
 
@@ -1831,24 +1831,24 @@ The target client count is `generators.outside_contamination.client_count`. The 
 
 Outside correlated-campaign fractions are exactly `generators.outside_contamination.correlated_campaign_fractions`.
 
-For fraction (f), the number of contaminated outside clients is derived by round-half-up of
+For fraction $f$, the number of contaminated outside clients is derived by round-half-up of
 
-[
+$$
 f|A^c|.
-]
+$$
 
 The lexicographically first required outside clients are contaminated.
 
 During the campaign their outside ranks are transformed as
 
-[
+$$
 U'=
 \min
 \left(
-U+\texttt{generators.outside_contamination.outside_rank_shift},
-1-\texttt{context.rank_clip_epsilon}
+U+\texttt{generators.outside\_contamination.outside\_rank\_shift},
+1-\texttt{context.rank\_clip\_epsilon}
 \right).
-]
+$$
 
 No other generator parameter changes.
 
@@ -1858,11 +1858,11 @@ Unavailable-client fractions are exactly `generators.client_dropout.unavailable_
 
 For each client and epoch, availability is independently drawn with probability
 
-[
+$$
 1-f.
-]
+$$
 
-The availability mask for epoch (t) is generated before current evidence and is therefore predictable.
+The availability mask for epoch $t$ is generated before current evidence and is therefore predictable.
 
 A coalition is active only when:
 
@@ -1884,15 +1884,15 @@ No comparator receives attack-informed score normalization.
 
 ### Conditional pair-dependence reference
 
-For pair (i,j),
+For pair $i,j$,
 
-[
+$$
 P_{ij,t}
-========
+=
 
 (2U^{(-A)}_{i,t}-1)
 (2U^{(-A)}_{j,t}-1).
-]
+$$
 
 Its benign mean and sample standard deviation are estimated from cross-fitted nuisance-fit data.
 
@@ -1902,16 +1902,16 @@ Maximum order: 2.
 
 ### Lancaster-moment triple reference
 
-For triple (i,j,k),
+For triple $i,j,k$,
 
-[
+$$
 L_{ijk,t}
-=========
+=
 
 (2U_i-1)
 (2U_j-1)
 (2U_k-1).
-]
+$$
 
 The coordinates are exact outside-conditioned ranks.
 
@@ -1921,7 +1921,7 @@ This comparator is explicitly a finite-dimensional Lancaster-style third-order m
 
 ### Connected-information reference
 
-Conditional ranks are discretized into `comparators.connected_information.bins_per_client` equal-width bins over ([0,1]).
+Conditional ranks are discretized into `comparators.connected_information.bins_per_client` equal-width bins over $[0,1]$.
 
 Contingency probabilities use the Jeffreys pseudocount `comparators.connected_information.jeffreys_pseudocount_per_cell`.
 
@@ -1929,14 +1929,14 @@ For triples, the lower-order maximum-entropy distribution matching all pair marg
 
 The per-cell interaction score is
 
-[
+$$
 \log
 \frac{
 p_{\text{full,benign}}(c)
 }{
 p_{\text{pair-maxent,benign}}(c)
 }.
-]
+$$
 
 The absolute standardized score is used operationally.
 
@@ -1944,7 +1944,7 @@ Connected information is based on comparing a distribution with the maximum-entr
 
 ### Conditional log-linear reference
 
-Ranks use `comparators.conditional_log_linear.bins_per_client` equal-width bins over ([0,1]).
+Ranks use `comparators.conditional_log_linear.bins_per_client` equal-width bins over $[0,1]$.
 
 Fit a hierarchical multinomial/Poisson log-linear model containing:
 
@@ -1957,15 +1957,15 @@ Maximum iterations, fitted-marginal convergence tolerance, and cell probability 
 
 The per-observation raw anomaly score is
 
-[
+$$
 -\log p_{\text{lower-order}}(c).
-]
+$$
 
 It receives the common nuisance-fit nonconformity calibration.
 
 ### D-vine conditional reference
 
-For each triple with lexicographically ordered members (i<j<k), use the fixed D-vine
+For each triple with lexicographically ordered members $i<j<k$, use the fixed D-vine
 
 ```text
 i — j — k
@@ -1973,21 +1973,21 @@ i — j — k
 
 All pair copulas are Gaussian.
 
-Benign pair parameters are estimated by Kendall's (\tau), converted through
+Benign pair parameters are estimated by Kendall's $\tau$, converted through
 
-[
+$$
 \rho
-====
+=
 
 \sin
 \left(
 \frac{\pi}{2}\tau
 \right).
-]
+$$
 
 The second-tree conditional pseudo-observations are computed with the Gaussian copula h-functions.
 
-The raw highest-tree score is the absolute log-density contribution of the (i,k\mid j) Gaussian pair copula.
+The raw highest-tree score is the absolute log-density contribution of the $i,k\mid j$ Gaussian pair copula.
 
 No copula-family search is performed.
 
@@ -2025,25 +2025,25 @@ The raw score is L2 reconstruction residual.
 
 ### Multistream CUSUM reference
 
-For client (i),
+For client $i$,
 
-[
+$$
 Y_{i,t}
-=======
+=
 
-U^M_{i,t}-\texttt{comparators.multistream_cusum.rank_center},
-]
+U^M_{i,t}-\texttt{comparators.multistream\_cusum.rank\_center},
+$$
 
-[
+$$
 C_{i,0}
-=======
+=
 
-\texttt{comparators.multistream_cusum.initial_state},
-]
+\texttt{comparators.multistream\_cusum.initial\_state},
+$$
 
-[
+$$
 C_{i,t}
-=======
+=
 
 \max
 \left(
@@ -2051,17 +2051,17 @@ C_{i,t}
 C_{i,t-1}
 +
 Y_{i,t}
--------
+-
 
-\texttt{comparators.multistream_cusum.drift_subtraction}
+\texttt{comparators.multistream\_cusum.drift\_subtraction}
 \right).
-]
+$$
 
 The global raw score is
 
-[
+$$
 \max_i C_{i,t}.
-]
+$$
 
 The final stopping threshold is independently calibrated by the calibrated finite-horizon route.
 
@@ -2085,7 +2085,7 @@ Concept-specific floors remain distinct and must not be replaced by a single glo
 
 Confidence level, nominal significance alpha, paired-bootstrap resample count, and non-exact synthetic sign-flip replicate count remain authoritative under `statistics`. Statistical-analysis RNG uses `randomness.statistical_analysis_base_seed`.
 
-The paired bootstrap method is fixed to BCa. Real ten-seed sign-flip inference uses exact enumeration of all (2^{10}=1024) assignments; the value is derived from the ten configured real confirmatory seeds and is not separately configured. Multiplicity correction is Holm. PFA intervals use exact Clopper-Pearson; ordinary binary descriptive intervals use two-sided exact Clopper-Pearson. Quantile interpolation is fixed to linear.
+The paired bootstrap method is fixed to BCa. Real ten-seed sign-flip inference uses exact enumeration of all $2^{10}=1024$ assignments; the value is derived from the ten configured real confirmatory seeds and is not separately configured. Multiplicity correction is Holm. PFA intervals use exact Clopper-Pearson; ordinary binary descriptive intervals use two-sided exact Clopper-Pearson. Quantile interpolation is fixed to linear.
 
 #### Primary directional Holm family
 
@@ -2269,9 +2269,9 @@ For a point timestamp, only the containing epoch is marked.
 
 For an interval, use half-open interval semantics:
 
-[
+$$
 [start,end).
-]
+$$
 
 An ambiguous ground-truth mapping is retained in the discrepancy manifest but is not silently treated as malicious.
 
@@ -2388,21 +2388,21 @@ For each client/epoch:
 3. append total raw event count;
 4. append Shannon entropy of the raw bucket-count distribution.
 
-For total count (N>0),
+For total count $N>0$,
 
-[
+$$
 p_b=\frac{n_b}{N},
-]
+$$
 
-[
+$$
 H=-\sum_{b:n_b>0}p_b\log p_b.
-]
+$$
 
-For (N=0),
+For $N=0$,
 
-[
+$$
 H=0.
-]
+$$
 
 An empty epoch therefore contains:
 
@@ -2426,9 +2426,9 @@ No forward fill, backward fill, temporal interpolation, mean imputation, or atta
 
 For every client/feature, using only `detector_fit`:
 
-[
+$$
 x'
-==
+=
 
 \frac{
 x-\operatorname{median}(x)
@@ -2436,10 +2436,10 @@ x-\operatorname{median}(x)
 \max
 (
 Q_{0.75}(x)-Q_{0.25}(x),
-\texttt{datasets.preprocessing.robust_scaling_iqr_floor}
+\texttt{datasets.preprocessing.robust\_scaling\_iqr\_floor}
 )
 }.
-]
+$$
 
 Quantiles use the authoritative linear interpolation method.
 
@@ -2481,7 +2481,7 @@ Overlapping windows are forbidden for primary PFA inference.
 
 ## 8.1 Exact exclusion
 
-For coalition (A):
+For coalition $A$:
 
 ```text
 context members = A^c
@@ -2492,7 +2492,7 @@ This is the primary method.
 
 ## 8.2 Inclusive context
 
-For coalition (A):
+For coalition $A$:
 
 ```text
 context members = all selected clients
@@ -2503,7 +2503,7 @@ This intentionally allows historical coalition information into the nuisance rep
 
 ## 8.3 Leave-one-out insufficient exclusion
 
-Let (a_1) be the lexicographically first member of (A).
+Let $a_1$ be the lexicographically first member of $A$.
 
 ```text
 context members = all selected clients except a_1
@@ -2514,13 +2514,13 @@ Other coalition members therefore remain in the nuisance representation.
 
 ## 8.4 Partial coalition exclusion
 
-For a triple (a_1<a_2<a_3):
+For a triple $a_1<a_2<a_3$:
 
 ```text
 context members = all clients except a_1 and a_2
 ```
 
-so (a_3) remains included.
+so $a_3$ remains included.
 
 For a pair, partial exclusion equals leave-one-out insufficient exclusion.
 
@@ -2530,7 +2530,7 @@ Synthetic mechanism experiments only.
 
 For the common-mode generator the true lagged outside latent state is assigned to four fixed normal-quartile cells.
 
-The quartile boundaries are the (0.25), (0.50), and (0.75) standard-normal quantiles.
+The quartile boundaries are the $0.25$, $0.50$, and $0.75$ standard-normal quantiles.
 
 No K-means is used.
 
@@ -2552,7 +2552,7 @@ Ranks, coalition scores, and attack labels are not shuffled.
 
 ## 8.8 Local-history-only context
 
-For coalition (A), the context histogram uses only lagged ranks of coalition members.
+For coalition $A$, the context histogram uses only lagged ranks of coalition members.
 
 This deliberately violates exact exclusion and is a sensitivity diagnostic.
 
@@ -2643,9 +2643,9 @@ Used only as the operational local reference.
 
 ## 10.2 Raw Mean Rank Fusion
 
-[
+$$
 R_t=\frac1K\sum_iU^M_{i,t}.
-]
+$$
 
 High score is anomalous.
 
@@ -2653,9 +2653,9 @@ The scalar receives the common nuisance-fit calibration and calibrated finite-ho
 
 ## 10.3 Raw Max Rank Fusion
 
-[
+$$
 R_t=\max_iU^M_{i,t}.
-]
+$$
 
 High score is anomalous.
 
@@ -2679,7 +2679,7 @@ Enabled order set:
 {1,2}
 ```
 
-Equal order weights are derived as (1/2,1/2).
+Equal order weights are derived as $1/2,1/2$.
 
 This is the primary lower-order causal predecessor.
 
@@ -2804,15 +2804,15 @@ The selected method identity and its native target order are written to `stronge
 
 ## 11.1 Strict ODI
 
-[
+$$
 I_{ODI}
-=======
+=
 
 \mathbf1
-\left{
+\left\{
 T_G<\min_iT_i
-\right}.
-]
+\right\}.
+$$
 
 Range:
 
@@ -2835,86 +2835,86 @@ The censored value is never substituted into inferential stopping-time calculati
 
 ## 11.3 Earliest local stopping time
 
-[
+$$
 T_{\text{local,min}}
-====================
+=
 
 \min_iT_i.
-]
+$$
 
 Same no-stop semantics.
 
 ## 11.4 Statistical lead
 
-[
+$$
 L_{stat}
-========
+=
 
 T_{\text{local,min}}-T_G.
-]
+$$
 
 Defined only when both stops are finite.
 
 ## 11.5 Operational lead
 
-[
+$$
 L_{op}
-======
+=
 
 T_{\text{local,min}}
 -
 \left(
 T_G+
 \frac{\delta_{\text{seconds}}}
-{\texttt{time.real_data_epoch_seconds}}
+{\texttt{time.real\_data\_epoch\_seconds}}
 \right).
-]
+$$
 
 Defined only when both stops are finite.
 
 ## 11.6 Seed-level ODI rate
 
-For seed (s),
+For seed $s$,
 
-[
+$$
 R_{ODI,s}
-=========
+=
 
 \frac1{|\mathcal C|}
 \sum_{c\in\mathcal C}
 I_{ODI,c,s}.
-]
+$$
 
 The primary real inferential unit is the seed-level rate.
 
 ## 11.7 Campaign detection rate
 
-[
+$$
 DR_s
-====
+=
 
 \frac{
-#{
+\#\{
 c:T_{G,c,s}\le H
-}
+\}
 }{
 |\mathcal C|
 }.
-]
+$$
 
 This is independent of ODI qualification.
 
 ## 11.8 Finite-horizon PFA
 
-[
+$$
 \widehat{PFA}_{H}
-=================
+=
 
 \frac1{N_0}
 \sum_{h=1}^{N_0}
 \mathbf1
 {T_G^{(h)}\le H}.
-]
+$$
 
 Report:
 
@@ -2923,14 +2923,14 @@ Report:
 
 ## 11.9 False campaigns per 10,000 benign epochs
 
-[
+$$
 10^4
 \frac{
 N_{\text{false declarations}}
 }{
 N_{\text{benign epochs}}
 }.
-]
+$$
 
 Descriptive only.
 
@@ -2944,55 +2944,55 @@ Empirical simulation is a theorem-implementation diagnostic and does not replace
 
 Ordinary least squares over configured small perturbations produces:
 
-[
+$$
 D_\eta
-======
+=
 
 \frac{dE[\eta]}{d\epsilon},
-]
+$$
 
-[
+$$
 D_R
-===
+=
 
 \frac{dE[R]}{d\epsilon}.
-]
+$$
 
-For Full FedCampaign-EMHI also report the signed target-atom coordinate derivative. Let (q^*) denote the full-tensor basis coordinate whose every coalition member uses basis index 1, and let (\widetilde Z_{A,t,q^*}(\epsilon)) be that calibrated standardized atom coordinate under perturbation (\epsilon), before evidence clipping or norm aggregation. Using the same OLS-with-intercept procedure and the same post-settling epoch means as (D_\eta) and (D_R), define
+For Full FedCampaign-EMHI also report the signed target-atom coordinate derivative. Let $q^*$ denote the full-tensor basis coordinate whose every coalition member uses basis index 1, and let $\widetilde Z_{A,t,q^*}(\epsilon)$ be that calibrated standardized atom coordinate under perturbation $\epsilon$, before evidence clipping or norm aggregation. Using the same OLS-with-intercept procedure and the same post-settling epoch means as $D_\eta$ and $D_R$, define
 
 \[
 D_Z=\frac{d}{d\epsilon}\mathbb E[\widetilde Z_{A,q^*}].
 \]
 
-No alternate coordinate may be selected from observed derivative magnitude. (D_Z) is descriptive mechanism evidence and is not substituted for the primary attenuation statistic.
+No alternate coordinate may be selected from observed derivative magnitude. $D_Z$ is descriptive mechanism evidence and is not substituted for the primary attenuation statistic.
 
 ### Self-explanation attenuation
 
-For each context method (m), define
+For each context method $m$, define
 
-[
+$$
 A_{\text{self}}^{(m)}
-=======================
+=
 
 1-
 \frac{
 |D_R^{(m)}|
 }{
 |D_{\text{direct}}|+
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 The primary material contrast for each seed is
 
-[
+$$
 \Delta A_{\text{self}}
-=========================
+=
 
 A_{\text{self}}^{(\text{inclusive})}
 -
 A_{\text{self}}^{(\text{exact})}.
-]
+$$
 
 Positive values mean that inclusive context suppresses the direct perturbation response more strongly than exact exclusion. This is the sole attenuation statistic used for the primary materiality gate and primary directional hypothesis.
 
@@ -3000,21 +3000,21 @@ Positive values mean that inclusive context suppresses the direct perturbation r
 
 For an attack interval,
 
-[
+$$
 \kappa
-======
+=
 
 \frac1N
 \sum_t\log e_{A,t}.
-]
+$$
 
 ## 11.13 Proper-subset drift
 
-For proper subset (B),
+For proper subset $B$,
 
-[
+$$
 \Delta_B
-========
+=
 
 \frac{
 \left\|
@@ -3024,28 +3024,28 @@ For proper subset (B),
 \max
 \left(
 \sqrt{\operatorname{tr}(\Sigma_{0,B})},
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 \right)
 }.
-]
+$$
 
 Then
 
-[
+$$
 D_{<A}
-======
+=
 
 \max_{B\subsetneq A}
 \Delta_B.
-]
+$$
 
 ## 11.14 Target-order drift
 
-For predeclared signed target coordinate (X_A),
+For predeclared signed target coordinate $X_A$,
 
-[
+$$
 D_A
-===
+=
 
 \frac{
 E_1[X_A]-E_0[X_A]
@@ -3053,10 +3053,10 @@ E_1[X_A]-E_0[X_A]
 \max
 (
 SD_0(X_A),
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 )
 }.
-]
+$$
 
 ## 11.15 Order-specific stopping probability
 
@@ -3064,18 +3064,18 @@ Fraction of seeded campaign trajectories for which an independently calibrated m
 
 ## 11.16 Order evidence share
 
-[
+$$
 R_r(t)
-======
+=
 
 \frac{
 E_t^{(r)}
 }{
 \sum_{s\in\mathcal R}E_t^{(s)}
 +
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 Descriptive only.
 
@@ -3083,27 +3083,27 @@ Descriptive only.
 
 At a global stop epoch, consider enabled orders with
 
-[
+$$
 E_t^{(r)}>1.
-]
+$$
 
 The decisive order is the order maximizing
 
-[
+$$
 \log E_t^{(r)}.
-]
+$$
 
 Ties within `numerics.deterministic_comparison_tolerance` choose the smaller order.
 
-If no enabled order has (E_t^{(r)}>1), the value is `null`.
+If no enabled order has $E_t^{(r)}>1$, the value is `null`.
 
 The metric never affects stopping.
 
 ## 11.18 Atom NRMSE
 
-[
+$$
 NRMSE
-=====
+=
 
 \frac{
 \sqrt{
@@ -3122,15 +3122,15 @@ Z_t^{EMHI}
 |_2^2
 }
 +
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 ## 11.19 Atom cosine similarity
 
-[
+$$
 \operatorname{cos}
-==================
+=
 
 \frac{
 \sum_t
@@ -3148,18 +3148,18 @@ Z_t^{HOFD}
 |Z_t^{HOFD}|_2^2
 }
 +
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 ## 11.20 Stopping-time difference
 
-[
+$$
 \Delta T
-========
+=
 
 T_G^{EMHI}-T_G^{HOFD}.
-]
+$$
 
 Only paired finite stops enter this continuous metric.
 
@@ -3167,37 +3167,37 @@ A companion paired detection-indicator difference must be reported so that missi
 
 ## 11.21 PFA difference
 
-[
+$$
 \Delta PFA
-==========
+=
 
 \widehat PFA^{EMHI}
 -
 \widehat PFA^{comparison}.
-]
+$$
 
 ## 11.22 Conditional-rank MAE
 
 Synthetic only:
 
-[
+$$
 MAE
-===
+=
 
 \frac1n
 \sum
 |
 \widehat U-U_{\text{truth}}
 |.
-]
+$$
 
 ## 11.23 Projection NRMSE
 
-Synthetic only. Let (P_t^\ast) be the analytically known or independently generated high-precision population projection of (\Phi_{A,t}) onto the proper-subset design, and let (\widehat P_t=\widehat M_{A,c}^\top X_{<A,t}) be the fitted projection on an independent evaluation sample. Define
+Synthetic only. Let $P_t^\ast$ be the analytically known or independently generated high-precision population projection of $\Phi_{A,t}$ onto the proper-subset design, and let $\widehat P_t=\widehat M_{A,c}^\top X_{<A,t}$ be the fitted projection on an independent evaluation sample. Define
 
-[
+$$
 NRMSE_{\text{proj}}
-=====================
+=
 
 \frac{
 \sqrt{
@@ -3214,17 +3214,17 @@ n^{-1}\sum_t
 \right\|_2^2
 }
 +
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 Normalization by the full tensor-representation RMS keeps the metric defined when the true proper-subset projection is exactly zero. Population truth and fitted estimates must be evaluated on the same independent sample rows.
 
 ## 11.24 Standardized null bias
 
-[
+$$
 B_0
-===
+=
 
 \frac{
 |
@@ -3234,23 +3234,23 @@ B_0
 \max
 \left(
 \sqrt{\operatorname{tr}(\widehat\Sigma_Z)},
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 \right)
 }.
-]
+$$
 
 ## 11.25 Context coverage
 
-[
+$$
 \operatorname{coverage}
-=======================
+=
 
 \frac{
 N_{\text{supported coalition-epochs}}
 }{
 N_{\text{eligible coalition-epochs}}
 }.
-]
+$$
 
 Eligibility means:
 
@@ -3259,43 +3259,43 @@ Eligibility means:
 
 ## 11.26 Abstention rate
 
-[
+$$
 1-\operatorname{coverage}.
-]
+$$
 
 ## 11.27 Numerical failure rate
 
-[
+$$
 \frac{
 N_{\text{coalition/context fits failing a numerical invariant}}
 }{
 N_{\text{attempted coalition/context fits}}
 }.
-]
+$$
 
 Ordinary support-driven abstention is not a numerical failure.
 
 ## 11.28 Common-mode suppression
 
-[
+$$
 1-
 \frac{
 PFA_{\text{EMHI}}
 }{
 PFA_{\text{RAW MEAN}}
 +
-\texttt{numerics.metric_denominator_floor}
+\texttt{numerics.metric\_denominator\_floor}
 }.
-]
+$$
 
 ## 11.29 Outside-conditioning power loss
 
-[
+$$
 DR_{\text{NO OUTSIDE CONTEXT}}
-------------------------------
+-
 
 DR_{\text{EMHI}}.
-]
+$$
 
 ## 11.30 AUROC
 
@@ -3323,12 +3323,12 @@ Not Defined
 
 Derived as
 
-[
+$$
 \sum_{r=1}^{R}
 \binom Kr.
-]
+$$
 
-For the primary method (R=3).
+For the primary method $R=3$.
 
 ## 11.33 Server compute latency
 
@@ -3373,17 +3373,17 @@ local_action_flag: uint8
 availability_flag: uint8
 ```
 
-The logical payload size is derived from the fixed field widths as 20 bytes per client per epoch. The federation payload is therefore (20K) logical bytes per epoch. Transport headers are excluded from this application-payload quantity.
+The logical payload size is derived from the fixed field widths as 20 bytes per client per epoch. The federation payload is therefore $20K$ logical bytes per epoch. Transport headers are excluded from this application-payload quantity.
 
 ## 11.36 Throughput
 
-[
+$$
 \frac{
 \text{coalitions scored}
 }{
 \text{server compute seconds}
 }.
-]
+$$
 
 ---
 
@@ -3399,23 +3399,23 @@ For the evaluation portion of each real dataset:
 6. require at least `distributed_support.minimum_clients` attacked clients;
 7. compute each participating client's first malicious epoch;
 8. require
-   [
+$$
    \max_i t_i^{first}
-   ------------------
+-
 
    \min_i t_i^{first}
    \le
-   \texttt{campaign.distributed_first_activity_window_epochs};
-   ]
+   \texttt{campaign.distributed\_first\_activity\_window\_epochs};
+$$
 9. define the merged campaign duration as
-   [
-   \texttt{duration_epochs}=\texttt{end_epoch}-\texttt{start_epoch}+1;
-   ]
+$$
+   \texttt{duration\_epochs}=\texttt{end\_epoch}-\texttt{start\_epoch}+1;
+$$
    merged intervening benign epochs are part of the same campaign interval and therefore count toward this duration;
 10. require
-   [
-   \texttt{duration_epochs}\ge\texttt{campaign.minimum_duration_epochs};
-   ]
+$$
+   \texttt{duration\_epochs}\ge\texttt{campaign.minimum\_duration\_epochs};
+$$
 11. require the complete `campaign.prestart_warmup_epochs` pre-campaign warm-up with zero explicit malicious ground-truth epochs across selected clients.
 
 Every eligible campaign is retained.
@@ -3477,15 +3477,15 @@ The smoke workflow uses the exact fixtures below. Expected values are part of th
 
 Histogram binning uses
 
-[
+$$
 B(u)=\min
 \left(
-\left\lfloor u\,\texttt{context.outside_histogram_bin_count}\right\rfloor,
-\texttt{context.outside_histogram_bin_count}-1
+\left\lfloor u\,\texttt{context.outside\_histogram\_bin\_count}\right\rfloor,
+\texttt{context.outside\_histogram\_bin\_count}-1
 \right),
-]
+$$
 
-which is equivalent to equal-width left-closed/right-open bins on ([0,1]) with the last bin closed at 1 before rank clipping.
+which is equivalent to equal-width left-closed/right-open bins on $[0,1]$ with the last bin closed at 1 before rank clipping.
 
 Pass requires every exact fixture to match its expected result within the concept-specific exact/tolerance rule already defined by this roadmap. No approximate visual inspection constitutes a pass.
 
@@ -3535,7 +3535,7 @@ Primary inferential condition is defined by `experiments.pure_order_separation_v
 
 Purity is established from the declared generator law, not inferred from a finite Monte Carlo sample. The validator mechanically evaluates the following exact identities before method scoring:
 
-* pure polynomial order-(r): integrating the density over any nonempty omitted target coordinate yields the uniform density on every proper subset because each nonconstant basis coordinate has zero integral on ([0,1]);
+* pure polynomial order-$r$: integrating the density over any nonempty omitted target coordinate yields the uniform density on every proper subset because each nonconstant basis coordinate has zero integral on $[0,1]$;
 * XOR: exact enumeration of the eight binary states verifies Bernoulli(0.5) univariate marginals and independent pair marginals for every configured strength, while the independent jitter preserves uniform continuous marginals;
 * context-dependent pure triple: the same pure-polynomial marginalization identity is checked separately for both latent states;
 * mixed-order generators: the enabled-term set is treated as the exact population truth; a term declared absent must integrate to zero under the appropriate proper-subset marginalization, while enabled lower-order terms are not incorrectly required to vanish.
@@ -3547,7 +3547,7 @@ The implementation evaluates these identities symbolically where the generator i
 **Classification:** claim-bearing equivalence.  
 **Configuration:** `experiments.exclusion_matched_hofd_equivalence`.
 
-The population is the pure-polynomial family at primary client count `experiments.pure_order_separation_validation.primary_client_count`. For each coalition order (r=1,2,3), the target coalition is the first (r) lexicographic clients, the remaining clients follow the independent-uniform population-completion rule, and the target effect is `generators.pure_polynomial.primary_reference_theta`. The corresponding zero-effect population supplies null calibration data.
+The population is the pure-polynomial family at primary client count `experiments.pure_order_separation_validation.primary_client_count`. For each coalition order $r=1,2,3$, the target coalition is the first $r$ lexicographic clients, the remaining clients follow the independent-uniform population-completion rule, and the target effect is `generators.pure_polynomial.primary_reference_theta`. The corresponding zero-effect population supplies null calibration data.
 
 Support per context is `support_grids.hofd_equivalence_samples_per_context`. Exact-exclusion outside-field construction is retained, but this equivalence experiment uses `experiments.exclusion_matched_hofd_equivalence.context_cell_count` equal to one for both methods. The outside histogram and complement provenance are still computed and validated; all rows are assigned to the single comparison cell so the declared support is exact and the experiment isolates projection/orthogonalization differences rather than context-clustering error. This is not the No-Outside-Context ablation.
 
@@ -3590,14 +3590,14 @@ Data:
 
 The population client count is `experiments.pure_order_separation_validation.primary_client_count`; non-target clients use the independent-uniform completion rule. Seeds are `randomness.synthetic_development_roots`. No real campaign outcome may be read before the selected identity exists.
 
-For candidate (m), let (r_m) be its native target order. Fit the candidate on the same nuisance-fit rows used by every other candidate, evaluate it on the independent pure-polynomial reference rows for order (r_m), orient the candidate so larger means more anomalous according to its declared comparator contract, and standardize its raw target-order score using only the corresponding zero-effect nuisance-fit score mean and standard deviation. If that null standard deviation is non-finite or no greater than `numerics.metric_denominator_floor`, the candidate is ineligible.
+For candidate $m$, let $r_m$ be its native target order. Fit the candidate on the same nuisance-fit rows used by every other candidate, evaluate it on the independent pure-polynomial reference rows for order $r_m$, orient the candidate so larger means more anomalous according to its declared comparator contract, and standardize its raw target-order score using only the corresponding zero-effect nuisance-fit score mean and standard deviation. If that null standard deviation is non-finite or no greater than `numerics.metric_denominator_floor`, the candidate is ineligible.
 
-For seed (s), let (D^m_s) be the mean standardized candidate score on the target-effect reference rows. For the pure-polynomial family, the analytic population standardized drift of the orthonormal target coordinate is
+For seed $s$, let $D^m_s$ be the mean standardized candidate score on the target-effect reference rows. For the pure-polynomial family, the analytic population standardized drift of the orthonormal target coordinate is
 
 \[
 D^{truth}_{r_m}=\theta_{ref},
 \qquad
-\theta_{ref}=\texttt{generators.pure_polynomial.primary_reference_theta}.
+\theta_{ref}=\texttt{generators.pure\_polynomial.primary\_reference\_theta}.
 \]
 
 The seed-level standardized target-order estimation error is
@@ -3612,13 +3612,13 @@ and the selection statistic is
 E_m=\frac{1}{|\mathcal S|}\sum_{s\in\mathcal S}e_{m,s},
 \]
 
-where (\mathcal S) is `randomness.synthetic_development_roots`. Because both the candidate output and analytic target are expressed in null-standard-deviation units, (E_m) is directly comparable across the declared order-2 and order-3 native targets.
+where $\mathcal S$ is `randomness.synthetic_development_roots`. Because both the candidate output and analytic target are expressed in null-standard-deviation units, $E_m$ is directly comparable across the declared order-2 and order-3 native targets.
 
-Mixed-order rows are mandatory diagnostics and candidate validity checks but do not alter (E_m). A mixed-order diagnostic is valid only when the candidate produces a finite score under its declared native-order contract; no unsupported higher- or lower-order extension is invented.
+Mixed-order rows are mandatory diagnostics and candidate validity checks but do not alter $E_m$. A mixed-order diagnostic is valid only when the candidate produces a finite score under its declared native-order contract; no unsupported higher- or lower-order extension is invented.
 
 A candidate is eligible only if every required implementation invariant passes and its independently calibrated held-out null PFA one-sided UCB satisfies `evidence.calibrated_finite_horizon.target_pfa` using `synthetic.sample_sizes.finite_horizon_calibration_horizons_per_seed` calibration horizons and `synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed` held-out horizons per seed.
 
-Select the eligible candidate with the smallest (E_m). If two errors differ by no more than `experiments.strong_comparator_composition_challenge.error_tie_tolerance_standardized_units`, use median scoring runtime as the first tiebreak.
+Select the eligible candidate with the smallest $E_m$. If two errors differ by no more than `experiments.strong_comparator_composition_challenge.error_tie_tolerance_standardized_units`, use median scoring runtime as the first tiebreak.
 
 Runtime tiebreak scope is fixed: after fitting is complete, perform one unmeasured scoring pass and then time one scoring pass over exactly `synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed` held-out rows from that candidate's native pure-order reference condition. Disk I/O and fitting are excluded. Use a monotonic high-resolution clock in one process under the same observed runtime environment for all candidates; candidate runtime is the median elapsed scoring time across development seeds. If compute times differ by no more than `experiments.strong_comparator_composition_challenge.runtime_tie_tolerance_seconds`, choose the lexicographically smaller method name.
 
@@ -3646,21 +3646,21 @@ The selected method identity is immutable for downstream real-data experiments u
 
 This experiment uses the deterministic context-support generator implemented in `synthetic/context_boundaries.py`. It is not an additional scientific generator family; it is the fully specified support substrate for this existing feasibility experiment and is derived only from the requested context-cell count and the roadmap's existing rank/context definitions.
 
-For a condition with requested context-cell count (C):
+For a condition with requested context-cell count $C$:
 
 1. use client count `experiments.pure_order_separation_validation.primary_client_count`;
-2. use the first (r) lexicographic clients as the target coalition for order (r in {1,2,3});
-3. define latent support-cell index (c_t=t \bmod C);
-4. for every non-target client at epoch (t), set its outside marginal rank to the deterministic midpoint
+2. use the first $r$ lexicographic clients as the target coalition for order (r in \{1,2,3\});
+3. define latent support-cell index $c_t=t \bmod C$;
+4. for every non-target client at epoch $t$, set its outside marginal rank to the deterministic midpoint
    \[
    U^M_{j,t}=\frac{c_t+1/2}{C};
    \]
 5. draw every target-client rank independently as Uniform(0,1) from the seed/component substream;
-6. use one initial unscored row so the one-epoch outside lag is defined, then cycle through all (C) cells in order.
+6. use one initial unscored row so the one-epoch outside lag is defined, then cycle through all $C$ cells in order.
 
-With `context.outside_histogram_bin_count=8` and every declared (C in {2,4,8}), these midpoint values map to distinct deterministic histogram locations. Therefore the requested K-means context cells are identifiable without using the latent label, while the estimator still receives only the roadmap-defined lagged outside histogram and K-means assignment. The latent support-cell index is used only to construct exact support counts and evaluate known truth.
+With `context.outside_histogram_bin_count=8` and every declared (C in \{2,4,8\}), these midpoint values map to distinct deterministic histogram locations. Therefore the requested K-means context cells are identifiable without using the latent label, while the estimator still receives only the roadmap-defined lagged outside histogram and K-means assignment. The latent support-cell index is used only to construct exact support counts and evaluate known truth.
 
-For a requested support value (n), generate exactly (nC+1) rows and discard only the initial lag row. This yields exactly (n) usable nuisance-fit observations in every latent support cell. No oversampling, truncation choice, or random cell balancing is left to the implementation.
+For a requested support value $n$, generate exactly $nC+1$ rows and discard only the initial lag row. This yields exactly $n$ usable nuisance-fit observations in every latent support cell. No oversampling, truncation choice, or random cell balancing is left to the implementation.
 
 Under the primary zero-effect law, target ranks are conditionally Uniform(0,1) in every support cell. Therefore:
 
@@ -3726,10 +3726,10 @@ using the roadmap's first orthonormal shifted-Legendre basis coordinate. The the
 \[
 X_t=\operatorname{clip}\!\left(q_t,-b,b\right),
 \qquad
-b=\texttt{evidence.clip_bound}.
+b=\texttt{evidence.clip\_bound}.
 \]
 
-The direction is fixed before sampling. Under the declared independent null, (q_t) has a distribution symmetric about zero, clipping is an odd function, and each trajectory is independent over time; consequently
+The direction is fixed before sampling. Under the declared independent null, $q_t$ has a distribution symmetric about zero, clipping is an odd function, and each trajectory is independent over time; consequently
 
 \[
 \mathbb E[X_t\mid\mathcal F^G_{t-1}]=0.
@@ -3745,14 +3745,14 @@ For restricted-ARL computation define
 T^{RM}=\min(T,M),
 \]
 
-where (M) is the configured maximum trajectory length and a non-stopping trajectory contributes exactly (M). The seed-level restricted ARL is the arithmetic mean of (T^{RM}) over that seed's trajectories. The one-sided 95% BCa lower confidence bound is computed across independent seed-level restricted-ARL values.
+where $M$ is the configured maximum trajectory length and a non-stopping trajectory contributes exactly $M$. The seed-level restricted ARL is the arithmetic mean of $T^{RM}$ over that seed's trajectories. The one-sided 95% BCa lower confidence bound is computed across independent seed-level restricted-ARL values.
 
 The theorem-assumption checker must mechanically verify:
 
 * the signed coordinate and clipping bound are fixed before trajectory sampling;
-* every generated (X_t) is finite and lies in ([-b,b]);
+* every generated $X_t$ is finite and lies in $[-b,b]$;
 * the generator identity is the declared iid Uniform(0,1) target-rank null and therefore the analytic conditional mean above is exactly zero;
-* the Section 4.11 compensator is exactly (\lambda^2(2b)^2/8) with configured (b) and (\lambda);
+* the Section 4.11 compensator is exactly $\lambda^2(2b)^2/8$ with configured $b$ and $\lambda$;
 * every one-step evidence factor is finite and nonnegative;
 * the e-SR threshold is exactly `1 / evidence.signed_theorem_sequential.arl_alpha`;
 * no attack data, held-out outcome, fitted nuisance object, local-policy state, or real-data artifact enters this route.
@@ -3845,12 +3845,12 @@ Development seeds are `randomness.real_development_roots`; confirmatory seeds ar
 
 Material order-3 contribution is
 
-[
+$$
 R_{ODI,\text{full}}
--------------------
+-
 
 R_{ODI,\le2}.
-]
+$$
 
 Order-Three Scope requires this mean paired difference to be at least the configured real-order-3 materiality threshold in addition to synthetic/estimator support.
 
@@ -3915,17 +3915,17 @@ Affected detector scores and downstream evidence are recomputed from the first c
 
 Campaign detection rate is evaluated on every eligible primary real campaign for Full FedCampaign-EMHI and No-Outside-Context Full Hierarchy using the same seed, detector streams, local policies, finite-horizon calibration target, campaign horizon, and campaign registry. The seed-level power-loss metric is exactly Section 11.29:
 
-[
+$$
 DR_{\text{NO OUTSIDE CONTEXT},s}
 -
 DR_{\text{EMHI},s}.
-]
+$$
 
 The primary common-mode false-campaign hypothesis uses the native high-volume stress windows. For each seed, define the stress-window false-declaration rate for each method as the fraction of selected stress windows with a global stop. The directional primary test uses the paired seed-level difference
 
-[
+$$
 FCR_{\text{RAW MEAN},s}-FCR_{\text{EMHI},s}.
-]
+$$
 
 Support requires:
 
@@ -3949,9 +3949,9 @@ Support requires:
 
 * mean seed-level ODI rate at least configured minimum;
 * adjusted primary one-sided test of
-  [
-  R_{ODI,s}-\texttt{claim_materiality.strong_local.minimum_strict_odi_rate}
-  ]
+$$
+  R_{ODI,s}-\texttt{claim\_materiality.strong\_local.minimum\_strict\_odi\_rate}
+$$
   passing.
 
 ## 13.14 Secondary Controlled-Trace Generalization
@@ -4025,18 +4025,18 @@ Scalability uses a synthetic workload because the real datasets do not provide e
 Let
 
 \[
-d=\texttt{datasets.preprocessing.event_type_hash_bucket_count}+2.
+d=\texttt{datasets.preprocessing.event\_type\_hash\_bucket\_count}+2.
 \]
 
 For each K/seed:
 
 1. create K lexicographically named clients `client-000` through `client-(K-1)`;
-2. generate exactly `synthetic.sample_sizes.generic_nuisance_fit_epochs` detector-fit rows per client in already-scaled model-input space. For epoch (t), generate a stationary Gaussian AR(1) common factor
+2. generate exactly `synthetic.sample_sizes.generic_nuisance_fit_epochs` detector-fit rows per client in already-scaled model-input space. For epoch $t$, generate a stationary Gaussian AR(1) common factor
    \[
    Z_t=\rho Z_{t-1}+\sqrt{1-\rho^2}\,\xi_t,
    \qquad \xi_t\sim N(0,1),
    \]
-   with (\rho=`generators.common_mode.latent_ar_coefficient`) and (Z_0\sim N(0,1)). For client index (j), derive loading
+   with $\rho=`generators.common_mode.latent_ar_coefficient`$ and $Z_0\sim N(0,1)$. For client index $j$, derive loading
    \[
    \beta_j=\beta_{min}+\frac{j}{\max(K-1,1)}(\beta_{max}-\beta_{min}),
    \]
@@ -4045,7 +4045,7 @@ For each K/seed:
    X_{j,t,1}=\beta_j Z_t+\varepsilon_{j,t},
    \qquad \varepsilon_{j,t}\sim N(0,\sigma^2),
    \]
-   with `generators.common_mode.client_noise_standard_deviation` for (\sigma). Features 2 through (d) are iid (N(0,1)), independent across client, feature, and epoch and independent of (Z_t). All draws use deterministic component substreams;
+   with `generators.common_mode.client_noise_standard_deviation` for $\sigma$. Features 2 through $d$ are iid $N(0,1)$, independent across client, feature, and epoch and independent of $Z_t$. All draws use deterministic component substreams;
 3. assign detector families by the production modulo-three rule and fit them using these rows and the production detector hyperparameters. Artifact-fit wall time is recorded separately and excluded from per-epoch latency;
 4. generate an independent nuisance/context stream of the same configured length under the identical law, score it with the fitted detectors, form marginal ranks, and fit complete Full FedCampaign-EMHI context/projection/cross-fit artifacts;
 5. from independent synthetic benign horizons under the same law, construct candidate local policies using the production nuisance-threshold and threshold/policy-calibration rules for every client. If no primary local candidate qualifies for a client, retain the most stringent configured candidate solely to exercise the local-policy update path and mark the cell `Local Timing Operating Point Unavailable`; this timing-only fallback cannot support a local-PFA, ODI, or detection claim;
@@ -4141,83 +4141,83 @@ Methods with intentionally unmatched information access are marked unmatched and
 
 Let
 
-[
+$$
 n=
 \left|
-\texttt{randomness.real_confirmatory_roots}
+\texttt{randomness.real\_confirmatory\_roots}
 \right|.
-]
+$$
 
-For the authoritative confirmatory seed sequence, (n=10). Enumerate all (2^n) sign assignments; therefore the authoritative grid yields (2^{10}=1024) assignments.
+For the authoritative confirmatory seed sequence, $n=10$. Enumerate all $2^n$ sign assignments; therefore the authoritative grid yields $2^{10}=1024$ assignments.
 
 ### Two-sided
 
-[
+$$
 p
 =
 
 \frac{
-#{
+\#\{
 |\bar d^\ast|
 \ge
 |\bar d|
-}
+\}
 }{
 2^n
 }.
-]
+$$
 
 ### One-sided positive alternative
 
-[
+$$
 p
 =
 
 \frac{
-#{
+\#\{
 \bar d^\ast
 \ge
 \bar d
-}
+\}
 }{
 2^n
 }.
-]
+$$
 
 Zeros remain zero and are never discarded.
 
 ## 14.5 Synthetic sign-flip test
 
-For a synthetic paired sample of (n) independent seed-level differences, use exact enumeration whenever
+For a synthetic paired sample of $n$ independent seed-level differences, use exact enumeration whenever
 
-[
+$$
 2^n
 \le
-\texttt{statistics.synthetic_sign_flip_replicates_when_not_exact}.
-]
+\texttt{statistics.synthetic\_sign\_flip\_replicates\_when\_not\_exact}.
+$$
 
-When this condition holds, enumerate all (2^n) sign assignments exactly using the same one-/two-sided extremeness rule as Section 14.4.
+When this condition holds, enumerate all $2^n$ sign assignments exactly using the same one-/two-sided extremeness rule as Section 14.4.
 
 Otherwise let
 
-[
+$$
 B=
-\texttt{statistics.synthetic_sign_flip_replicates_when_not_exact}.
-]
+\texttt{statistics.synthetic\_sign\_flip\_replicates\_when\_not\_exact}.
+$$
 
-Generate exactly (B) deterministic sign assignments from the RNG rooted at `randomness.statistical_analysis_base_seed`. The all-positive observed assignment is included exactly once. The Monte Carlo p-value uses the finite-simulation correction
+Generate exactly $B$ deterministic sign assignments from the RNG rooted at `randomness.statistical_analysis_base_seed`. The all-positive observed assignment is included exactly once. The Monte Carlo p-value uses the finite-simulation correction
 
-[
+$$
 p
 =
 
 \frac{
 1+
-#{\text{simulated statistic as or more extreme}}
+\#\{\text{simulated statistic as or more extreme}\}
 }{
 1+B
 }.
-]
+$$
 
 Zeros remain zero and are never discarded.
 
@@ -4231,9 +4231,9 @@ Method pairing is preserved.
 
 If the bootstrap statistic is exactly degenerate and all finite resamples equal the observed statistic, report the degenerate interval:
 
-[
+$$
 [\hat\theta,\hat\theta].
-]
+$$
 
 If BCa cannot be evaluated for any other numerical reason, the statistical artifact is Invalid; no silent percentile fallback is allowed.
 
@@ -4250,12 +4250,12 @@ These intervals never replace seed-level primary inference.
 
 ## 14.8 Hodges-Lehmann paired shift
 
-For paired differences (d_1,\ldots,d_n), compute every Walsh average
+For paired differences $d_1,\ldots,d_n$, compute every Walsh average
 
-[
+$$
 \frac{d_i+d_j}{2},
 \qquad i\le j,
-]
+$$
 
 and report their median.
 
@@ -4323,36 +4323,36 @@ Non-PFA binary proportions report two-sided equal-tail 95% Clopper-Pearson inter
 
 For Primary Strict ODI Evaluation, let
 
-[
+$$
 n_s=
 \left|
-\texttt{randomness.real_confirmatory_roots}
+\texttt{randomness.real\_confirmatory\_roots}
 \right|.
-]
+$$
 
 ### ODI rate
 
-[
+$$
 \bar R_{ODI}
-============
+=
 
 \frac1{n_s}
 \sum_s
 R_{ODI,s}.
-]
+$$
 
 ### ODI advantage
 
-[
+$$
 \frac1{n_s}
 \sum_s
 \left(
 R^{full}_{ODI,s}
-----------------
+-
 
 R^{\le2}_{ODI,s}
 \right).
-]
+$$
 
 ### Operational-lead criterion
 
@@ -4397,7 +4397,7 @@ If Full FedCampaign-EMHI has no eligible primary calibrated finite-horizon thres
 * `Strict ODI on Corrected OpTC = Not Supported`;
 * no alternative threshold grid is introduced after seeing this outcome.
 
-If the primary order-(\le2) comparator has no matched operating point:
+If the primary order-$\le2$ comparator has no matched operating point:
 
 * the primary ODI superiority comparison is Not Tested;
 * full-method absolute ODI/PFA results remain reportable.
@@ -6222,9 +6222,9 @@ A claim state is computed only from current verified artifacts. A technical/prov
 
 | Claim identifier | Exact permitted claim | Mandatory evidence |
 | --- | --- | --- |
-| `CLAIM_EMII_ADMISSIBLE_INFORMATION` | Coalition (A) is scored using nuisance information restricted to predictable information generated by (A^c). | mathematical specification, provenance validator, exact-exclusion implementation tests, exclusion mechanism evidence |
+| `CLAIM_EMII_ADMISSIBLE_INFORMATION` | Coalition $A$ is scored using nuisance information restricted to predictable information generated by $A^c$. | mathematical specification, provenance validator, exact-exclusion implementation tests, exclusion mechanism evidence |
 | `CLAIM_SELF_EXPLANATION` | Persistent coalition perturbations may feed back into inclusive or insufficiently excluded nuisance representations, whereas exact complement exclusion removes the direct coalition contribution. | analytic derivative fixture, Self-Explanation Exclusion Validation, primary Holm result |
-| `CLAIM_PURE_ORDER_SEPARATION` | There exist nonempty order-(r) alternative families that preserve every proper-subset distribution while producing nonzero order-(r) interaction. | generator proof, generator-purity validator, Pure-Order Separation Validation, primary Holm result |
+| `CLAIM_PURE_ORDER_SEPARATION` | There exist nonempty order-$r$ alternative families that preserve every proper-subset distribution while producing nonzero order-$r$ interaction. | generator proof, generator-purity validator, Pure-Order Separation Validation, primary Holm result |
 | `CLAIM_SEQUENTIAL_CONSEQUENCE` | When the bounded signed innovation satisfies the declared conditional-null contract, inherited e-detector machinery yields its published average-run-length semantics. | theorem-assumption audit, Signed-Theorem Sequential Route |
 | `CLAIM_STRICT_ODI` | On eligible Corrected OpTC campaigns, Full FedCampaign-EMHI exhibits material strict ODI relative to the exclusion-matched order-at-most-two predecessor at independently calibrated matched finite-horizon false-campaign operating points under fixed local policies. | Primary Strict ODI Evaluation, matched PFA evidence, operational lead, primary Holm result |
 | `CLAIM_ORDER_THREE_SCOPE` | Order 3 is a scientifically separable and empirically estimable interaction order within the declared support regime and materially contributes to the primary real-data result only when its predeclared real contribution criterion passes. | pure-order evidence, estimator feasibility, purification/order ablation |
@@ -6251,14 +6251,14 @@ The numerical support, materiality, equivalence, PFA, and latency values are tho
 At the primary self-explanation condition, define the exact-exclusion nuisance-derivative equivalence half-width
 
 \[
-m=\texttt{claim_materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct}\,|D_{direct}|.
+m=\texttt{claim\_materiality.self\_explanation.exact\_exclusion\_nuisance\_derivative\_equivalence\_fraction\_of\_direct}\,|D_{direct}|.
 \]
 
 `SUPPORTED` when:
 
 * the analytic direct-response fixture passes;
-* the complete 95% BCa CI for exact-exclusion seed-level (D_\eta) lies inside ([-m,m]);
-* mean confirmatory (\Delta A_{self}=A_{self,inclusive}-A_{self,exact}) is at least `claim_materiality.self_explanation.minimum_attenuation_difference`;
+* the complete 95% BCa CI for exact-exclusion seed-level $D_\eta$ lies inside $[-m,m]$;
+* mean confirmatory $\Delta A_{self}=A_{self,inclusive}-A_{self,exact}$ is at least `claim_materiality.self_explanation.minimum_attenuation_difference`;
 * the primary Holm-adjusted `Self-Explanation Material Attenuation` p-value is below `statistics.nominal_significance_alpha`.
 
 `NULL_RESULT` when the experiment is valid and the analytic exact-exclusion identity is not contradicted but the material attenuation criterion and/or directional inference does not pass.
@@ -6320,7 +6320,7 @@ Define the confirmatory real order-3 contribution as the mean paired difference
 \frac{1}{|\mathcal S|}\sum_{s\in\mathcal S}
 \left(R_{ODI,full,s}-R_{ODI,\le2,s}\right),
 \qquad
-\mathcal S=\texttt{randomness.real_confirmatory_roots}.
+\mathcal S=\texttt{randomness.real\_confirmatory\_roots}.
 \]
 
 `SUPPORTED` when:
