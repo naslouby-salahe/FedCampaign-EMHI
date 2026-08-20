@@ -100,7 +100,7 @@ Strict ODI is
 
 $$
 \boxed{
-T_G<\min_iT_i.
+T_G\lt \min_iT_i.
 }
 $$
 
@@ -110,7 +110,7 @@ $$
 I_{ODI} =
 \mathbf 1
 \left\lbrace
-T_G<\min_iT_i
+T_G\lt \min_iT_i
 \right\rbrace.
 $$
 
@@ -236,7 +236,7 @@ For client $i$, with benign reference scores $s_1,\ldots,s_{n_i}$,
 $$
 U^M_{i,t} =
 \frac{
-\left\lvert\lbrace k:s_k<S_{i,t}\rbrace\right\rvert
+\left\lvert\lbrace k:s_k\lt S_{i,t}\rbrace\right\rvert
 +\frac12\left\lvert\lbrace k:s_k=S_{i,t}\rbrace\right\rvert
 +\frac12
 }{
@@ -390,7 +390,7 @@ $$
 \sum_s
 \left\|
 \Phi_{A,s} -
-M^\top X_{<A,s}
+M^\top X_{\lt A,s}
 \right\|_2^2
 +
 \lambda
@@ -423,7 +423,7 @@ $$
 
 Folds are numbered from zero. The first $r$ folds contain $q+1$ consecutive observations and the remaining $k-r$ folds contain $q$ consecutive observations. No observation is shuffled. Fold boundaries are therefore identical to splitting the ordered index array into $k$ contiguous parts whose sizes differ by at most one, with any remainder assigned to the earliest folds.
 
-If $n<k$, the requested fit is unsupported and abstains rather than silently reducing the fold count.
+If $n\lt k$, the requested fit is unsupported and abstains rather than silently reducing the fold count.
 
 The atom is
 
@@ -431,7 +431,7 @@ $$
 \widehat Z_{A,t} =
 \Phi_A(U^{(-A)}_{A,t}) -
 \widehat M_{A,c}^\top
-X_{<A,t}.
+X_{\lt A,t}.
 $$
 
 ## 4.9 Cross-fitted benign innovation calibration
@@ -687,7 +687,7 @@ U=
 \left(
 \texttt{evidence.calibrated＿finite＿horizon.calibration＿confidence};
 x+1,n-x
-\right),&x<n.
+\right),&x\lt n.
 \end{cases}
 $$
 
@@ -1886,7 +1886,7 @@ It receives the common nuisance-fit nonconformity calibration.
 
 ### D-vine conditional reference
 
-For each triple with lexicographically ordered members $i<j<k$, use the fixed D-vine
+For each triple with lexicographically ordered members $i\lt j\lt k$, use the fixed D-vine
 
 ```text
 i — j — k
@@ -2299,14 +2299,14 @@ For each client/epoch:
 3. append total raw event count;
 4. append Shannon entropy of the raw bucket-count distribution.
 
-For total count $N>0$,
+For total count $N\gt 0$,
 
 $$
 p_b=\frac{n_b}{N},
 $$
 
 $$
-H=-\sum_{b:n_b>0}p_b\log p_b.
+H=-\sum_{b:n_b\gt 0}p_b\log p_b.
 $$
 
 For $N=0$,
@@ -2423,7 +2423,7 @@ Other coalition members therefore remain in the nuisance representation.
 
 ## 8.4 Partial coalition exclusion
 
-For a triple $a_1<a_2<a_3$:
+For a triple $a_1\lt a_2\lt a_3$:
 
 ```text
 context members = all clients except a_1 and a_2
@@ -2717,7 +2717,7 @@ $$
 I_{ODI} =
 \mathbf1
 \left\lbrace
-T_G<\min_iT_i
+T_G\lt \min_iT_i
 \right\rbrace.
 $$
 
@@ -2913,7 +2913,7 @@ $$
 Then
 
 $$
-D_{<A} =
+D_{\lt A} =
 \max_{B\subsetneq A}
 \Delta_B.
 $$
@@ -2959,7 +2959,7 @@ Descriptive only.
 At a global stop epoch, consider enabled orders with
 
 $$
-E_t^{(r)}>1.
+E_t^{(r)}\gt 1.
 $$
 
 The decisive order is the order maximizing
@@ -2970,7 +2970,7 @@ $$
 
 Ties within `numerics.deterministic_comparison_tolerance` choose the smaller order.
 
-If no enabled order has $E_t^{(r)}>1$, the value is `null`.
+If no enabled order has $E_t^{(r)}\gt 1$, the value is `null`.
 
 The metric never affects stopping.
 
@@ -3057,7 +3057,7 @@ $$
 
 ## 11.23 Projection NRMSE
 
-Synthetic only. Let $P_t^\ast$ be the analytically known or independently generated high-precision population projection of $\Phi_{A,t}$ onto the proper-subset design, and let $\widehat P_t=\widehat M_{A,c}^\top X_{<A,t}$ be the fitted projection on an independent evaluation sample. Define
+Synthetic only. Let $P_t^\ast$ be the analytically known or independently generated high-precision population projection of $\Phi_{A,t}$ onto the proper-subset design, and let $\widehat P_t=\widehat M_{A,c}^\top X_{\lt A,t}$ be the fitted projection on an independent evaluation sample. Define
 
 $$
 NRMSE_{\text{proj}} =
