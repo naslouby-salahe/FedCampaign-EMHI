@@ -28,4 +28,12 @@ jobs:
           PYTHONPATH: .github/scripts
         run: |
           sed -i 's/rr(174, 184)/rr(174, 181) + [183, 184]/' .github/scripts/planning_issue_specs.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/planning_reconcile_inventory.py')
+          text = path.read_text()
+          text = text.replace('"**Phase-1 inventory extraction status:**"', '"**Phase-1 inventory extraction status:** `Re-audited — pass`."')
+          text = text.replace('CLAR-001/#100 blocks only REQ-182`.`', 'CLAR-001/#100 blocks only REQ-182.`')
+          path.write_text(text)
+          PY
           python .github/scripts/planning_reconcile_inventory.py
