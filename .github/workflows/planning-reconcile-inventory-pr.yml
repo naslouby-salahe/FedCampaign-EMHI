@@ -1,0 +1,31 @@
+name: Planning Inventory Reconciliation PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/scripts/planning_reconcile_inventory.py
+      - .github/workflows/planning-reconcile-inventory-pr.yml
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+
+jobs:
+  reconcile:
+    if: github.event.pull_request.head.ref == 'planning/roadmap-coverage-inventory'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: planning/roadmap-coverage-inventory
+      - name: Reconcile inventory with native GitHub planning state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PYTHONPATH: .github/scripts
+        run: |
+          sed -i 's/rr(174, 184)/rr(174, 181) + [183, 184]/' .github/scripts/planning_issue_specs.py
+          python .github/scripts/planning_reconcile_inventory.py
