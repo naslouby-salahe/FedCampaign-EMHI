@@ -1,0 +1,26 @@
+name: Planning Bootstrap PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/scripts/planning_bootstrap.py
+      - .github/workflows/planning-bootstrap-pr.yml
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  bootstrap:
+    if: github.event.pull_request.head.ref == 'planning/roadmap-coverage-inventory'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or reconcile planning labels and milestones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: python .github/scripts/planning_bootstrap.py
