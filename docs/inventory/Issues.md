@@ -18,9 +18,6 @@
 ### Requirements
 
 - REQ-0004, REQ-0007, REQ-0105–REQ-0106, REQ-0253–REQ-0341, REQ-0491–REQ-0514, REQ-0524–REQ-0527, REQ-0554–REQ-0571, REQ-0651–REQ-0654, REQ-2814–REQ-2815, REQ-2818–REQ-2822, REQ-2835–REQ-2837
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Lock Scientific Authority and Core Production Configuration** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -48,9 +45,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I04 — Encode Reporting and Scientific Configuration Clarifications: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I05 — Establish Canonical Repository, Source and Test Structure: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I06 — Enforce Architecture Invariants and Implementation Readiness: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Scientific authority and no-post-hoc configuration lock** exactly as specified by `Authority; §3 support lock`. Required evidence contract: Typed-config tests reject external overrides, undocumented defaults, and post-hoc scientific choices.
@@ -292,9 +286,6 @@ Expected areas affected by this issue:
 - REQ-0396, REQ-0397, REQ-0398, REQ-0399, REQ-0400, REQ-0401, REQ-0402, REQ-0403, REQ-0404, REQ-0405, REQ-0406, REQ-0407, REQ-0408, REQ-0409, REQ-0410, REQ-0586, REQ-0587, REQ-0588
 - REQ-0589, REQ-0592, REQ-0593, REQ-0594, REQ-0595, REQ-0596, REQ-0597, REQ-0598, REQ-0599, REQ-2847, REQ-2848, REQ-2849, REQ-2856, REQ-2857, REQ-2858, REQ-2859, REQ-2860, REQ-2861
 - REQ-2862, REQ-2863, REQ-2864, REQ-2865, REQ-2866, REQ-2867, REQ-2868
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Encode Randomness, Synthetic and Numerical Configuration** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -317,9 +308,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I06 — Enforce Architecture Invariants and Implementation Readiness: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Randomness, synthetic generators and numerical configuration** exactly as specified by `Configuration YAML; randomness/synthetic/numerics blocks`. Required evidence contract: Seed/numerical/config validation asserts exact roots, sample sizes, generator values, tolerances, and deterministic material identity.
@@ -493,9 +481,6 @@ Expected areas affected by this issue:
 - REQ-0620, REQ-0621, REQ-0622, REQ-0655, REQ-0656, REQ-0657, REQ-0658, REQ-0659, REQ-0660, REQ-0661, REQ-0662, REQ-0663, REQ-0664, REQ-0665, REQ-0666, REQ-0667, REQ-0668, REQ-0669
 - REQ-0670, REQ-0673, REQ-0675, REQ-0676, REQ-0677, REQ-0678, REQ-0679, REQ-0680, REQ-0681, REQ-0682, REQ-2895, REQ-2923, REQ-2924, REQ-2925, REQ-2926, REQ-2927, REQ-2928, REQ-0671
 - REQ-0672, REQ-0674
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Encode Comparator, Experiment, Statistical and Runtime Configuration** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -520,9 +505,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I04 — Encode Reporting and Scientific Configuration Clarifications: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I06 — Enforce Architecture Invariants and Implementation Readiness: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Comparator, experiment, statistical, robustness and runtime configuration** exactly as specified by `Configuration YAML; comparator/experiment/statistics/robustness/runtime blocks`. Required evidence contract: Typed validation asserts exact method sets, experiment grids, statistical families, robustness/scalability grids, and runtime/retry rules.
@@ -707,9 +689,6 @@ Expected areas affected by this issue:
 
 - REQ-0481, REQ-0482, REQ-0483, REQ-0484, REQ-0485, REQ-0486, REQ-0683, REQ-0684, REQ-0685, REQ-0686, REQ-0687, REQ-0528, REQ-0529, REQ-0572, REQ-0573
 - REQ-2962
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Encode Reporting and Scientific Configuration Clarifications** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -734,9 +713,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I06 — Enforce Architecture Invariants and Implementation Readiness: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Reporting precision and export configuration** exactly as specified by `Reporting configuration`. Required evidence contract: Reporting-config tests assert exact precision/display/export values and reject unauthorized variation.
@@ -842,9 +818,6 @@ Expected areas affected by this issue:
 - REQ-1826, REQ-1827, REQ-1828, REQ-1829, REQ-1830, REQ-1831, REQ-1832, REQ-1833, REQ-1834, REQ-1835, REQ-1836, REQ-1837, REQ-1838, REQ-1839, REQ-1840, REQ-1841, REQ-1842, REQ-1843
 - REQ-1844, REQ-1845, REQ-1846, REQ-1847, REQ-1848, REQ-1849, REQ-1850, REQ-1851, REQ-1852, REQ-1853, REQ-1854, REQ-1855, REQ-1856, REQ-1857, REQ-1858, REQ-1859, REQ-1860, REQ-1861
 - REQ-1862, REQ-1863, REQ-1864, REQ-1865, REQ-1866, REQ-1867, REQ-1868, REQ-1869, REQ-1870, REQ-1871, REQ-1872, REQ-1873, REQ-1874, REQ-1875, REQ-1876, REQ-1877
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Establish Canonical Repository, Source and Test Structure** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -869,9 +842,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I06 — Enforce Architecture Invariants and Implementation Readiness: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Canonical repository, output, results and documentation tree** exactly as specified by `§16 repository structure`. Required evidence contract: Structural inventory tests verify every required path and role.
@@ -1272,9 +1242,6 @@ Expected areas affected by this issue:
 
 - REQ-1878, REQ-1879, REQ-1880, REQ-1881, REQ-1882, REQ-1883, REQ-1884, REQ-1885, REQ-1886, REQ-1887, REQ-1888, REQ-1889, REQ-1890, REQ-1891, REQ-1892, REQ-1893, REQ-1894, REQ-1895
 - REQ-1896, REQ-1897, REQ-1898, REQ-1899, REQ-1900, REQ-1901, REQ-1902, REQ-1903, REQ-1904, REQ-1905, REQ-1906, REQ-2953, REQ-2954, REQ-2955, REQ-2806, REQ-2807, REQ-2808, REQ-2809, REQ-2810
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Enforce Architecture Invariants and Implementation Readiness** as a complete, reviewable, testable unit of M01. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -1309,9 +1276,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I17 — Implement Experimental Units, Pairing and Sign-Flip Inference: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I21 — Implement Raw Dataset Authority, Inventory and Adaptation: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I51 — Implement Verified-Evidence Reporting and Reproducibility Exports: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Repository architecture, type, naming and ownership invariants** exactly as specified by `§16 repository/public-CLI architecture rules`. Required evidence contract: Architecture/static tests enforce dependency, typing, naming, constants, quality, and ownership rules.
@@ -1446,9 +1410,6 @@ The §16 repository tree states that these test responsibilities are part of the
 - REQ-0008, REQ-0009, REQ-0010, REQ-0011, REQ-0012, REQ-0013, REQ-0014, REQ-0015, REQ-0016, REQ-0017, REQ-0018, REQ-0019, REQ-0020, REQ-0021, REQ-0022, REQ-0023, REQ-0024, REQ-0025
 - REQ-0026, REQ-0027, REQ-0028, REQ-0029, REQ-0030, REQ-0031, REQ-0032, REQ-0033, REQ-0034, REQ-0035, REQ-0036, REQ-0037, REQ-0038, REQ-0039, REQ-0040, REQ-0041, REQ-0042, REQ-0043
 - REQ-0044, REQ-0045, REQ-0046, REQ-0047, REQ-0048, REQ-0049, REQ-0050, REQ-0051, REQ-2959
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Artifact-First Execution Lifecycle** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -1472,9 +1433,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I09 — Implement Doctor, Plan, Run and Status Orchestration: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I10 — Implement Semantic Identity, Dependency Graph and Material Fingerprints: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Artifact-first conceptual execution lifecycle** exactly as specified by `§1`. Required evidence contract: CLI/integration tests exercise validate→reuse→invalidate descendants→recompute missing→resume nearest-valid behavior and exact failure semantics.
@@ -1590,9 +1548,6 @@ Expected areas affected by this issue:
 
 - REQ-0574, REQ-0575, REQ-0576, REQ-0577, REQ-0578, REQ-0579, REQ-0580, REQ-0581, REQ-0582, REQ-0583, REQ-0584, REQ-0585, REQ-2804, REQ-2805, REQ-2817, REQ-2838, REQ-2839, REQ-2840
 - REQ-2841, REQ-2842, REQ-2843, REQ-2844, REQ-2845, REQ-2846
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Canonical Serialization, Hashing and Seed Derivation** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -1620,9 +1575,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I15 — Implement Exclusion-Matched Dependence and HOFD Reference Methods: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I16 — Implement Strong Comparator and Sequential Reference Methods: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I24 — Implement Canonical Preprocessing, Splits and Benign Horizons: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Canonical serialization, deterministic hashing and seed derivation** exactly as specified by `Canonical serialization; §22 JCS grounding`. Required evidence contract: Golden JCS/hash/seed fixtures prove input-order independence, stable identity, and exact normalization rules.
@@ -1719,9 +1671,6 @@ Expected areas affected by this issue:
 - REQ-1936, REQ-1937, REQ-1938, REQ-1939, REQ-1940, REQ-1941, REQ-1942, REQ-1943, REQ-1944, REQ-1945, REQ-1946, REQ-1947, REQ-1948, REQ-1949, REQ-1950, REQ-1951, REQ-1952, REQ-1958
 - REQ-1960, REQ-1962, REQ-1963, REQ-1965, REQ-1966, REQ-1967, REQ-1968, REQ-1969, REQ-1970, REQ-1971, REQ-1972, REQ-1973, REQ-1974, REQ-1975, REQ-1976, REQ-1977, REQ-1978, REQ-1979
 - REQ-1980, REQ-1981, REQ-1982, REQ-1983, REQ-1984, REQ-1985, REQ-1986, REQ-1987, REQ-1988, REQ-1989
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Doctor, Plan, Run and Status Orchestration** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -1746,9 +1695,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I11 — Implement Compatibility, Selective Invalidation, Recovery and Execution States: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Doctor/plan/run/status orchestration and command ownership** exactly as specified by `§16.1, §16.3, §16.5–§16.6, §16.8–§16.9`. Required evidence contract: CLI integration/e2e tests assert read/write ownership, deterministic enumeration, reuse, overwrite, recovery, and prohibited side effects.
@@ -1885,9 +1831,6 @@ Expected areas affected by this issue:
 - REQ-2008, REQ-2009, REQ-2010, REQ-2011, REQ-2012, REQ-2013, REQ-2014, REQ-2015, REQ-2016, REQ-2017, REQ-2018, REQ-2019, REQ-2020, REQ-2021, REQ-2022, REQ-2023, REQ-2024, REQ-2025
 - REQ-2026, REQ-2027, REQ-2028, REQ-2029, REQ-2030, REQ-2031, REQ-2032, REQ-2033, REQ-2034, REQ-2035, REQ-2036, REQ-2037, REQ-2038, REQ-2039, REQ-2040, REQ-2041, REQ-2042, REQ-2043
 - REQ-2044, REQ-2045, REQ-2046, REQ-2047, REQ-2048, REQ-2049, REQ-2050, REQ-2051, REQ-2052, REQ-2053, REQ-2054, REQ-2055, REQ-2056
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Semantic Identity, Dependency Graph and Material Fingerprints** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -1911,9 +1854,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I11 — Implement Compatibility, Selective Invalidation, Recovery and Execution States: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Semantic identity, dependency graph and material fingerprints** exactly as specified by `§17.1–§17.3`. Required evidence contract: Identity/fingerprint tests prove semantic filenames and material dependency hashes change only when material inputs change.
@@ -2056,9 +1996,6 @@ Expected areas affected by this issue:
 - REQ-2107, REQ-2108, REQ-2109, REQ-2110, REQ-2111, REQ-2112, REQ-2113, REQ-2114, REQ-2115, REQ-2116, REQ-2117, REQ-2118, REQ-2119, REQ-2120, REQ-2121, REQ-2122, REQ-2123, REQ-2124
 - REQ-2125, REQ-2126, REQ-2127, REQ-2128, REQ-2129, REQ-2130, REQ-2131, REQ-2132, REQ-2133, REQ-2134, REQ-2135, REQ-2136, REQ-2137, REQ-2138, REQ-2139, REQ-2140, REQ-2141, REQ-2142
 - REQ-2143, REQ-2144, REQ-2145, REQ-2146, REQ-2147
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Compatibility, Selective Invalidation, Recovery and Execution States** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -2084,9 +2021,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I12 — Implement Evidence Lifecycle, Provenance Schemas and Confirmatory Execution Roles: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I26 — Implement Preprocess CLI Reuse and Invalidation Contract: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Compatibility, selective invalidation and execution states** exactly as specified by `§17.4–§17.6`. Required evidence contract: Fault-injection tests verify provenance compatibility, atomic completion, selective invalidation, and exact state namespaces.
@@ -2266,9 +2200,6 @@ Expected areas affected by this issue:
 - REQ-2292, REQ-2293, REQ-2294, REQ-2295, REQ-2296, REQ-2297, REQ-2298, REQ-2299, REQ-2300, REQ-2301, REQ-2302, REQ-2303, REQ-2304, REQ-2305, REQ-2306, REQ-2307, REQ-2308, REQ-2309
 - REQ-2310, REQ-2311, REQ-2312, REQ-2350, REQ-2351, REQ-2352, REQ-2353, REQ-2354, REQ-2355, REQ-2356, REQ-2357, REQ-2358, REQ-2359, REQ-2360, REQ-2361, REQ-2362, REQ-2363, REQ-2364
 - REQ-2365, REQ-2366, REQ-2367, REQ-2368, REQ-2369, REQ-2370, REQ-2371, REQ-2372, REQ-2373, REQ-2374, REQ-2375, REQ-2376, REQ-2377, REQ-2378, REQ-2379, REQ-2380, REQ-2381
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Evidence Lifecycle, Provenance Schemas and Confirmatory Execution Roles** as a complete, reviewable, testable unit of M02. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -2301,9 +2232,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I48 — Evaluate Coalition Scalability in the Common Reference Timing Environment: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I51 — Implement Verified-Evidence Reporting and Reproducibility Exports: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I52 — Perform Confirmatory Statistical Synthesis: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Evidence boundary and artifact lifecycle** exactly as specified by `§18.1–§18.2`. Required evidence contract: Schema/lifecycle tests ensure only active current verified artifacts can become evidence and ownership transitions are explicit.
@@ -2577,9 +2505,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-0052, REQ-0053, REQ-0054, REQ-0055, REQ-0056, REQ-0057, REQ-0058, REQ-0059, REQ-0060, REQ-0061, REQ-0062, REQ-0063, REQ-0064, REQ-0065, REQ-0487, REQ-0488, REQ-0489, REQ-0490
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement ODI, EMII and Fixed Scientific Definitions** as a complete, reviewable, testable unit of M03. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -2607,9 +2532,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I15 — Implement Exclusion-Matched Dependence and HOFD Reference Methods: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I16 — Implement Strong Comparator and Sequential Reference Methods: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I27 — Implement Exclusion-Matched Information Fields, Ranks and Context Conditioning: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **ODI and EMII formal definitions** exactly as specified by `§2.1–§2.2`. Required evidence contract: Hand-computed/property tests verify exact formulas, strict inequalities, admissible-information rules, and stopping semantics.
@@ -2702,9 +2624,6 @@ Expected areas affected by this issue:
 - REQ-0590, REQ-0591, REQ-0600, REQ-0601, REQ-0602, REQ-0603, REQ-0604, REQ-0605, REQ-0606, REQ-0607, REQ-0608, REQ-0609, REQ-0610, REQ-0611, REQ-0612, REQ-0613, REQ-0614, REQ-0615
 - REQ-0616, REQ-0617, REQ-2850, REQ-2851, REQ-2852, REQ-2853, REQ-2854, REQ-2855, REQ-2869, REQ-2870, REQ-2871, REQ-2872, REQ-2873, REQ-2874, REQ-2875, REQ-2876, REQ-2877, REQ-2878
 - REQ-2879, REQ-2880, REQ-2881, REQ-2882, REQ-2883, REQ-2884, REQ-2885, REQ-2886, REQ-2887, REQ-2888, REQ-2889, REQ-2890, REQ-2891, REQ-2892, REQ-2893, REQ-2894
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Deterministic Synthetic Generators and Campaign Families** as a complete, reviewable, testable unit of M03. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -2728,9 +2647,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I35 — Implement Synthetic Module Validation and Smoke Gate: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Deterministic synthetic generators and controlled campaign families** exactly as specified by `Synthetic generator/campaign definitions`. Required evidence contract: Seeded fixtures verify exact distributions/effects, pure-order properties, context/dropout/contamination behavior, and input-order independence.
@@ -2853,9 +2769,6 @@ Expected areas affected by this issue:
 
 - REQ-0623, REQ-0624, REQ-0625, REQ-0626, REQ-0627, REQ-0628, REQ-0629, REQ-0630, REQ-0631, REQ-0632, REQ-0633, REQ-0634, REQ-0635, REQ-0636, REQ-0637, REQ-0638, REQ-0639, REQ-0640
 - REQ-2896, REQ-2897, REQ-2898, REQ-2900, REQ-2901, REQ-2902, REQ-2903, REQ-2904, REQ-2905, REQ-2906, REQ-2907, REQ-2908, REQ-2909, REQ-2910, REQ-2911
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Exclusion-Matched Dependence and HOFD Reference Methods** as a complete, reviewable, testable unit of M03. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -2880,9 +2793,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I16 — Implement Strong Comparator and Sequential Reference Methods: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I38 — Validate Exclusion-Matched HOFD Equivalence: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Exclusion-matched dependence and HOFD reference methods** exactly as specified by `Comparator reference definitions`. Required evidence contract: Analytic/numerical fixtures validate exact conditioning/exclusion, support, and reference quantities within locked tolerance.
@@ -2986,9 +2896,6 @@ Expected areas affected by this issue:
 
 - REQ-0641, REQ-0642, REQ-0643, REQ-0644, REQ-0645, REQ-0646, REQ-0647, REQ-0648, REQ-0649, REQ-0650, REQ-2803, REQ-2913, REQ-2914, REQ-2915, REQ-2916, REQ-2917, REQ-2918, REQ-2919
 - REQ-2920, REQ-2921, REQ-2922
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Strong Comparator and Sequential Reference Methods** as a complete, reviewable, testable unit of M03. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3014,9 +2921,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I32 — Implement Baseline and Comparator Contracts: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I34 — Implement Strong Comparator Composition Selection and Shared Experiment Contracts: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Strong comparator and sequential reference implementations** exactly as specified by `Comparator/sequential reference definitions; §22 adaptation rule`. Required evidence contract: Comparator/reference tests validate exact roadmap adaptations, calibration/stopping behavior, and serialized fitted artifacts.
@@ -3110,9 +3014,6 @@ Expected areas affected by this issue:
 - REQ-1442, REQ-1443, REQ-1444, REQ-1445, REQ-1446, REQ-1447, REQ-1448, REQ-1449, REQ-1450, REQ-1451, REQ-1452, REQ-1453, REQ-1454, REQ-1455, REQ-1456, REQ-1457, REQ-1458, REQ-1459
 - REQ-1460, REQ-1461, REQ-1462, REQ-1463, REQ-1464, REQ-2945, REQ-2946, REQ-1465, REQ-1466, REQ-1467, REQ-1468, REQ-1469, REQ-1470, REQ-1471, REQ-1472, REQ-1473, REQ-1474, REQ-1475
 - REQ-1476, REQ-1477, REQ-1478, REQ-1479, REQ-1480, REQ-1481, REQ-1482
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Experimental Units, Pairing and Sign-Flip Inference** as a complete, reviewable, testable unit of M04. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3138,9 +3039,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I18 — Implement Bootstrap, Hodges-Lehmann and Equivalence Procedures: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I19 — Implement Directional Hypotheses and Holm Multiplicity Control: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Experimental units, aggregation units and pairing keys** exactly as specified by `§14.1–§14.3`. Required evidence contract: Deterministic unit/pairing fixtures validate exact real/synthetic independent units, within-seed aggregation rules, pairing coordinates, and unmatched-comparator handling.
@@ -3256,9 +3154,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1483, REQ-1484, REQ-1485, REQ-1486, REQ-1487, REQ-1488, REQ-1489, REQ-1490, REQ-1491, REQ-1492, REQ-1493, REQ-1494, REQ-1495, REQ-1496, REQ-2947, REQ-2948, REQ-2965
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Bootstrap, Hodges-Lehmann and Equivalence Procedures** as a complete, reviewable, testable unit of M04. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3281,9 +3176,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I19 — Implement Directional Hypotheses and Holm Multiplicity Control: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **BCa, hierarchical bootstrap, Hodges-Lehmann and equivalence procedures** exactly as specified by `§14.6–§14.9`. Required evidence contract: Deterministic resampling fixtures validate paired resampling, confidence bounds, campaign hierarchy, Walsh averages, numerical-failure semantics, and equivalence decisions.
@@ -3371,9 +3263,6 @@ Expected areas affected by this issue:
 
 - REQ-1497, REQ-1498, REQ-1499, REQ-1500, REQ-1501, REQ-1502, REQ-1503, REQ-1504, REQ-1505, REQ-1506, REQ-1507, REQ-1508, REQ-1509, REQ-1510, REQ-1511, REQ-1512, REQ-1513, REQ-1514
 - REQ-1515, REQ-1516, REQ-1517, REQ-1518, REQ-1519, REQ-1520, REQ-1521, REQ-1522
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Directional Hypotheses and Holm Multiplicity Control** as a complete, reviewable, testable unit of M04. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3397,9 +3286,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I20 — Implement PFA, Materiality Aggregation and Missing-Cell Semantics: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Directional hypothesis contracts and Holm multiplicity control** exactly as specified by `§14.10–§14.11`. Required evidence contract: Fixed-family fixtures prove exact hypothesis membership/order, direction, `Not Tested` bookkeeping, Holm input handling, tie ordering, and adjusted p-values.
@@ -3497,9 +3383,6 @@ Expected areas affected by this issue:
 
 - REQ-1523, REQ-1524, REQ-1525, REQ-1526, REQ-1527, REQ-1528, REQ-1529, REQ-1530, REQ-1531, REQ-1532, REQ-1533, REQ-1534, REQ-1535, REQ-1536, REQ-1537, REQ-1538, REQ-1539, REQ-1540
 - REQ-1541
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement PFA, Materiality Aggregation and Missing-Cell Semantics** as a complete, reviewable, testable unit of M04. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3530,9 +3413,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I42 — Evaluate Full FedCampaign-EMHI Primary Support Criteria: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I52 — Perform Confirmatory Statistical Synthesis: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **PFA/descriptive intervals and primary materiality aggregation** exactly as specified by `§14.12–§14.14`. Required evidence contract: Known-count and synthetic seed-level fixtures validate Clopper-Pearson inference, primary ODI/advantage aggregation, operational-lead pooling, and inferential-unit preservation.
@@ -3626,9 +3506,6 @@ Expected areas affected by this issue:
 
 - REQ-0688, REQ-0689, REQ-0690, REQ-0691, REQ-0692, REQ-0693, REQ-0694, REQ-0695, REQ-0696, REQ-0697, REQ-0698, REQ-0699, REQ-0700, REQ-0701, REQ-0702, REQ-0703, REQ-0704, REQ-0705
 - REQ-0706, REQ-0707, REQ-0708, REQ-0709, REQ-2800, REQ-2801, REQ-2802
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Raw Dataset Authority, Inventory and Adaptation** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3655,9 +3532,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I22 — Implement Corrected OpTC Dataset Contract: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I23 — Implement Transparent Computing Engagement 5 Dataset Contract: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Raw-dataset authority, inventory and deterministic adaptation** exactly as specified by `§6.1`. Required evidence contract: Raw inventory/checksum/schema/discrepancy tests prove observed bytes are authoritative and adaptation follows only predeclared rules.
@@ -3757,9 +3631,6 @@ Expected areas affected by this issue:
 - REQ-0515, REQ-0516, REQ-0517, REQ-0710, REQ-0711, REQ-0712, REQ-0713, REQ-0714, REQ-0715, REQ-0716, REQ-0717, REQ-0718, REQ-0719, REQ-0720, REQ-0721, REQ-0722, REQ-0723, REQ-0724
 - REQ-0725, REQ-0726, REQ-0727, REQ-0728, REQ-0729, REQ-0730, REQ-0731, REQ-0732, REQ-0733, REQ-0734, REQ-0735, REQ-0736, REQ-0737, REQ-0738, REQ-0739, REQ-0740, REQ-0741, REQ-0742
 - REQ-0743, REQ-0744, REQ-0745, REQ-0746, REQ-0747, REQ-0748, REQ-0749, REQ-0750, REQ-0751, REQ-2929
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Corrected OpTC Dataset Contract** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3782,9 +3653,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I24 — Implement Canonical Preprocessing, Splits and Benign Horizons: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Corrected OpTC identity, clients, separation and ground truth** exactly as specified by `§6.2; OpTC definitions`. Required evidence contract: Dataset integration tests validate release identity, client selection, ground truth, benign/evaluation separation, eligibility and manifests.
@@ -3901,9 +3769,6 @@ Expected areas affected by this issue:
 
 - REQ-0518, REQ-0519, REQ-0520, REQ-0752, REQ-0753, REQ-0754, REQ-0755, REQ-0756, REQ-0757, REQ-0758, REQ-0759, REQ-0760, REQ-0761, REQ-0762, REQ-0763, REQ-0764, REQ-0765, REQ-0766
 - REQ-0767, REQ-0768, REQ-0769, REQ-0770, REQ-0771, REQ-0772, REQ-0773, REQ-0774, REQ-0775, REQ-0776, REQ-0777, REQ-0778, REQ-0779, REQ-2930, REQ-2931
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Transparent Computing Engagement 5 Dataset Contract** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -3926,9 +3791,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I24 — Implement Canonical Preprocessing, Splits and Benign Horizons: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Transparent Computing Engagement 5 secondary-data contract** exactly as specified by `§6.3; TC Engagement 5 definitions`. Required evidence contract: Secondary adapter tests validate client definition/selection, benign interval, ground truth, eligibility and valid ineligibility handling.
@@ -4034,9 +3896,6 @@ Expected areas affected by this issue:
 - REQ-0795, REQ-0796, REQ-0797, REQ-0798, REQ-0799, REQ-0800, REQ-0801, REQ-0802, REQ-0803, REQ-0804, REQ-0805, REQ-0806, REQ-0807, REQ-0808, REQ-0809, REQ-0810, REQ-0811, REQ-0812
 - REQ-0813, REQ-0814, REQ-0815, REQ-0816, REQ-0817, REQ-0818, REQ-0819, REQ-0820, REQ-0821, REQ-0822, REQ-0823, REQ-2816, REQ-2932, REQ-2933, REQ-2934, REQ-2935, REQ-2936, REQ-2937
 - REQ-2938, REQ-2939, REQ-2940, REQ-2941, REQ-2942, REQ-2943, REQ-2944, REQ-2966, REQ-2967, REQ-2968, REQ-2969
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Canonical Preprocessing, Splits and Benign Horizons** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4064,9 +3923,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I25 — Implement Local Detectors and Immutable Local Policies: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I26 — Implement Preprocess CLI Reuse and Invalidation Contract: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I27 — Implement Exclusion-Matched Information Fields, Ranks and Context Conditioning: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Canonical preprocessing, epoch features, scaling, splits and benign horizons** exactly as specified by `§7; hash/canonicalization definitions`. Required evidence contract: Deterministic preprocessing tests validate duplicate/invalid handling, epoch features, non-finite rules, scaling, chronology, leakage and horizon construction.
@@ -4204,9 +4060,6 @@ Expected areas affected by this issue:
 - REQ-0548, REQ-0549, REQ-0550, REQ-0551, REQ-0552, REQ-0553, REQ-0849, REQ-0850, REQ-0851, REQ-0852, REQ-0853, REQ-0854, REQ-0855, REQ-0856, REQ-0857, REQ-0858, REQ-0859, REQ-0860
 - REQ-0861, REQ-0862, REQ-0863, REQ-0864, REQ-0865, REQ-0866, REQ-0867, REQ-2823, REQ-2824, REQ-2825, REQ-2826, REQ-2827, REQ-2828, REQ-2829, REQ-2830, REQ-2831, REQ-2832, REQ-2833
 - REQ-2834
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Local Detectors and Immutable Local Policies** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4232,9 +4085,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I30 — Implement Distributed Support, Sequential Routes, Replay and Operational Lead: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I32 — Implement Baseline and Comparator Contracts: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I46 — Execute Strong-Local Challenge and Secondary Controlled-Trace Generalization: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Local detector fitting, scoring and immutable local-policy behavior** exactly as specified by `Detector definitions; §9`. Required evidence contract: Detector unit/integration tests validate exact fitting inputs, score direction, seed behavior, policy calibration separation and immutability.
@@ -4359,9 +4209,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1911, REQ-1912, REQ-1913, REQ-1914, REQ-1915, REQ-1916, REQ-1917, REQ-1918, REQ-1959
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Preprocess CLI Reuse and Invalidation Contract** as a complete, reviewable, testable unit of M05. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4386,9 +4233,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I41 — Execute Primary Strict ODI Evaluation Matrix: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Preprocess CLI ownership, reuse and invalidation** exactly as specified by `§16.2; §16.8 preprocess row`. Required evidence contract: CLI tests verify dataset selection, layer validation/reuse, overwrite, nearest-valid reconstruction, and selective downstream invalidation.
@@ -4469,9 +4313,6 @@ Expected areas affected by this issue:
 - REQ-0107, REQ-0108, REQ-0109, REQ-0110, REQ-0111, REQ-0112, REQ-0113, REQ-0114, REQ-0115, REQ-0116, REQ-0117, REQ-0118, REQ-0119, REQ-0120, REQ-0121, REQ-0122, REQ-0123, REQ-0124
 - REQ-0125, REQ-0126, REQ-0127, REQ-0128, REQ-0129, REQ-0130, REQ-0131, REQ-0132, REQ-0133, REQ-0134, REQ-0135, REQ-0136, REQ-0137, REQ-0138, REQ-0139, REQ-0140, REQ-0141, REQ-2811
 - REQ-2812, REQ-2960
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Exclusion-Matched Information Fields, Ranks and Context Conditioning** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4498,9 +4339,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I28 — Implement Bounded Basis, Projection and Cross-Fitted Innovation Calibration: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I31 — Implement Context Variants and Exclusion Diagnostics: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Information fields, ranks, outside context and coalition conditioning** exactly as specified by `§4.1–§4.5`. Required evidence contract: Property tests validate fields, ranks, context clustering/capping, coalition-conditioned residual ranks and exclusion invariants.
@@ -4610,9 +4448,6 @@ Expected areas affected by this issue:
 - REQ-0142, REQ-0143, REQ-0144, REQ-0145, REQ-0146, REQ-0147, REQ-0148, REQ-0149, REQ-0150, REQ-0151, REQ-0152, REQ-0153, REQ-0154, REQ-0155, REQ-0156, REQ-0157, REQ-0158, REQ-0159
 - REQ-0160, REQ-0161, REQ-0162, REQ-0163, REQ-0164, REQ-0165, REQ-0166, REQ-0167, REQ-0168, REQ-0169, REQ-0170, REQ-0171, REQ-0172, REQ-0173, REQ-0174, REQ-0175, REQ-0176, REQ-0177
 - REQ-0178, REQ-0179, REQ-0180, REQ-0181, REQ-0182, REQ-0183, REQ-0184, REQ-0185, REQ-0186
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Bounded Basis, Projection and Cross-Fitted Innovation Calibration** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4638,9 +4473,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I31 — Implement Context Variants and Exclusion Diagnostics: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I37 — Validate Pure-Order Separation and Generator Purity: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I38 — Validate Exclusion-Matched HOFD Equivalence: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Bounded basis, proper-subset projection and cross-fitted calibration** exactly as specified by `§4.6–§4.10`. Required evidence contract: Numerical tests validate basis construction, blocked folds, ridge/SVD selection, proper-subset design, cross-fitting and abstention.
@@ -4756,9 +4588,6 @@ Expected areas affected by this issue:
 
 - REQ-0187, REQ-0188, REQ-0189, REQ-0190, REQ-0191, REQ-0192, REQ-0193, REQ-0194, REQ-0195, REQ-0196, REQ-0197, REQ-0198, REQ-0199, REQ-0200, REQ-0201, REQ-0202, REQ-0203, REQ-0204
 - REQ-0205, REQ-0206, REQ-0207, REQ-0208, REQ-0209, REQ-0210, REQ-0211, REQ-0212, REQ-0213, REQ-0214, REQ-0215, REQ-0216, REQ-0217, REQ-0218, REQ-0219, REQ-0220, REQ-2813, REQ-2961
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Signed and Operational Evidence with Hierarchical Aggregation** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4781,9 +4610,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I30 — Implement Distributed Support, Sequential Routes, Replay and Operational Lead: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Signed/norm evidence and hierarchical across-order aggregation** exactly as specified by `§4.11–§4.15`. Required evidence contract: Analytic fixtures validate centering/scaling, signed and norm evidence, within/across-order aggregation and deterministic comparisons.
@@ -4890,9 +4716,6 @@ Expected areas affected by this issue:
 
 - REQ-0221, REQ-0222, REQ-0223, REQ-0224, REQ-0225, REQ-0226, REQ-0227, REQ-0228, REQ-0229, REQ-0230, REQ-0231, REQ-0232, REQ-0233, REQ-0234, REQ-0235, REQ-0236, REQ-0237, REQ-0238
 - REQ-0239, REQ-0240, REQ-0241, REQ-0242, REQ-0243, REQ-0244, REQ-0245, REQ-0246, REQ-0247, REQ-0248, REQ-0249, REQ-0250, REQ-0251, REQ-0252
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Distributed Support, Sequential Routes, Replay and Operational Lead** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -4918,9 +4741,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I32 — Implement Baseline and Comparator Contracts: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I33 — Implement Metric Registry and Campaign Registry Semantics: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I35 — Implement Synthetic Module Validation and Smoke Gate: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Support predicates, sequential routes, replay and operational lead** exactly as specified by `§4.16–§4.20`. Required evidence contract: Sequential tests validate support predicates, both routes, threshold calibration, recursion, no-stop/tie behavior, replay and lead formulas.
@@ -5023,9 +4843,6 @@ Expected areas affected by this issue:
 
 - REQ-0824, REQ-0825, REQ-0826, REQ-0827, REQ-0828, REQ-0829, REQ-0830, REQ-0831, REQ-0832, REQ-0833, REQ-0834, REQ-0835, REQ-0836, REQ-0837, REQ-0838, REQ-0839, REQ-0840, REQ-0841
 - REQ-0842, REQ-0843, REQ-0844, REQ-0845, REQ-0846, REQ-0847, REQ-0848, REQ-2949, REQ-2956
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Context Variants and Exclusion Diagnostics** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5053,9 +4870,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I43 — Execute Exclusion, Purification and Order Ablations: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I44 — Execute Context and Estimator Sensitivity Analysis: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I47 — Evaluate Outside-Contamination and Client-Dropout Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Context-method variants and diagnostic exclusion controls** exactly as specified by `§8`. Required evidence contract: Variant tests verify inclusive/LOO/partial/oracle/no/shuffled context and forced-no-abstention semantics without hidden fallback.
@@ -5154,9 +4968,6 @@ Expected areas affected by this issue:
 - REQ-0868, REQ-0869, REQ-0870, REQ-0871, REQ-0872, REQ-0873, REQ-0874, REQ-0875, REQ-0876, REQ-0877, REQ-0878, REQ-0879, REQ-0880, REQ-0881, REQ-0882, REQ-0883, REQ-0884, REQ-0885
 - REQ-0886, REQ-0887, REQ-0888, REQ-0889, REQ-0890, REQ-0891, REQ-0892, REQ-0893, REQ-0894, REQ-0895, REQ-0896, REQ-0897, REQ-0898, REQ-0899, REQ-0900, REQ-0901, REQ-0902, REQ-0903
 - REQ-0904, REQ-0905, REQ-0906, REQ-0907, REQ-0908
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Baseline and Comparator Contracts** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5185,9 +4996,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I34 — Implement Strong Comparator Composition Selection and Shared Experiment Contracts: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I39 — Execute Strong Comparator Composition Challenge: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I43 — Execute Exclusion, Purification and Order Ablations: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Baseline and comparator contracts** exactly as specified by `§10.1–§10.20`. Required evidence contract: Comparator fairness/contract tests validate information access, calibration, fitting, stopping and fixed method identities.
@@ -5306,9 +5114,6 @@ Expected areas affected by this issue:
 - REQ-1021, REQ-1022, REQ-1023, REQ-1024, REQ-1025, REQ-1026, REQ-1027, REQ-1028, REQ-1029, REQ-1030, REQ-1031, REQ-1032, REQ-1033, REQ-1034, REQ-1035, REQ-1036, REQ-1037, REQ-1038
 - REQ-1039, REQ-1040, REQ-2950, REQ-2951, REQ-1041, REQ-1042, REQ-1043, REQ-1044, REQ-1045, REQ-1046, REQ-1047, REQ-1048, REQ-1049, REQ-1050, REQ-1051, REQ-1052, REQ-1053, REQ-1054
 - REQ-1055, REQ-1056, REQ-1057, REQ-1058, REQ-1059, REQ-1060, REQ-1061, REQ-1062, REQ-1063, REQ-1064
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Metric Registry and Campaign Registry Semantics** as a complete, reviewable, testable unit of M06. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5337,9 +5142,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I41 — Execute Primary Strict ODI Evaluation Matrix: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I45 — Evaluate Benign Common-Mode Robustness: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I48 — Evaluate Coalition Scalability in the Common Reference Timing Environment: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Metric, diagnostic, latency and communication definitions** exactly as specified by `§11`. Required evidence contract: Hand-computed metric fixtures validate all predictive, stopping, support, numerical, latency, throughput and payload definitions.
@@ -5550,9 +5352,6 @@ Expected areas affected by this issue:
 
 - REQ-0909, REQ-0910, REQ-0911, REQ-0912, REQ-0913, REQ-0914, REQ-0915, REQ-0916, REQ-0917, REQ-0918, REQ-0919, REQ-0920, REQ-0921, REQ-0922, REQ-0923, REQ-0924, REQ-0925, REQ-0926
 - REQ-0927, REQ-0928, REQ-0929, REQ-0930, REQ-1065, REQ-1066, REQ-1067
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Strong Comparator Composition Selection and Shared Experiment Contracts** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5581,9 +5380,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I35 — Implement Synthetic Module Validation and Smoke Gate: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I39 — Execute Strong Comparator Composition Challenge: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Strong comparator composition selection rule** exactly as specified by `§10.21`. Required evidence contract: Selection-unit tests verify candidate set, error/runtime tie tolerances, deterministic ordering, and selected-artifact identity.
@@ -5682,9 +5478,6 @@ Expected areas affected by this issue:
 
 - REQ-1068, REQ-1069, REQ-1070, REQ-1071, REQ-1072, REQ-1073, REQ-1074, REQ-1075, REQ-1076, REQ-1077, REQ-1078, REQ-1079, REQ-1080, REQ-1081, REQ-1082, REQ-1083, REQ-1084, REQ-1085
 - REQ-1086, REQ-1087, REQ-1088, REQ-1089, REQ-1090, REQ-1091, REQ-1092, REQ-1093, REQ-1094, REQ-1928, REQ-1929, REQ-1930, REQ-1961
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Synthetic Module Validation and Smoke Gate** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5711,9 +5504,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I36 — Validate Self-Explanation Exclusion: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I37 — Validate Pure-Order Separation and Generator Purity: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I38 — Validate Exclusion-Matched HOFD Equivalence: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Synthetic module validation and smoke gate** exactly as specified by `§13.1; §16.4 smoke`. Required evidence contract: Smoke artifacts and repeated executions satisfy every module invariant and locked repeatability tolerance.
@@ -5814,9 +5604,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1095, REQ-1096, REQ-1097, REQ-1098, REQ-1099, REQ-1100, REQ-1101, REQ-1102, REQ-1103, REQ-1104, REQ-1105, REQ-1106
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Validate Self-Explanation Exclusion** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5840,9 +5627,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - None — no later issue has a direct declared dependency on this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Self-explanation exclusion validation** exactly as specified by `§13.2`. Required evidence contract: Configured perturbation/derivative results satisfy exact exclusion, attenuation and primary-condition evidence rules.
@@ -5924,9 +5708,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1107, REQ-1108, REQ-1109, REQ-1110, REQ-1111, REQ-1112, REQ-1113, REQ-1114, REQ-1115, REQ-1116, REQ-1117, REQ-1118, REQ-1119, REQ-1120, REQ-1121, REQ-1122, REQ-1123, REQ-1124
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Validate Pure-Order Separation and Generator Purity** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -5950,9 +5731,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - None — no later issue has a direct declared dependency on this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Pure-order separation and generator-purity validation** exactly as specified by `§13.3`. Required evidence contract: All required generator/effect/method rows satisfy purity, proper-subset preservation, separation and materiality checks.
@@ -6041,9 +5819,6 @@ Expected areas affected by this issue:
 
 - REQ-1125, REQ-1126, REQ-1127, REQ-1128, REQ-1129, REQ-1130, REQ-1131, REQ-1132, REQ-1133, REQ-1134, REQ-1135, REQ-1136, REQ-1137, REQ-1138, REQ-1139, REQ-1140, REQ-1141, REQ-1142
 - REQ-1143, REQ-1144, REQ-1145, REQ-1146, REQ-1147
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Validate Exclusion-Matched HOFD Equivalence** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6068,9 +5843,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I39 — Execute Strong Comparator Composition Challenge: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Exclusion-matched HOFD equivalence validation** exactly as specified by `§13.4`. Required evidence contract: Support/order equivalence artifacts satisfy exact equivalence metrics, support conditions and required confirmatory rows.
@@ -6165,9 +5937,6 @@ Expected areas affected by this issue:
 - REQ-1148, REQ-1149, REQ-1150, REQ-1151, REQ-1152, REQ-1153, REQ-1154, REQ-1155, REQ-1156, REQ-1157, REQ-1158, REQ-1159, REQ-1160, REQ-1161, REQ-1162, REQ-1163, REQ-1164, REQ-1165
 - REQ-1166, REQ-1167, REQ-1168, REQ-1169, REQ-1170, REQ-1171, REQ-1172, REQ-1173, REQ-1174, REQ-1175, REQ-1176, REQ-1177, REQ-1178, REQ-1179, REQ-1180, REQ-1181, REQ-1182, REQ-1183
 - REQ-1184, REQ-1185, REQ-1186, REQ-1187, REQ-1188, REQ-1189, REQ-1190
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Execute Strong Comparator Composition Challenge** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6192,9 +5961,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I40 — Validate Estimator Feasibility and Sequential Evidence: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Strong comparator composition challenge** exactly as specified by `§13.5`. Required evidence contract: Development challenge completes all candidates/conditions and produces the predeclared selected-comparator artifact.
@@ -6312,9 +6078,6 @@ Expected areas affected by this issue:
 - REQ-1227, REQ-1228, REQ-1229, REQ-1230, REQ-1231, REQ-1232, REQ-1233, REQ-1234, REQ-1235, REQ-1236, REQ-1237, REQ-1238, REQ-1239, REQ-1240, REQ-1241, REQ-1242, REQ-1243, REQ-1244
 - REQ-1245, REQ-1246, REQ-1247, REQ-1248, REQ-1249, REQ-1250, REQ-1251, REQ-1252, REQ-1253, REQ-1254, REQ-1255, REQ-1256, REQ-1257, REQ-1258, REQ-1259, REQ-1260, REQ-1261, REQ-1262
 - REQ-1263, REQ-1264, REQ-1265, REQ-1266, REQ-1267, REQ-1268, REQ-1269, REQ-1270, REQ-1271, REQ-1272, REQ-1273, REQ-1274, REQ-1275, REQ-1276, REQ-1277, REQ-1278, REQ-1279, REQ-1280
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Validate Estimator Feasibility and Sequential Evidence** as a complete, reviewable, testable unit of M07. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6343,9 +6106,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I44 — Execute Context and Estimator Sensitivity Analysis: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I46 — Execute Strong-Local Challenge and Secondary Controlled-Trace Generalization: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I47 — Evaluate Outside-Contamination and Client-Dropout Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Estimator support, feasibility and context sensitivity validation** exactly as specified by `§13.6`. Required evidence contract: Feasibility/support rows, abstention/numerical states and declared sensitivity diagnostics complete exactly.
@@ -6508,9 +6268,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1281, REQ-1282, REQ-1283, REQ-1284, REQ-1285, REQ-1286, REQ-1287, REQ-1288, REQ-1289, REQ-1290
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Execute Primary Strict ODI Evaluation Matrix** as a complete, reviewable, testable unit of M08. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6536,9 +6293,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I42 — Evaluate Full FedCampaign-EMHI Primary Support Criteria: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Primary Strict ODI evaluation matrix** exactly as specified by `§13.8`. Required evidence contract: Current method×real-confirmatory-seed cells cover the complete eligible campaign registry and benign horizons with exact evaluation artifacts.
@@ -6618,9 +6372,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1291, REQ-1292, REQ-1293, REQ-1294, REQ-1295, REQ-1296
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Evaluate Full FedCampaign-EMHI Primary Support Criteria** as a complete, reviewable, testable unit of M08. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6649,9 +6400,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I46 — Execute Strong-Local Challenge and Secondary Controlled-Trace Generalization: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I47 — Evaluate Outside-Contamination and Client-Dropout Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I48 — Evaluate Coalition Scalability in the Common Reference Timing Environment: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Full FedCampaign-EMHI primary support criteria** exactly as specified by `§13.8 support criteria`. Required evidence contract: Primary support/PFA/ODI/lead/comparator-advantage criteria are mechanically evaluable from current primary evidence.
@@ -6727,9 +6475,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1297, REQ-1298, REQ-1299, REQ-1300, REQ-1301, REQ-1302, REQ-1303, REQ-1304, REQ-1305, REQ-1306, REQ-1307, REQ-1308, REQ-1309, REQ-1310, REQ-1311, REQ-1312, REQ-1313, REQ-1314
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Execute Exclusion, Purification and Order Ablations** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6754,9 +6499,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Exclusion, purification and order ablations** exactly as specified by `§13.9–§13.10`. Required evidence contract: Ablation artifacts vary only the declared mechanism and report all required metrics for every configured method/seed.
@@ -6844,9 +6586,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1315, REQ-1316, REQ-1317, REQ-1318, REQ-1319, REQ-1320, REQ-1321, REQ-1322, REQ-1323, REQ-1324, REQ-1325, REQ-1326, REQ-1327, REQ-1328, REQ-1329, REQ-1330, REQ-1331, REQ-2952
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Execute Context and Estimator Sensitivity Analysis** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6871,9 +6610,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Context and estimator sensitivity** exactly as specified by `§13.11`. Required evidence contract: Sensitivity rows cover the fixed context variants/forced-ridge conditions and preserve declared development-only semantics where applicable.
@@ -6962,9 +6698,6 @@ Expected areas affected by this issue:
 
 - REQ-1332, REQ-1333, REQ-1334, REQ-1335, REQ-1336, REQ-1337, REQ-1338, REQ-1339, REQ-1340, REQ-1341, REQ-1342, REQ-1343, REQ-1344, REQ-1345, REQ-1346, REQ-1347, REQ-1348, REQ-1349
 - REQ-1350, REQ-1351, REQ-1352, REQ-1353, REQ-1354, REQ-1355, REQ-1356, REQ-1357, REQ-1358
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Evaluate Benign Common-Mode Robustness** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -6988,9 +6721,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Benign common-mode robustness** exactly as specified by `§13.12`. Required evidence contract: Native-high-volume negative and positive-power branches plus declared stresses produce the required suppression/power evidence.
@@ -7088,9 +6818,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1359, REQ-1360, REQ-1361, REQ-1362, REQ-1363, REQ-1364, REQ-1365, REQ-1366, REQ-1367, REQ-1368, REQ-1369, REQ-1370, REQ-1371, REQ-1372
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Execute Strong-Local Challenge and Secondary Controlled-Trace Generalization** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7116,9 +6843,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Strong local policy challenge** exactly as specified by `§13.13`. Required evidence contract: All required real confirmatory seeds compare the declared stronger local policy under exact fixed rules.
@@ -7207,9 +6931,6 @@ Expected areas affected by this issue:
 
 - REQ-1373, REQ-1374, REQ-1375, REQ-1376, REQ-1377, REQ-1378, REQ-1379, REQ-1380, REQ-1381, REQ-1382, REQ-1383, REQ-1384, REQ-1385, REQ-1386, REQ-1387, REQ-1388, REQ-1389, REQ-1390
 - REQ-1391, REQ-1392, REQ-1393, REQ-1394
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Evaluate Outside-Contamination and Client-Dropout Boundaries** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7235,9 +6956,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Outside-campaign contamination boundary** exactly as specified by `§13.15`. Required evidence contract: Configured fractions/seeds produce complete boundary metrics and expected conditioning/power diagnostics.
@@ -7336,9 +7054,6 @@ Expected areas affected by this issue:
 - REQ-1431, REQ-1432, REQ-1433, REQ-1434, REQ-1435, REQ-1436, REQ-1437, REQ-1438, REQ-1439, REQ-1440, REQ-1441, REQ-2382, REQ-2383, REQ-2384, REQ-2385, REQ-2386, REQ-2387, REQ-2388
 - REQ-2389, REQ-2390, REQ-2391, REQ-2392, REQ-2393, REQ-2394, REQ-2395, REQ-2396, REQ-2397, REQ-2398, REQ-2399, REQ-2400, REQ-2401, REQ-2402, REQ-2403, REQ-2404, REQ-2405, REQ-2406
 - REQ-2407, REQ-2408, REQ-2409, REQ-2410, REQ-2963, REQ-2964
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Evaluate Coalition Scalability in the Common Reference Timing Environment** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7363,9 +7078,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I49 — Enforce Scientific Failure, Ineligibility and Downscope Boundaries: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Coalition scalability and common reference timing environment** exactly as specified by `§13.17; §19.3`. Required evidence contract: K×seed×repetition outputs share one exact environment record and follow warmup/measurement/concurrency/p95 rules.
@@ -7513,9 +7225,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-1542, REQ-1543, REQ-1544, REQ-1545, REQ-1546, REQ-1547, REQ-1548, REQ-1549, REQ-1550, REQ-1551, REQ-1552, REQ-1553, REQ-1554, REQ-1555
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Enforce Scientific Failure, Ineligibility and Downscope Boundaries** as a complete, reviewable, testable unit of M09. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7547,9 +7256,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 - I51 — Implement Verified-Evidence Reporting and Reproducibility Exports: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I52 — Perform Confirmatory Statistical Synthesis: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I53 — Materialize Dataset, Protocol, Detector, Baseline and Experiment Result Tables: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Predeclared scientific failure and ineligibility boundaries** exactly as specified by `§15`. Required evidence contract: Fault/ineligibility fixtures assert exact outcome states for estimator failure, unavailable threshold and secondary ineligibility.
@@ -7635,9 +7341,6 @@ Expected areas affected by this issue:
 - REQ-0001, REQ-0002, REQ-0003, REQ-0005, REQ-0006, REQ-0066, REQ-0067, REQ-0068, REQ-0069, REQ-0070, REQ-0071, REQ-0072, REQ-0073, REQ-0074, REQ-0075, REQ-0076, REQ-0077, REQ-0078
 - REQ-0079, REQ-0080, REQ-0081, REQ-0082, REQ-0083, REQ-0084, REQ-0085, REQ-0086, REQ-0087, REQ-0088, REQ-0089, REQ-0090, REQ-0091, REQ-0092, REQ-0093, REQ-0094, REQ-0095, REQ-0096
 - REQ-0097, REQ-0098, REQ-0099, REQ-0100, REQ-0101, REQ-0102, REQ-0103, REQ-0104, REQ-2786, REQ-2795, REQ-2798, REQ-2799, REQ-2899, REQ-2912, REQ-2957, REQ-2958
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Materialize Claim Identity, Novelty Boundaries and Research-Question Constraints** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7661,9 +7364,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I55 — Materialize the Mechanical Claim and Evidence Registry: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Claim identity, novelty limits, research questions and forbidden extrapolations** exactly as specified by `Authority; §§2–3; claim-boundary clarifications`. Required evidence contract: Roadmap-to-claim/manuscript traceability audit verifies exact terminology, novelty boundaries and every prohibited extrapolation.
@@ -7788,9 +7488,6 @@ Expected areas affected by this issue:
 - REQ-1953, REQ-1954, REQ-1955, REQ-1956, REQ-1957, REQ-1964, REQ-2313, REQ-2314, REQ-2315, REQ-2316, REQ-2317, REQ-2318, REQ-2319, REQ-2320, REQ-2321, REQ-2322, REQ-2323, REQ-2324
 - REQ-2325, REQ-2326, REQ-2327, REQ-2328, REQ-2329, REQ-2330, REQ-2331, REQ-2332, REQ-2333, REQ-2334, REQ-2335, REQ-2336, REQ-2337, REQ-2338, REQ-2339, REQ-2340, REQ-2341, REQ-2342
 - REQ-2343, REQ-2344, REQ-2345, REQ-2346, REQ-2347, REQ-2348, REQ-2349
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Implement Verified-Evidence Reporting and Reproducibility Exports** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7817,9 +7514,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I53 — Materialize Dataset, Protocol, Detector, Baseline and Experiment Result Tables: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I54 — Materialize Manuscript Figures and Project-Summary Evidence: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Report CLI verified-evidence materialization** exactly as specified by `§16.7; §16.8 report row`. Required evidence contract: CLI integration tests prove `report` performs no new scientific/statistical computation and reads only current verified artifacts.
@@ -7935,9 +7629,6 @@ Expected areas affected by this issue:
 ### Requirements
 
 - REQ-2411, REQ-2412, REQ-2413, REQ-2414, REQ-2415, REQ-2416, REQ-2417, REQ-2418, REQ-2419, REQ-2420
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Perform Confirmatory Statistical Synthesis** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -7963,9 +7654,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I53 — Materialize Dataset, Protocol, Detector, Baseline and Experiment Result Tables: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I55 — Materialize the Mechanical Claim and Evidence Registry: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Confirmatory statistical synthesis completeness** exactly as specified by `§19.4`. Required evidence contract: Completeness validation proves all mandatory current cells, pairing families, intervals, decision gates, and confirmatory-analysis inputs are present before claim/report materialization.
@@ -8058,9 +7746,6 @@ Expected areas affected by this issue:
 - REQ-2601, REQ-2602, REQ-2603, REQ-2604, REQ-2605, REQ-2606, REQ-2607, REQ-2608, REQ-2609, REQ-2610, REQ-2611, REQ-2612, REQ-2613, REQ-2614, REQ-2615, REQ-2616, REQ-2617, REQ-2618
 - REQ-2619, REQ-2620, REQ-2621, REQ-2622, REQ-2623, REQ-2624, REQ-2625, REQ-2626, REQ-2627, REQ-2628, REQ-2629, REQ-2630, REQ-2631, REQ-2632, REQ-2633, REQ-2634, REQ-2635, REQ-2636
 - REQ-2637, REQ-2638, REQ-2639, REQ-2640, REQ-2641, REQ-2642, REQ-2643, REQ-2644, REQ-2645, REQ-2646, REQ-2647, REQ-2648, REQ-2649, REQ-2650, REQ-2651, REQ-2652, REQ-2653, REQ-2654
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Materialize Dataset, Protocol, Detector, Baseline and Experiment Result Tables** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -8087,9 +7772,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 
 - I54 — Materialize Manuscript Figures and Project-Summary Evidence: consumes the validated contracts, artifacts, or evidence produced by this issue.
 - I55 — Materialize the Mechanical Claim and Evidence Registry: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Source-data, dataset-role, protocol, detector and baseline tables** exactly as specified by `§20.1–§20.5`. Required evidence contract: Table-contract tests assert exact source paths/columns/roles/precision and trace every value to current machine-readable artifacts.
@@ -8400,9 +8082,6 @@ Expected areas affected by this issue:
 - REQ-2673, REQ-2674, REQ-2675, REQ-2676, REQ-2677, REQ-2678, REQ-2679, REQ-2680, REQ-2681, REQ-2682, REQ-2683, REQ-2684, REQ-2685, REQ-2686, REQ-2687, REQ-2688, REQ-2689, REQ-2690
 - REQ-2691, REQ-2692, REQ-2693, REQ-2694, REQ-2695, REQ-2696, REQ-2697, REQ-2698, REQ-2699, REQ-2700, REQ-2701, REQ-2702, REQ-2703, REQ-2704, REQ-2705, REQ-2706, REQ-2707, REQ-2708
 - REQ-2709, REQ-2710, REQ-2711, REQ-2712, REQ-2713, REQ-2714, REQ-2715, REQ-2716, REQ-2717, REQ-2718
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Materialize Manuscript Figures and Project-Summary Evidence** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -8427,9 +8106,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - I55 — Materialize the Mechanical Claim and Evidence Registry: consumes the validated contracts, artifacts, or evidence produced by this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Manuscript figure contracts and source data** exactly as specified by `§20.11–§20.18`. Required evidence contract: Figure validators assert exact x/y/series/source-data contracts, labels and reproducibility from machine-readable sources.
@@ -8570,9 +8246,6 @@ Expected areas affected by this issue:
 - REQ-2755, REQ-2756, REQ-2757, REQ-2758, REQ-2759, REQ-2760, REQ-2761, REQ-2762, REQ-2763, REQ-2764, REQ-2765, REQ-2766, REQ-2767, REQ-2768, REQ-2769, REQ-2770, REQ-2771, REQ-2772
 - REQ-2773, REQ-2774, REQ-2775, REQ-2776, REQ-2777, REQ-2778, REQ-2779, REQ-2780, REQ-2781, REQ-2782, REQ-2783, REQ-2784, REQ-2785, REQ-2787, REQ-2788, REQ-2789, REQ-2790, REQ-2791
 - REQ-2792, REQ-2793, REQ-2794, REQ-2796, REQ-2797
-
-Every scope item, acceptance criterion, required output, and claim-bearing behavior in this issue traces to the authoritative roadmap through the Roadmap Coverage Inventory and the approved milestone allocation.
-
 ## Objective
 
 Deliver **Materialize the Mechanical Claim and Evidence Registry** as a complete, reviewable, testable unit of M10. The completed implementation must realize the roadmap-defined behavior for every mapped atomic requirement, preserve the approved milestone boundary, and produce the validation and evidence needed by downstream issues without requiring those issues to reinterpret or rediscover this scope.
@@ -8598,9 +8271,6 @@ No requirement may exist only implicitly in tests, acceptance criteria, or imple
 ### Blocks
 
 - None — no later issue has a direct declared dependency on this issue.
-
-Dependencies are satisfied only by validated, current, provenance-compatible contracts or evidence. A closed upstream issue is not sufficient if its consumed artifacts are stale, malformed, incomplete, incompatible, or scientifically invalid.
-
 ## Implementation Requirements
 
 - Implement and verify **Mechanical claim and evidence registry** exactly as specified by `§21`. Required evidence contract: Claim-engine tests evaluate every claim state mechanically from exact prerequisites, gates, eligibility and downscoping rules.
