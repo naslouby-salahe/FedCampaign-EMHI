@@ -25,4 +25,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           PYTHONPATH: .github/scripts
-        run: python .github/scripts/planning_materialize.py
+        run: |
+          sed -i 's/rr(174, 184)/rr(174, 181) + [183, 184]/' .github/scripts/planning_issue_specs.py
+          python .github/scripts/planning_materialize.py
