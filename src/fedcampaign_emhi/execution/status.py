@@ -33,19 +33,13 @@ from fedcampaign_emhi.comparators.global_factor_residual import (
 from fedcampaign_emhi.comparators.lancaster import (
     lancaster_contract as comparators_lancaster_lancaster_contract,
 )
-from fedcampaign_emhi.comparators.multistream_cusum import (
-    multistream_cusum_contract as comparators_multistream_cusum_multistream_cusum_contract,
-)
+from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
 from fedcampaign_emhi.comparators.pair_dependence import (
     pair_dependence_contract as comparators_pair_dependence_pair_dependence_contract,
 )
-from fedcampaign_emhi.comparators.rank_fusion import (
-    rank_fusion_contract as comparators_rank_fusion_rank_fusion_contract,
-)
+from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.datasets.campaigns import (
-    campaigns_contract as datasets_campaigns_campaigns_contract,
-)
+from fedcampaign_emhi.datasets.campaigns import merge_malicious_runs
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     canonical_event_type as edge_iiotset_canonical_event_type,
 )
@@ -70,9 +64,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
 from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
 )
-from fedcampaign_emhi.detection.local_policy import (
-    local_policy_contract as detection_local_policy_local_policy_contract,
-)
+from fedcampaign_emhi.detection.local_policy import persistence_is_triggered
 from fedcampaign_emhi.detection.scoring import (
     scoring_contract as detection_scoring_scoring_contract,
 )
@@ -115,9 +107,7 @@ from fedcampaign_emhi.models.one_class_svm import (
     one_class_svm_contract as models_one_class_svm_one_class_svm_contract,
 )
 from fedcampaign_emhi.runtime.logging import logging_contract as runtime_logging_logging_contract
-from fedcampaign_emhi.synthetic.common_mode import (
-    common_mode_contract as synthetic_common_mode_common_mode_contract,
-)
+from fedcampaign_emhi.synthetic.common_mode import equally_spaced_loadings
 from fedcampaign_emhi.synthetic.context_boundaries import (
     context_boundaries_contract as synthetic_context_boundaries_context_boundaries_contract,
 )
@@ -214,6 +204,12 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ton_iot_network_ground_truth,
         load_ton_iot_network_csv,
         ton_iot_network_schema_is_executable,
+        mean_rank_fusion,
+        max_rank_fusion,
+        merge_malicious_runs,
+        persistence_is_triggered,
+        equally_spaced_loadings,
+        next_cusum_state,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -255,10 +251,19 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         comparators_fedavg_autoencoder_fedavg_autoencoder_contract(),
         comparators_global_factor_residual_global_factor_residual_contract(),
         comparators_lancaster_lancaster_contract(),
-        comparators_multistream_cusum_multistream_cusum_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.multistream_cusum",
+            ownership="roadmap-defined multistream CUSUM sequential baseline",
+        ),
         comparators_pair_dependence_pair_dependence_contract(),
-        comparators_rank_fusion_rank_fusion_contract(),
-        datasets_campaigns_campaigns_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.rank_fusion",
+            ownership="roadmap-defined marginal rank-fusion references",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.campaigns",
+            ownership="campaign merging, eligibility, warm-up, activity, and evaluation-horizon semantics",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.ton_iot_network",
             ownership="dataset adapter",
@@ -300,7 +305,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             ownership="dataset adapter contract",
         ),
         detection_fitting_fitting_contract(),
-        detection_local_policy_local_policy_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.detection.local_policy",
+            ownership="calibrates and evaluates primary and strong local stopping policies",
+        ),
         detection_scoring_scoring_contract(),
         emhi_innovation_calibration_innovation_calibration_contract(),
         emhi_innovations_innovations_contract(),
@@ -317,7 +325,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         models_isolation_forest_isolation_forest_contract(),
         models_one_class_svm_one_class_svm_contract(),
         runtime_logging_logging_contract(),
-        synthetic_common_mode_common_mode_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.common_mode",
+            ownership="latent common-mode benign coordination and count-stress scenarios",
+        ),
         synthetic_context_boundaries_context_boundaries_contract(),
         synthetic_controlled_campaigns_controlled_campaigns_contract(),
         synthetic_pure_order_pure_order_contract(),
