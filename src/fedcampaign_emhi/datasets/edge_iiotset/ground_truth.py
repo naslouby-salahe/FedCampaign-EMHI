@@ -1,8 +1,27 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+from fedcampaign_emhi.domain.enums import GroundTruthClass
+from fedcampaign_emhi.domain.types import AttackTypeName, GroundTruthLabel, SignedInt
+
+BENIGN_ATTACK_TYPE = "normal"
 
 
-def ground_truth_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.datasets.edge_iiotset.ground_truth",
-        ownership="dataset adapter contract",
+def edge_iiotset_ground_truth(
+    binary_label: SignedInt, attack_type: AttackTypeName
+) -> GroundTruthLabel:
+    normalized_type = attack_type.strip()
+    if binary_label == 0 and normalized_type.lower() == BENIGN_ATTACK_TYPE:
+        return GroundTruthLabel(
+            classification=GroundTruthClass.BENIGN,
+            attack_type=normalized_type,
+            is_ambiguous=False,
+        )
+    if binary_label == 1 and normalized_type.lower() != BENIGN_ATTACK_TYPE:
+        return GroundTruthLabel(
+            classification=GroundTruthClass.MALICIOUS,
+            attack_type=normalized_type,
+            is_ambiguous=False,
+        )
+    return GroundTruthLabel(
+        classification=GroundTruthClass.AMBIGUOUS,
+        attack_type=normalized_type,
+        is_ambiguous=True,
     )

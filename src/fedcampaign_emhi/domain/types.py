@@ -5,15 +5,19 @@ from typing import Annotated
 from pydantic import Field, StringConstraints
 
 from fedcampaign_emhi.domain.enums import (
+    ArtifactLifecycleState,
     ArtifactNamespace,
     ClaimIdentifier,
     ClaimState,
     CoalitionOrder,
+    DatasetName,
     DetectorFamily,
     ExperimentName,
     ExperimentState,
+    GroundTruthClass,
     MethodName,
     OperatingPointState,
+    RecordExclusionReason,
     ScientificOutcomeKind,
 )
 
@@ -118,6 +122,14 @@ ModuleName = Annotated[
 ]
 OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+CanonicalEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+AttackTypeName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+SeedCoordinateName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+ByteCount = NonNegativeInt
+Sha256Hex = ConfigurationDigest
+ThirtyTwoBitSeed = Annotated[int, Field(ge=0, lt=4_294_967_296)]
 
 
 @dataclass(frozen=True)
@@ -197,3 +209,82 @@ class ChronologicalPartitionLengths:
     nuisance_fit: EpochCount
     threshold_and_policy_calibration: EpochCount
     heldout_benign: EpochCount
+
+
+@dataclass(frozen=True)
+class SeedCoordinate:
+    name: SeedCoordinateName
+    scalar: FiniteFloat | SeedValue | CanonicalEventToken | bool | None
+
+
+@dataclass(frozen=True)
+class SeedDerivationIdentity:
+    base_seed: SeedValue
+    component_name: ComponentName
+    dataset: DatasetName | None
+    client_ids: tuple[ClientId, ...]
+    coalition_ids: tuple[ClientId, ...]
+    condition_coordinates: tuple[SeedCoordinate, ...]
+
+
+@dataclass(frozen=True)
+class ArtifactDependencyNode:
+    artifact_id: ArtifactIdentity
+    material_fingerprint: MaterialDependencyFingerprint
+    upstream_ids: tuple[ArtifactIdentity, ...]
+
+
+@dataclass(frozen=True)
+class ArtifactInspection:
+    artifact_id: ArtifactIdentity
+    lifecycle_state: ArtifactLifecycleState
+    material_fingerprint: MaterialDependencyFingerprint | None
+
+
+@dataclass(frozen=True)
+class CoalitionMembers:
+    client_ids: tuple[ClientId, ...]
+    order: CoalitionOrder
+
+
+@dataclass(frozen=True)
+class RankReference:
+    scores: tuple[FiniteFloat, ...]
+
+
+@dataclass(frozen=True)
+class TonIotNetworkFlowRecord:
+    timestamp_seconds: UnixTimestampSeconds
+    source_ip: ClientId
+    protocol_token: CanonicalEventToken
+    service_token: CanonicalEventToken
+    binary_label: SignedInt
+    attack_type: AttackTypeName
+
+
+@dataclass(frozen=True)
+class EdgeIiotsetFlowRecord:
+    timestamp_seconds: UnixTimestampSeconds
+    source_host: ClientId
+    protocol_group: CanonicalEventToken
+    binary_label: SignedInt
+    attack_type: AttackTypeName
+
+
+@dataclass(frozen=True)
+class GroundTruthLabel:
+    classification: GroundTruthClass
+    attack_type: AttackTypeName | None
+    is_ambiguous: bool
+
+
+@dataclass(frozen=True)
+class ExcludedRecord:
+    reason: RecordExclusionReason
+
+
+@dataclass(frozen=True)
+class FileInventoryEntry:
+    relative_path: RelativePath
+    sha256: Sha256Hex
+    byte_count: ByteCount

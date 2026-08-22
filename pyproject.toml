@@ -11,9 +11,11 @@ requires-python = ">=3.13"
 license = { file = "LICENSE" }
 authors = [{ name = "Salah Naslouby" }]
 dependencies = [
+    "numpy>=2.2",
     "pydantic>=2.13",
     "pyyaml>=6.0",
     "rfc8785>=0.1",
+    "scipy>=1.15",
     "typer>=0.27",
 ]
 

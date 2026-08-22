@@ -1,8 +1,34 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+from fedcampaign_emhi.domain.enums import PrimaryHolmHypothesis, SecondaryHolmHypothesis
+from fedcampaign_emhi.domain.types import ComponentName, Probability
 
 
-def multiplicity_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.analysis.multiplicity",
-        ownership="deterministic Holm-family correction and adjusted p-value computation",
-    )
+def holm_adjusted_p_values(
+    identifiers: tuple[ComponentName, ...], raw_p_values: tuple[Probability, ...]
+) -> tuple[Probability, ...]:
+    if len(identifiers) != len(raw_p_values):
+        raise ValueError("identifiers and raw_p_values must have equal length")
+    family_size = len(identifiers)
+    if family_size == 0:
+        return ()
+    ordered = sorted(zip(identifiers, raw_p_values, range(family_size), strict=True))
+    ordered_by_p = sorted(ordered, key=lambda item: (item[1], item[0]))
+    adjusted_by_index = [0.0] * family_size
+    running = 0.0
+    for rank, (_identifier, raw_p, original_index) in enumerate(ordered_by_p):
+        remaining = family_size - rank
+        candidate = min(1.0, remaining * raw_p)
+        running = max(running, candidate)
+        adjusted_by_index[original_index] = running
+    return tuple(adjusted_by_index)
+
+
+def primary_holm_family_identifiers() -> tuple[ComponentName, ...]:
+    return tuple(hypothesis.value for hypothesis in PrimaryHolmHypothesis)
+
+
+def secondary_holm_family_identifiers() -> tuple[ComponentName, ...]:
+    return tuple(hypothesis.value for hypothesis in SecondaryHolmHypothesis)
+
+
+def holm_placeholder_p_value() -> Probability:
+    return 1.0
