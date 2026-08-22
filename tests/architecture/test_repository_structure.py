@@ -76,7 +76,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/synthetic/pure_order.py",
     "src/fedcampaign_emhi/synthetic/robustness.py",
     "src/fedcampaign_emhi/synthetic/context_boundaries.py",
-    "src/fedcampaign_emhi/synthetic/validation.py",
+    "src/fedcampaign_emhi/evaluation/smoke_gate.py",
     "src/fedcampaign_emhi/experiments/__init__.py",
     "src/fedcampaign_emhi/experiments/definitions.py",
     "src/fedcampaign_emhi/experiments/coordinates.py",

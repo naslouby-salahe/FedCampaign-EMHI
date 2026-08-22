@@ -13,4 +13,4 @@ def test_doctor_plan_and_smoke() -> None:
     assert plan.exit_code == 0
     smoke = runner.invoke(application, ["smoke"])
     assert smoke.exit_code == 0
-    assert "strict_odi_fixture=1" in smoke.stdout
+    assert "smoke_gate=PASS" in smoke.stdout

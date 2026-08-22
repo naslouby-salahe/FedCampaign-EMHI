@@ -90,6 +90,12 @@ ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
             "main",
             "str",
         ),
+        AllowlistEntry(
+            "src/fedcampaign_emhi/evaluation/smoke_gate.py",
+            65,
+            "_check",
+            "list",
+        ),
     }
 )
 

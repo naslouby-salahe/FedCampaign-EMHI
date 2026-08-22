@@ -276,6 +276,9 @@ from fedcampaign_emhi.evaluation.records import global_detection_without_odi, od
 from fedcampaign_emhi.evaluation.scalability import (
     scalability_contract as evaluation_scalability_scalability_contract,
 )
+from fedcampaign_emhi.evaluation.smoke_gate import (
+    validation_contract as synthetic_validation_validation_contract,
+)
 from fedcampaign_emhi.evaluation.validation import (
     validation_contract as evaluation_validation_validation_contract,
 )
@@ -306,9 +309,6 @@ from fedcampaign_emhi.synthetic.pure_order import (
 )
 from fedcampaign_emhi.synthetic.robustness import contaminated_outside_count, round_half_up
 from fedcampaign_emhi.synthetic.self_explanation import analytic_direct_derivative
-from fedcampaign_emhi.synthetic.validation import (
-    validation_contract as synthetic_validation_validation_contract,
-)
 
 
 @dataclass(frozen=True)
