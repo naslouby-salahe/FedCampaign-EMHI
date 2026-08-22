@@ -300,9 +300,12 @@ from fedcampaign_emhi.execution.preprocess import (
     requested_datasets,
 )
 from fedcampaign_emhi.experiments.primary_odi import (
+    PRIMARY_CAUSAL_COMPARATOR,
+    FullMethodSupportInputs,
     campaign_evaluation_universe,
     campaign_registry_universe_size,
     enumerate_primary_strict_odi_plan,
+    evaluate_full_method_support,
     matched_operating_point_requirement,
     median_of,
     median_operational_lead_gate,
@@ -436,6 +439,9 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         matched_operating_point_requirement,
         campaign_evaluation_universe,
         campaign_registry_universe_size,
+        PRIMARY_CAUSAL_COMPARATOR,
+        FullMethodSupportInputs,
+        evaluate_full_method_support,
         execute_preprocess,
         nearest_reconstruction_layer,
         preprocess_must_not_regenerate,

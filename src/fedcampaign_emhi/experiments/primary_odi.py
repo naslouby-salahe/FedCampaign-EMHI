@@ -5,6 +5,7 @@ from fedcampaign_emhi.domain.enums import DatasetName, MethodName
 from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
+    ComponentName,
     EpochCount,
     FiniteFloat,
     Probability,
@@ -92,3 +93,72 @@ def evaluation_epoch_budget(campaign_count: RecordCount, horizon_epochs: EpochCo
         raise ValueError("evaluation horizon must be positive")
     budget: RecordCount = campaign_count * horizon_epochs
     return budget
+
+
+@dataclass(frozen=True)
+class FullMethodSupportInputs:
+    heldout_pfa_upper_bound: Probability
+    target_pfa: Probability
+    mean_strict_odi_rate: Probability
+    minimum_strict_odi_rate: Probability
+    paired_odi_advantage: FiniteFloat
+    minimum_odi_advantage: Probability
+    median_lead_among_successes: FiniteFloat
+    minimum_median_lead: FiniteFloat
+    directional_adjusted_p_value: Probability
+    nominal_alpha: Probability
+    full_operating_point_available: bool
+    comparator_operating_point_available: bool
+
+
+@dataclass(frozen=True)
+class FullMethodSupportResult:
+    pfa_gate_passes: bool
+    odi_rate_gate_passes: bool
+    advantage_gate_passes: bool
+    lead_gate_passes: bool
+    directional_gate_passes: bool
+    matched_operating_point_gate_passes: bool
+
+    @property
+    def all_criteria_pass(self) -> bool:
+        return (
+            self.pfa_gate_passes
+            and self.odi_rate_gate_passes
+            and self.advantage_gate_passes
+            and self.lead_gate_passes
+            and self.directional_gate_passes
+            and self.matched_operating_point_gate_passes
+        )
+
+    @property
+    def failed_criteria(self) -> tuple[ComponentName, ...]:
+        checks = (
+            ("heldout_pfa", self.pfa_gate_passes),
+            ("strict_odi_rate", self.odi_rate_gate_passes),
+            ("paired_odi_advantage", self.advantage_gate_passes),
+            ("median_operational_lead", self.lead_gate_passes),
+            ("directional_inference", self.directional_gate_passes),
+            ("matched_operating_point", self.matched_operating_point_gate_passes),
+        )
+        return tuple(name for name, passed in checks if not passed)
+
+
+def evaluate_full_method_support(inputs: FullMethodSupportInputs) -> FullMethodSupportResult:
+    return FullMethodSupportResult(
+        pfa_gate_passes=inputs.heldout_pfa_upper_bound <= inputs.target_pfa,
+        odi_rate_gate_passes=strict_odi_rate_gate(
+            inputs.mean_strict_odi_rate, inputs.minimum_strict_odi_rate
+        ),
+        advantage_gate_passes=paired_odi_advantage_gate(
+            inputs.paired_odi_advantage, 0.0, inputs.minimum_odi_advantage
+        ),
+        lead_gate_passes=median_operational_lead_gate(
+            inputs.median_lead_among_successes, inputs.minimum_median_lead
+        ),
+        directional_gate_passes=inputs.directional_adjusted_p_value < inputs.nominal_alpha,
+        matched_operating_point_gate_passes=matched_operating_point_requirement(
+            inputs.full_operating_point_available,
+            inputs.comparator_operating_point_available,
+        ),
+    )
