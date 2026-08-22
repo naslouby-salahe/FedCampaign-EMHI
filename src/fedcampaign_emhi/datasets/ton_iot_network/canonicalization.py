@@ -3,12 +3,14 @@ import unicodedata
 
 from fedcampaign_emhi.domain.types import (
     CanonicalEventToken,
+    ClientId,
     HashBucketCount,
     SignedInt,
 )
 
 UNKNOWN_PROTOCOL_TOKEN = "UNKNOWN_PROTO"
 UNKNOWN_SERVICE_TOKEN = "UNKNOWN_SERVICE"
+ZEEK_MISSING_FIELD_TOKEN = "-"
 
 
 def canonicalize_token(
@@ -17,9 +19,13 @@ def canonicalize_token(
     if raw_token is None:
         return missing_token
     stripped = raw_token.strip()
-    if not stripped:
+    if not stripped or stripped == ZEEK_MISSING_FIELD_TOKEN:
         return missing_token
     return unicodedata.normalize("NFKC", stripped.upper())
+
+
+def canonical_client_id(source_ip: ClientId) -> ClientId:
+    return unicodedata.normalize("NFKC", source_ip.strip())
 
 
 def canonical_event_type(
