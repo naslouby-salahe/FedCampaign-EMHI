@@ -5,7 +5,6 @@ from fedcampaign_emhi.analysis.multiplicity import (
     primary_holm_family_identifiers,
     secondary_holm_family_identifiers,
 )
-from fedcampaign_emhi.domain.enums import PrimaryHolmHypothesis
 from fedcampaign_emhi.analysis.statistics import (
     bootstrap_is_degenerate,
     degenerate_bootstrap_interval,
@@ -19,7 +18,7 @@ from fedcampaign_emhi.analysis.statistics import (
     two_sided_sign_flip_p_value,
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
-from fedcampaign_emhi.domain.enums import ClaimIdentifier
+from fedcampaign_emhi.domain.enums import ClaimIdentifier, PrimaryHolmHypothesis
 
 
 def test_claim_identifiers_are_complete() -> None:

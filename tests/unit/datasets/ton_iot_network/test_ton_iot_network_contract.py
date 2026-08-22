@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from fedcampaign_emhi.datasets.inventory import ton_iot_network_field_mapping
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_event_type,
     event_type_hash_bucket,
@@ -11,8 +14,16 @@ from fedcampaign_emhi.domain.enums import GroundTruthClass
 
 
 def test_documented_columns_are_required() -> None:
-    assert schema_is_executable(("ts", "src_ip", "proto", "service", "label", "type"))
+    observed = ("ts", "src_ip", "proto", "service", "label", "type")
+    assert schema_is_executable(observed)
     assert not schema_is_executable(("ts", "src_ip"))
+    mapping = ton_iot_network_field_mapping(observed)
+    assert mapping == tuple((column, column) for column in observed)
+
+
+def test_missing_timestamp_is_blocking() -> None:
+    with pytest.raises(ValueError, match="ts"):
+        ton_iot_network_field_mapping(("src_ip", "proto", "service", "label", "type"))
 
 
 def test_canonical_event_type_and_hash_are_deterministic() -> None:
