@@ -1,5 +1,6 @@
 from dataclasses import dataclass, replace
 
+from fedcampaign_emhi.analysis.claims import evaluate_threshold_claim
 from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_placeholder_p_value
 from fedcampaign_emhi.analysis.statistics import exact_sign_pattern, sign_flip_p_value
 from fedcampaign_emhi.analysis.summaries import (
@@ -57,9 +58,7 @@ from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
 )
 from fedcampaign_emhi.detection.local_policy import persistence_is_triggered
-from fedcampaign_emhi.detection.scoring import (
-    scoring_contract as detection_scoring_scoring_contract,
-)
+from fedcampaign_emhi.detection.scoring import oriented_score_stream
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
 from fedcampaign_emhi.emhi.contexts import histogram_bin_index
@@ -207,6 +206,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         one_class_svm_anomaly_scores,
         lancaster_triple_moment,
         pair_dependence_moment,
+        oriented_score_stream,
+        evaluate_threshold_claim,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -318,7 +319,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.detection.local_policy",
             ownership="calibrates and evaluates primary and strong local stopping policies",
         ),
-        detection_scoring_scoring_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.detection.scoring",
+            ownership="produces deterministic reusable detector score streams",
+        ),
         emhi_innovation_calibration_innovation_calibration_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.emhi.innovations",

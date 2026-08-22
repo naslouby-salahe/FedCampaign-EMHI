@@ -20,4 +20,3 @@ def test_smoke_rank_clip_and_histogram_bins() -> None:
     ranks = (0.01, 0.13, 0.99)
     indices = tuple(histogram_bin_index(rank, bins) for rank in ranks)
     assert indices == (0, 1, 7)
-
