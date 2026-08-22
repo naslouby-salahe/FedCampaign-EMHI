@@ -25,6 +25,12 @@ from fedcampaign_emhi.comparators.composition import select_strongest_comparator
 from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
 from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_includes_triple
 from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
+from fedcampaign_emhi.comparators.contracts import (
+    comparator_method_contracts,
+    conditional_pair_dependence_maximum_order,
+    no_outside_context_cell_count,
+    order_at_most_two_weights,
+)
 from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
 from fedcampaign_emhi.comparators.fedavg_autoencoder import (
     fedavg_weighted_mean,
@@ -467,6 +473,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         equally_spaced_loadings,
         next_cusum_state,
         select_strongest_comparator,
+        comparator_method_contracts,
+        conditional_pair_dependence_maximum_order,
+        no_outside_context_cell_count,
+        order_at_most_two_weights,
         selected_factor_rank,
         center_and_scale_atom,
         bounded_basis,

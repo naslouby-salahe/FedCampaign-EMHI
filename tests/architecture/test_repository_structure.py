@@ -68,6 +68,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/comparators/multistream_cusum.py",
     "src/fedcampaign_emhi/comparators/fedavg_autoencoder.py",
     "src/fedcampaign_emhi/comparators/composition.py",
+    "src/fedcampaign_emhi/comparators/contracts.py",
     "src/fedcampaign_emhi/synthetic/__init__.py",
     "src/fedcampaign_emhi/synthetic/common_mode.py",
     "src/fedcampaign_emhi/synthetic/controlled_campaigns.py",
