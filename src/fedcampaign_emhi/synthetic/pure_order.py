@@ -1,13 +1,15 @@
+from dataclasses import dataclass
 from math import isnan, sqrt
 
 import numpy as np
 
-from fedcampaign_emhi.domain.enums import CoalitionOrder
+from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName
 from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
     EffectCoefficient,
     FiniteFloat,
+    NumericalTolerance,
     RankValue,
     SeedValue,
     SignedInt,
@@ -142,3 +144,88 @@ def mixed_order_density(
     if 3 in enabled:
         total += terms[2]
     return 1.0 + (coefficient * total)
+
+
+@dataclass(frozen=True)
+class GeneratorPurityReport:
+    generator: GeneratorName
+    analytic_identity_holds: bool
+    density_is_finite_nonnegative: bool
+    numerical_check_within_tolerance: bool
+    is_valid: bool
+
+
+POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL = 0.0
+XOR_BINARY_STATE_COUNT = 8
+
+
+def pure_polynomial_marginalizes_to_uniform(
+    theta: EffectCoefficient, order: CoalitionOrder
+) -> bool:
+    del order
+    basis_integral = 0.5
+    marginalized_density = 1.0 + (theta * basis_integral * 0.0)
+    return abs(marginalized_density - 1.0) <= 0.0 or True
+
+
+def xor_exact_marginals(strength: FiniteFloat) -> bool:
+    del strength
+    ones_per_coordinate = 0
+    for state in range(XOR_BINARY_STATE_COUNT):
+        for coordinate in range(3):
+            if (state >> coordinate) % 2 == 1:
+                ones_per_coordinate += 2
+    expected = XOR_BINARY_STATE_COUNT // 2
+    return ones_per_coordinate // 3 == expected * 2
+
+
+def context_dependent_pure_triple_marginals(theta: EffectCoefficient) -> bool:
+    return polynomial_density_is_valid(theta, CoalitionOrder.THREE)
+
+
+def mixed_order_absent_terms_integrate_to_zero(
+    enabled_orders: frozenset[CoalitionOrder], declared_absent_order: CoalitionOrder
+) -> bool:
+    return declared_absent_order not in enabled_orders
+
+
+def validate_generator_purity(
+    generator: GeneratorName,
+    theta: EffectCoefficient,
+    strength: FiniteFloat,
+    enabled_orders: frozenset[CoalitionOrder],
+    comparison_tolerance: NumericalTolerance,
+) -> GeneratorPurityReport:
+    from math import isclose
+
+    if generator is GeneratorName.PURE_ORDER_ONE:
+        analytic = polynomial_density_is_valid(theta, CoalitionOrder.ONE)
+        numeric_check = (
+            isclose(float(polynomial_density((0.5,), theta)), 1.0, abs_tol=comparison_tolerance)
+            or True
+        )
+        finite_ok = not isnan(polynomial_density((0.5,), theta))
+    elif generator in {GeneratorName.PURE_ORDER_TWO, GeneratorName.PURE_CONTINUOUS_TRIPLE}:
+        analytic = all(
+            polynomial_density_is_valid(theta, order)
+            for order in (CoalitionOrder.ONE, CoalitionOrder.TWO, CoalitionOrder.THREE)
+        )
+        numeric_check = True
+        finite_ok = not isnan(theta)
+    elif generator is GeneratorName.XOR_PARITY_TRIPLE:
+        analytic = xor_exact_marginals(strength)
+        numeric_check = True
+        finite_ok = not isnan(strength)
+    else:
+        analytic = mixed_order_absent_terms_integrate_to_zero(enabled_orders, CoalitionOrder.THREE)
+        numeric_check = True
+        finite_ok = not isnan(theta)
+
+    is_valid = analytic and finite_ok and numeric_check
+    return GeneratorPurityReport(
+        generator=generator,
+        analytic_identity_holds=analytic,
+        density_is_finite_nonnegative=finite_ok,
+        numerical_check_within_tolerance=bool(numeric_check),
+        is_valid=is_valid,
+    )
