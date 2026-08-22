@@ -26,13 +26,9 @@ from fedcampaign_emhi.comparators.fedavg_autoencoder import (
     fedavg_autoencoder_contract as comparators_fedavg_autoencoder_fedavg_autoencoder_contract,
 )
 from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
-from fedcampaign_emhi.comparators.lancaster import (
-    lancaster_contract as comparators_lancaster_lancaster_contract,
-)
+from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
 from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
-from fedcampaign_emhi.comparators.pair_dependence import (
-    pair_dependence_contract as comparators_pair_dependence_pair_dependence_contract,
-)
+from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
 from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.datasets.campaigns import merge_malicious_runs
@@ -205,6 +201,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         center_and_scale_atom,
         isolation_forest_anomaly_scores,
         one_class_svm_anomaly_scores,
+        lancaster_triple_moment,
+        pair_dependence_moment,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -251,12 +249,18 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.comparators.global_factor_residual",
             ownership="PCA global-factor residualization and deterministic rank selection",
         ),
-        comparators_lancaster_lancaster_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.lancaster",
+            ownership="Lancaster higher-order interaction reference",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.multistream_cusum",
             ownership="roadmap-defined multistream CUSUM sequential baseline",
         ),
-        comparators_pair_dependence_pair_dependence_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.pair_dependence",
+            ownership="conditional order-two dependence predecessor",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.rank_fusion",
             ownership="roadmap-defined marginal rank-fusion references",
