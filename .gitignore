@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated computational workspace and manuscript exports
+/outputs/**
+/results/**
+!/outputs/**/.gitkeep
+!/results/**/.gitkeep
+
+# Temporary implementation notes
+docs/.tmp-*/

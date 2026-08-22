@@ -1,0 +1,708 @@
+from collections.abc import Sequence
+
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from fedcampaign_emhi.domain.enums import (
+    ConfigurationProfile,
+    ContextMethodName,
+    DatasetName,
+    GeneratorName,
+    MethodName,
+    NuisanceTransformName,
+)
+from fedcampaign_emhi.domain.types import (
+    ArtifactFilename,
+    BasisSize,
+    BatchSize,
+    BinCount,
+    BootstrapReplicateCount,
+    CellCount,
+    ClientCount,
+    CompensatorValue,
+    ConditionNumberLimit,
+    ConfidenceLevel,
+    ConfigSourcePath,
+    ConfigurationDigest,
+    Correlation,
+    DecimalPlaces,
+    EffectCoefficient,
+    EpochCount,
+    EpochSeconds,
+    ESrThreshold,
+    EvidenceFactor,
+    FalseAlarmRate,
+    FeatureDimension,
+    FeatureFraction,
+    FiniteFloat,
+    FoldCount,
+    HashBucketCount,
+    InteractionStrength,
+    LatentAutoregressiveCoefficient,
+    LearningRate,
+    MemoryMib,
+    MissingCellTolerance,
+    NumericalFloor,
+    NumericalTolerance,
+    Percentile,
+    PositiveEpochCount,
+    PositiveFloat,
+    PositiveInt,
+    Probability,
+    Quantile,
+    RankValue,
+    RecordCount,
+    RelativePath,
+    RetryCount,
+    RidgePenalty,
+    RuntimeSeconds,
+    SampleCap,
+    ScoreShift,
+    SeedCount,
+    SeedValue,
+    SignFlipAssignmentCount,
+    SolverIterationLimit,
+    StandardDeviation,
+    ThresholdValue,
+    TreeCount,
+    UnitInterval,
+    WorkerCount,
+)
+
+
+class FrozenConfigModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class StudyConfig(FrozenConfigModel):
+    maximum_coalition_order: PositiveInt
+
+
+class TimeConfig(FrozenConfigModel):
+    real_data_epoch_seconds: EpochSeconds
+
+
+class CampaignConfig(FrozenConfigModel):
+    evaluation_horizon_epochs: PositiveEpochCount
+    prestart_warmup_epochs: PositiveEpochCount
+    merge_max_intervening_benign_epochs: EpochCount
+    distributed_first_activity_window_epochs: PositiveEpochCount
+    minimum_duration_epochs: PositiveEpochCount
+
+
+class DistributedSupportConfig(FrozenConfigModel):
+    minimum_clients: ClientCount
+    trailing_window_epochs: PositiveEpochCount
+    material_coalition_evidence_threshold: EvidenceFactor
+
+
+class ContextKmeansConfig(FrozenConfigModel):
+    n_init: PositiveInt
+    max_iterations: SolverIterationLimit
+    tolerance: NumericalTolerance
+    max_fit_rows: PositiveInt
+    assignment_tie_tolerance: NumericalTolerance
+
+
+class ContextMinimumSupportEpochsConfig(FrozenConfigModel):
+    order_one: PositiveEpochCount
+    order_two: PositiveEpochCount
+    order_three: PositiveEpochCount
+
+
+class ContextNuisanceCrossfitConfig(FrozenConfigModel):
+    fold_count: FoldCount
+
+
+class ContextConfig(FrozenConfigModel):
+    outside_lag_epochs: PositiveEpochCount
+    minimum_available_outside_clients: ClientCount
+    minimum_available_outside_fraction: Probability
+    rank_clip_epsilon: NumericalFloor
+    outside_histogram_bin_count: BinCount
+    primary_cell_count: CellCount
+    cell_count_sensitivity: tuple[CellCount, ...]
+    kmeans: ContextKmeansConfig
+    minimum_support_epochs: ContextMinimumSupportEpochsConfig
+    nuisance_crossfit: ContextNuisanceCrossfitConfig
+
+
+class BasisConfig(FrozenConfigModel):
+    primary_size: BasisSize
+    sensitivity_sizes: tuple[BasisSize, ...]
+
+
+class ProjectionCrossValidationConfig(FrozenConfigModel):
+    fold_count: FoldCount
+
+
+class ProjectionConfig(FrozenConfigModel):
+    ridge_candidates: tuple[RidgePenalty, ...]
+    cross_validation: ProjectionCrossValidationConfig
+    selection_tie_tolerance_mse: NumericalTolerance
+    zero_ridge_svd_relative_cutoff: NumericalFloor
+    maximum_gram_condition_number: ConditionNumberLimit
+    atom_scale_floor: NumericalFloor
+    norm_reference_floor: NumericalFloor
+
+
+class EvidenceSignedTheoremSequentialConfig(FrozenConfigModel):
+    arl_alpha: FalseAlarmRate
+
+
+class EvidenceCalibratedFiniteHorizonConfig(FrozenConfigModel):
+    target_pfa: FalseAlarmRate
+    calibration_confidence: ConfidenceLevel
+    threshold_candidates: tuple[ThresholdValue, ...]
+
+
+class EvidenceConfig(FrozenConfigModel):
+    clip_bound: PositiveFloat
+    bet_lambda: PositiveFloat
+    operational_norm_reference_quantile: Quantile
+    signed_theorem_sequential: EvidenceSignedTheoremSequentialConfig
+    calibrated_finite_horizon: EvidenceCalibratedFiniteHorizonConfig
+    no_stop_plot_offset_epochs: PositiveEpochCount
+
+
+class DatasetsPrimaryConfig(FrozenConfigModel):
+    name: DatasetName
+    raw_directory: RelativePath
+    target_client_count: ClientCount
+
+
+class DatasetsSecondaryConfig(FrozenConfigModel):
+    name: DatasetName
+    raw_directory: RelativePath
+    target_client_count: ClientCount
+    minimum_eligible_client_count: ClientCount
+
+
+class DatasetsEligibilityConfig(FrozenConfigModel):
+    minimum_benign_event_records: RecordCount
+    minimum_nonempty_benign_epochs: PositiveEpochCount
+
+
+class DatasetsPreprocessingBenignPartitionFractionsConfig(FrozenConfigModel):
+    detector_fit: Probability
+    nuisance_fit: Probability
+    threshold_and_policy_calibration: Probability
+
+
+class DatasetsPreprocessingConfig(FrozenConfigModel):
+    event_type_hash_bucket_count: HashBucketCount
+    robust_scaling_iqr_floor: NumericalFloor
+    benign_partition_fractions: DatasetsPreprocessingBenignPartitionFractionsConfig
+
+
+class DatasetsConfig(FrozenConfigModel):
+    primary: DatasetsPrimaryConfig
+    secondary: DatasetsSecondaryConfig
+    external_checksums_directory: RelativePath
+    eligibility: DatasetsEligibilityConfig
+    preprocessing: DatasetsPreprocessingConfig
+
+
+class DetectorsIsolationForestConfig(FrozenConfigModel):
+    trees: TreeCount
+    max_samples_cap: SampleCap
+    max_features: FeatureFraction
+    jobs: WorkerCount
+
+
+class DetectorsOneClassSvmConfig(FrozenConfigModel):
+    nu: Probability
+    coefficient_zero: FiniteFloat
+    solver_tolerance: NumericalTolerance
+    kernel_cache_mib: MemoryMib
+    max_iterations: SolverIterationLimit
+
+
+class DetectorsAutoencoderConfig(FrozenConfigModel):
+    learning_rate: LearningRate
+    betas: tuple[UnitInterval, ...]
+    optimizer_epsilon: NumericalFloor
+    weight_decay: FiniteFloat
+    batch_size: BatchSize
+    epochs: PositiveEpochCount
+
+
+class DetectorsConfig(FrozenConfigModel):
+    isolation_forest: DetectorsIsolationForestConfig
+    one_class_svm: DetectorsOneClassSvmConfig
+    autoencoder: DetectorsAutoencoderConfig
+
+
+class LocalPolicyCandidatePersistenceConfig(FrozenConfigModel):
+    required_exceedances: PositiveInt
+    window_epochs: PositiveEpochCount
+
+
+class LocalPolicyConfig(FrozenConfigModel):
+    candidate_score_quantiles: tuple[Quantile, ...]
+    candidate_persistence: tuple[LocalPolicyCandidatePersistenceConfig, ...]
+    primary_horizon_pfa_target: FalseAlarmRate
+    strong_horizon_pfa_target: FalseAlarmRate
+    pfa_confidence: ConfidenceLevel
+
+
+class RandomnessConfig(FrozenConfigModel):
+    synthetic_development_roots: tuple[SeedValue, ...]
+    synthetic_confirmatory_roots: tuple[SeedValue, ...]
+    real_development_roots: tuple[SeedValue, ...]
+    real_confirmatory_roots: tuple[SeedValue, ...]
+    engineering_smoke_root: SeedValue
+    statistical_analysis_base_seed: SeedValue
+    context_base_seed: SeedValue
+
+
+class SyntheticSampleSizesConfig(FrozenConfigModel):
+    generic_nuisance_fit_epochs: PositiveEpochCount
+    generic_cross_fitted_evaluation_epochs: PositiveEpochCount
+    finite_horizon_calibration_horizons_per_seed: PositiveInt
+    finite_horizon_heldout_null_horizons_per_seed: PositiveInt
+    self_explanation_epochs_per_perturbation: PositiveEpochCount
+    self_explanation_lag_settling_epochs_discarded: EpochCount
+    pure_order_independent_evaluation_samples_per_condition_seed: PositiveInt
+    hofd_equivalence_heldout_samples_per_context_seed: PositiveInt
+    estimator_evaluation_samples_per_context_seed: PositiveInt
+
+
+class SyntheticConfig(FrozenConfigModel):
+    sample_sizes: SyntheticSampleSizesConfig
+
+
+class GeneratorsCommonModeConfig(FrozenConfigModel):
+    latent_ar_coefficient: LatentAutoregressiveCoefficient
+    client_loading_minimum: FiniteFloat
+    client_loading_maximum: FiniteFloat
+    client_noise_standard_deviation: StandardDeviation
+
+
+class GeneratorsControlledCampaignsMarginalConfig(FrozenConfigModel):
+    score_shift: ScoreShift
+
+
+class GeneratorsControlledCampaignsPairRelationConfig(FrozenConfigModel):
+    benign_correlation: Correlation
+    campaign_correlation: Correlation
+
+
+class GeneratorsControlledCampaignsSingleClientConfig(FrozenConfigModel):
+    score_shift: ScoreShift
+
+
+class GeneratorsControlledCampaignsConfig(FrozenConfigModel):
+    marginal: GeneratorsControlledCampaignsMarginalConfig
+    pair_relation: GeneratorsControlledCampaignsPairRelationConfig
+    single_client: GeneratorsControlledCampaignsSingleClientConfig
+
+
+class GeneratorsSelfExplanationConfig(FrozenConfigModel):
+    perturbations: tuple[ScoreShift, ...]
+    derivative_regression_perturbations: tuple[ScoreShift, ...]
+
+
+class GeneratorsPurePolynomialThetaConfig(FrozenConfigModel):
+    order_one: tuple[EffectCoefficient, ...]
+    order_two: tuple[EffectCoefficient, ...]
+    order_three: tuple[EffectCoefficient, ...]
+
+
+class GeneratorsPurePolynomialConfig(FrozenConfigModel):
+    theta: GeneratorsPurePolynomialThetaConfig
+    primary_reference_theta: EffectCoefficient
+
+
+class GeneratorsXorConfig(FrozenConfigModel):
+    strengths: tuple[InteractionStrength, ...]
+    primary_reference_strength: InteractionStrength
+
+
+class GeneratorsMixedOrderConfig(FrozenConfigModel):
+    enabled_term_sets: tuple[tuple[PositiveInt, ...], ...]
+    term_coefficient: EffectCoefficient
+
+    @field_validator("enabled_term_sets", mode="before")
+    @classmethod
+    def freeze_term_sets(
+        cls, raw_term_sets: Sequence[Sequence[PositiveInt]]
+    ) -> tuple[tuple[PositiveInt, ...], ...]:
+        if "enabled_term_sets" not in cls.model_fields:
+            raise TypeError("enabled_term_sets field is missing")
+        if not isinstance(raw_term_sets, list | tuple):
+            raise TypeError("enabled_term_sets must be a sequence of integer sequences")
+        frozen_sets: list[tuple[PositiveInt, ...]] = []
+        for term_set in raw_term_sets:
+            if not isinstance(term_set, list | tuple):
+                raise TypeError("each enabled term set must be a sequence of integers")
+            frozen_sets.append(tuple(term for term in term_set))
+        return tuple(frozen_sets)
+
+
+class GeneratorsContextDependentTripleInitialStateProbabilitiesConfig(FrozenConfigModel):
+    negative_one: Probability
+    positive_one: Probability
+
+
+class GeneratorsContextDependentTripleOutsideRankIntervalsConfig(FrozenConfigModel):
+    negative_state: tuple[RankValue, ...]
+    positive_state: tuple[RankValue, ...]
+
+
+class GeneratorsContextDependentTripleConfig(FrozenConfigModel):
+    markov_same_probability: Probability
+    initial_state_probabilities: GeneratorsContextDependentTripleInitialStateProbabilitiesConfig
+    primary_theta: EffectCoefficient
+    outside_rank_intervals: GeneratorsContextDependentTripleOutsideRankIntervalsConfig
+
+
+class GeneratorsOutsideContaminationConfig(FrozenConfigModel):
+    client_count: ClientCount
+    target_triple_theta: EffectCoefficient
+    correlated_campaign_fractions: tuple[Probability, ...]
+    outside_rank_shift: ScoreShift
+
+
+class GeneratorsClientDropoutConfig(FrozenConfigModel):
+    unavailable_fractions: tuple[Probability, ...]
+
+
+class GeneratorsConfig(FrozenConfigModel):
+    common_mode: GeneratorsCommonModeConfig
+    controlled_campaigns: GeneratorsControlledCampaignsConfig
+    self_explanation: GeneratorsSelfExplanationConfig
+    pure_polynomial: GeneratorsPurePolynomialConfig
+    xor: GeneratorsXorConfig
+    mixed_order: GeneratorsMixedOrderConfig
+    context_dependent_triple: GeneratorsContextDependentTripleConfig
+    outside_contamination: GeneratorsOutsideContaminationConfig
+    client_dropout: GeneratorsClientDropoutConfig
+
+
+class ComparatorsCommonCalibrationConfig(FrozenConfigModel):
+    nuisance_reference_quantile: Quantile
+
+
+class ComparatorsConnectedInformationConfig(FrozenConfigModel):
+    bins_per_client: BinCount
+    jeffreys_pseudocount_per_cell: PositiveFloat
+    ipf_max_iterations: PositiveInt
+    maximum_marginal_absolute_error: NumericalTolerance
+    probability_floor: NumericalFloor
+
+
+class ComparatorsConditionalLogLinearConfig(FrozenConfigModel):
+    bins_per_client: BinCount
+    max_iterations: SolverIterationLimit
+    maximum_fitted_marginal_absolute_error: NumericalTolerance
+    probability_floor: NumericalFloor
+
+
+class ComparatorsExclusionMatchedConditionalHofdConfig(FrozenConfigModel):
+    relative_singular_cutoff: NumericalFloor
+    ridge_penalty: RidgePenalty
+
+
+class ComparatorsGlobalFactorResidualConfig(FrozenConfigModel):
+    candidate_ranks: tuple[PositiveInt, ...]
+    cumulative_variance_target: Probability
+    fallback_rank: PositiveInt
+
+
+class ComparatorsMultistreamCusumConfig(FrozenConfigModel):
+    rank_center: RankValue
+    drift_subtraction: PositiveFloat
+    initial_state: FiniteFloat
+
+
+class ComparatorsFedavgAutoencoderConfig(FrozenConfigModel):
+    rounds: PositiveInt
+    local_epochs_per_round: PositiveEpochCount
+    client_participation_fraction: Probability
+
+
+class ComparatorsConfig(FrozenConfigModel):
+    common_calibration: ComparatorsCommonCalibrationConfig
+    connected_information: ComparatorsConnectedInformationConfig
+    conditional_log_linear: ComparatorsConditionalLogLinearConfig
+    exclusion_matched_conditional_hofd: ComparatorsExclusionMatchedConditionalHofdConfig
+    global_factor_residual: ComparatorsGlobalFactorResidualConfig
+    multistream_cusum: ComparatorsMultistreamCusumConfig
+    fedavg_autoencoder: ComparatorsFedavgAutoencoderConfig
+
+
+class NumericsConfig(FrozenConfigModel):
+    metric_denominator_floor: NumericalFloor
+    deterministic_comparison_tolerance: NumericalTolerance
+    smoke_repeatability_tolerance: NumericalTolerance
+
+
+class StatisticsConfig(FrozenConfigModel):
+    confidence_level: ConfidenceLevel
+    nominal_significance_alpha: FalseAlarmRate
+    bootstrap_replicates: BootstrapReplicateCount
+    synthetic_sign_flip_replicates_when_not_exact: BootstrapReplicateCount
+
+
+class ClaimMaterialitySelfExplanationConfig(FrozenConfigModel):
+    exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: Probability
+    minimum_attenuation_difference: FiniteFloat
+
+
+class ClaimMaterialityPureOrderConfig(FrozenConfigModel):
+    maximum_proper_subset_standardized_drift: FiniteFloat
+    minimum_target_order_standardized_drift: FiniteFloat
+
+
+class ClaimMaterialityOrderThreeEstimatorConfig(FrozenConfigModel):
+    minimum_mean_context_coverage: Probability
+    maximum_mean_projection_nrmse: FiniteFloat
+    maximum_mean_standardized_null_bias: FiniteFloat
+
+
+class ClaimMaterialityHofdEquivalenceConfig(FrozenConfigModel):
+    atom_nrmse_upper_margin: FiniteFloat
+    minimum_cosine_similarity: UnitInterval
+    stopping_time_difference_interval_epochs: tuple[FiniteFloat, ...]
+
+
+class ClaimMaterialityPrimaryRealConfig(FrozenConfigModel):
+    minimum_strict_odi_rate: Probability
+    minimum_odi_rate_advantage_over_order_at_most_two: FiniteFloat
+    minimum_median_operational_lead_epochs: FiniteFloat
+
+
+class ClaimMaterialityBenignCommonModeConfig(FrozenConfigModel):
+    minimum_false_campaign_suppression: Probability
+    maximum_detection_rate_loss: FiniteFloat
+
+
+class ClaimMaterialityStrongLocalConfig(FrozenConfigModel):
+    minimum_strict_odi_rate: Probability
+
+
+class ClaimMaterialityOrderThreeRealConfig(FrozenConfigModel):
+    minimum_material_odi_contribution: FiniteFloat
+
+
+class ClaimMaterialityReferenceHarnessConfig(FrozenConfigModel):
+    p95_latency_maximum_seconds: RuntimeSeconds
+
+
+class ClaimMaterialityConfig(FrozenConfigModel):
+    self_explanation: ClaimMaterialitySelfExplanationConfig
+    pure_order: ClaimMaterialityPureOrderConfig
+    order_three_estimator: ClaimMaterialityOrderThreeEstimatorConfig
+    maximum_pooled_numerical_failure_rate: Probability
+    hofd_equivalence: ClaimMaterialityHofdEquivalenceConfig
+    primary_real: ClaimMaterialityPrimaryRealConfig
+    benign_common_mode: ClaimMaterialityBenignCommonModeConfig
+    strong_local: ClaimMaterialityStrongLocalConfig
+    order_three_real: ClaimMaterialityOrderThreeRealConfig
+    reference_harness: ClaimMaterialityReferenceHarnessConfig
+
+
+class SupportGridsConfig(FrozenConfigModel):
+    estimator_samples_per_context: tuple[PositiveInt, ...]
+    hofd_equivalence_samples_per_context: tuple[PositiveInt, ...]
+    estimator_one_factor_sensitivity_samples_per_context: tuple[PositiveInt, ...]
+
+
+class RobustnessConfig(FrozenConfigModel):
+    benign_count_multiplication_factors: tuple[PositiveFloat, ...]
+    scalability_client_counts: tuple[ClientCount, ...]
+
+
+class ExperimentsSelfExplanationExclusionValidationPrimaryConditionConfig(FrozenConfigModel):
+    client_count: ClientCount
+    coalition_order: PositiveInt
+    nuisance_transform: NuisanceTransformName
+    comparison: tuple[ContextMethodName, ...]
+
+
+class ExperimentsSelfExplanationExclusionValidationConfig(FrozenConfigModel):
+    context_methods: tuple[ContextMethodName, ...]
+    primary_condition: ExperimentsSelfExplanationExclusionValidationPrimaryConditionConfig
+
+
+class ExperimentsPureOrderSeparationValidationPrimaryConditionConfig(FrozenConfigModel):
+    generator: GeneratorName
+    method: MethodName
+    coalition_order: PositiveInt
+
+
+class ExperimentsPureOrderSeparationValidationConfig(FrozenConfigModel):
+    primary_client_count: ClientCount
+    generators: tuple[GeneratorName, ...]
+    methods: tuple[MethodName, ...]
+    primary_condition: ExperimentsPureOrderSeparationValidationPrimaryConditionConfig
+
+
+class ExperimentsExclusionMatchedHofdEquivalenceConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+    context_cell_count: CellCount
+    primary_support_levels: tuple[PositiveInt, ...]
+
+
+class ExperimentsStrongComparatorCompositionChallengeConfig(FrozenConfigModel):
+    candidates: tuple[MethodName, ...]
+    error_tie_tolerance_standardized_units: NumericalTolerance
+    runtime_tie_tolerance_seconds: RuntimeSeconds
+    artifact_filename: ArtifactFilename
+
+
+class ExperimentsEstimatorSupportAndContextFeasibilitySensitivityConfig(FrozenConfigModel):
+    forced_ridge: RidgePenalty
+    forced_no_abstention: bool
+
+
+class ExperimentsEstimatorSupportAndContextFeasibilityConfig(FrozenConfigModel):
+    sensitivity: ExperimentsEstimatorSupportAndContextFeasibilitySensitivityConfig
+
+
+class ExperimentsSequentialEvidenceValidationSignedTheoremConfig(FrozenConfigModel):
+    null_theta: EffectCoefficient
+    trajectories_per_seed: PositiveInt
+    maximum_trajectory_epochs: PositiveEpochCount
+    restricted_arl_bootstrap_lower_bound_minimum_epochs: PositiveEpochCount
+
+
+class ExperimentsSequentialEvidenceValidationConfig(FrozenConfigModel):
+    signed_theorem: ExperimentsSequentialEvidenceValidationSignedTheoremConfig
+
+
+class ExperimentsPrimaryStrictOdiEvaluationConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+
+
+class ExperimentsExclusionMechanismAblationConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+
+
+class ExperimentsPurificationAndOrderAblationConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+
+
+class ExperimentsContextAndEstimatorSensitivityConfig(FrozenConfigModel):
+    forced_ridge: RidgePenalty
+    context_variants: tuple[ContextMethodName, ...]
+
+
+class ExperimentsBenignCommonModeRobustnessNativeHighVolumeWindowConfig(FrozenConfigModel):
+    stride_epochs: PositiveEpochCount
+    top_event_count_fraction: Probability
+
+
+class ExperimentsBenignCommonModeRobustnessConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+    native_high_volume_window: ExperimentsBenignCommonModeRobustnessNativeHighVolumeWindowConfig
+
+
+class ExperimentsSecondaryControlledTraceGeneralizationConfig(FrozenConfigModel):
+    methods: tuple[MethodName, ...]
+
+
+class ExperimentsConfig(FrozenConfigModel):
+    self_explanation_exclusion_validation: ExperimentsSelfExplanationExclusionValidationConfig
+    pure_order_separation_validation: ExperimentsPureOrderSeparationValidationConfig
+    exclusion_matched_hofd_equivalence: ExperimentsExclusionMatchedHofdEquivalenceConfig
+    strong_comparator_composition_challenge: ExperimentsStrongComparatorCompositionChallengeConfig
+    estimator_support_and_context_feasibility: (
+        ExperimentsEstimatorSupportAndContextFeasibilityConfig
+    )
+    sequential_evidence_validation: ExperimentsSequentialEvidenceValidationConfig
+    primary_strict_odi_evaluation: ExperimentsPrimaryStrictOdiEvaluationConfig
+    exclusion_mechanism_ablation: ExperimentsExclusionMechanismAblationConfig
+    purification_and_order_ablation: ExperimentsPurificationAndOrderAblationConfig
+    context_and_estimator_sensitivity: ExperimentsContextAndEstimatorSensitivityConfig
+    benign_common_mode_robustness: ExperimentsBenignCommonModeRobustnessConfig
+    secondary_controlled_trace_generalization: (
+        ExperimentsSecondaryControlledTraceGeneralizationConfig
+    )
+
+
+class ScalabilityTimingConfig(FrozenConfigModel):
+    measured_repetitions_per_seed_client_count: PositiveInt
+    unmeasured_harness_warmup_epochs: EpochCount
+    measured_epochs_per_repetition: PositiveEpochCount
+    concurrent_experiment_cells: PositiveInt
+    result_quantile: Percentile
+
+
+class RuntimeConfig(FrozenConfigModel):
+    automatic_technical_retries_after_initial_failure: RetryCount
+    required_confirmatory_missing_cell_tolerance: MissingCellTolerance
+
+
+class ArtifactsConfig(FrozenConfigModel):
+    outputs_root: RelativePath
+    results_root: RelativePath
+
+
+class ReportingPrecisionConfig(FrozenConfigModel):
+    probabilities_and_rates_decimals: DecimalPlaces
+    effect_sizes_decimals: DecimalPlaces
+    epochs_and_minutes_decimals: DecimalPlaces
+    milliseconds_and_seconds_decimals: DecimalPlaces
+    adjusted_p_values_decimals: DecimalPlaces
+    p_value_lower_display_threshold: Probability
+
+
+class ReportingConfig(FrozenConfigModel):
+    precision: ReportingPrecisionConfig
+
+
+class ScientificConfig(FrozenConfigModel):
+    study: StudyConfig
+    time: TimeConfig
+    campaign: CampaignConfig
+    distributed_support: DistributedSupportConfig
+    context: ContextConfig
+    basis: BasisConfig
+    projection: ProjectionConfig
+    evidence: EvidenceConfig
+    datasets: DatasetsConfig
+    detectors: DetectorsConfig
+    local_policy: LocalPolicyConfig
+    randomness: RandomnessConfig
+    synthetic: SyntheticConfig
+    generators: GeneratorsConfig
+    comparators: ComparatorsConfig
+    numerics: NumericsConfig
+    statistics: StatisticsConfig
+    claim_materiality: ClaimMaterialityConfig
+    support_grids: SupportGridsConfig
+    robustness: RobustnessConfig
+    experiments: ExperimentsConfig
+    scalability_timing: ScalabilityTimingConfig
+    runtime: RuntimeConfig
+    artifacts: ArtifactsConfig
+    reporting: ReportingConfig
+
+
+class DerivedScientificValues(FrozenConfigModel):
+    model_input_dimension: FeatureDimension
+    heldout_benign_is_remainder: bool
+    local_horizon_epochs: PositiveEpochCount
+    synthetic_campaign_horizon_epochs: PositiveEpochCount
+    synthetic_campaign_warmup_epochs: PositiveEpochCount
+    synthetic_development_seed_count: SeedCount
+    synthetic_confirmatory_seed_count: SeedCount
+    real_development_seed_count: SeedCount
+    real_confirmatory_seed_count: SeedCount
+    exact_real_sign_flip_assignment_count: SignFlipAssignmentCount
+    minimum_nonoverlapping_horizons_for_zero_false_stop: PositiveInt
+    signed_theorem_e_sr_threshold: ESrThreshold
+    signed_theorem_compensator: CompensatorValue
+    histogram_edge_count: PositiveInt
+    outside_histogram_edges: tuple[RankValue, ...]
+    primary_odi_table_method_order: tuple[MethodName, ...]
+    context_seed: SeedValue
+
+
+class LoadedScientificConfiguration(FrozenConfigModel):
+    profile: ConfigurationProfile
+    source_path: ConfigSourcePath
+    values: ScientificConfig
+    derived: DerivedScientificValues
+    material_digest: ConfigurationDigest
