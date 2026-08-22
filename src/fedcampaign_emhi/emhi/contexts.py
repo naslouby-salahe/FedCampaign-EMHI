@@ -3,10 +3,16 @@ from math import sqrt
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import norm
 
 from fedcampaign_emhi.config.loading import histogram_edges
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, DatasetName
+from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
+    ContextMethodName,
+    DatasetName,
+    PartitionRole,
+)
 from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
@@ -25,11 +31,15 @@ from fedcampaign_emhi.domain.types import (
     PositiveInt,
     Probability,
     RankValue,
+    ResumeStep,
     SeedValue,
+    SignedInt,
     SolverIterationLimit,
 )
 from fedcampaign_emhi.emhi.coalitions import complement_members, required_outside_client_count
 from fedcampaign_emhi.runtime.determinism import canonical_utf8_bytes, thirty_two_bit_seed
+
+STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 
 
 def exact_exclusion_members(
@@ -37,6 +47,75 @@ def exact_exclusion_members(
     coalition_client_ids: tuple[ClientId, ...],
 ) -> tuple[ClientId, ...]:
     return complement_members(selected_client_ids, coalition_client_ids)
+
+
+def inclusive_context_members(
+    selected_client_ids: tuple[ClientId, ...],
+    coalition_client_ids: tuple[ClientId, ...],
+) -> tuple[ClientId, ...]:
+    del coalition_client_ids
+    return tuple(sorted(selected_client_ids))
+
+
+def leave_one_out_context_members(
+    selected_client_ids: tuple[ClientId, ...],
+    coalition_client_ids: tuple[ClientId, ...],
+) -> tuple[ClientId, ...]:
+    if not coalition_client_ids:
+        raise ValueError("leave-one-out exclusion requires a non-empty coalition")
+    first_member = sorted(coalition_client_ids)[0]
+    return complement_members(selected_client_ids, (first_member,))
+
+
+def partial_coalition_context_members(
+    selected_client_ids: tuple[ClientId, ...],
+    coalition_client_ids: tuple[ClientId, ...],
+) -> tuple[ClientId, ...]:
+    ordered = sorted(coalition_client_ids)
+    if len(ordered) < 2:
+        raise ValueError("partial coalition exclusion requires at least two members")
+    removed_count = 2 if len(ordered) >= 3 else 1
+    removed = tuple(ordered[:removed_count])
+    return complement_members(selected_client_ids, removed)
+
+
+ORACLE_QUARTILE_CELL_COUNT = 4
+ORACLE_QUARTILE_BOUNDARIES: tuple[FiniteFloat, FiniteFloat, FiniteFloat] = (
+    float(norm.ppf(STANDARD_NORMAL_QUARTILE)),
+    0.0,
+    float(norm.ppf(3 * STANDARD_NORMAL_QUARTILE)),
+)
+NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
+
+
+def oracle_outside_latent_cell(latent_state: FiniteFloat) -> BinIndex:
+    boundaries = ORACLE_QUARTILE_BOUNDARIES
+    for cell_index, boundary in enumerate(boundaries):
+        if latent_state <= boundary:
+            return cell_index
+    return len(boundaries)
+
+
+def shuffled_context_permutation(
+    row_keys: tuple[ResumeStep, ...], split_role: PartitionRole, context_seed: SeedValue
+) -> tuple[SignedInt, ...]:
+    if not row_keys:
+        raise ValueError("shuffled context requires lagged outside rows")
+    payload_rows = [{"split": split_role.value, "row_key": key} for key in row_keys]
+    digest = hashlib.sha256(
+        canonical_utf8_bytes({"context_seed": context_seed, "rows": payload_rows})
+    ).digest()
+    generator = np.random.default_rng(int.from_bytes(digest[:8], "big"))
+    permutation = generator.permutation(len(row_keys))
+    return tuple(int(index) for index in permutation)
+
+
+def local_history_context_member_ranks(
+    coalition_client_ids: tuple[ClientId, ...],
+    lagged_ranks: tuple[tuple[ClientId, RankValue], ...],
+) -> tuple[RankValue, ...]:
+    members = set(coalition_client_ids)
+    return tuple(rank for client_id, rank in lagged_ranks if client_id in members)
 
 
 def maximal_outside_field(
