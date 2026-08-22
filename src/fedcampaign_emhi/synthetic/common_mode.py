@@ -1,5 +1,6 @@
 from math import sqrt
-from random import Random
+
+import numpy as np
 
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -27,13 +28,13 @@ def generate_unit_variance_autoregressive_latent(
     autoregressive_coefficient: LatentAutoregressiveCoefficient,
     seed: SeedValue,
 ) -> tuple[FiniteFloat, ...]:
-    generator = Random(thirty_two_bit_seed(seed))
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
     innovation_scale = sqrt(1.0 - (autoregressive_coefficient**2))
     latent = 0.0
     series: list[FiniteFloat] = []
     for _epoch in range(epoch_count):
         latent = (autoregressive_coefficient * latent) + (
-            innovation_scale * generator.gauss(0.0, 1.0)
+            innovation_scale * float(generator.standard_normal())
         )
         series.append(latent)
     return tuple(series)
@@ -45,11 +46,11 @@ def generate_common_mode_scores(
     noise_standard_deviation: StandardDeviation,
     seed: SeedValue,
 ) -> tuple[tuple[FiniteFloat, ...], ...]:
-    generator = Random(thirty_two_bit_seed(seed))
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
     scores: list[tuple[FiniteFloat, ...]] = []
     for value in latent:
         epoch_scores = tuple(
-            (loading * value) + (noise_standard_deviation * generator.gauss(0.0, 1.0))
+            (loading * value) + (noise_standard_deviation * float(generator.standard_normal()))
             for loading in loadings
         )
         scores.append(epoch_scores)

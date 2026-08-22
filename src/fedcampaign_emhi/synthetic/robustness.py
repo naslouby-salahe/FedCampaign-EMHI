@@ -1,5 +1,6 @@
 from math import floor
-from random import Random
+
+import numpy as np
 
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -47,11 +48,11 @@ def contaminate_rank(
 def availability_mask(
     client_ids: tuple[ClientId, ...], unavailable_fraction: Probability, seed: SeedValue
 ) -> tuple[ClientId, ...]:
-    generator = Random(thirty_two_bit_seed(seed))
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
     available: list[ClientId] = []
     stay_probability = 1.0 - unavailable_fraction
     for client_id in client_ids:
-        if generator.random() < stay_probability:
+        if float(generator.random()) < stay_probability:
             available.append(client_id)
     return tuple(available)
 

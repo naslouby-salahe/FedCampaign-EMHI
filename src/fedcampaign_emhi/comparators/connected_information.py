@@ -43,7 +43,7 @@ def iterative_proportional_fitting_step(
             scale = target_pair_ij[i_index][j_index] / current
             for k_index in range(bin_count):
                 updated[i_index][j_index][k_index] *= scale
-    return tuple(tuple(tuple(cell for cell in row) for row in layer) for layer in updated)
+    return tuple(tuple(tuple(row) for row in layer) for layer in updated)
 
 
 def ipf_converged(
