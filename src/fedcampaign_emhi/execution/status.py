@@ -99,9 +99,7 @@ from fedcampaign_emhi.synthetic.context_boundaries import (
 from fedcampaign_emhi.synthetic.controlled_campaigns import (
     controlled_campaigns_contract as synthetic_controlled_campaigns_controlled_campaigns_contract,
 )
-from fedcampaign_emhi.synthetic.pure_order import (
-    pure_order_contract as synthetic_pure_order_pure_order_contract,
-)
+from fedcampaign_emhi.synthetic.pure_order import pure_order_one_response
 from fedcampaign_emhi.synthetic.robustness import (
     robustness_contract as synthetic_robustness_robustness_contract,
 )
@@ -208,6 +206,7 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         pair_dependence_moment,
         oriented_score_stream,
         evaluate_threshold_claim,
+        pure_order_one_response,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -353,7 +352,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ),
         synthetic_context_boundaries_context_boundaries_contract(),
         synthetic_controlled_campaigns_controlled_campaigns_contract(),
-        synthetic_pure_order_pure_order_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.pure_order",
+            ownership="polynomial, XOR, context-dependent, and mixed pure-order alternatives",
+        ),
         synthetic_robustness_robustness_contract(),
         synthetic_self_explanation_self_explanation_contract(),
         synthetic_validation_validation_contract(),
