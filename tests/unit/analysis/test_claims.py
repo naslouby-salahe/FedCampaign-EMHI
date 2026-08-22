@@ -5,8 +5,12 @@ from fedcampaign_emhi.analysis.multiplicity import (
     primary_holm_family_identifiers,
 )
 from fedcampaign_emhi.analysis.statistics import (
+    bootstrap_is_degenerate,
+    degenerate_bootstrap_interval,
     exact_sign_pattern,
     flipped_mean,
+    hodges_lehmann_shift,
+    interval_establishes_equivalence,
     monte_carlo_sign_flip_p_value,
     seed_level_aggregate,
     sign_flip_assignment_count,
@@ -44,3 +48,11 @@ def test_seed_level_aggregation_and_two_sided_sign_flip() -> None:
     p_value = two_sided_sign_flip_p_value(observed, tuple(flipped))
     assert 0.0 <= p_value <= 1.0
     assert monte_carlo_sign_flip_p_value(3, 99) == 4 / 100
+
+
+def test_hodges_lehmann_and_equivalence_and_degenerate_bootstrap() -> None:
+    assert hodges_lehmann_shift((1.0, 3.0)) == 2.0
+    assert interval_establishes_equivalence(0.1, 0.2, 0.0, 0.3) is True
+    assert interval_establishes_equivalence(-0.1, 0.2, 0.0, 0.3) is False
+    assert bootstrap_is_degenerate(0.5, (0.5, 0.5, 0.5)) is True
+    assert degenerate_bootstrap_interval(0.5) == (0.5, 0.5)

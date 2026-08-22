@@ -91,6 +91,38 @@ def flipped_mean(
     return sum(signed) / len(signed)
 
 
+def hodges_lehmann_shift(differences: tuple[FiniteFloat, ...]) -> FiniteFloat:
+    if not differences:
+        raise ValueError("Hodges-Lehmann shift requires at least one paired difference")
+    walsh: list[FiniteFloat] = []
+    for first_index, first in enumerate(differences):
+        for second in differences[first_index:]:
+            walsh.append((first + second) / 2.0)
+    ordered = sorted(walsh)
+    count = len(ordered)
+    midpoint = count // 2
+    if count % 2 == 1:
+        return ordered[midpoint]
+    return (ordered[midpoint - 1] + ordered[midpoint]) / 2.0
+
+
+def interval_establishes_equivalence(
+    lower: FiniteFloat,
+    upper: FiniteFloat,
+    region_lower: FiniteFloat,
+    region_upper: FiniteFloat,
+) -> bool:
+    return lower >= region_lower and upper <= region_upper
+
+
+def degenerate_bootstrap_interval(observed: FiniteFloat) -> tuple[FiniteFloat, FiniteFloat]:
+    return (observed, observed)
+
+
+def bootstrap_is_degenerate(observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]) -> bool:
+    return bool(replicates) and all(statistic == observed for statistic in replicates)
+
+
 def exact_sign_pattern(
     assignment_index: SeedValue, unit_count: RecordCount
 ) -> tuple[SignedInt, ...]:
