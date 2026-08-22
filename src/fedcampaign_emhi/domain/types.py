@@ -260,6 +260,13 @@ class BenignHorizon:
 
 
 @dataclass(frozen=True)
+class LocalPolicyArtifact:
+    threshold: ThresholdValue
+    required_exceedances: PositiveInt
+    window_epochs: EpochCount
+
+
+@dataclass(frozen=True)
 class PairingKey:
     dataset: DatasetName
     selected_client_ids: tuple[ClientId, ...]

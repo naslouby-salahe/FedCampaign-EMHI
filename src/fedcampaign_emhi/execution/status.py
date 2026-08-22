@@ -124,9 +124,23 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     schema_is_executable as ton_iot_network_schema_is_executable,
 )
 from fedcampaign_emhi.detection.fitting import (
+    family_uses_detector_fit_only,
+    permitted_fitting_partitions,
+    score_autoencoder,
+    score_isolation_forest,
+    score_one_class_svm,
+)
+from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
 )
-from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, persistence_is_triggered
+from fedcampaign_emhi.detection.local_policy import (
+    candidate_thresholds_from_nuisance_scores,
+    first_local_stop_epoch,
+    heldout_false_stop_count,
+    operating_point_state_for_policy,
+    persistence_is_triggered,
+    select_immutable_local_policy,
+)
 from fedcampaign_emhi.detection.scoring import oriented_score_stream
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
@@ -161,6 +175,7 @@ from fedcampaign_emhi.evaluation.validation import (
     validation_contract as evaluation_validation_validation_contract,
 )
 from fedcampaign_emhi.execution.planning import plan_experiments
+from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores, batch_permutation_seed
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_contract as models_autoencoder_autoencoder_contract,
 )
@@ -327,6 +342,17 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         center_and_scale_atom,
         isolation_forest_anomaly_scores,
         one_class_svm_anomaly_scores,
+        autoencoder_anomaly_scores,
+        batch_permutation_seed,
+        family_uses_detector_fit_only,
+        permitted_fitting_partitions,
+        score_autoencoder,
+        score_isolation_forest,
+        score_one_class_svm,
+        candidate_thresholds_from_nuisance_scores,
+        heldout_false_stop_count,
+        operating_point_state_for_policy,
+        select_immutable_local_policy,
         lancaster_triple_moment,
         pair_dependence_moment,
         oriented_score_stream,
