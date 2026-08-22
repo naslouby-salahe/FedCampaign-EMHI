@@ -168,8 +168,6 @@ from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, Experim
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
 from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_dimension, tensor_representation
 from fedcampaign_emhi.emhi.contexts import (
-    NO_OUTSIDE_CONTEXT_CELL_COUNT,
-    ORACLE_QUARTILE_CELL_COUNT,
     assign_context_cell,
     cap_context_training_rows,
     coalition_context_support_is_sufficient,
@@ -299,9 +297,14 @@ from fedcampaign_emhi.execution.preprocess import (
     preprocess_must_not_regenerate,
     requested_datasets,
 )
+from fedcampaign_emhi.experiments.ablations import (
+    enumerate_context_estimator_sensitivity,
+    enumerate_exclusion_mechanism_ablation,
+    enumerate_purification_and_order_ablation,
+    order_three_material_contribution,
+    order_three_scope_gate,
+)
 from fedcampaign_emhi.experiments.primary_odi import (
-    PRIMARY_CAUSAL_COMPARATOR,
-    FullMethodSupportInputs,
     campaign_evaluation_universe,
     campaign_registry_universe_size,
     enumerate_primary_strict_odi_plan,
@@ -431,6 +434,11 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         restricted_arl_lower_bound_passes,
         support_rows_for_requested_count,
         theorem_route_assumption_checks,
+        enumerate_exclusion_mechanism_ablation,
+        enumerate_purification_and_order_ablation,
+        enumerate_context_estimator_sensitivity,
+        order_three_material_contribution,
+        order_three_scope_gate,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
@@ -439,8 +447,6 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         matched_operating_point_requirement,
         campaign_evaluation_universe,
         campaign_registry_universe_size,
-        PRIMARY_CAUSAL_COMPARATOR,
-        FullMethodSupportInputs,
         evaluate_full_method_support,
         execute_preprocess,
         nearest_reconstruction_layer,
@@ -467,8 +473,6 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         leave_one_out_context_members,
         partial_coalition_context_members,
         oracle_outside_latent_cell,
-        ORACLE_QUARTILE_CELL_COUNT,
-        NO_OUTSIDE_CONTEXT_CELL_COUNT,
         shuffled_context_permutation,
         local_history_context_member_ranks,
         operating_point_unavailable_outcome,
