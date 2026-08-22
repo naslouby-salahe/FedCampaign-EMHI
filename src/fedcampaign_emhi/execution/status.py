@@ -146,6 +146,8 @@ from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, Experim
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
 from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_dimension, tensor_representation
 from fedcampaign_emhi.emhi.contexts import (
+    NO_OUTSIDE_CONTEXT_CELL_COUNT,
+    ORACLE_QUARTILE_CELL_COUNT,
     assign_context_cell,
     cap_context_training_rows,
     coalition_context_support_is_sufficient,
@@ -155,11 +157,17 @@ from fedcampaign_emhi.emhi.contexts import (
     fit_context_centroids,
     histogram_bin_index,
     histogram_one_hot,
+    inclusive_context_members,
+    leave_one_out_context_members,
+    local_history_context_member_ranks,
     maximal_outside_field,
     minimum_support_epochs_for_order,
     nuisance_field_is_admissible,
+    oracle_outside_latent_cell,
     outside_availability_is_sufficient,
     outside_context_histogram,
+    partial_coalition_context_members,
+    shuffled_context_permutation,
 )
 from fedcampaign_emhi.emhi.evidence import (
     across_order_aggregate,
@@ -360,6 +368,14 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         fit_context_centroids,
         minimum_support_epochs_for_order,
         coalition_context_support_is_sufficient,
+        inclusive_context_members,
+        leave_one_out_context_members,
+        partial_coalition_context_members,
+        oracle_outside_latent_cell,
+        ORACLE_QUARTILE_CELL_COUNT,
+        NO_OUTSIDE_CONTEXT_CELL_COUNT,
+        shuffled_context_permutation,
+        local_history_context_member_ranks,
         operating_point_unavailable_outcome,
         calibrated_finite_horizon_outcome,
         esr_threshold_from_arl_alpha,
