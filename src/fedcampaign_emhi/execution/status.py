@@ -22,11 +22,15 @@ from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, mate
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
 from fedcampaign_emhi.comparators.composition import (
+    CompositionSelectionInputs,
     candidate_is_eligible,
     materialize_composition_record,
     mean_standardized_error,
     median_runtime_seconds,
+    null_standard_deviation_is_usable,
     select_strongest_comparator,
+    selection_rule_identity,
+    standardized_estimation_error,
 )
 from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
 from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_includes_triple
@@ -538,6 +542,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         materialize_composition_record,
         mean_standardized_error,
         median_runtime_seconds,
+        CompositionSelectionInputs,
+        null_standard_deviation_is_usable,
+        standardized_estimation_error,
+        selection_rule_identity,
         comparator_method_contracts,
         conditional_pair_dependence_maximum_order,
         no_outside_context_cell_count,

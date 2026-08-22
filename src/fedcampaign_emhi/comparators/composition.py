@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
+from fedcampaign_emhi.artifacts.provenance import content_digest
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.domain.types import (
     ArtifactFilename,
+    ConfigurationDigest,
     FiniteFloat,
     NumericalTolerance,
     PositiveEpochCount,
@@ -108,3 +110,40 @@ def materialize_composition_record(
 
 def composition_seed_count(development_root_count: SeedCount) -> SeedCount:
     return development_root_count
+
+
+@dataclass(frozen=True)
+class CompositionSelectionInputs:
+    reference_theta: FiniteFloat
+    error_tie_tolerance: NumericalTolerance
+    runtime_tie_tolerance: RuntimeSeconds
+    calibration_horizons_per_seed: RecordCount
+    heldout_null_horizons_per_seed: RecordCount
+    timed_scoring_rows: RecordCount
+    artifact_filename: ArtifactFilename
+
+
+def standardized_estimation_error(
+    candidate_mean_score: FiniteFloat, reference_theta: FiniteFloat
+) -> FiniteFloat:
+    return abs(candidate_mean_score - reference_theta)
+
+
+def null_standard_deviation_is_usable(
+    null_deviation: FiniteFloat, metric_denominator_floor: FiniteFloat
+) -> bool:
+    from math import isfinite
+
+    return isfinite(null_deviation) and null_deviation > metric_denominator_floor
+
+
+def selection_rule_identity(inputs: CompositionSelectionInputs) -> ConfigurationDigest:
+    payload = {
+        "reference_theta": inputs.reference_theta,
+        "error_tie_tolerance": inputs.error_tie_tolerance,
+        "runtime_tie_tolerance": inputs.runtime_tie_tolerance,
+        "calibration_horizons_per_seed": inputs.calibration_horizons_per_seed,
+        "heldout_null_horizons_per_seed": inputs.heldout_null_horizons_per_seed,
+        "timed_scoring_rows": inputs.timed_scoring_rows,
+    }
+    return content_digest(payload)
