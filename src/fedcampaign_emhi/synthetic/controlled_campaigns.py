@@ -1,5 +1,6 @@
 from math import erf, sqrt
-from random import Random
+
+import numpy as np
 
 from fedcampaign_emhi.domain.types import (
     ClientId,
@@ -60,8 +61,8 @@ def apply_single_client_score_shift(
 
 
 def gaussian_copula_pair(correlation: Correlation, seed: SeedValue) -> tuple[RankValue, RankValue]:
-    generator = Random(thirty_two_bit_seed(seed))
-    first = generator.gauss(0.0, 1.0)
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
+    first = float(generator.standard_normal())
     residual_scale = sqrt(1.0 - (correlation**2))
-    second = (correlation * first) + (residual_scale * generator.gauss(0.0, 1.0))
+    second = (correlation * first) + (residual_scale * float(generator.standard_normal()))
     return (standard_normal_cdf(first), standard_normal_cdf(second))

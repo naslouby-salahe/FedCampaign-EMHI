@@ -1,5 +1,6 @@
-from math import sqrt
-from random import Random
+from math import isnan, sqrt
+
+import numpy as np
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
@@ -62,8 +63,8 @@ def xor_parity_response(bits: tuple[SignedInt, ...], strength: FiniteFloat) -> F
 def sample_independent_uniform_ranks(
     client_count: ClientCount, seed: SeedValue
 ) -> tuple[RankValue, ...]:
-    generator = Random(thirty_two_bit_seed(seed))
-    return tuple(generator.random() for _index in range(client_count))
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
+    return tuple(float(generator.random()) for _index in range(client_count))
 
 
 def sample_pure_polynomial_ranks(
@@ -74,30 +75,34 @@ def sample_pure_polynomial_ranks(
 ) -> tuple[RankValue, ...]:
     if not polynomial_density_is_valid(theta, order):
         raise ValueError("pure polynomial density would be negative")
-    generator = Random(thirty_two_bit_seed(seed))
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
     envelope = polynomial_envelope(theta, order)
     while True:
-        target_ranks = tuple(generator.random() for _member in range(int(order)))
+        target_ranks = tuple(float(generator.random()) for _member in range(int(order)))
         density = polynomial_density(target_ranks, theta)
-        if density <= 0.0 or density != density:
+        if density <= 0.0 or isnan(density):
             raise ValueError("pure polynomial density invariant violated")
-        if generator.random() * envelope <= density:
-            remainder = tuple(generator.random() for _client in range(remaining_client_count))
+        if float(generator.random()) * envelope <= density:
+            remainder = tuple(
+                float(generator.random()) for _client in range(remaining_client_count)
+            )
             return target_ranks + remainder
 
 
 def sample_xor_ranks(
     strength: FiniteFloat, remaining_client_count: ClientCount, seed: SeedValue
 ) -> tuple[RankValue, ...]:
-    generator = Random(thirty_two_bit_seed(seed))
-    first = 1 if generator.random() < 0.5 else 0
-    second = 1 if generator.random() < 0.5 else 0
+    generator = np.random.default_rng(thirty_two_bit_seed(seed))
+    first = 1 if float(generator.random()) < 0.5 else 0
+    second = 1 if float(generator.random()) < 0.5 else 0
     match_probability = 0.5 + (0.5 * strength)
-    third = (first ^ second) if generator.random() < match_probability else 1 - (first ^ second)
+    third = (
+        (first ^ second) if float(generator.random()) < match_probability else 1 - (first ^ second)
+    )
     bits = (first, second, third)
-    uniforms = tuple(generator.random() for _bit in bits)
+    uniforms = tuple(float(generator.random()) for _bit in bits)
     target_ranks = tuple((bit + uniform) / 2.0 for bit, uniform in zip(bits, uniforms, strict=True))
-    remainder = tuple(generator.random() for _client in range(remaining_client_count))
+    remainder = tuple(float(generator.random()) for _client in range(remaining_client_count))
     return target_ranks + remainder
 
 

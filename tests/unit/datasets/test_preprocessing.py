@@ -47,9 +47,12 @@ def test_hash_mapping_uses_sha256_first_eight_bytes() -> None:
     bucket = event_type_hash_bucket(event_type, 64)
     digest = hashlib.sha256(event_type.encode("utf-8")).digest()
     assert bucket == int.from_bytes(digest[:8], "big") % 64
-    assert event_type_hash_bucket("PROTOCOL::TCP", 64) == event_type_hash_bucket(
-        "PROTOCOL::TCP", 64
-    )
+    protocol_event = "PROTOCOL::TCP"
+    first = event_type_hash_bucket(protocol_event, 64)
+    second = event_type_hash_bucket(protocol_event, 64)
+    protocol_digest = hashlib.sha256(protocol_event.encode("utf-8")).digest()
+    assert first == second
+    assert first == int.from_bytes(protocol_digest[:8], "big") % 64
 
 
 def test_duplicates_retain_first_chronological_and_count() -> None:
