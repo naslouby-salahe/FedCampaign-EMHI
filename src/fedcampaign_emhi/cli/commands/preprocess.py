@@ -14,8 +14,8 @@ def preprocess_command(
     requested: tuple[DatasetName, ...]
     if dataset_name is None:
         requested = (
-            DatasetName.CORRECTED_OPTC,
-            DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5,
+            DatasetName.TON_IOT_NETWORK,
+            DatasetName.EDGE_IIOTSET,
         )
     else:
         requested = (_parse_dataset_name(dataset_name),)
@@ -33,14 +33,11 @@ def preprocess_command(
 
 def _parse_dataset_name(dataset_argument: str) -> DatasetName:
     aliases = {
-        "corrected-optc": DatasetName.CORRECTED_OPTC,
-        "corrected optc": DatasetName.CORRECTED_OPTC,
-        DatasetName.CORRECTED_OPTC.value.lower(): DatasetName.CORRECTED_OPTC,
-        "tc-engagement-5": DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5,
-        "transparent computing engagement 5": DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5,
-        DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5.value.lower(): (
-            DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5
-        ),
+        "ton-iot-network": DatasetName.TON_IOT_NETWORK,
+        "ton_iot network": DatasetName.TON_IOT_NETWORK,
+        DatasetName.TON_IOT_NETWORK.value.lower(): DatasetName.TON_IOT_NETWORK,
+        "edge-iiotset": DatasetName.EDGE_IIOTSET,
+        DatasetName.EDGE_IIOTSET.value.lower(): DatasetName.EDGE_IIOTSET,
     }
     resolved = aliases.get(dataset_argument.lower())
     if resolved is None:

@@ -65,12 +65,12 @@ evidence:
 
 datasets:
   primary:
-    name: Corrected OpTC
-    raw_directory: data/raw/corrected_optc
+    name: TON_IoT Network
+    raw_directory: data/raw/ton_iot_network
     target_client_count: 12
   secondary:
-    name: Transparent Computing Engagement 5
-    raw_directory: data/raw/tc_engagement_5
+    name: Edge-IIoTset
+    raw_directory: data/raw/edge_iiotset
     target_client_count: 12
     minimum_eligible_client_count: 6
   external_checksums_directory: data/external_checksums

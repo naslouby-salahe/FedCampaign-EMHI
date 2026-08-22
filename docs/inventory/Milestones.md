@@ -721,7 +721,7 @@ A milestone is not complete until the audit result is `PASS`.
 
 # M05 — Dataset Preparation & Local Detection Pipeline
 
-> **Outcome:** Corrected OpTC and the conditional secondary trace can be inventoried, deterministically adapted and preprocessed into valid client/epoch partitions with fitted immutable local detectors, calibrated local-policy behavior, and score streams.
+> **Outcome:** TON_IoT Network and the conditional secondary trace can be inventoried, deterministically adapted and preprocessed into valid client/epoch partitions with fitted immutable local detectors, calibrated local-policy behavior, and score streams.
 
 ## At a Glance
 
@@ -742,8 +742,8 @@ The Roadmap Coverage Inventory is the traceability authority for this milestone.
 | Roadmap Section | Scope / Work Package | Requirement IDs | Implementation Issue(s) | Verification / Evidence |
 |---|---|---|---|---|
 | §6.1 | Raw-dataset authority, inventory and deterministic adaptation | `REQ-0688–REQ-0709` | `I21` | Raw inventory/checksum/schema/discrepancy tests prove observed bytes are authoritative and adaptation follows only predeclared rules. |
-| §6.2; OpTC definitions | Corrected OpTC identity, clients, separation and ground truth | `REQ-0515–REQ-0517, REQ-0710–REQ-0751, REQ-2929` | `I22` | Dataset integration tests validate release identity, client selection, ground truth, benign/evaluation separation, eligibility and manifests. |
-| §6.3; TC Engagement 5 definitions | Transparent Computing Engagement 5 secondary-data contract | `REQ-0518–REQ-0520, REQ-0752–REQ-0779, REQ-2930–REQ-2931` | `I23` | Secondary adapter tests validate client definition/selection, benign interval, ground truth, eligibility and valid ineligibility handling. |
+| §6.2; TON_IoT Network definitions | TON_IoT Network identity, clients, separation and ground truth | `REQ-0515–REQ-0517, REQ-0710–REQ-0751, REQ-2929` | `I22` | Dataset integration tests validate release identity, client selection, ground truth, benign/evaluation separation, eligibility and manifests. |
+| §6.3; Edge-IIoTset definitions | Edge-IIoTset secondary-data contract | `REQ-0518–REQ-0520, REQ-0752–REQ-0779, REQ-2930–REQ-2931` | `I23` | Secondary adapter tests validate client definition/selection, benign interval, ground truth, eligibility and valid ineligibility handling. |
 | §7; hash/canonicalization definitions | Canonical preprocessing, epoch features, scaling, splits and benign horizons | `REQ-0521–REQ-0523, REQ-0780–REQ-0823, REQ-2816, REQ-2932–REQ-2944, REQ-2966–REQ-2969` | `I24` | Deterministic preprocessing tests validate duplicate/invalid handling, epoch features, non-finite rules, scaling, chronology, leakage and horizon construction. |
 | Detector definitions; §9 | Local detector fitting, scoring and immutable local-policy behavior | `REQ-0530–REQ-0553, REQ-0849–REQ-0867, REQ-2823–REQ-2834` | `I25` | Detector unit/integration tests validate exact fitting inputs, score direction, seed behavior, policy calibration separation and immutability. |
 | §16.2; §16.8 preprocess row | Preprocess CLI ownership, reuse and invalidation | `REQ-1911–REQ-1918, REQ-1959` | `I26` | CLI tests verify dataset selection, layer validation/reuse, overwrite, nearest-valid reconstruction, and selective downstream invalidation. |
@@ -788,8 +788,8 @@ Implementation issues for this milestone are listed below; each issue's detailed
 | Order | Issue | Work Package | Roadmap Scope | Requirement Coverage | Depends On |
 |---:|---|---|---|---|---|
 | 1 | `I21` — Implement Raw Dataset Authority, Inventory and Adaptation | Implement Raw Dataset Authority, Inventory and Adaptation | §6.1; §22 raw-release grounding | 25 atomic requirements | `I06`, `I12`, `I20` |
-| 2 | `I22` — Implement Corrected OpTC Dataset Contract | Implement Corrected OpTC Dataset Contract | §6.2; OpTC definitions | 46 atomic requirements | `I21` |
-| 3 | `I23` — Implement Transparent Computing Engagement 5 Dataset Contract | Implement Transparent Computing Engagement 5 Dataset Contract | §6.3; TC Engagement 5 definitions | 33 atomic requirements | `I21` |
+| 2 | `I22` — Implement TON_IoT Network Dataset Contract | Implement TON_IoT Network Dataset Contract | §6.2; TON_IoT Network definitions | 46 atomic requirements | `I21` |
+| 3 | `I23` — Implement Edge-IIoTset Dataset Contract | Implement Edge-IIoTset Dataset Contract | §6.3; Edge-IIoTset definitions | 33 atomic requirements | `I21` |
 | 4 | `I24` — Implement Canonical Preprocessing, Splits and Benign Horizons | Implement Canonical Preprocessing, Splits and Benign Horizons | §7; hash/canonicalization definitions | 65 atomic requirements | `I08`, `I12`, `I22`, `I23` |
 | 5 | `I25` — Implement Local Detectors and Immutable Local Policies | Implement Local Detectors and Immutable Local Policies | Detector definitions; §9 | 55 atomic requirements | `I24` |
 | 6 | `I26` — Implement Preprocess CLI Reuse and Invalidation Contract | Implement Preprocess CLI Reuse and Invalidation Contract | §16.2; §16.8 preprocess row | 9 atomic requirements | `I11`, `I24`, `I25` |
@@ -813,7 +813,7 @@ Every future milestone issue must:
 
 | Deliverable | Source Issue(s) | Required Validation | Downstream Consumer |
 |---|---|---|---|
-| Raw inventory and deterministic adaptation artifacts for Corrected OpTC and Transparent Computing Engagement 5 | `I21`, `I22`, `I23`, `I24`, `I25`, `I26` | Checksums, observed-schema inventories, discrepancy manifests, client eligibility, and ground-truth validation pass | M06, M08–M10 |
+| Raw inventory and deterministic adaptation artifacts for TON_IoT Network and Edge-IIoTset | `I21`, `I22`, `I23`, `I24`, `I25`, `I26` | Checksums, observed-schema inventories, discrepancy manifests, client eligibility, and ground-truth validation pass | M06, M08–M10 |
 | Canonical epoch features, deduplication/invalid-record handling, scaling, chronological benign splits, and benign horizons | `I21`, `I22`, `I23`, `I24`, `I25`, `I26` | Deterministic preprocessing integration tests and split/leakage invariants pass | M06, M08–M10 |
 | Fitted local detector artifacts and immutable detector score streams | `I21`, `I22`, `I23`, `I24`, `I25`, `I26` | Detector unit/integration tests, score-orientation checks, seed/config provenance, and no-policy-leakage checks pass | M06, M08–M10 |
 | Calibrated primary/strong local-policy artifacts and held-out local validation records | `I21`, `I22`, `I23`, `I24`, `I25`, `I26` | Candidate-source separation, exact PFA-UCB selection, `Operating Point Unavailable`, immutability and held-out non-retuning rules pass | M06, M08–M10 |
@@ -1269,7 +1269,7 @@ A milestone is not complete until the audit result is `PASS`.
 
 ## Scope Boundary
 
-- This milestone validates and locks scientific machinery on the roadmap's synthetic/theory studies; it does not execute the primary Corrected OpTC study or later robustness/generalization studies.
+- This milestone validates and locks scientific machinery on the roadmap's synthetic/theory studies; it does not execute the primary TON_IoT Network study or later robustness/generalization studies.
 - This milestone implements only the roadmap requirements explicitly assigned to it.
 - The authoritative roadmap remains the source of scientific, mathematical, methodological, architectural, numerical, configuration, artifact, statistical, and execution requirements.
 - This milestone may organize implementation work but may not redefine, weaken, extend, or silently reinterpret the roadmap.
@@ -1279,7 +1279,7 @@ A milestone is not complete until the audit result is `PASS`.
 
 # M08 — Primary Real-Data Strict ODI Evaluation
 
-> **Outcome:** The complete primary Corrected OpTC evaluation is executed for every declared method and confirmatory seed, producing current strict-ODI, PFA, lead, comparator-advantage, and support evidence under the predeclared statistical contract.
+> **Outcome:** The complete primary TON_IoT Network evaluation is executed for every declared method and confirmatory seed, producing current strict-ODI, PFA, lead, comparator-advantage, and support evidence under the predeclared statistical contract.
 
 ## At a Glance
 
@@ -1321,7 +1321,7 @@ The Roadmap Coverage Inventory is the traceability authority for this milestone.
 | Milestone | Required Input / Contract | Entry Gate |
 |---|---|---|
 | M04 — Statistical Inference & Decision Contract | Fixed real-seed pairing, PFA inference, primary materiality aggregation, directional-test and multiplicity contracts | `Complete + audit PASS` |
-| M05 — Dataset Preparation & Local Detection Pipeline | Current eligible Corrected OpTC clients, benign horizons, campaign-registry inputs, local policies, detector models, and score streams | `Complete + audit PASS` |
+| M05 — Dataset Preparation & Local Detection Pipeline | Current eligible TON_IoT Network clients, benign horizons, campaign-registry inputs, local policies, detector models, and score streams | `Complete + audit PASS` |
 | M06 — EMHI Estimation, Context Conditioning & Sequential Evidence Engine | Validated EMHI, comparator, sequential-evidence, metric, and campaign-evaluation engine | `Complete + audit PASS` |
 | M07 — Synthetic Validation & Comparator Composition Lock | Passing validation gates and immutable selected strong-comparator identity | `Complete + audit PASS` |
 

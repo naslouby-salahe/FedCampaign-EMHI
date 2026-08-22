@@ -42,8 +42,8 @@ def test_production_configuration_loads_locked_core_values(
     assert values.evidence.clip_bound == 1.0
     assert values.evidence.bet_lambda == 0.5
     assert values.evidence.calibrated_finite_horizon.target_pfa == 0.05
-    assert values.datasets.primary.name is DatasetName.CORRECTED_OPTC
-    assert values.datasets.secondary.name is DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5
+    assert values.datasets.primary.name is DatasetName.TON_IOT_NETWORK
+    assert values.datasets.secondary.name is DatasetName.EDGE_IIOTSET
     assert values.detectors.isolation_forest.trees == 300
     assert values.randomness.engineering_smoke_root == 999
     assert values.randomness.statistical_analysis_base_seed == 3000

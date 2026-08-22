@@ -2,8 +2,8 @@ from enum import IntEnum, StrEnum
 
 
 class DatasetName(StrEnum):
-    CORRECTED_OPTC = "Corrected OpTC"
-    TRANSPARENT_COMPUTING_ENGAGEMENT_5 = "Transparent Computing Engagement 5"
+    TON_IOT_NETWORK = "TON_IoT Network"
+    EDGE_IIOTSET = "Edge-IIoTset"
 
 
 class ExperimentName(StrEnum):
