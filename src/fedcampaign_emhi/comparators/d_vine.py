@@ -1,4 +1,4 @@
-from math import erf, sqrt
+from math import sqrt
 
 from scipy.special import erfinv
 
@@ -9,6 +9,7 @@ from fedcampaign_emhi.domain.types import (
     NumericalFloor,
     RankValue,
 )
+from fedcampaign_emhi.emhi.gaussian import standard_normal_cdf
 
 
 def lexicographic_vine_order(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
@@ -16,10 +17,6 @@ def lexicographic_vine_order(client_ids: tuple[ClientId, ...]) -> tuple[ClientId
         raise ValueError("D-vine triples must contain exactly three clients")
     ordered = tuple(sorted(client_ids))
     return ordered
-
-
-def standard_normal_cdf(gaussian_coordinate: FiniteFloat) -> RankValue:
-    return 0.5 * (1.0 + erf(gaussian_coordinate / sqrt(2.0)))
 
 
 def standard_normal_quantile(rank: RankValue, rank_clip_epsilon: NumericalFloor) -> FiniteFloat:
