@@ -1,8 +1,7 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+from fedcampaign_emhi.domain.types import FiniteFloat
 
 
-def scoring_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.detection.scoring",
-        ownership="produces deterministic reusable detector score streams",
-    )
+def oriented_score_stream(scores: tuple[FiniteFloat, ...]) -> tuple[FiniteFloat, ...]:
+    if not scores:
+        raise ValueError("score stream must contain at least one epoch")
+    return scores
