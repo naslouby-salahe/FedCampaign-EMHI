@@ -19,7 +19,7 @@ ALLOWED_DEPENDENCIES: dict[str, set[str]] = {
     "detection": {"domain", "config", "models", "emhi", "artifacts", "runtime"},
     "comparators": {"domain", "config", "emhi", "artifacts", "runtime", "models"},
     "synthetic": {"domain", "config", "emhi", "runtime"},
-    "experiments": {"domain", "config"},
+    "experiments": {"domain", "config", "emhi"},
     "evaluation": {"domain", "config", "emhi", "comparators", "artifacts", "datasets", "detection"},
     "analysis": {"domain", "config", "evaluation", "artifacts"},
     "execution": {

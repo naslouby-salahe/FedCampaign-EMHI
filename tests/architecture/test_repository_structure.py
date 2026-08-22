@@ -82,6 +82,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/experiments/definitions.py",
     "src/fedcampaign_emhi/experiments/coordinates.py",
     "src/fedcampaign_emhi/experiments/validation.py",
+    "src/fedcampaign_emhi/experiments/sequential_evidence.py",
     "src/fedcampaign_emhi/evaluation/__init__.py",
     "src/fedcampaign_emhi/evaluation/records.py",
     "src/fedcampaign_emhi/evaluation/campaign_replay.py",
