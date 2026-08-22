@@ -2,7 +2,16 @@ from dataclasses import dataclass, replace
 
 from fedcampaign_emhi.analysis.claims import evaluate_threshold_claim
 from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_placeholder_p_value
-from fedcampaign_emhi.analysis.statistics import exact_sign_pattern, sign_flip_p_value
+from fedcampaign_emhi.analysis.statistics import (
+    controlled_experimental_unit,
+    exact_sign_pattern,
+    monte_carlo_sign_flip_p_value,
+    pairing_selected_clients,
+    real_experimental_unit,
+    seed_level_aggregate,
+    sign_flip_p_value,
+    two_sided_sign_flip_p_value,
+)
 from fedcampaign_emhi.analysis.summaries import (
     summaries_contract as analysis_summaries_summaries_contract,
 )
@@ -176,6 +185,12 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         holm_placeholder_p_value,
         exact_sign_pattern,
         sign_flip_p_value,
+        monte_carlo_sign_flip_p_value,
+        seed_level_aggregate,
+        two_sided_sign_flip_p_value,
+        controlled_experimental_unit,
+        pairing_selected_clients,
+        real_experimental_unit,
         edge_iiotset_canonical_event_type,
         edge_iiotset_ground_truth,
         load_edge_iiotset_csv,
