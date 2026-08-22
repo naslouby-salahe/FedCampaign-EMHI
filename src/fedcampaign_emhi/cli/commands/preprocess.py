@@ -1,42 +1,43 @@
 import typer
 
 from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
-from fedcampaign_emhi.datasets.inventory import (
-    configured_raw_directory,
-    discover_raw_paths,
-    inventory_raw_directory,
+from fedcampaign_emhi.domain.enums import DatasetName, OverwritePolicy, PreprocessingLayer
+from fedcampaign_emhi.execution.preprocess import (
+    execute_preprocess,
+    preprocess_must_not_regenerate,
+    requested_datasets,
 )
-from fedcampaign_emhi.domain.enums import DatasetName
 
 
 def preprocess_command(
     dataset_name: str | None = typer.Argument(default=None),
     overwrite: bool = typer.Option(False, "--overwrite"),
 ) -> None:
-    loaded = load_production_configuration(repository_root())
     repository = repository_root()
-    requested: tuple[DatasetName, ...]
-    if dataset_name is None:
-        requested = (
-            DatasetName.TON_IOT_NETWORK,
-            DatasetName.EDGE_IIOTSET,
-        )
-    else:
-        requested = (_parse_dataset_name(dataset_name),)
+    loaded = load_production_configuration(repository)
+    selected = None if dataset_name is None else _parse_dataset_name(dataset_name)
+    policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
+    record = execute_preprocess(loaded, repository, selected, policy)
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"overwrite={overwrite}")
-    for name in requested:
-        raw_directory = configured_raw_directory(loaded, name, repository)
-        files = discover_raw_paths(raw_directory)
-        typer.echo(
-            f"dataset={name.value} raw_directory={raw_directory} raw_file_count={len(files)}"
-        )
-        if files:
-            typer.echo(
-                f"inventory_entries={len(inventory_raw_directory(raw_directory, repository))}"
-            )
-    typer.echo("ownership=inventory,prepared,splits,partitions,campaign_registry")
-    typer.echo("must_not_regenerate=detectors,scores,evaluations,statistics,reports")
+    typer.echo("datasets=" + ",".join(name.value for name in requested_datasets(selected)))
+    for dataset, start_layer in record.reconstruct_from:
+        origin = start_layer.value if start_layer is not None else "reuse_all"
+        typer.echo(f"reconstruct_from.{dataset.value}={origin}")
+    reused = tuple(decision.layer.value for decision in record.decisions if decision.reused)
+    rebuilt = tuple(decision.layer.value for decision in record.decisions if decision.reconstructed)
+    typer.echo("reused_layers=" + ",".join(reused))
+    typer.echo("rebuilt_layers=" + ",".join(rebuilt))
+    invalidated = tuple(
+        artifact_id
+        for decision in record.decisions
+        for artifact_id in decision.invalidated_descendant_ids
+    )
+    typer.echo("invalidated_descendants=" + ",".join(invalidated))
+    typer.echo("ownership=" + ",".join(layer.value for layer in PreprocessingLayer))
+    typer.echo(
+        "must_not_regenerate=" + ",".join(kind.value for kind in preprocess_must_not_regenerate())
+    )
 
 
 def _parse_dataset_name(dataset_argument: str) -> DatasetName:

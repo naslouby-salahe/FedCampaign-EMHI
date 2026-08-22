@@ -101,6 +101,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/artifacts/validation.py",
     "src/fedcampaign_emhi/execution/__init__.py",
     "src/fedcampaign_emhi/execution/planning.py",
+    "src/fedcampaign_emhi/execution/preprocess.py",
     "src/fedcampaign_emhi/execution/runner.py",
     "src/fedcampaign_emhi/execution/recovery.py",
     "src/fedcampaign_emhi/execution/status.py",

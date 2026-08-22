@@ -28,3 +28,11 @@ def test_no_seed_override_option() -> None:
     result = runner.invoke(application, ["run", "--help"])
     assert "--seed" not in result.stdout
     assert "--method" not in result.stdout
+
+
+def test_preprocess_help_exposes_overwrite_not_scientific_flags() -> None:
+    result = runner.invoke(application, ["preprocess", "--help"])
+    assert result.exit_code == 0
+    assert "--overwrite" in result.stdout
+    assert "--seed" not in result.stdout
+    assert "--method" not in result.stdout

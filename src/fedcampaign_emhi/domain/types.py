@@ -17,6 +17,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     MethodName,
     OperatingPointState,
+    PreprocessingLayer,
     RecordExclusionReason,
     ScientificOutcomeKind,
 )
@@ -264,6 +265,24 @@ class LocalPolicyArtifact:
     threshold: ThresholdValue
     required_exceedances: PositiveInt
     window_epochs: EpochCount
+
+
+@dataclass(frozen=True)
+class PreprocessingLayerDecision:
+    dataset_name: DatasetName
+    layer: PreprocessingLayer
+    reused: bool
+    reconstructed: bool
+    previous_fingerprint: MaterialDependencyFingerprint | None
+    current_fingerprint: MaterialDependencyFingerprint
+    invalidated_descendant_ids: tuple[ArtifactIdentity, ...]
+
+
+@dataclass(frozen=True)
+class PreprocessExecutionRecord:
+    decisions: tuple[PreprocessingLayerDecision, ...]
+    requested_datasets: tuple[DatasetName, ...]
+    reconstruct_from: tuple[tuple[DatasetName, PreprocessingLayer | None], ...]
 
 
 @dataclass(frozen=True)
