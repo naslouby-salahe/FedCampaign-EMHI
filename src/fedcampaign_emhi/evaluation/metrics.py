@@ -10,12 +10,21 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.projection import blocked_fold_sizes
 
 
+def earliest_local_stop(
+    local_stop_epochs: tuple[EpochIndexValue | None, ...],
+) -> EpochIndexValue | None:
+    finite_local = [epoch for epoch in local_stop_epochs if epoch is not None]
+    if not finite_local:
+        return None
+    return min(finite_local)
+
+
 def strict_odi_outcome(
     global_stop_epoch: EpochIndexValue | None,
     local_stop_epochs: tuple[EpochIndexValue | None, ...],
 ) -> StrictOdiOutcome:
-    finite_local = [epoch for epoch in local_stop_epochs if epoch is not None]
-    earliest_local = min(finite_local) if finite_local else None
+    earliest_local = earliest_local_stop(local_stop_epochs)
+    global_detection = 0 if global_stop_epoch is None else 1
     if global_stop_epoch is None or earliest_local is None:
         indicator = 0
     else:
@@ -24,6 +33,7 @@ def strict_odi_outcome(
         global_stop_epoch=global_stop_epoch,
         earliest_local_stop_epoch=earliest_local,
         indicator=indicator,
+        global_detection_indicator=global_detection,
     )
 
 
