@@ -1,9 +1,10 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExperimentName
-from fedcampaign_emhi.domain.types import ArtifactRoots
+from fedcampaign_emhi.domain.types import ArtifactRoots, RelativePath
 
 OUTPUTS_PREPROCESSING_CHILDREN = (
     "inventories",
@@ -75,34 +76,41 @@ class ArtifactLayout:
             self.roots.results_root / "experiments",
             self.roots.results_root / "project_summary",
         ]
-        for child in OUTPUTS_PREPROCESSING_CHILDREN:
-            paths.append(self.roots.outputs_root / "preprocessing" / child)
-        for child in OUTPUTS_ARTIFACT_CHILDREN:
-            paths.append(self.roots.outputs_root / "artifacts" / child)
-        for child in OUTPUTS_CACHE_CHILDREN:
-            paths.append(self.roots.outputs_root / "cache" / child)
+        paths.extend(
+            _child_directories(
+                self.roots.outputs_root / "preprocessing", OUTPUTS_PREPROCESSING_CHILDREN
+            )
+        )
+        paths.extend(
+            _child_directories(self.roots.outputs_root / "artifacts", OUTPUTS_ARTIFACT_CHILDREN)
+        )
+        paths.extend(_child_directories(self.roots.outputs_root / "cache", OUTPUTS_CACHE_CHILDREN))
         for experiment_name in ExperimentName:
             experiment_output = self.experiment_outputs_root(experiment_name)
             paths.append(experiment_output)
-            for parent, children in EXPERIMENT_OUTPUT_TREES.items():
-                parent_path = experiment_output / parent
-                paths.append(parent_path)
-                for child in children:
-                    paths.append(parent_path / child)
+            paths.extend(_nested_directories(experiment_output, EXPERIMENT_OUTPUT_TREES))
             experiment_result = self.experiment_results_root(experiment_name)
             paths.append(experiment_result)
-            for parent, children in EXPERIMENT_RESULTS_TREES.items():
-                parent_path = experiment_result / parent
-                paths.append(parent_path)
-                for child in children:
-                    paths.append(parent_path / child)
-        project_summary = self.roots.results_root / "project_summary"
-        for parent, children in PROJECT_SUMMARY_TREES.items():
-            parent_path = project_summary / parent
-            paths.append(parent_path)
-            for child in children:
-                paths.append(parent_path / child)
+            paths.extend(_nested_directories(experiment_result, EXPERIMENT_RESULTS_TREES))
+        paths.extend(
+            _nested_directories(self.roots.results_root / "project_summary", PROJECT_SUMMARY_TREES)
+        )
         return tuple(paths)
+
+
+def _child_directories(parent: Path, children: tuple[RelativePath, ...]) -> tuple[Path, ...]:
+    return tuple(parent / child for child in children)
+
+
+def _nested_directories(
+    root: Path, tree: Mapping[RelativePath, tuple[RelativePath, ...]]
+) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for parent, children in tree.items():
+        parent_path = root / parent
+        paths.append(parent_path)
+        paths.extend(parent_path / child for child in children)
+    return tuple(paths)
 
 
 def build_artifact_layout(

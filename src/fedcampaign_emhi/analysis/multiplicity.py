@@ -10,8 +10,10 @@ def holm_adjusted_p_values(
     family_size = len(identifiers)
     if family_size == 0:
         return ()
-    ordered = sorted(zip(identifiers, raw_p_values, range(family_size), strict=True))
-    ordered_by_p = sorted(ordered, key=lambda item: (item[1], item[0]))
+    ordered_by_p = sorted(
+        zip(identifiers, raw_p_values, range(family_size), strict=True),
+        key=lambda item: (item[1], item[0]),
+    )
     adjusted_by_index = [0.0] * family_size
     running = 0.0
     for rank, (_identifier, raw_p, original_index) in enumerate(ordered_by_p):

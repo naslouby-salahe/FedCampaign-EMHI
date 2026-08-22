@@ -159,6 +159,10 @@ def project_status(loaded: LoadedScientificConfiguration) -> tuple[ExperimentSta
     return tuple(statuses)
 
 
+ARTIFACT_OWNERSHIP = "artifact identity, persistence, validation, path, and provenance"
+DATASET_ADAPTER_OWNERSHIP = "dataset adapter contract"
+
+
 def module_contracts() -> tuple[ModuleContract, ...]:
     production_functions = (
         epoch_index,
@@ -218,23 +222,23 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         analysis_summaries_summaries_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.dependencies",
-            ownership="artifact identity, persistence, validation, path, and provenance",
+            ownership=ARTIFACT_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.provenance",
-            ownership="artifact identity, persistence, validation, path, and provenance",
+            ownership=ARTIFACT_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.records",
-            ownership="artifact identity, persistence, validation, path, and provenance",
+            ownership=ARTIFACT_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.storage",
-            ownership="artifact identity, persistence, validation, path, and provenance",
+            ownership=ARTIFACT_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.validation",
-            ownership="artifact identity, persistence, validation, path, and provenance",
+            ownership=ARTIFACT_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.composition",
@@ -275,19 +279,19 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.ton_iot_network.canonicalization",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.ton_iot_network.ground_truth",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.ton_iot_network.loading",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.ton_iot_network.validation",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.edge_iiotset",
@@ -295,19 +299,19 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.edge_iiotset.canonicalization",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.edge_iiotset.ground_truth",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.edge_iiotset.loading",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.edge_iiotset.validation",
-            ownership="dataset adapter contract",
+            ownership=DATASET_ADAPTER_OWNERSHIP,
         ),
         detection_fitting_fitting_contract(),
         ModuleContract(

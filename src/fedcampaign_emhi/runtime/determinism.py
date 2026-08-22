@@ -31,8 +31,8 @@ def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
         "base_seed": identity.base_seed,
         "component_name": identity.component_name,
         "dataset": dataset_name,
-        "client_ids": list(sorted(identity.client_ids)),
-        "coalition_ids": list(sorted(identity.coalition_ids)),
+        "client_ids": sorted(identity.client_ids),
+        "coalition_ids": sorted(identity.coalition_ids),
         "condition_coordinates": coordinates,
     }
 

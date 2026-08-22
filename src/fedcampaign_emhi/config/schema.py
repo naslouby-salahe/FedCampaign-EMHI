@@ -335,7 +335,7 @@ class GeneratorsMixedOrderConfig(FrozenConfigModel):
         for term_set in raw_term_sets:
             if not isinstance(term_set, list | tuple):
                 raise TypeError("each enabled term set must be a sequence of integers")
-            frozen_sets.append(tuple(term for term in term_set))
+            frozen_sets.append(tuple(term_set))
         return tuple(frozen_sets)
 
 
