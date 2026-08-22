@@ -79,7 +79,25 @@ from fedcampaign_emhi.datasets.inventory import (
     ton_iot_network_field_mapping,
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
-from fedcampaign_emhi.datasets.preprocessing import chronological_partition_lengths
+from fedcampaign_emhi.datasets.preprocessing import (
+    apply_robust_scaler,
+    chronological_benign_partitions,
+    chronological_partition_lengths,
+    common_benign_epoch_bounds,
+    complete_benign_horizons,
+    complete_horizon_count,
+    detector_fit_sample_requirement_is_met,
+    empty_epoch_feature_vector,
+    epoch_feature_vector,
+    fit_robust_scaler,
+    horizon_eligibility_state,
+    inclusive_epoch_range,
+    retain_first_chronological,
+    shannon_entropy,
+)
+from fedcampaign_emhi.datasets.preprocessing import (
+    event_type_hash_bucket as preprocessing_event_type_hash_bucket,
+)
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_client_id,
     event_type_hash_bucket,
@@ -127,6 +145,10 @@ from fedcampaign_emhi.emhi.sequential import (
 from fedcampaign_emhi.emhi.thresholds import operating_point_unavailable_outcome
 from fedcampaign_emhi.evaluation.benign_horizons import (
     benign_horizons_contract as evaluation_benign_horizons_benign_horizons_contract,
+)
+from fedcampaign_emhi.evaluation.benign_horizons import (
+    horizons_are_nonoverlapping,
+    sequential_stop_reset_epochs,
 )
 from fedcampaign_emhi.evaluation.campaign_replay import (
     campaign_replay_contract as evaluation_campaign_replay_campaign_replay_contract,
@@ -216,6 +238,22 @@ def module_contracts() -> tuple[ModuleContract, ...]:
     production_functions = (
         epoch_index,
         chronological_partition_lengths,
+        apply_robust_scaler,
+        chronological_benign_partitions,
+        common_benign_epoch_bounds,
+        complete_horizon_count,
+        detector_fit_sample_requirement_is_met,
+        empty_epoch_feature_vector,
+        epoch_feature_vector,
+        preprocessing_event_type_hash_bucket,
+        fit_robust_scaler,
+        horizon_eligibility_state,
+        inclusive_epoch_range,
+        retain_first_chronological,
+        shannon_entropy,
+        complete_benign_horizons,
+        horizons_are_nonoverlapping,
+        sequential_stop_reset_epochs,
         clip_rank,
         histogram_bin_index,
         operating_point_unavailable_outcome,
