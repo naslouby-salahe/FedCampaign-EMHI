@@ -5,6 +5,8 @@ from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_
 from fedcampaign_emhi.analysis.statistics import (
     controlled_experimental_unit,
     exact_sign_pattern,
+    hodges_lehmann_shift,
+    interval_establishes_equivalence,
     monte_carlo_sign_flip_p_value,
     pairing_selected_clients,
     real_experimental_unit,
@@ -191,6 +193,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         controlled_experimental_unit,
         pairing_selected_clients,
         real_experimental_unit,
+        hodges_lehmann_shift,
+        interval_establishes_equivalence,
         edge_iiotset_canonical_event_type,
         edge_iiotset_ground_truth,
         load_edge_iiotset_csv,
