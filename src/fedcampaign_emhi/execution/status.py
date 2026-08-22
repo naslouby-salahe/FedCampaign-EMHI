@@ -40,14 +40,42 @@ from fedcampaign_emhi.datasets.campaigns import merge_malicious_runs
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     canonical_event_type as edge_iiotset_canonical_event_type,
 )
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
+    dominant_protocol_group,
+    dominant_protocol_group_for_row,
+    record_enters_epoch_event_count,
+)
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
-from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
+from fedcampaign_emhi.datasets.edge_iiotset.loading import (
+    load_edge_iiotset_csv,
+    load_edge_iiotset_csv_with_exclusions,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    attach_epoch_ground_truth as edge_iiotset_attach_epoch_ground_truth,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    documented_attack_type_is_expected as edge_iiotset_documented_attack_type_is_expected,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    documented_identity_columns,
+    documented_protocol_group_prefixes,
+    epoch_event_count_records,
+    select_secondary_clients,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    observed_schema_preprocessing_state as edge_iiotset_observed_schema_preprocessing_state,
+)
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     schema_is_executable as edge_iiotset_schema_is_executable,
 )
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    separate_benign_and_evaluation as edge_iiotset_separate_benign_and_evaluation,
+)
 from fedcampaign_emhi.datasets.inventory import (
     adapter_producer_commit,
+    build_edge_iiotset_release_identity,
     build_ton_iot_network_release_identity,
+    edge_iiotset_field_mapping,
     ton_iot_network_field_mapping,
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
@@ -215,9 +243,23 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         hodges_lehmann_shift,
         interval_establishes_equivalence,
         edge_iiotset_canonical_event_type,
+        dominant_protocol_group,
+        dominant_protocol_group_for_row,
+        record_enters_epoch_event_count,
         edge_iiotset_ground_truth,
         load_edge_iiotset_csv,
+        load_edge_iiotset_csv_with_exclusions,
+        edge_iiotset_attach_epoch_ground_truth,
+        edge_iiotset_documented_attack_type_is_expected,
+        documented_identity_columns,
+        documented_protocol_group_prefixes,
+        epoch_event_count_records,
+        edge_iiotset_observed_schema_preprocessing_state,
         edge_iiotset_schema_is_executable,
+        select_secondary_clients,
+        edge_iiotset_separate_benign_and_evaluation,
+        build_edge_iiotset_release_identity,
+        edge_iiotset_field_mapping,
         ton_iot_network_canonical_event_type,
         event_type_hash_bucket,
         ton_iot_network_ground_truth,
