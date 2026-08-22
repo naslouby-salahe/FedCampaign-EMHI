@@ -13,7 +13,7 @@ FORBIDDEN_TERMS = (
     "legacy",
     "v2",
     "final2",
-    "optc_v2",
+    "ton_iot_network_v2",
     "run_id",
     "uuid",
 )

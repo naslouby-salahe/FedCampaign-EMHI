@@ -17,9 +17,9 @@ def configured_raw_directory(
     dataset_name: DatasetName,
     repository: Path,
 ) -> Path:
-    if dataset_name is DatasetName.CORRECTED_OPTC:
+    if dataset_name is DatasetName.TON_IOT_NETWORK:
         relative = loaded.values.datasets.primary.raw_directory
-    elif dataset_name is DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5:
+    elif dataset_name is DatasetName.EDGE_IIOTSET:
         relative = loaded.values.datasets.secondary.raw_directory
     else:
         raise ValueError(f"unsupported dataset {dataset_name}")

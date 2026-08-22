@@ -19,10 +19,8 @@ def doctor_command() -> None:
     loaded = load_production_configuration(repository)
     readiness = assess_implementation_readiness(loaded, repository)
     layout = build_artifact_layout(loaded, repository)
-    primary_raw = configured_raw_directory(loaded, DatasetName.CORRECTED_OPTC, repository)
-    secondary_raw = configured_raw_directory(
-        loaded, DatasetName.TRANSPARENT_COMPUTING_ENGAGEMENT_5, repository
-    )
+    primary_raw = configured_raw_directory(loaded, DatasetName.TON_IOT_NETWORK, repository)
+    secondary_raw = configured_raw_directory(loaded, DatasetName.EDGE_IIOTSET, repository)
     primary_files = discover_raw_paths(primary_raw)
     secondary_files = discover_raw_paths(secondary_raw)
     missing_directories = [path for path in layout.required_directories() if not path.exists()]

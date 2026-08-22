@@ -61,35 +61,37 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.datasets.campaigns import (
     campaigns_contract as datasets_campaigns_campaigns_contract,
 )
-from fedcampaign_emhi.datasets.optc import package_contract as datasets_optc_package_contract
-from fedcampaign_emhi.datasets.optc.canonicalization import (
-    canonicalization_contract as datasets_optc_canonicalization_canonicalization_contract,
+from fedcampaign_emhi.datasets.edge_iiotset import (
+    package_contract as datasets_edge_iiotset_package_contract,
 )
-from fedcampaign_emhi.datasets.optc.ground_truth import (
-    ground_truth_contract as datasets_optc_ground_truth_ground_truth_contract,
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
+    canonicalization_contract as datasets_edge_iiotset_canonicalization_canonicalization_contract,
 )
-from fedcampaign_emhi.datasets.optc.loading import (
-    loading_contract as datasets_optc_loading_loading_contract,
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import (
+    ground_truth_contract as datasets_edge_iiotset_ground_truth_ground_truth_contract,
 )
-from fedcampaign_emhi.datasets.optc.validation import (
-    validation_contract as datasets_optc_validation_validation_contract,
+from fedcampaign_emhi.datasets.edge_iiotset.loading import (
+    loading_contract as datasets_edge_iiotset_loading_loading_contract,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    validation_contract as datasets_edge_iiotset_validation_validation_contract,
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.datasets.preprocessing import chronological_partition_lengths
-from fedcampaign_emhi.datasets.tc_engagement_5 import (
-    package_contract as datasets_tc_engagement_5_package_contract,
+from fedcampaign_emhi.datasets.ton_iot_network import (
+    package_contract as datasets_ton_iot_network_package_contract,
 )
-from fedcampaign_emhi.datasets.tc_engagement_5.canonicalization import (
-    canonicalization_contract as datasets_tc_engagement_5_canonicalization_canonicalization_contract,
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+    canonicalization_contract as datasets_ton_iot_network_canonicalization_canonicalization_contract,
 )
-from fedcampaign_emhi.datasets.tc_engagement_5.ground_truth import (
-    ground_truth_contract as datasets_tc_engagement_5_ground_truth_ground_truth_contract,
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import (
+    ground_truth_contract as datasets_ton_iot_network_ground_truth_ground_truth_contract,
 )
-from fedcampaign_emhi.datasets.tc_engagement_5.loading import (
-    loading_contract as datasets_tc_engagement_5_loading_loading_contract,
+from fedcampaign_emhi.datasets.ton_iot_network.loading import (
+    loading_contract as datasets_ton_iot_network_loading_loading_contract,
 )
-from fedcampaign_emhi.datasets.tc_engagement_5.validation import (
-    validation_contract as datasets_tc_engagement_5_validation_validation_contract,
+from fedcampaign_emhi.datasets.ton_iot_network.validation import (
+    validation_contract as datasets_ton_iot_network_validation_validation_contract,
 )
 from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
@@ -241,18 +243,18 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         comparators_pair_dependence_pair_dependence_contract(),
         comparators_rank_fusion_rank_fusion_contract(),
         datasets_campaigns_campaigns_contract(),
-        datasets_optc_package_contract(),
-        datasets_optc_package_contract(),
-        datasets_optc_canonicalization_canonicalization_contract(),
-        datasets_optc_ground_truth_ground_truth_contract(),
-        datasets_optc_loading_loading_contract(),
-        datasets_optc_validation_validation_contract(),
-        datasets_tc_engagement_5_package_contract(),
-        datasets_tc_engagement_5_package_contract(),
-        datasets_tc_engagement_5_canonicalization_canonicalization_contract(),
-        datasets_tc_engagement_5_ground_truth_ground_truth_contract(),
-        datasets_tc_engagement_5_loading_loading_contract(),
-        datasets_tc_engagement_5_validation_validation_contract(),
+        datasets_ton_iot_network_package_contract(),
+        datasets_ton_iot_network_package_contract(),
+        datasets_ton_iot_network_canonicalization_canonicalization_contract(),
+        datasets_ton_iot_network_ground_truth_ground_truth_contract(),
+        datasets_ton_iot_network_loading_loading_contract(),
+        datasets_ton_iot_network_validation_validation_contract(),
+        datasets_edge_iiotset_package_contract(),
+        datasets_edge_iiotset_package_contract(),
+        datasets_edge_iiotset_canonicalization_canonicalization_contract(),
+        datasets_edge_iiotset_ground_truth_ground_truth_contract(),
+        datasets_edge_iiotset_loading_loading_contract(),
+        datasets_edge_iiotset_validation_validation_contract(),
         detection_fitting_fitting_contract(),
         detection_local_policy_local_policy_contract(),
         detection_scoring_scoring_contract(),

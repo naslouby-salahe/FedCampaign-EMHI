@@ -176,7 +176,7 @@ The manuscript must not claim:
 | Can a pure order-$r$ alternative preserve all proper subsets while the order-$r$ term moves?              | Every proper-subset standardized drift must satisfy the configured upper bound while target-order drift satisfies the configured lower bound and the directional test passes.                                                                           |
 | Is the finite order-3 estimator feasible at its declared minimum support?                                 | Mean context coverage, projection NRMSE, standardized null bias, and pooled numerical-failure rate must satisfy the configured feasibility criteria.                                                                                                    |
 | Is the internal projection practically equivalent to exclusion-matched conditional HOFD at large support? | The complete paired CI for atom NRMSE and stopping-time difference must lie inside their configured equivalence regions and cosine similarity must meet its configured minimum.                                                                         |
-| Does FedCampaign-EMHI establish material strict ODI on Corrected OpTC?                                    | Full FedCampaign-EMHI must pass held-out PFA, mean strict-ODI rate, ODI advantage over the exclusion-matched order-$\le2$ predecessor, operational-lead materiality, and adjusted directional inference.                                                |
+| Does FedCampaign-EMHI establish material strict ODI on TON_IoT Network?                                    | Full FedCampaign-EMHI must pass held-out PFA, mean strict-ODI rate, ODI advantage over the exclusion-matched order-$\le2$ predecessor, operational-lead materiality, and adjusted directional inference.                                                |
 | Does outside conditioning suppress hard benign coordination without excessive campaign-power loss?        | Common-mode false-campaign suppression and campaign-power-loss criteria must both pass.                                                                                                                                                                 |
 | Does ODI persist against the predeclared stronger local policy?                                           | Mean strict-ODI rate under the strong local policy must meet its configured minimum and adjusted directional inference.                                                                                                                                 |
 | Is execution practical at the declared scale?                                                             | Numerical failure and reference-harness p95 latency must meet their configured limits for every client count in `robustness.scalability_client_counts`; any practical early-warning wording additionally requires the primary operational-lead criterion. |
@@ -825,12 +825,12 @@ evidence:
 
 datasets:
   primary:
-    name: Corrected OpTC
-    raw_directory: data/raw/corrected_optc
+    name: TON_IoT Network
+    raw_directory: data/raw/ton_iot_network
     target_client_count: 12
   secondary:
-    name: Transparent Computing Engagement 5
-    raw_directory: data/raw/tc_engagement_5
+    name: Edge-IIoTset
+    raw_directory: data/raw/edge_iiotset
     target_client_count: 12
     minimum_eligible_client_count: 6
   external_checksums_directory: data/external_checksums
@@ -1255,40 +1255,40 @@ All selected clients use identical temporal boundaries.
 
 ### Event canonicalization
 
-#### OpTC
+#### TON_IoT Network
 
-A retained eCAR endpoint event has canonical event type
+A retained flow record has canonical event type
 
 ```text
-NFKC(upper(strip(object))) + "::" + NFKC(upper(strip(action)))
+NFKC(upper(strip(proto))) + "::" + NFKC(upper(strip(service)))
 ```
 
 Missing values are represented by the literal tokens:
 
 ```text
-UNKNOWN_OBJECT
-UNKNOWN_ACTION
+UNKNOWN_PROTO
+UNKNOWN_SERVICE
 ```
 
-and are not silently discarded if the host and timestamp remain valid.
+and are not silently discarded if the client (`src_ip`) and timestamp remain valid. The exact resolution of `proto`/`service` against the observed raw schema is a documented expectation only; the observed raw manifest/release is authoritative.
 
-#### Transparent Computing Engagement 5
+#### Edge-IIoTset
 
-Only CDM records representing events enter the epoch event-count feature.
+Only records with a resolvable dominant protocol-specific column group (`arp.*`, `http.*`, `tcp.*`, `udp.*`, `icmp.*`, `mqtt.*`, `mbtcp.*`) enter the epoch event-count feature.
 
 The canonical type is
 
 ```text
-"EVENT::" + NFKC(upper(strip(event_type_enum)))
+"PROTOCOL::" + NFKC(upper(strip(dominant_protocol_group)))
 ```
 
-An unrecognized event enum becomes
+An unrecognized or unresolvable protocol group becomes
 
 ```text
-EVENT::UNKNOWN_EVENT_TYPE
+PROTOCOL::UNKNOWN_PROTOCOL
 ```
 
-rather than being dropped.
+rather than being dropped. The exact column-group resolution order against the observed raw schema is a documented expectation only; the observed raw manifest/release is authoritative.
 
 #### Hash mapping
 
@@ -2092,40 +2092,33 @@ The adapter must follow these rules:
 3. map a documented semantic field to an observed field only when the mapping is unique and justified by the official schema/README or by an unambiguous schema-level semantic identity;
 4. record every such mapping in the preprocessing manifest; field aliases are adapter facts, not new scientific configuration;
 5. never pad, synthesize, truncate, or resample raw records merely to reproduce a published record/client/file count;
-6. never invent a timestamp unit, timezone, host mapping, performer identity, or malicious label; if more than one interpretation remains compatible with authoritative metadata, preprocessing is Invalid;
+6. never invent a timestamp unit, timezone, host mapping, or malicious label; if more than one interpretation remains compatible with authoritative metadata, preprocessing is Invalid;
 7. unknown but structurally valid event types remain governed by the canonical unknown-event rules in this roadmap rather than being dropped;
 8. if documented files or clients are absent, execution proceeds only with the observed material that still satisfies the predeclared eligibility, chronology, ground-truth, and horizon rules; otherwise the affected experiment/claim is Not Tested;
 9. if the observed release contains additional files, hosts, or valid event types, they are inventoried and processed under the same predeclared rules rather than excluded to force literature counts;
 10. no implementation-time adaptation may alter target client count, eligibility thresholds, chronological fractions, horizon length, claim thresholds, or experiment grids.
 
-For Corrected OpTC, the authoritative release identity remains DOI `10.57745/UXCWOC`; the official repository currently exposes ten daily TAR archives from 2019-09-16 through 2019-09-25 plus release metadata. For Transparent Computing Engagement 5, the DARPA release README, CDM20 schema material, TA3 annotations, operational event log, and TA5.1 ground truth define the documented expected semantics. These documented properties are inventory expectations only and never override contradictory observed raw bytes silently.
+For TON_IoT Network, the authoritative release identity is the IEEE DataPort / UNSW Research "The TON_IoT Datasets" project release (Network flow variant), mirrored on Kaggle; the release documentation and the UNSW Canberra Cyber publications describing the ToN_IoT dataset family define the documented expected semantics. For Edge-IIoTset, the authoritative release identity is IEEE DataPort DOI `10.21227/mbc1-1h68`, and the release documentation together with Ferrag et al. (2022) define the documented expected semantics. These documented properties are inventory expectations only and never override contradictory observed raw bytes silently.
 
 ---
 
-## 6.2 Corrected OpTC
+## 6.2 TON_IoT Network
 
-The primary cyber trace is Version 1.0 of the corrected DARPA OpTC distribution identified by DOI `10.57745/UXCWOC`.
+The primary cyber trace is the Network flow variant of the TON_IoT Datasets, created by UNSW Canberra Cyber (Cyber Range and IoT Labs, School of Engineering and IT, UNSW Canberra @ ADFA). It is one variant of the broader ToN_IoT dataset family, which also includes Linux, Windows, and IoT/IIoT host-telemetry variants; this project uses only the Network flow variant. The dataset is distributed as CSV via the IEEE DataPort / UNSW Research "The TON_IoT Datasets" project release and is mirrored on Kaggle.
 
-The corrected release explicitly states that the original OpTC distribution contains errors involving unique identifiers and other event properties and recommends using the partially corrected distribution instead.
+Flow records are generated with the Bro/Zeek IDS and follow a Zeek `conn.log`-style schema of approximately 44 features: `ts` (flow start timestamp, epoch seconds), `src_ip`, `src_port`, `dst_ip`, `dst_port`, `proto`, `service`, `duration`, `src_bytes`, `dst_bytes`, `conn_state`, `missed_bytes`, `src_pkts`, `src_ip_bytes`, `dst_pkts`, `dst_ip_bytes`, plus protocol-specific extension fields (`dns_*`, `ssl_*`, `http_*`, `weird_*`) contributed by other joined Zeek logs.
 
-The corrected repository documents ten daily archives spanning 2019-09-16 through 2019-09-25. These filenames are expected inventory only; the observed raw manifest is authoritative.
+Two label columns are documented: a binary `label` column (0 = normal, 1 = attack) and a multi-class `type` column with values `normal`, `backdoor`, `dos`, `ddos`, `injection`, `mitm`, `password`, `ransomware`, `scanning`, `xss`.
 
-The original OpTC documentation describes:
-
-* a 1,000-host experimental environment;
-* actual collection from a smaller host subset because of storage constraints;
-* endpoint eCAR data separated into benign, evaluation, and incomplete/short material;
-* official red-team ground truth.
-
-Published analysis of the original release reports normal eCAR material covering the pre-evaluation period and red-team evaluation material through September 25, and documents more than 17 billion events. These values are inventory expectations, not execution constants.
+These are documented expectations only; the observed raw manifest/release is authoritative for the exact file inventory, feature set, and record counts.
 
 ### Raw identity
 
 The preprocessing identity records:
 
 ```text
-corrected distribution persistent identifier
-dataset version
+release persistent identifier or page reference
+dataset/version label
 every acquired file path
 every acquired file SHA-256
 every acquired file byte count
@@ -2134,23 +2127,23 @@ adapter material code fingerprint
 adapter producer code commit for traceability
 ```
 
-MD5 values published by a repository may be recorded as external cross-checks, but SHA-256 computed over the actual local raw files is the execution identity.
+Checksum values published by the distributing repository may be recorded as external cross-checks, but SHA-256 computed over the actual local raw files is the execution identity.
 
 ### Client definition
 
-A client is a canonical host identity in corrected endpoint telemetry.
+A client is the canonical device IP address (`src_ip`) in the Network flow records. The capture is IoT/IIoT-device-centric flow data from a single network range, so there is no cross-performer namespace concern; a composite-identity client definition is not required for this dataset.
 
 ### Primary client selection
 
 Using benign material only:
 
-1. aggregate retained events by canonical host ID;
+1. aggregate retained flow records by canonical device IP (`src_ip`);
 2. compute benign event-record count;
 3. compute benign nonempty-epoch count;
-4. exclude a host if either configured minimum is violated;
-5. exclude a host if its identity mapping is ambiguous;
-6. sort eligible hosts by descending benign event count;
-7. break ties by canonical host ID;
+4. exclude a device if either configured minimum is violated;
+5. exclude a device if its identity mapping is ambiguous;
+6. sort eligible devices by descending benign event count;
+7. break ties by canonical device IP;
 8. select the first `datasets.primary.target_client_count`;
 9. fix the list before any campaign outcome or method result is inspected.
 
@@ -2160,73 +2153,66 @@ No smaller opportunistic primary federation is substituted.
 
 ### Benign/evaluation separation
 
-Use explicit corrected-release/original dataset collection semantics and official ground truth.
+Benign records are identified per-record from the explicit `label`/`type` columns (`label = 0`, `type = normal`); all other records belong to the evaluation/scored material. This is a per-record determination rather than a phase-based archive split, and requires no chronological collection-phase inference.
 
-If the adapter cannot determine benign versus evaluation material unambiguously from the observed release structure and authoritative metadata, preprocessing is Invalid.
-
-Dates must not be guessed from filenames when authoritative subcollection markers are available.
+If the adapter cannot determine this partition unambiguously from the observed release structure, preprocessing is Invalid.
 
 ### Ground-truth semantics
 
 The event/epoch ground-truth adapter may use only:
 
-* explicit official event annotations;
-* explicit official red-team host/time intervals;
-* deterministic one-to-one host/IP mappings present in the trace at the corresponding time.
+* the explicit binary `label` column for malicious/benign determination;
+* the explicit multi-class `type` column for attack-subclass identity.
 
-It may not propagate labels by graph proximity, process ancestry, hostname similarity, or other heuristic expansion.
+It may not propagate labels by graph proximity, process ancestry, hostname similarity, IP proximity, or other heuristic expansion.
 
-For a point timestamp, only the containing epoch is marked.
+Ground truth is per-record: a flow record's `ts` places it in exactly one epoch under the epoch-index rule in this section, and that epoch inherits the record's label. This is a simpler mechanism than an interval-annotation scheme, since there is no separate annotation file whose intervals must be intersected against the trace; half-open interval semantics do not apply to ground-truth attachment for this dataset.
 
-For an interval, use half-open interval semantics:
-
-$$
-[start,end).
-$$
-
-An ambiguous ground-truth mapping is retained in the discrepancy manifest but is not silently treated as malicious.
+A record where `label` and `type` disagree (for example `label = 0` with a non-`normal` `type`) is an ambiguous ground-truth mapping. It is retained in the discrepancy manifest but is not silently treated as malicious.
 
 ---
 
-## 6.3 Transparent Computing Engagement 5
+## 6.3 Edge-IIoTset
 
-The secondary trace is the official DARPA Transparent Computing Engagement 5 release.
+The secondary trace is Edge-IIoTset (Ferrag et al., "Edge-IIoTset: A New Comprehensive Realistic Cyber Security Dataset of IoT and IIoT Applications for Centralized and Federated Learning", IEEE Access, 2022), distributed via IEEE DataPort under DOI `10.21227/mbc1-1h68`.
 
-The official release documents:
+The dataset is built from a real 7-layer IIoT/IoT testbed comprising more than 10 distinct physical IoT/IIoT devices (for example temperature/humidity sensor, ultrasonic sensor, water-level detection sensor, pH sensor, soil moisture sensor, heart-rate sensor, flame sensor, and others). Traffic is captured as packet-level pcap via Wireshark across the testbed nodes and converted to CSV. The protocol mix spans IT protocols (TCP/IP, UDP, ICMP, HTTP, ARP) and OT/IIoT protocols (MQTT, Modbus/TCP, CoAP, DNP3, AMQP).
 
-* six TA1 performer families: `cadets`, `clearscope`, `fivedirections`, `marple`, `theia`, and `trace`;
-* planned multiple performer instantiations;
-* CDM20 schema material;
-* binary Avro data;
-* an operational event log;
-* TA5.1 ground truth;
-* TA3 annotations for attack events in data streams.
+From 1,176 originally extracted raw features, the released/commonly used CSV exposes 61 selected features plus two label columns: `Attack_label` (binary: 0 normal / 1 attack) and `Attack_type` (multi-class, 14 attack types across 5 categories: DDoS, information gathering, MITM, injection, malware; for example `DDoS_UDP`, `DDoS_ICMP`, `DDoS_TCP`, `DDoS_HTTP`, `SQL_injection`, `Uploading`, `Backdoor`, `Port_Scanning`, `Vulnerability_scanner`, `Password`, `XSS`, `Ransomware`, `Fingerprinting`, `MITM`).
 
-These are expected release properties.
+Column names include the host/IP identity fields `ip.src_host` and `ip.dst_host` and the timestamp field `frame.time`, plus protocol-specific columns (`arp.*`, `http.*`, `tcp.*`, `udp.*`, `icmp.*`, `mqtt.*`, `mbtcp.*` for Modbus). These are the dataset's own literal column names and must not be normalized to Zeek/Bro-style naming.
 
-The raw repository inventory remains authoritative.
+These are documented expectations only; the observed raw manifest/release is authoritative for the exact file inventory, feature set, and record counts.
+
+### Raw identity
+
+The preprocessing identity records:
+
+```text
+release persistent identifier (DOI 10.21227/mbc1-1h68)
+dataset/version label
+every acquired file path
+every acquired file SHA-256
+every acquired file byte count
+ground-truth source SHA-256
+adapter material code fingerprint
+adapter producer code commit for traceability
+```
+
+Checksum values published by the distributing repository may be recorded as external cross-checks, but SHA-256 computed over the actual local raw files is the execution identity.
 
 ### Secondary client definition
 
-A client is the composite semantic identity:
-
-```text
-(ta1_performer, canonical_host_id)
-```
-
-This prevents unrelated performer-specific host namespaces from being silently merged.
-
-The manuscript must describe these as controlled stream-host clients, not independent organizations.
+A client is physical IoT/IIoT device identity, distinguishable by the device's stable source-host field `ip.src_host` within the testbed. Edge-IIoTset comes from a fixed roster of physical devices, so device identity is a natural client definition with no cross-performer namespace collision concern; a composite-identity client definition is not required for this dataset.
 
 ### Client selection
 
-Apply the same benign-only eligibility criteria as the primary trace to composite client IDs.
+Apply the same benign-only eligibility criteria as the primary trace to `ip.src_host` identities.
 
 Sort by:
 
 1. descending benign event count;
-2. `ta1_performer`;
-3. canonical host ID.
+2. `ip.src_host`.
 
 Select the configured target count when available.
 
@@ -2240,23 +2226,24 @@ Secondary Controlled-Trace Generalization = Not Tested
 
 No replacement dataset may be selected after primary results are known.
 
-### Benign interval
+### Benign/evaluation separation
 
-For each stream, identify the maximal initial interval preceding its earliest explicit official attack annotation.
+Benign records are identified per-record from the explicit `Attack_label`/`Attack_type` columns (`Attack_label = 0`, `Attack_type = Normal`); all other records belong to the evaluation/scored material. This is a per-record determination rather than a phase-based archive split, and requires no chronological collection-phase inference.
 
-The common benign interval is the intersection across selected clients.
-
-No event bearing an official attack annotation may enter any benign partition.
+If the adapter cannot determine this partition unambiguously from the observed release structure, preprocessing is Invalid.
 
 ### Ground truth
 
-Explicit TA3 event annotations have precedence for event-level malicious flags.
+The event/epoch ground-truth adapter may use only:
 
-The official TA5.1 ground-truth report is used for campaign interpretation and to validate annotation completeness.
+* the explicit binary `Attack_label` column for malicious/benign determination;
+* the explicit multi-class `Attack_type` column for attack-subclass identity.
 
-A contradiction is surfaced in the ground-truth discrepancy manifest.
+It may not propagate labels by graph proximity, process ancestry, hostname similarity, IP proximity, or other heuristic expansion.
 
-The implementation may not silently choose whichever labeling source yields more favorable results.
+Ground truth is per-record: a flow record's `frame.time` places it in exactly one epoch under the epoch-index rule in this section, and that epoch inherits the record's label. This is a simpler mechanism than an interval-annotation scheme, since there is no separate annotation file whose intervals must be intersected against the trace; half-open interval semantics do not apply to ground-truth attachment for this dataset.
+
+A record where `Attack_label` and `Attack_type` disagree (for example `Attack_label = 0` with a non-`Normal` `Attack_type`) is an ambiguous ground-truth mapping. It is retained in the discrepancy manifest but is not silently treated as malicious.
 
 ---
 
@@ -2264,16 +2251,16 @@ The implementation may not silently choose whichever labeling source yields more
 
 ## 7.1 Duplicate handling
 
-When an authoritative corrected unique record identifier exists:
+When an authoritative unique record identifier exists:
 
 * identical identifiers represent duplicates;
 * retain the chronologically first occurrence;
-* if duplicate identifiers contain non-identical payloads, preprocessing is Invalid unless the corrected release itself defines a deterministic resolution.
+* if duplicate identifiers contain non-identical payloads, preprocessing is Invalid unless the release itself defines a deterministic resolution.
 
 When no usable unique identifier exists:
 
 * canonicalize the complete retained record representation;
-* exact duplicates require identical dataset, performer where applicable, host, timestamp, event type, and canonical payload;
+* exact duplicates require identical dataset, client, timestamp, event type, and canonical payload;
 * retain the first chronological instance.
 
 Duplicate counts are recorded.
@@ -2371,7 +2358,7 @@ Before real confirmatory execution:
 * every selected client must satisfy detector-fit sample requirements;
 * real order-3 use is allowed to abstain where its coalition/context support is inadequate, but its claim depends on the configured coverage criterion.
 
-If the actual corrected release cannot satisfy these rules, the affected claim is Not Tested; the implementation may not silently shorten the horizon, lower the confidence level, overlap horizons for Clopper-Pearson inference, or merge benign partitions.
+If the actual observed release cannot satisfy these rules, the affected claim is Not Tested; the implementation may not silently shorten the horizon, lower the confidence level, overlap horizons for Clopper-Pearson inference, or merge benign partitions.
 
 ## 7.7 Benign horizon construction
 
@@ -4118,13 +4105,13 @@ The primary Holm family contains exactly five one-sided positive-direction hypot
 | --- | --- | --- | --- |
 | `Self-Explanation Material Attenuation` | `Delta A_self = A_self(inclusive) - A_self(exact)` at the primary self-explanation condition | mean paired difference `<= 0` | mean paired difference `> 0` |
 | `Pure-Order Target Drift` | Full FedCampaign-EMHI `D_A` at the primary Pure Continuous Triple condition and primary reference theta | mean `D_A <= 0` | mean `D_A > 0` |
-| `Primary ODI Advantage over Order-at-Most-Two EMHI` | `R_ODI,full - R_ODI,<=2` on Corrected OpTC | mean paired difference `<= 0` | mean paired difference `> 0` |
+| `Primary ODI Advantage over Order-at-Most-Two EMHI` | `R_ODI,full - R_ODI,<=2` on TON_IoT Network | mean paired difference `<= 0` | mean paired difference `> 0` |
 | `Common-Mode False-Campaign Reduction` | native-high-volume stress-window false-declaration rate of Raw Mean Rank Fusion minus Full FedCampaign-EMHI | mean paired difference `<= 0` | mean paired difference `> 0` |
 | `Strong-Local ODI above Minimum` | `R_ODI,full,strong-local - claim_materiality.strong_local.minimum_strict_odi_rate` | mean shifted value `<= 0` | mean shifted value `> 0` |
 
 Synthetic hypotheses use the synthetic sign-flip procedure in Section 14.5. Real hypotheses use exact ten-seed sign-flip inference from Section 14.4. The primary multiplicity artifact always contains exactly these five identifiers in this fixed family. When a hypothesis is scientifically Not Tested because its predeclared metric is undefined or its experiment is ineligible, its scientific raw p-value and adjusted p-value are stored as `null`, its scientific decision remains Not Tested, and a separate field `holm_input_p=1.0` is used only to retain the fixed family size during Holm adjustment of the other hypotheses. This value is a conservative multiplicity placeholder, not an imputed scientific test result, and it cannot make the Not Tested hypothesis Supported.
 
-The secondary Holm family contains exactly six one-sided positive-direction ablation contrasts. In every row the statistic is the paired seed-level strict-ODI-rate difference `R_ODI,Full - R_ODI,Comparator` on Corrected OpTC:
+The secondary Holm family contains exactly six one-sided positive-direction ablation contrasts. In every row the statistic is the paired seed-level strict-ODI-rate difference `R_ODI,Full - R_ODI,Comparator` on TON_IoT Network:
 
 ```text
 Full FedCampaign-EMHI vs Inclusive Context
@@ -4235,7 +4222,7 @@ If the confirmatory order-3 estimator feasibility condition fails:
 If Full FedCampaign-EMHI has no eligible primary calibrated finite-horizon threshold:
 
 * Primary Strict ODI Evaluation is still scientifically complete;
-* `Strict ODI on Corrected OpTC = Not Supported`;
+* `Strict ODI on TON_IoT Network = Not Supported`;
 * no alternative threshold grid is introduced after seeing this outcome.
 
 If the primary order-$\le2$ comparator has no matched operating point:
@@ -4443,19 +4430,19 @@ project/
 │       │   ├── partitions.py                      # Implements chronological benign roles, client splits, horizons, and strict non-overlap rules.
 │       │   ├── campaigns.py                       # Implements campaign merging, eligibility, warm-up, activity, and evaluation-horizon semantics.
 │       │   │
-│       │   ├── optc/
-│       │   │   ├── __init__.py                    # OpTC-specific implementation exports.
-│       │   │   ├── loading.py                     # Reads the configured corrected OpTC release without modifying raw source files.
-│       │   │   ├── canonicalization.py            # Constructs canonical events, epochs, client identities, hashed features, and scaled representations.
-│       │   │   ├── ground_truth.py                # Constructs campaign and activity labels from authoritative OpTC annotations.
-│       │   │   └── validation.py                  # Enforces OpTC schema, chronology, client eligibility, data sufficiency, and leakage invariants.
+│       │   ├── ton_iot_network/
+│       │   │   ├── __init__.py                    # TON_IoT Network-specific implementation exports.
+│       │   │   ├── loading.py                     # Reads the configured TON_IoT Network release without modifying raw source files.
+│       │   │   ├── canonicalization.py            # Constructs canonical flow-record events, epochs, device-IP client identities, hashed features, and scaled representations.
+│       │   │   ├── ground_truth.py                # Constructs per-record malicious/benign and attack-subclass labels from the `label`/`type` columns.
+│       │   │   └── validation.py                  # Enforces TON_IoT Network schema, chronology, client eligibility, data sufficiency, and leakage invariants.
 │       │   │
-│       │   └── tc_engagement_5/
-│       │       ├── __init__.py                    # Transparent Computing Engagement 5 implementation exports.
-│       │       ├── loading.py                     # Reads the configured Engagement 5 release without modifying raw source files.
-│       │       ├── canonicalization.py            # Constructs canonical epochs, features, clients, and preprocessing representations.
-│       │       ├── ground_truth.py                # Constructs only the supported secondary-trace campaign and activity ground truth.
-│       │       └── validation.py                  # Enforces Engagement 5 schema, chronology, minimum-client eligibility, and leakage requirements.
+│       │   └── edge_iiotset/
+│       │       ├── __init__.py                    # Edge-IIoTset-specific implementation exports.
+│       │       ├── loading.py                     # Reads the configured Edge-IIoTset release without modifying raw source files.
+│       │       ├── canonicalization.py            # Constructs canonical epochs, features, device-IP clients, and preprocessing representations.
+│       │       ├── ground_truth.py                # Constructs per-record malicious/benign and attack-subclass labels from the `Attack_label`/`Attack_type` columns.
+│       │       └── validation.py                  # Enforces Edge-IIoTset schema, chronology, minimum-client eligibility, and leakage requirements.
 │       │
 │       ├── models/
 │       │   ├── __init__.py                        # Public local-detector model API.
@@ -4633,8 +4620,8 @@ project/
     │   ├── domain/
     │   ├── config/
     │   ├── datasets/
-    │   │   ├── optc/
-    │   │   └── tc_engagement_5/
+    │   │   ├── ton_iot_network/
+    │   │   └── edge_iiotset/
     │   ├── models/
     │   ├── detection/
     │   ├── emhi/
@@ -4661,8 +4648,8 @@ project/
     │
     ├── integration/
     │   ├── preprocessing/
-    │   │   ├── test_optc_pipeline.py
-    │   │   └── test_tc_engagement_5_pipeline.py
+    │   │   ├── test_ton_iot_network_pipeline.py
+    │   │   └── test_edge_iiotset_pipeline.py
     │   ├── detection/
     │   │   └── test_detector_score_policy_pipeline.py
     │   ├── scientific_pipeline/
@@ -4897,13 +4884,13 @@ The table below defines the minimum dependency and reuse graph. Experiment contr
 | Strong Comparator Composition Challenge      | declared pure order-2/triple/mixed-order references; synthetic null calibrated finite-horizon horizons; candidate comparator implementations                                                           | candidate error/PFA/runtime records and `strongest-comparator-composition.json`                                                                           | Primary Strict ODI Evaluation, Secondary Controlled-Trace Generalization, downstream baseline registry                                                               |
 | Estimator Support and Context Feasibility    | configured synthetic support generators; basis/context/ridge variants                                                                                                                                  | conditional-rank, projection, bias, coverage, abstention, condition-number and failure records; fitted estimator artifacts                                | order-three feasibility criterion; compatible estimator-fit reuse inside repeated metrics/timing only                                                           |
 | Sequential Evidence Validation               | signed theorem generator; operational norm path; distributed-support predicate; independent calibrated finite-horizon calibration/held-out null horizons                                               | signed-theorem sequential trajectory records; calibrated finite-horizon threshold-calibration artifacts; held-out PFA records; route validation summaries | mandatory sequential-method validation before claim-bearing real execution                                                                                      |
-| Primary Strict ODI Evaluation                | Corrected OpTC prepared data/splits/campaign registry; fixed detector models and score streams; compatible method fits; calibrated finite-horizon calibration; selected strong comparator composition | method×seed campaign evaluations, benign-horizon evaluations, ODI/lead/PFA summaries, statistics                                                          | primary claims; ablations sharing identical method components; strong-local challenge global path; project synthesis                                            |
-| Exclusion Mechanism Ablation                 | same Corrected OpTC prepared data, detector models and score streams as primary where definitions match; context-specific alternative fits                                                             | ablation method fits only where required, evaluations, paired summaries/statistics                                                                        | mechanism-ablation evidence; full-EMHI artifacts are reused rather than regenerated                                                                             |
-| Purification and Order Ablation              | same Corrected OpTC prepared data/models/scores; full and lower-order compatible fits                                                                                                                  | only missing purification/order-specific fits, evaluations and paired summaries/statistics                                                                | order-3 scope claim; full and order-at-most-two artifacts reuse primary-compatible results when fingerprints match                                              |
+| Primary Strict ODI Evaluation                | TON_IoT Network prepared data/splits/campaign registry; fixed detector models and score streams; compatible method fits; calibrated finite-horizon calibration; selected strong comparator composition | method×seed campaign evaluations, benign-horizon evaluations, ODI/lead/PFA summaries, statistics                                                          | primary claims; ablations sharing identical method components; strong-local challenge global path; project synthesis                                            |
+| Exclusion Mechanism Ablation                 | same TON_IoT Network prepared data, detector models and score streams as primary where definitions match; context-specific alternative fits                                                             | ablation method fits only where required, evaluations, paired summaries/statistics                                                                        | mechanism-ablation evidence; full-EMHI artifacts are reused rather than regenerated                                                                             |
+| Purification and Order Ablation              | same TON_IoT Network prepared data/models/scores; full and lower-order compatible fits                                                                                                                  | only missing purification/order-specific fits, evaluations and paired summaries/statistics                                                                | order-3 scope claim; full and order-at-most-two artifacts reuse primary-compatible results when fingerprints match                                              |
 | Context and Estimator Sensitivity            | same prepared data/models/scores where applicable; one-factor altered estimator definitions                                                                                                            | sensitivity-specific fits/evaluations/summaries                                                                                                           | development robustness only; cannot replace primary settings                                                                                                    |
-| Benign Common-Mode Robustness                | Corrected OpTC held-out benign prepared data; primary compatible models/fits; native windows; configured count-stress transformations                                                                  | native-window reuse records, stress-specific transformed features/scores where required, robustness evaluations/statistics                                | common-mode robustness evidence; unchanged native score streams are reused, transformed-count conditions are rescored only from the first changed feature layer |
+| Benign Common-Mode Robustness                | TON_IoT Network held-out benign prepared data; primary compatible models/fits; native windows; configured count-stress transformations                                                                  | native-window reuse records, stress-specific transformed features/scores where required, robustness evaluations/statistics                                | common-mode robustness evidence; unchanged native score streams are reused, transformed-count conditions are rescored only from the first changed feature layer |
 | Strong Local Policy Challenge                | Primary Strict ODI Evaluation full-EMHI global evaluations and global stop artifacts; independently calibrated strong-local policy                                                                     | strong-local thresholds/stops, ODI recomputation against unchanged global stops, paired summaries/statistics                                              | strong-local claim; global EMHI fitting/scoring/stopping is not rerun                                                                                           |
-| Secondary Controlled-Trace Generalization    | eligible TC Engagement 5 prepared data/splits/campaign registry; detector models/scores; compatible method fits; fixed selected strong comparator composition                                         | secondary-trace evaluations, PFA/ODI summaries/statistics                                                                                                 | controlled-trace generalization evidence and project synthesis                                                                                                  |
+| Secondary Controlled-Trace Generalization    | eligible Edge-IIoTset prepared data/splits/campaign registry; detector models/scores; compatible method fits; fixed selected strong comparator composition                                         | secondary-trace evaluations, PFA/ODI summaries/statistics                                                                                                 | controlled-trace generalization evidence and project synthesis                                                                                                  |
 | Outside-Campaign Contamination Boundary      | context-dependent triple generator; contamination grid; EMHI estimator/sequential path                                                                                                                 | contamination-specific generator realizations, fits/evaluations, drift/detection/coverage/PFA summaries                                                   | failure-boundary evidence                                                                                                                                       |
 | Client Dropout and Context Sparsity Boundary | context-dependent triple generator; client-count/dropout grid                                                                                                                                          | dropout-specific evaluations and coverage/abstention/bias/detection/latency summaries                                                                     | development failure-boundary evidence only                                                                                                                      |
 | Coalition Scalability                        | full-sized valid EMHI fitted artifacts for each K/seed; common timing environment for confirmatory timing                                                                                                     | fit-time records, loaded-artifact identities, per-repetition timing traces, latency/RSS/throughput/payload summaries                                      | scalability claim and timing figures; compatible fitted artifacts are reused and fitting time is separately reported                                            |
@@ -5568,8 +5555,8 @@ Rows:
 
 ```text
 controlled generator suite
-Corrected OpTC
-Transparent Computing Engagement 5
+TON_IoT Network
+Edge-IIoTset
 ```
 
 Columns:
@@ -5904,9 +5891,9 @@ Rendered project-summary table: `results/project_summary/tables/main/generalizat
 Rows:
 
 ```text
-Corrected OpTC primary local policy
-Corrected OpTC strong local policy
-Transparent Computing Engagement 5
+TON_IoT Network primary local policy
+TON_IoT Network strong local policy
+Edge-IIoTset
 ```
 
 Columns:
@@ -6113,7 +6100,7 @@ A claim state is computed only from current verified artifacts. A technical/prov
 | `CLAIM_SELF_EXPLANATION` | Persistent coalition perturbations may feed back into inclusive or insufficiently excluded nuisance representations, whereas exact complement exclusion removes the direct coalition contribution. | analytic derivative fixture, Self-Explanation Exclusion Validation, primary Holm result |
 | `CLAIM_PURE_ORDER_SEPARATION` | There exist nonempty order-$r$ alternative families that preserve every proper-subset distribution while producing nonzero order-$r$ interaction. | generator proof, generator-purity validator, Pure-Order Separation Validation, primary Holm result |
 | `CLAIM_SEQUENTIAL_CONSEQUENCE` | When the bounded signed innovation satisfies the declared conditional-null contract, inherited e-detector machinery yields its published average-run-length semantics. | theorem-assumption audit, Signed-Theorem Sequential Route |
-| `CLAIM_STRICT_ODI` | On eligible Corrected OpTC campaigns, Full FedCampaign-EMHI exhibits material strict ODI relative to the exclusion-matched order-at-most-two predecessor at independently calibrated matched finite-horizon false-campaign operating points under fixed local policies. | Primary Strict ODI Evaluation, matched PFA evidence, operational lead, primary Holm result |
+| `CLAIM_STRICT_ODI` | On eligible TON_IoT Network campaigns, Full FedCampaign-EMHI exhibits material strict ODI relative to the exclusion-matched order-at-most-two predecessor at independently calibrated matched finite-horizon false-campaign operating points under fixed local policies. | Primary Strict ODI Evaluation, matched PFA evidence, operational lead, primary Holm result |
 | `CLAIM_ORDER_THREE_SCOPE` | Order 3 is a scientifically separable and empirically estimable interaction order within the declared support regime and materially contributes to the primary real-data result only when its predeclared real contribution criterion passes. | pure-order evidence, estimator feasibility, purification/order ablation |
 | `CLAIM_OPERATIONAL_FEASIBILITY` | At the tested client counts, the complete in-process reference harness satisfies the declared numerical-failure and computational-latency criteria; practical early-warning wording additionally requires positive protocol-adjusted operational lead on the primary trace. | Coalition Scalability, common timing-environment provenance, Primary Strict ODI operational-lead evidence |
 
@@ -6197,7 +6184,7 @@ Let the primary paired comparison be Full FedCampaign-EMHI minus Exclusion-Match
 
 `NOT_SUPPORTED` when Full FedCampaign-EMHI has no eligible calibrated operating point or its held-out PFA UCB exceeds the target.
 
-`NOT_TESTED` when the observed Corrected OpTC release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
+`NOT_TESTED` when the observed TON_IoT Network release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
 
 ## 21.6 `CLAIM_ORDER_THREE_SCOPE`
 
@@ -6248,11 +6235,11 @@ The claim is restricted to the tested client-count grid and the recorded in-proc
 
 # 22. Research grounding
 
-The primary OpTC acquisition rule is grounded in the official Corrected version of the DARPA OpTC dataset by Majorczyk, Pilastre, and Dijoud, Recherche Data Gouv, Version 1.0, DOI `10.57745/UXCWOC`. The repository explicitly states that the original OpTC distribution contains unique-identifier and other event-property errors and that the corrected distribution should be used instead. The official repository currently exposes a README and ten daily TAR archives spanning 2019-09-16 through 2019-09-25. Those file counts/names are documented expectations only: implementation inventories, hashes, parses, and validates the actual mounted raw bytes and records any discrepancy before preprocessing.
+The primary TON_IoT Network acquisition rule is grounded in the IEEE DataPort / UNSW Research "The TON_IoT Datasets" project release (Network flow variant), created by UNSW Canberra Cyber and mirrored on Kaggle. The release documents a Zeek/Bro-generated flow-record schema of approximately 44 features and the `label`/`type` ground-truth columns described in Section 6.2. Those file inventories, feature counts, and record counts are documented expectations only: implementation inventories, hashes, parses, and validates the actual mounted raw bytes and records any discrepancy before preprocessing.
 
-The OpTC scientific role and expected host/time/red-team semantics are additionally grounded in the original DARPA OpTC documentation and published analyses of the trace. Literature event counts, host counts, schema summaries, and date descriptions never override the observed corrected raw release.
+The TON_IoT Network scientific role and expected client/flow/label semantics are additionally grounded in the UNSW Canberra Cyber publications describing the ToN_IoT dataset family. Literature feature counts, client counts, schema summaries, and label-distribution descriptions never override the observed raw release.
 
-The secondary-trace protocol is grounded in DARPA's official Transparent Computing Engagement 5 release documentation. The release identifies CDM20 schema material, binary Avro data, `operational_event_log.md`, TA5.1 ground truth, TA3 attack annotations, and the six TA1 performer families `cadets`, `clearscope`, `fivedirections`, `marple`, `theia`, and `trace`. These define expected semantics; actual stream files, host identifiers, schemas, timestamps, and usable records remain subject to raw-release validation under Section 6.
+The secondary-trace protocol is grounded in the official Edge-IIoTset release documentation on IEEE DataPort, DOI `10.21227/mbc1-1h68`, and the Ferrag et al. (2022) publication. The release identifies the 61-feature selected CSV schema, the `Attack_label`/`Attack_type` ground-truth columns, and the `ip.src_host`/`ip.dst_host`/`frame.time` identity and timestamp fields described in Section 6.3. These define expected semantics; actual files, device identifiers, schemas, timestamps, and usable records remain subject to raw-release validation under Section 6.
 
 The signed sequential claim is intentionally limited to the declared conditional-null setting. Shin, Ramdas, and Rinaldo, *E-detectors: a nonparametric framework for sequential change detection* (arXiv:2203.03532; published in the New England Journal of Statistics in Data Science), establish nonasymptotic average-run-length false-alarm semantics for the e-detector framework. This roadmap therefore separates that controlled theorem route from its independently calibrated 60-epoch operational PFA route.
 

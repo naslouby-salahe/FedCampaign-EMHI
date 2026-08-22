@@ -58,6 +58,6 @@ def test_no_redirects_shims_reexports_passes_on_compliant_fixture() -> None:
         "from fedcampaign_emhi.domain.types import ModuleContract\n"
         "\n"
         "def loading_contract() -> ModuleContract:\n"
-        "    return ModuleContract(module_name='fedcampaign_emhi.datasets.optc.loading', ownership='adapter')\n"
+        "    return ModuleContract(module_name='fedcampaign_emhi.datasets.ton_iot_network.loading', ownership='adapter')\n"
     )
     assert any(isinstance(node, ast.FunctionDef) for node in tree.body)

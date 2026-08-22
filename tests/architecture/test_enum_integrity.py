@@ -64,22 +64,22 @@ def test_enums_are_used() -> None:
 
 
 def test_enum_integrity_fails_on_fixture() -> None:
-    tree = ast.parse('name = "Corrected OpTC"\n')
+    tree = ast.parse('name = "TON_IoT Network"\n')
     constants = [
         node.value
         for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and node.value == DatasetName.CORRECTED_OPTC.value
+        if isinstance(node, ast.Constant) and node.value == DatasetName.TON_IOT_NETWORK.value
     ]
     assert constants
 
 
 def test_enum_integrity_passes_on_compliant_fixture() -> None:
     tree = ast.parse(
-        "from fedcampaign_emhi.domain.enums import DatasetName\nname = DatasetName.CORRECTED_OPTC\n"
+        "from fedcampaign_emhi.domain.enums import DatasetName\nname = DatasetName.TON_IOT_NETWORK\n"
     )
     constants = [
         node.value
         for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and node.value == DatasetName.CORRECTED_OPTC.value
+        if isinstance(node, ast.Constant) and node.value == DatasetName.TON_IOT_NETWORK.value
     ]
     assert constants == []
