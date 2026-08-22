@@ -214,6 +214,15 @@ class ChronologicalPartitionLengths:
 
 
 @dataclass(frozen=True)
+class PairingKey:
+    dataset: DatasetName
+    selected_client_ids: tuple[ClientId, ...]
+    campaign_start_epoch: EpochIndexValue
+    campaign_end_epoch: EpochIndexValue
+    participating_client_ids: tuple[ClientId, ...]
+
+
+@dataclass(frozen=True)
 class SeedCoordinate:
     name: SeedCoordinateName
     scalar: FiniteFloat | SeedValue | CanonicalEventToken | bool | None

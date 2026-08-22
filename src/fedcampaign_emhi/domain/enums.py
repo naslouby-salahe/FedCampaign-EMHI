@@ -179,6 +179,11 @@ class ArtifactNamespace(StrEnum):
     RESULTS = "results"
 
 
+class ExperimentalUnitKind(StrEnum):
+    GENERATOR_ROOT_SEED = "generator_root_seed"
+    ALGORITHM_ROOT_SEED = "algorithm_root_seed"
+
+
 class OverwritePolicy(StrEnum):
     REUSE_COMPATIBLE = "reuse_compatible"
     OVERWRITE = "overwrite"

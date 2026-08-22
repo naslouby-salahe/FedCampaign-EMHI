@@ -1,5 +1,8 @@
+from fedcampaign_emhi.domain.enums import ExperimentalUnitKind
 from fedcampaign_emhi.domain.types import (
+    ClientId,
     FiniteFloat,
+    PairingKey,
     Probability,
     RecordCount,
     SeedValue,
@@ -31,6 +34,61 @@ def paired_difference(
     if len(treatment) != len(reference):
         raise ValueError("paired samples must have equal length")
     return tuple(left - right for left, right in zip(treatment, reference, strict=True))
+
+
+def pairing_selected_clients(key: PairingKey) -> tuple[ClientId, ...]:
+    return key.selected_client_ids
+
+
+def controlled_experimental_unit() -> ExperimentalUnitKind:
+    return ExperimentalUnitKind.GENERATOR_ROOT_SEED
+
+
+def real_experimental_unit() -> ExperimentalUnitKind:
+    return ExperimentalUnitKind.ALGORITHM_ROOT_SEED
+
+
+def seed_level_aggregate(campaign_level_values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+    if not campaign_level_values:
+        raise ValueError("seed-level aggregation requires at least one campaign-level value")
+    return sum(campaign_level_values) / len(campaign_level_values)
+
+
+def two_sided_sign_flip_p_value(
+    observed_mean: FiniteFloat, flipped_means: tuple[FiniteFloat, ...]
+) -> Probability:
+    if not flipped_means:
+        raise ValueError("flipped means must be non-empty")
+    observed_abs = abs(observed_mean)
+    extreme = sum(1 for statistic in flipped_means if abs(statistic) >= observed_abs)
+    return extreme / len(flipped_means)
+
+
+def enumerate_exact_when_family_fits(
+    unit_count: RecordCount, maximum_replicates: RecordCount
+) -> bool:
+    return sign_flip_assignment_count(unit_count) <= maximum_replicates
+
+
+def monte_carlo_sign_flip_p_value(
+    extreme_count: RecordCount, replicate_count: RecordCount
+) -> Probability:
+    return (1 + extreme_count) / (1 + replicate_count)
+
+
+def apply_sign_pattern(
+    differences: tuple[FiniteFloat, ...], pattern: tuple[SignedInt, ...]
+) -> tuple[FiniteFloat, ...]:
+    if len(differences) != len(pattern):
+        raise ValueError("differences and sign pattern must be aligned")
+    return tuple(difference * sign for difference, sign in zip(differences, pattern, strict=True))
+
+
+def flipped_mean(
+    differences: tuple[FiniteFloat, ...], pattern: tuple[SignedInt, ...]
+) -> FiniteFloat:
+    signed = apply_sign_pattern(differences, pattern)
+    return sum(signed) / len(signed)
 
 
 def exact_sign_pattern(
