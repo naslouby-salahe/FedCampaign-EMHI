@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import beta
 
 from fedcampaign_emhi.domain.enums import OperatingPointState
 from fedcampaign_emhi.domain.types import (
@@ -10,11 +9,11 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     LocalPolicyArtifact,
     PositiveInt,
-    Probability,
     Quantile,
     RecordCount,
     ThresholdValue,
 )
+from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
 
 
 def persistence_is_triggered(
@@ -55,20 +54,6 @@ def candidate_thresholds_from_nuisance_scores(
     return tuple(float(np.quantile(array, quantile)) for quantile in quantiles)
 
 
-def local_policy_clopper_pearson_upper_bound(
-    false_stop_count: RecordCount,
-    horizon_count: RecordCount,
-    confidence: ConfidenceLevel,
-) -> Probability:
-    if horizon_count <= 0:
-        raise ValueError("horizon_count must be positive")
-    if false_stop_count < 0 or false_stop_count > horizon_count:
-        raise ValueError("false_stop_count must lie in [0, horizon_count]")
-    if false_stop_count == horizon_count:
-        return 1.0
-    return float(beta.ppf(confidence, false_stop_count + 1, horizon_count - false_stop_count))
-
-
 def select_immutable_local_policy(
     candidates: tuple[LocalPolicyArtifact, ...],
     calibration_false_stop_counts: tuple[RecordCount, ...],
@@ -83,9 +68,7 @@ def select_immutable_local_policy(
         key=lambda pair: (pair[0].threshold, pair[0].required_exceedances, pair[0].window_epochs),
     )
     for artifact, false_stop_count in ordered:
-        upper = local_policy_clopper_pearson_upper_bound(
-            false_stop_count, horizon_count, confidence
-        )
+        upper = clopper_pearson_one_sided_upper_bound(false_stop_count, horizon_count, confidence)
         if upper <= target_pfa:
             return artifact
     return None
