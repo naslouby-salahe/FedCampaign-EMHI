@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fedcampaign_emhi.comparators.composition import select_strongest_comparator
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, sample_standard_deviation
@@ -7,6 +9,13 @@ from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_sc
 
 def test_autoencoder_width_contract() -> None:
     assert autoencoder_layer_widths(66) == (66, 32, 8, 32, 66)
+
+
+def test_isolation_forest_locks_non_configurable_library_options() -> None:
+    source = Path(isolation_forest_anomaly_scores.__code__.co_filename).read_text(encoding="utf-8")
+    assert "bootstrap=False" in source
+    assert "warm_start=False" in source
+    assert 'contamination="auto"' in source
 
 
 def test_isolation_forest_scores_larger_outliers() -> None:

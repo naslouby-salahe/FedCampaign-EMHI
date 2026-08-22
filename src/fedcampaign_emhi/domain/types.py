@@ -72,6 +72,7 @@ TensorDimension = PositiveInt
 RecordCount = NonNegativeInt
 HashBucketCount = PositiveInt
 OdiIndicator = Annotated[int, Field(ge=0, le=1)]
+GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
 BinIndex = NonNegativeInt
 ScientificChoiceCount = NonNegativeInt
 CanonicalUtf8Bytes = Annotated[bytes, Field()]
@@ -157,6 +158,7 @@ class StrictOdiOutcome:
     global_stop_epoch: EpochIndexValue | None
     earliest_local_stop_epoch: EpochIndexValue | None
     indicator: OdiIndicator
+    global_detection_indicator: GlobalDetectionIndicator
 
 
 @dataclass(frozen=True)

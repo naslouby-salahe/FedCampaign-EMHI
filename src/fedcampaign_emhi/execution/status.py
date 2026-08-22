@@ -57,7 +57,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
 from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
 )
-from fedcampaign_emhi.detection.local_policy import persistence_is_triggered
+from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, persistence_is_triggered
 from fedcampaign_emhi.detection.scoring import oriented_score_stream
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
@@ -68,7 +68,11 @@ from fedcampaign_emhi.emhi.innovation_calibration import (
 )
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom
 from fedcampaign_emhi.emhi.ranks import clip_rank
-from fedcampaign_emhi.emhi.sequential import next_global_state, statistical_stop
+from fedcampaign_emhi.emhi.sequential import (
+    first_global_stop_epoch,
+    next_global_state,
+    statistical_stop,
+)
 from fedcampaign_emhi.emhi.thresholds import operating_point_unavailable_outcome
 from fedcampaign_emhi.evaluation.benign_horizons import (
     benign_horizons_contract as evaluation_benign_horizons_benign_horizons_contract,
@@ -76,9 +80,7 @@ from fedcampaign_emhi.evaluation.benign_horizons import (
 from fedcampaign_emhi.evaluation.campaign_replay import (
     campaign_replay_contract as evaluation_campaign_replay_campaign_replay_contract,
 )
-from fedcampaign_emhi.evaluation.records import (
-    records_contract as evaluation_records_records_contract,
-)
+from fedcampaign_emhi.evaluation.records import global_detection_without_odi, odi_evaluation_record
 from fedcampaign_emhi.evaluation.scalability import (
     scalability_contract as evaluation_scalability_scalability_contract,
 )
@@ -207,6 +209,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         oriented_score_stream,
         evaluate_threshold_claim,
         pure_order_one_response,
+        first_global_stop_epoch,
+        first_local_stop_epoch,
+        global_detection_without_odi,
+        odi_evaluation_record,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -333,7 +339,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ),
         evaluation_benign_horizons_benign_horizons_contract(),
         evaluation_campaign_replay_campaign_replay_contract(),
-        evaluation_records_records_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.evaluation.records",
+            ownership="typed immutable campaign, horizon, stop, evidence, latency, coverage, and evaluation records",
+        ),
         evaluation_scalability_scalability_contract(),
         evaluation_validation_validation_contract(),
         models_autoencoder_autoencoder_contract(),

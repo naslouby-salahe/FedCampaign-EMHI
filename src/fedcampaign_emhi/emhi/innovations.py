@@ -61,3 +61,11 @@ def projection_residual(
 
 def unsupported_context_observation_count(observation_count: RecordCount) -> bool:
     return observation_count < 2
+
+
+def innovation_excludes_same_order_representation(
+    tensor: tuple[FiniteFloat, ...],
+    coefficients: tuple[tuple[FiniteFloat, ...], ...],
+    design_row: tuple[FiniteFloat, ...],
+) -> tuple[FiniteFloat, ...]:
+    return projection_residual(tensor, coefficients, design_row)

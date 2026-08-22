@@ -2,6 +2,7 @@ from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
     EpochCount,
+    EpochIndexValue,
     EvidenceFactor,
     FiniteFloat,
     ThresholdValue,
@@ -41,3 +42,20 @@ def trailing_window_length(window_epochs: EpochCount, elapsed_epochs: EpochCount
     if elapsed_epochs < window_epochs:
         return elapsed_epochs
     return window_epochs
+
+
+def first_global_stop_epoch(
+    evidence_factors: tuple[EvidenceFactor, ...],
+    support_predicates: tuple[bool, ...],
+    threshold: ThresholdValue,
+) -> EpochIndexValue | None:
+    if len(evidence_factors) != len(support_predicates):
+        raise ValueError("evidence_factors and support_predicates must be aligned")
+    state = initial_global_state()
+    for epoch_index, (factor, supported) in enumerate(
+        zip(evidence_factors, support_predicates, strict=True)
+    ):
+        state = next_global_state(state, factor)
+        if threshold_predicate(state, threshold) and supported:
+            return epoch_index
+    return None
