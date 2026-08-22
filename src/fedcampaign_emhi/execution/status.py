@@ -299,6 +299,16 @@ from fedcampaign_emhi.execution.preprocess import (
     preprocess_must_not_regenerate,
     requested_datasets,
 )
+from fedcampaign_emhi.experiments.primary_odi import (
+    campaign_evaluation_universe,
+    campaign_registry_universe_size,
+    enumerate_primary_strict_odi_plan,
+    matched_operating_point_requirement,
+    median_of,
+    median_operational_lead_gate,
+    paired_odi_advantage_gate,
+    strict_odi_rate_gate,
+)
 from fedcampaign_emhi.experiments.sequential_evidence import (
     aggregate_feasibility,
     calibrated_route_heldout_pfa_gate,
@@ -418,6 +428,14 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         restricted_arl_lower_bound_passes,
         support_rows_for_requested_count,
         theorem_route_assumption_checks,
+        enumerate_primary_strict_odi_plan,
+        strict_odi_rate_gate,
+        paired_odi_advantage_gate,
+        median_operational_lead_gate,
+        median_of,
+        matched_operating_point_requirement,
+        campaign_evaluation_universe,
+        campaign_registry_universe_size,
         execute_preprocess,
         nearest_reconstruction_layer,
         preprocess_must_not_regenerate,
