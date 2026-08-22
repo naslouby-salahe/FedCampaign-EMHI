@@ -5,8 +5,18 @@ from fedcampaign_emhi.comparators.conditional_log_linear import (
 )
 from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
 from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
+from fedcampaign_emhi.comparators.fedavg_autoencoder import (
+    fedavg_weighted_mean,
+    optimizer_state_resets_each_round,
+    store_parameters_float32,
+)
+from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
 from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
-from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
+from fedcampaign_emhi.comparators.multistream_cusum import (
+    centered_rank_increment,
+    global_cusum_score,
+    next_cusum_state,
+)
 from fedcampaign_emhi.comparators.pair_dependence import (
     pair_dependence_moment,
     pair_dependence_nonconformity,
@@ -29,7 +39,7 @@ def test_smoke_midrank_fixture() -> None:
 
 def test_cusum_does_not_go_negative() -> None:
     assert next_cusum_state(0.0, 0.5, 0.5, 0.05) == 0.0
-    assert next_cusum_state(1.0, 0.9, 0.5, 0.05) == 1.35
+    assert abs(next_cusum_state(1.0, 0.9, 0.5, 0.05) - 1.35) < 1.0e-12
 
 
 def test_pair_and_lancaster_moments_at_one_half_are_zero() -> None:
@@ -61,3 +71,18 @@ def test_dvine_order_is_lexicographic_and_h_function_is_uniform_at_independence(
     assert lexicographic_vine_order(("c3", "c1", "c2")) == ("c1", "c2", "c3")
     independent = gaussian_h_function(0.3, 0.8, 0.0, 1.0e-12)
     assert abs(independent - 0.3) < 1.0e-8
+
+
+def test_cusum_increment_and_global_max() -> None:
+    assert centered_rank_increment(0.9, 0.5) == 0.4
+    assert global_cusum_score((0.1, 0.4, 0.2)) == 0.4
+    assert next_cusum_state(0.0, 0.5, 0.5, 0.05) == 0.0
+
+
+def test_fedavg_weighted_mean_and_float32_storage() -> None:
+    averaged = fedavg_weighted_mean(((1.0, 3.0), (5.0, 7.0)), (1, 3))
+    assert abs(averaged[0] - 4.0) < 1.0e-12
+    stored = store_parameters_float32((0.1, 0.2))
+    assert len(stored) == 2
+    assert optimizer_state_resets_each_round() is True
+    assert selected_factor_rank((2.0, 1.0, 0.1), 0.8, 3, (1, 2, 3)) == 2

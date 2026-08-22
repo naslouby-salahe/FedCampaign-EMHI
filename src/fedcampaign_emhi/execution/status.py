@@ -16,7 +16,8 @@ from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_inclu
 from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
 from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
 from fedcampaign_emhi.comparators.fedavg_autoencoder import (
-    fedavg_autoencoder_contract as comparators_fedavg_autoencoder_fedavg_autoencoder_contract,
+    fedavg_weighted_mean,
+    optimizer_state_resets_each_round,
 )
 from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
 from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
@@ -217,6 +218,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         uniform_probability_table,
         gaussian_h_function,
         lexicographic_vine_order,
+        fedavg_weighted_mean,
+        optimizer_state_resets_each_round,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -270,7 +273,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.comparators.d_vine",
             ownership="D-vine conditional-dependence reference",
         ),
-        comparators_fedavg_autoencoder_fedavg_autoencoder_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.fedavg_autoencoder",
+            ownership="unmatched FedAvg autoencoder comparator",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.global_factor_residual",
             ownership="PCA global-factor residualization and deterministic rank selection",
