@@ -299,3 +299,58 @@ class FileInventoryEntry:
     relative_path: RelativePath
     sha256: Sha256Hex
     byte_count: ByteCount
+
+
+@dataclass(frozen=True)
+class ClientEligibilityRecord:
+    client_id: ClientId
+    benign_event_count: RecordCount
+    benign_nonempty_epoch_count: EpochCount
+    is_eligible: bool
+
+
+@dataclass(frozen=True)
+class PrimaryClientSelection:
+    selected_client_ids: tuple[ClientId, ...]
+    eligible_client_ids: tuple[ClientId, ...]
+    eligibility: tuple[ClientEligibilityRecord, ...]
+    claim_state: ClaimState
+
+
+@dataclass(frozen=True)
+class TonIotNetworkReleaseIdentity:
+    release_persistent_identifier: CanonicalEventToken
+    dataset_version_label: CanonicalEventToken
+    files: tuple[FileInventoryEntry, ...]
+    ground_truth_source_sha256: Sha256Hex | None
+    adapter_material_code_fingerprint: ConfigurationDigest
+    adapter_producer_commit: CanonicalEventToken
+    published_external_checksum_cross_checks: tuple[CanonicalEventToken, ...]
+
+
+@dataclass(frozen=True)
+class GroundTruthDiscrepancy:
+    record: TonIotNetworkFlowRecord
+    ground_truth: GroundTruthLabel
+
+
+@dataclass(frozen=True)
+class EpochGroundTruthAttachment:
+    client_id: ClientId
+    epoch: EpochIndex
+    ground_truth: GroundTruthLabel
+
+
+@dataclass(frozen=True)
+class BenignEvaluationSeparation:
+    benign_records: tuple[TonIotNetworkFlowRecord, ...]
+    evaluation_records: tuple[TonIotNetworkFlowRecord, ...]
+    discrepancies: tuple[GroundTruthDiscrepancy, ...]
+    experiment_state: ExperimentState
+
+
+@dataclass(frozen=True)
+class ClientBenignTally:
+    client_id: ClientId
+    benign_event_count: RecordCount
+    observed_epoch_indexes: tuple[EpochIndexValue, ...]

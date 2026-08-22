@@ -45,17 +45,35 @@ from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     schema_is_executable as edge_iiotset_schema_is_executable,
 )
-from fedcampaign_emhi.datasets.inventory import ton_iot_network_field_mapping
+from fedcampaign_emhi.datasets.inventory import (
+    adapter_producer_commit,
+    build_ton_iot_network_release_identity,
+    ton_iot_network_field_mapping,
+)
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.datasets.preprocessing import chronological_partition_lengths
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    canonical_event_type as ton_iot_network_canonical_event_type,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+    canonical_client_id,
     event_type_hash_bucket,
 )
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+    canonical_event_type as ton_iot_network_canonical_event_type,
+)
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.loading import load_ton_iot_network_csv
+from fedcampaign_emhi.datasets.ton_iot_network.loading import (
+    load_ton_iot_network_csv,
+    load_ton_iot_network_csv_with_exclusions,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.validation import (
+    attach_epoch_ground_truth,
+    client_identity_is_ambiguous,
+    documented_attack_type_is_expected,
+    documented_zeek_core_columns,
+    observed_column_matches_documented_protocol_extension,
+    observed_schema_preprocessing_state,
+    select_primary_clients,
+    separate_benign_and_evaluation,
+)
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     schema_is_executable as ton_iot_network_schema_is_executable,
 )
@@ -209,6 +227,18 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         max_rank_fusion,
         merge_malicious_runs,
         ton_iot_network_field_mapping,
+        adapter_producer_commit,
+        build_ton_iot_network_release_identity,
+        canonical_client_id,
+        load_ton_iot_network_csv_with_exclusions,
+        attach_epoch_ground_truth,
+        client_identity_is_ambiguous,
+        documented_attack_type_is_expected,
+        documented_zeek_core_columns,
+        observed_column_matches_documented_protocol_extension,
+        observed_schema_preprocessing_state,
+        select_primary_clients,
+        separate_benign_and_evaluation,
         persistence_is_triggered,
         equally_spaced_loadings,
         next_cusum_state,
