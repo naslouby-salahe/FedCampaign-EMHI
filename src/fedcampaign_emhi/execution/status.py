@@ -1,29 +1,14 @@
 from dataclasses import dataclass, replace
 
-from fedcampaign_emhi.analysis.multiplicity import (
-    multiplicity_contract as analysis_multiplicity_multiplicity_contract,
-)
-from fedcampaign_emhi.analysis.statistics import (
-    statistics_contract as analysis_statistics_statistics_contract,
-)
+from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_placeholder_p_value
+from fedcampaign_emhi.analysis.statistics import exact_sign_pattern, sign_flip_p_value
 from fedcampaign_emhi.analysis.summaries import (
     summaries_contract as analysis_summaries_summaries_contract,
 )
-from fedcampaign_emhi.artifacts.dependencies import (
-    dependencies_contract as artifacts_dependencies_dependencies_contract,
-)
-from fedcampaign_emhi.artifacts.provenance import (
-    provenance_contract as artifacts_provenance_provenance_contract,
-)
-from fedcampaign_emhi.artifacts.records import (
-    records_contract as artifacts_records_records_contract,
-)
-from fedcampaign_emhi.artifacts.storage import (
-    storage_contract as artifacts_storage_storage_contract,
-)
-from fedcampaign_emhi.artifacts.validation import (
-    validation_contract as artifacts_validation_validation_contract,
-)
+from fedcampaign_emhi.artifacts.dependencies import descendant_ids
+from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, material_fingerprint
+from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
+from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
 from fedcampaign_emhi.comparators.composition import (
     composition_contract as comparators_composition_composition_contract,
 )
@@ -61,37 +46,26 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.datasets.campaigns import (
     campaigns_contract as datasets_campaigns_campaigns_contract,
 )
-from fedcampaign_emhi.datasets.edge_iiotset import (
-    package_contract as datasets_edge_iiotset_package_contract,
-)
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
-    canonicalization_contract as datasets_edge_iiotset_canonicalization_canonicalization_contract,
+    canonical_event_type as edge_iiotset_canonical_event_type,
 )
-from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import (
-    ground_truth_contract as datasets_edge_iiotset_ground_truth_ground_truth_contract,
-)
-from fedcampaign_emhi.datasets.edge_iiotset.loading import (
-    loading_contract as datasets_edge_iiotset_loading_loading_contract,
-)
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
-    validation_contract as datasets_edge_iiotset_validation_validation_contract,
+    schema_is_executable as edge_iiotset_schema_is_executable,
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.datasets.preprocessing import chronological_partition_lengths
-from fedcampaign_emhi.datasets.ton_iot_network import (
-    package_contract as datasets_ton_iot_network_package_contract,
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+    canonical_event_type as ton_iot_network_canonical_event_type,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    canonicalization_contract as datasets_ton_iot_network_canonicalization_canonicalization_contract,
+    event_type_hash_bucket,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import (
-    ground_truth_contract as datasets_ton_iot_network_ground_truth_ground_truth_contract,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.loading import (
-    loading_contract as datasets_ton_iot_network_loading_loading_contract,
-)
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.loading import load_ton_iot_network_csv
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
-    validation_contract as datasets_ton_iot_network_validation_validation_contract,
+    schema_is_executable as ton_iot_network_schema_is_executable,
 )
 from fedcampaign_emhi.detection.fitting import (
     fitting_contract as detection_fitting_fitting_contract,
@@ -113,9 +87,7 @@ from fedcampaign_emhi.emhi.innovations import (
     innovations_contract as emhi_innovations_innovations_contract,
 )
 from fedcampaign_emhi.emhi.ranks import clip_rank
-from fedcampaign_emhi.emhi.sequential import (
-    sequential_contract as emhi_sequential_sequential_contract,
-)
+from fedcampaign_emhi.emhi.sequential import next_global_state, statistical_stop
 from fedcampaign_emhi.emhi.thresholds import operating_point_unavailable_outcome
 from fedcampaign_emhi.evaluation.benign_horizons import (
     benign_horizons_contract as evaluation_benign_horizons_benign_horizons_contract,
@@ -219,18 +191,62 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         histogram_bin_index,
         operating_point_unavailable_outcome,
         signed_evidence_factor,
+        descendant_ids,
+        material_fingerprint,
+        manifests_are_compatible,
+        file_sha256,
+        payload_digest,
+        write_atomic_json,
+        inspect_artifact,
+        may_reuse,
+        next_global_state,
+        statistical_stop,
+        holm_adjusted_p_values,
+        holm_placeholder_p_value,
+        exact_sign_pattern,
+        sign_flip_p_value,
+        edge_iiotset_canonical_event_type,
+        edge_iiotset_ground_truth,
+        load_edge_iiotset_csv,
+        edge_iiotset_schema_is_executable,
+        ton_iot_network_canonical_event_type,
+        event_type_hash_bucket,
+        ton_iot_network_ground_truth,
+        load_ton_iot_network_csv,
+        ton_iot_network_schema_is_executable,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
     return (
-        analysis_multiplicity_multiplicity_contract(),
-        analysis_statistics_statistics_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.analysis.multiplicity",
+            ownership="deterministic Holm-family correction and adjusted p-value computation",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.analysis.statistics",
+            ownership="sign-flip inference, intervals, effects, and equivalence procedures",
+        ),
         analysis_summaries_summaries_contract(),
-        artifacts_dependencies_dependencies_contract(),
-        artifacts_provenance_provenance_contract(),
-        artifacts_records_records_contract(),
-        artifacts_storage_storage_contract(),
-        artifacts_validation_validation_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.artifacts.dependencies",
+            ownership="artifact identity, persistence, validation, path, and provenance",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.artifacts.provenance",
+            ownership="artifact identity, persistence, validation, path, and provenance",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.artifacts.records",
+            ownership="artifact identity, persistence, validation, path, and provenance",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.artifacts.storage",
+            ownership="artifact identity, persistence, validation, path, and provenance",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.artifacts.validation",
+            ownership="artifact identity, persistence, validation, path, and provenance",
+        ),
         comparators_composition_composition_contract(),
         comparators_conditional_hofd_conditional_hofd_contract(),
         comparators_conditional_log_linear_conditional_log_linear_contract(),
@@ -243,24 +259,55 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         comparators_pair_dependence_pair_dependence_contract(),
         comparators_rank_fusion_rank_fusion_contract(),
         datasets_campaigns_campaigns_contract(),
-        datasets_ton_iot_network_package_contract(),
-        datasets_ton_iot_network_package_contract(),
-        datasets_ton_iot_network_canonicalization_canonicalization_contract(),
-        datasets_ton_iot_network_ground_truth_ground_truth_contract(),
-        datasets_ton_iot_network_loading_loading_contract(),
-        datasets_ton_iot_network_validation_validation_contract(),
-        datasets_edge_iiotset_package_contract(),
-        datasets_edge_iiotset_package_contract(),
-        datasets_edge_iiotset_canonicalization_canonicalization_contract(),
-        datasets_edge_iiotset_ground_truth_ground_truth_contract(),
-        datasets_edge_iiotset_loading_loading_contract(),
-        datasets_edge_iiotset_validation_validation_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.ton_iot_network",
+            ownership="dataset adapter",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.ton_iot_network.canonicalization",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.ton_iot_network.ground_truth",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.ton_iot_network.loading",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.ton_iot_network.validation",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.edge_iiotset",
+            ownership="dataset adapter",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.edge_iiotset.canonicalization",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.edge_iiotset.ground_truth",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.edge_iiotset.loading",
+            ownership="dataset adapter contract",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.datasets.edge_iiotset.validation",
+            ownership="dataset adapter contract",
+        ),
         detection_fitting_fitting_contract(),
         detection_local_policy_local_policy_contract(),
         detection_scoring_scoring_contract(),
         emhi_innovation_calibration_innovation_calibration_contract(),
         emhi_innovations_innovations_contract(),
-        emhi_sequential_sequential_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.emhi.sequential",
+            ownership="sequential recursion, distributed support, and stopping-time semantics",
+        ),
         evaluation_benign_horizons_benign_horizons_contract(),
         evaluation_campaign_replay_campaign_replay_contract(),
         evaluation_records_records_contract(),

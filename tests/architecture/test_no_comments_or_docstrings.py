@@ -1,12 +1,12 @@
 import ast
 from pathlib import Path
 
-from tests.architecture.test_repository_structure import REQUIRED_SOURCE_FILES
+from tests.architecture.ast_scans import python_files as discover_python_files
 
 
 def python_files(root: Path) -> list[Path]:
-    files = [root / relative for relative in REQUIRED_SOURCE_FILES]
-    files.extend(sorted((root / "tests").rglob("*.py")))
+    files = list(discover_python_files(root / "src" / "fedcampaign_emhi"))
+    files.extend(discover_python_files(root / "tests"))
     return files
 
 

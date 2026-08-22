@@ -179,6 +179,32 @@ class ArtifactNamespace(StrEnum):
     RESULTS = "results"
 
 
+class ArtifactLifecycleState(StrEnum):
+    MISSING = "missing"
+    VALID = "valid"
+    STALE = "stale"
+    MALFORMED = "malformed"
+    INCOMPLETE = "incomplete"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
+class DuplicateResolution(StrEnum):
+    RETAIN_FIRST_CHRONOLOGICAL = "retain_first_chronological"
+
+
+class RecordExclusionReason(StrEnum):
+    UNPARSEABLE_TIMESTAMP = "unparseable_timestamp"
+    UNUSABLE_HOST_IDENTITY = "unusable_host_identity"
+    STRUCTURALLY_INVALID_EVENT = "structurally_invalid_event"
+
+
+class GroundTruthClass(StrEnum):
+    BENIGN = "benign"
+    MALICIOUS = "malicious"
+    AMBIGUOUS = "ambiguous"
+
+
 class CoalitionOrder(IntEnum):
     ONE = 1
     TWO = 2

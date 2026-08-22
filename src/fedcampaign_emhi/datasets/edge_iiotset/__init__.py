@@ -1,7 +1,9 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import canonical_event_type
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
 
-
-def package_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.datasets.edge_iiotset", ownership="dataset adapter"
-    )
+__all__ = [
+    "canonical_event_type",
+    "edge_iiotset_ground_truth",
+    "load_edge_iiotset_csv",
+]

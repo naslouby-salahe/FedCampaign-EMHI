@@ -1,8 +1,42 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+import hashlib
+from pathlib import Path
+
+from fedcampaign_emhi.config.validation import YamlNode
+from fedcampaign_emhi.domain.types import CanonicalUtf8Bytes, ConfigurationDigest
+from fedcampaign_emhi.runtime.determinism import canonical_digest, canonical_utf8_bytes
 
 
-def storage_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.artifacts.storage",
-        ownership="artifact identity, persistence, validation, path, and provenance",
-    )
+def encode_canonical_payload(payload: YamlNode) -> CanonicalUtf8Bytes:
+    return canonical_utf8_bytes(payload)
+
+
+def payload_digest(payload: YamlNode) -> ConfigurationDigest:
+    return canonical_digest(payload)
+
+
+def file_sha256(path: Path) -> ConfigurationDigest:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(1 << 20)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_atomic_json(
+    destination: Path, payload: YamlNode, staging_directory: Path
+) -> ConfigurationDigest:
+    staging_directory.mkdir(parents=True, exist_ok=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    encoded = encode_canonical_payload(payload)
+    digest = hashlib.sha256(encoded).hexdigest()
+    staging_path = staging_directory / f"{destination.name}.{digest}.partial"
+    staging_path.write_bytes(encoded)
+    staging_path.replace(destination)
+    return digest
+
+
+def read_json_bytes(path: Path) -> CanonicalUtf8Bytes:
+    return path.read_bytes()

@@ -214,3 +214,26 @@ def test_data_raw_is_external_symlink(repo_root: Path) -> None:
     assert raw.is_symlink()
     checksums = repo_root / "data" / "external_checksums"
     assert checksums.is_dir()
+
+
+def test_source_tree_contains_no_undeclared_python_modules(repo_root: Path) -> None:
+    declared = {relative for relative in REQUIRED_SOURCE_FILES}
+    discovered = {
+        path.relative_to(repo_root).as_posix()
+        for path in (repo_root / "src" / "fedcampaign_emhi").rglob("*.py")
+    }
+    extra = sorted(discovered - declared)
+    missing = sorted(declared - discovered)
+    assert extra == []
+    assert missing == []
+
+
+def test_required_architecture_tests_are_discoverable(repo_root: Path) -> None:
+    architecture_root = repo_root / "tests" / "architecture"
+    discovered = {path.name for path in architecture_root.glob("test_*.py")}
+    required = {
+        Path(relative).name
+        for relative in REQUIRED_TEST_FILES
+        if relative.startswith("tests/architecture/")
+    }
+    assert required.issubset(discovered)

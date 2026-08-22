@@ -1,11 +1,19 @@
+import numpy as np
+from numpy.typing import NDArray
+
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
     BasisSize,
     DesignColumnCount,
     EpochIndexValue,
+    FiniteFloat,
     FoldCount,
+    GramConditionNumber,
+    NumericalFloor,
+    NumericalTolerance,
     ProperSubsetDesignShape,
     RecordCount,
+    RidgePenalty,
 )
 from fedcampaign_emhi.emhi.basis import tensor_dimension
 
@@ -51,3 +59,90 @@ def blocked_fold_sizes(
     observation_count: RecordCount, fold_count: FoldCount
 ) -> tuple[RecordCount, ...]:
     return tuple(end - start for start, end in blocked_fold_bounds(observation_count, fold_count))
+
+
+def fold_size_weighted_mse(
+    fold_mses: tuple[FiniteFloat, ...], fold_sizes: tuple[RecordCount, ...]
+) -> FiniteFloat:
+    if len(fold_mses) != len(fold_sizes):
+        raise ValueError("fold_mses and fold_sizes must have equal length")
+    total = sum(fold_sizes)
+    if total <= 0:
+        raise ValueError("fold sizes must be positive in aggregate")
+    return sum(mse * size for mse, size in zip(fold_mses, fold_sizes, strict=True)) / total
+
+
+def select_ridge_penalty(
+    candidates: tuple[RidgePenalty, ...],
+    weighted_mses: tuple[FiniteFloat, ...],
+    tie_tolerance: NumericalTolerance,
+) -> RidgePenalty:
+    if not candidates or len(candidates) != len(weighted_mses):
+        raise ValueError("candidates and weighted_mses must be non-empty and aligned")
+    selected = candidates[0]
+    selected_mse = weighted_mses[0]
+    for penalty, mse in list(zip(candidates, weighted_mses, strict=True))[1:]:
+        if mse + tie_tolerance < selected_mse:
+            selected = penalty
+            selected_mse = mse
+            continue
+        if abs(mse - selected_mse) <= tie_tolerance and penalty > selected:
+            selected = penalty
+            selected_mse = min(selected_mse, mse)
+    return selected
+
+
+def unregularized_gram_condition_number(
+    design_columns: tuple[tuple[FiniteFloat, ...], ...],
+) -> GramConditionNumber:
+    matrix = np.asarray(design_columns, dtype=np.float64)
+    if matrix.ndim != 2:
+        raise ValueError("design_columns must be a two-dimensional array")
+    variances = np.var(matrix, axis=0)
+    kept = matrix[:, variances > 0.0]
+    if kept.size == 0:
+        raise ValueError("design has no non-constant columns")
+    gram = kept.T @ kept
+    singular_values = np.linalg.svd(gram, compute_uv=False)
+    smallest = float(np.min(singular_values))
+    if smallest <= 0.0:
+        raise ValueError("unregularized Gram matrix is singular")
+    return float(np.max(singular_values) / smallest)
+
+
+def ridge_coefficient_matrix(
+    design_columns: tuple[tuple[FiniteFloat, ...], ...],
+    responses: tuple[tuple[FiniteFloat, ...], ...],
+    ridge_penalty: RidgePenalty,
+    svd_relative_cutoff: NumericalFloor,
+) -> tuple[tuple[FiniteFloat, ...], ...]:
+    design = np.asarray(design_columns, dtype=np.float64)
+    target = np.asarray(responses, dtype=np.float64)
+    if design.ndim != 2 or target.ndim != 2:
+        raise ValueError("design and responses must be two-dimensional")
+    if design.shape[0] != target.shape[0]:
+        raise ValueError("design and responses must contain the same observation count")
+    penalty = np.zeros((design.shape[1], design.shape[1]), dtype=np.float64)
+    if design.shape[1] > 1:
+        penalty[1:, 1:] = np.eye(design.shape[1] - 1, dtype=np.float64) * ridge_penalty
+    gram = design.T @ design
+    if ridge_penalty == 0.0:
+        coefficients = _zero_ridge_svd_solve(design, target, svd_relative_cutoff)
+    else:
+        coefficients = np.linalg.solve(gram + penalty, design.T @ target)
+    return tuple(tuple(float(value) for value in row) for row in coefficients)
+
+
+def _zero_ridge_svd_solve(
+    design: NDArray[np.float64],
+    target: NDArray[np.float64],
+    svd_relative_cutoff: NumericalFloor,
+) -> NDArray[np.float64]:
+    left, singular_values, right = np.linalg.svd(design, full_matrices=False)
+    maximum = float(np.max(singular_values)) if singular_values.size else 0.0
+    cutoff = svd_relative_cutoff * maximum
+    inverted = np.array(
+        [0.0 if value <= cutoff else 1.0 / value for value in singular_values],
+        dtype=np.float64,
+    )
+    return (right.T * inverted) @ left.T @ target

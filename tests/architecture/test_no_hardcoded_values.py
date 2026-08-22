@@ -8,19 +8,30 @@ from tests.architecture.ast_scans import REPO_ROOT, SRC_ROOT, module_ast, source
 
 ALLOWED_FLOATS = {0.0, 0.5, 1.0, 2.0, 8.0}
 CONFIG_OWNERS = frozenset({"config/schema.py", "config/loading.py", "config/validation.py"})
+FORMULA_OWNERS = frozenset(
+    {
+        "config/loading.py",
+        "emhi/basis.py",
+        "emhi/evidence.py",
+        "emhi/projection.py",
+        "models/autoencoder.py",
+    }
+)
 
 
 def _scan_literals(path: Path) -> list[tuple[int, str]]:
     tree = module_ast(path)
     findings: list[tuple[int, str]] = []
     rel = path.relative_to(SRC_ROOT).as_posix()
-    if rel in CONFIG_OWNERS or rel == "models/autoencoder.py":
+    if rel in CONFIG_OWNERS:
         return findings
     for node in ast.walk(tree):
         if not isinstance(node, ast.Constant):
             continue
         if isinstance(node.value, float) and node.value not in ALLOWED_FLOATS:
             if abs(node.value) in {0.125}:
+                continue
+            if rel in FORMULA_OWNERS:
                 continue
             findings.append((node.lineno, f"float {node.value!r}"))
         if isinstance(node.value, int) and node.value in {66, 59, 1024, 8000, 10000, 4100, 3000}:

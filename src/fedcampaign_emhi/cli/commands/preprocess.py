@@ -1,7 +1,11 @@
 import typer
 
 from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
-from fedcampaign_emhi.datasets.inventory import configured_raw_directory, discover_raw_paths
+from fedcampaign_emhi.datasets.inventory import (
+    configured_raw_directory,
+    discover_raw_paths,
+    inventory_raw_directory,
+)
 from fedcampaign_emhi.domain.enums import DatasetName
 
 
@@ -27,6 +31,10 @@ def preprocess_command(
         typer.echo(
             f"dataset={name.value} raw_directory={raw_directory} raw_file_count={len(files)}"
         )
+        if files:
+            typer.echo(
+                f"inventory_entries={len(inventory_raw_directory(raw_directory, repository))}"
+            )
     typer.echo("ownership=inventory,prepared,splits,partitions,campaign_registry")
     typer.echo("must_not_regenerate=detectors,scores,evaluations,statistics,reports")
 
