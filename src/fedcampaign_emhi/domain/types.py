@@ -354,3 +354,36 @@ class ClientBenignTally:
     client_id: ClientId
     benign_event_count: RecordCount
     observed_epoch_indexes: tuple[EpochIndexValue, ...]
+
+
+@dataclass(frozen=True)
+class EdgeIiotsetReleaseIdentity:
+    release_persistent_identifier: CanonicalEventToken
+    dataset_version_label: CanonicalEventToken
+    files: tuple[FileInventoryEntry, ...]
+    ground_truth_source_sha256: Sha256Hex | None
+    adapter_material_code_fingerprint: ConfigurationDigest
+    adapter_producer_commit: CanonicalEventToken
+    published_external_checksum_cross_checks: tuple[CanonicalEventToken, ...]
+
+
+@dataclass(frozen=True)
+class SecondaryClientSelection:
+    selected_client_ids: tuple[ClientId, ...]
+    eligible_client_ids: tuple[ClientId, ...]
+    eligibility: tuple[ClientEligibilityRecord, ...]
+    claim_state: ClaimState
+
+
+@dataclass(frozen=True)
+class EdgeIiotsetGroundTruthDiscrepancy:
+    record: EdgeIiotsetFlowRecord
+    ground_truth: GroundTruthLabel
+
+
+@dataclass(frozen=True)
+class EdgeIiotsetBenignEvaluationSeparation:
+    benign_records: tuple[EdgeIiotsetFlowRecord, ...]
+    evaluation_records: tuple[EdgeIiotsetFlowRecord, ...]
+    discrepancies: tuple[EdgeIiotsetGroundTruthDiscrepancy, ...]
+    experiment_state: ExperimentState
