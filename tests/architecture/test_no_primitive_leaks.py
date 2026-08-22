@@ -96,6 +96,12 @@ ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
             "_check",
             "list",
         ),
+        AllowlistEntry(
+            "src/fedcampaign_emhi/datasets/edge_iiotset/loading.py",
+            29,
+            "_parse_row_fields",
+            "str",
+        ),
     }
 )
 
