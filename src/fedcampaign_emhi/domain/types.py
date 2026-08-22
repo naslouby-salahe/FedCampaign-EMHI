@@ -214,6 +214,52 @@ class ChronologicalPartitionLengths:
 
 
 @dataclass(frozen=True)
+class RetainedEvent:
+    dataset_name: DatasetName
+    client_id: ClientId
+    timestamp_seconds: UnixTimestampSeconds
+    event_type: CanonicalEventToken
+    payload: CanonicalEventToken
+    unique_identifier: CanonicalEventToken | None
+    original_order: RecordCount
+
+
+@dataclass(frozen=True)
+class DeduplicationOutcome:
+    retained_events: tuple[RetainedEvent, ...]
+    duplicate_count: RecordCount
+    experiment_state: ExperimentState
+
+
+@dataclass(frozen=True)
+class EpochFeatureVector:
+    log1p_bucket_counts: tuple[FiniteFloat, ...]
+    total_raw_event_count: RecordCount
+    shannon_entropy: FiniteFloat
+
+
+@dataclass(frozen=True)
+class RobustScaler:
+    median: FiniteFloat
+    iqr: FiniteFloat
+    iqr_floor: NumericalFloor
+
+
+@dataclass(frozen=True)
+class ChronologicalBenignPartitions:
+    detector_fit: tuple[EpochIndexValue, ...]
+    nuisance_fit: tuple[EpochIndexValue, ...]
+    threshold_and_policy_calibration: tuple[EpochIndexValue, ...]
+    heldout_benign: tuple[EpochIndexValue, ...]
+
+
+@dataclass(frozen=True)
+class BenignHorizon:
+    start_epoch: EpochIndexValue
+    epoch_indexes: tuple[EpochIndexValue, ...]
+
+
+@dataclass(frozen=True)
 class PairingKey:
     dataset: DatasetName
     selected_client_ids: tuple[ClientId, ...]
