@@ -34,6 +34,9 @@ def load_ton_iot_network_csv_with_exclusions(
         exclusions: list[ExcludedRecord] = []
         for row in reader:
             source_ip = (row.get("src_ip") or "").strip()
+            if not source_ip:
+                exclusions.append(ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE))
+                continue
             if not record_identity_is_usable(source_ip):
                 exclusions.append(
                     ExcludedRecord(reason=RecordExclusionReason.UNUSABLE_HOST_IDENTITY)
@@ -55,9 +58,7 @@ def load_ton_iot_network_csv_with_exclusions(
                 continue
             attack_type = (row.get("type") or "").strip()
             if not attack_type:
-                exclusions.append(
-                    ExcludedRecord(reason=RecordExclusionReason.STRUCTURALLY_INVALID_EVENT)
-                )
+                exclusions.append(ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE))
                 continue
             records.append(
                 TonIotNetworkFlowRecord(

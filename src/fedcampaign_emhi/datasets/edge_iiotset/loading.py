@@ -36,6 +36,9 @@ def load_edge_iiotset_csv_with_exclusions(
         exclusions: list[ExcludedRecord] = []
         for row in reader:
             source_host = (row.get("ip.src_host") or "").strip()
+            if not source_host:
+                exclusions.append(ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE))
+                continue
             if not record_identity_is_usable(source_host):
                 exclusions.append(
                     ExcludedRecord(reason=RecordExclusionReason.UNUSABLE_HOST_IDENTITY)
@@ -57,9 +60,7 @@ def load_edge_iiotset_csv_with_exclusions(
                 continue
             attack_type = (row.get("Attack_type") or "").strip()
             if not attack_type:
-                exclusions.append(
-                    ExcludedRecord(reason=RecordExclusionReason.STRUCTURALLY_INVALID_EVENT)
-                )
+                exclusions.append(ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE))
                 continue
             fields = tuple((name, row.get(name)) for name in fieldnames)
             records.append(
