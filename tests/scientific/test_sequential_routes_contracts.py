@@ -53,7 +53,8 @@ def test_support_predicate_requires_minimum_distinct_clients_and_can_delay() -> 
     loaded = load_production_configuration()
     minimum = loaded.values.distributed_support.minimum_clients
     window = loaded.values.distributed_support.trailing_window_epochs
-    assert minimum == 2 and window == 5
+    assert minimum == 2
+    assert window == 5
     assert trailing_window_support_predicate((("a",), ("a",)), window, minimum) is False
     assert trailing_window_support_predicate((("a",), ("a", "b")), window, minimum) is True
     evidence = (2.0, 2.0, 2.0)

@@ -63,7 +63,7 @@ def leave_one_out_context_members(
 ) -> tuple[ClientId, ...]:
     if not coalition_client_ids:
         raise ValueError("leave-one-out exclusion requires a non-empty coalition")
-    first_member = sorted(coalition_client_ids)[0]
+    first_member = min(coalition_client_ids)
     return complement_members(selected_client_ids, (first_member,))
 
 
