@@ -45,6 +45,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     schema_is_executable as edge_iiotset_schema_is_executable,
 )
+from fedcampaign_emhi.datasets.inventory import ton_iot_network_field_mapping
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.datasets.preprocessing import chronological_partition_lengths
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
@@ -207,6 +208,7 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         mean_rank_fusion,
         max_rank_fusion,
         merge_malicious_runs,
+        ton_iot_network_field_mapping,
         persistence_is_triggered,
         equally_spaced_loadings,
         next_cusum_state,

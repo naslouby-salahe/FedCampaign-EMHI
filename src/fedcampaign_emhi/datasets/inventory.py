@@ -2,8 +2,9 @@ from pathlib import Path
 
 from fedcampaign_emhi.artifacts.storage import file_sha256
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
+from fedcampaign_emhi.datasets.ton_iot_network.validation import REQUIRED_TON_IOT_NETWORK_COLUMNS
 from fedcampaign_emhi.domain.enums import DatasetName
-from fedcampaign_emhi.domain.types import FileInventoryEntry
+from fedcampaign_emhi.domain.types import CanonicalEventToken, FileInventoryEntry
 
 
 def discover_raw_paths(raw_directory: Path) -> tuple[Path, ...]:
@@ -29,6 +30,24 @@ def configured_raw_directory(
     else:
         raise ValueError(f"unsupported dataset {dataset_name}")
     return (repository / relative).resolve()
+
+
+def map_documented_columns(
+    documented: tuple[CanonicalEventToken, ...], observed: tuple[CanonicalEventToken, ...]
+) -> tuple[tuple[CanonicalEventToken, CanonicalEventToken], ...]:
+    observed_set = {column.strip() for column in observed}
+    mapped: list[tuple[CanonicalEventToken, CanonicalEventToken]] = []
+    for column in documented:
+        if column not in observed_set:
+            raise ValueError(f"documented semantic field {column} is missing from observed schema")
+        mapped.append((column, column))
+    return tuple(mapped)
+
+
+def ton_iot_network_field_mapping(
+    observed: tuple[CanonicalEventToken, ...],
+) -> tuple[tuple[CanonicalEventToken, CanonicalEventToken], ...]:
+    return map_documented_columns(REQUIRED_TON_IOT_NETWORK_COLUMNS, observed)
 
 
 def inventory_raw_directory(
