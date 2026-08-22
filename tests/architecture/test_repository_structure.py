@@ -54,6 +54,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/emhi/innovations.py",
     "src/fedcampaign_emhi/emhi/innovation_calibration.py",
     "src/fedcampaign_emhi/emhi/evidence.py",
+    "src/fedcampaign_emhi/emhi/gaussian.py",
     "src/fedcampaign_emhi/emhi/thresholds.py",
     "src/fedcampaign_emhi/emhi/sequential.py",
     "src/fedcampaign_emhi/comparators/__init__.py",

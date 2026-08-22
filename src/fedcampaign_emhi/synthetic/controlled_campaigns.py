@@ -1,4 +1,4 @@
-from math import erf, sqrt
+from math import sqrt
 
 import numpy as np
 
@@ -10,12 +10,9 @@ from fedcampaign_emhi.domain.types import (
     ScoreShift,
     SeedValue,
 )
+from fedcampaign_emhi.emhi.gaussian import standard_normal_cdf
 from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
 from fedcampaign_emhi.synthetic.pure_order import lexicographic_target_clients
-
-
-def standard_normal_cdf(gaussian_coordinate: FiniteFloat) -> RankValue:
-    return 0.5 * (1.0 + erf(gaussian_coordinate / sqrt(2.0)))
 
 
 def marginal_campaign_targets(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
