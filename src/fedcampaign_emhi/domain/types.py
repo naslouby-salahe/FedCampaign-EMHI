@@ -1,4 +1,6 @@
+import hashlib
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -506,3 +508,63 @@ class CrossFittedInnovationCalibration:
     standardized_held_fold_innovations: tuple[tuple[FiniteFloat, ...], ...]
     complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
     selected_ridge_penalty: RidgePenalty
+
+
+class MetricNotDefinedState(StrEnum):
+    NOT_DEFINED = "Not Defined"
+
+
+MetricValue = FiniteFloat
+CensoredPlotEpoch = PositiveEpochCount
+
+
+@dataclass(frozen=True)
+class MaybeDefinedMetric:
+    metric_value: MetricValue | None
+    is_not_defined: bool
+
+    @classmethod
+    def defined(cls, metric_value: MetricValue) -> "MaybeDefinedMetric":
+        return cls(metric_value=metric_value, is_not_defined=False)
+
+    @classmethod
+    def not_defined(cls) -> "MaybeDefinedMetric":
+        return cls(metric_value=None, is_not_defined=True)
+
+
+def canonical_registry_payload(registry_entry: "CampaignRegistryEntry") -> CanonicalUtf8Bytes:
+    fields = (
+        registry_entry.dataset.value,
+        str(registry_entry.start_epoch),
+        str(registry_entry.end_epoch),
+        ",".join(registry_entry.sorted_participating_client_ids),
+    )
+    return "\n".join(fields).encode("utf-8")
+
+
+def registry_entry_integrity_checksum(
+    registry_entry: "CampaignRegistryEntry",
+) -> Sha256Hex:
+    return hashlib.sha256(canonical_registry_payload(registry_entry)).hexdigest()
+
+
+@dataclass(frozen=True)
+class ClientMaliciousEpochs:
+    client_id: ClientId
+    malicious_epochs: tuple[EpochIndexValue, ...]
+
+
+@dataclass(frozen=True)
+class CampaignRegistryEntry:
+    dataset: DatasetName
+    start_epoch: EpochIndexValue
+    end_epoch: EpochIndexValue
+    sorted_participating_client_ids: tuple[ClientId, ...]
+
+    @property
+    def duration_epochs(self) -> EpochCount:
+        return self.end_epoch - self.start_epoch + 1
+
+    @property
+    def integrity_checksum(self) -> Sha256Hex:
+        return registry_entry_integrity_checksum(self)
