@@ -7,6 +7,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ConfidenceLevel,
+    ESrThreshold,
     FalseAlarmRate,
     Probability,
     RecordCount,
@@ -63,3 +64,15 @@ def select_calibrated_threshold(
         if upper <= target_pfa:
             return threshold
     return None
+
+
+def esr_threshold_from_arl_alpha(arl_alpha: FalseAlarmRate) -> ESrThreshold:
+    return 1.0 / arl_alpha
+
+
+def calibrated_finite_horizon_outcome(
+    selected_threshold: ThresholdValue | None,
+) -> ScientificOutcome:
+    if selected_threshold is None:
+        return operating_point_unavailable_outcome()
+    return unfavorable_completed_outcome()
