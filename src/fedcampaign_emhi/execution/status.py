@@ -144,6 +144,7 @@ from fedcampaign_emhi.detection.local_policy import (
 from fedcampaign_emhi.detection.scoring import oriented_score_stream
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
+from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_dimension, tensor_representation
 from fedcampaign_emhi.emhi.contexts import (
     assign_context_cell,
     cap_context_training_rows,
@@ -162,9 +163,27 @@ from fedcampaign_emhi.emhi.contexts import (
 )
 from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.emhi.innovation_calibration import (
+    calibrate_innovations_on_nuisance_fit,
+    cross_validated_ridge_penalty,
+    held_fold_innovations,
+    moments_from_held_fold_innovations,
+)
+from fedcampaign_emhi.emhi.innovation_calibration import (
     innovation_calibration_contract as emhi_innovation_calibration_innovation_calibration_contract,
 )
-from fedcampaign_emhi.emhi.innovations import center_and_scale_atom
+from fedcampaign_emhi.emhi.innovations import (
+    center_and_scale_atom,
+    projection_residual,
+    sample_standard_deviation,
+    unsupported_context_observation_count,
+)
+from fedcampaign_emhi.emhi.projection import (
+    blocked_fit_is_supported,
+    blocked_fold_bounds,
+    proper_subset_design_row,
+    ridge_coefficient_matrix,
+    select_ridge_penalty,
+)
 from fedcampaign_emhi.emhi.ranks import clip_rank, coalition_conditioned_residual_rank, midrank
 from fedcampaign_emhi.emhi.sequential import (
     first_global_stop_epoch,
@@ -380,6 +399,21 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         select_strongest_comparator,
         selected_factor_rank,
         center_and_scale_atom,
+        bounded_basis,
+        tensor_dimension,
+        tensor_representation,
+        calibrate_innovations_on_nuisance_fit,
+        cross_validated_ridge_penalty,
+        held_fold_innovations,
+        moments_from_held_fold_innovations,
+        projection_residual,
+        sample_standard_deviation,
+        unsupported_context_observation_count,
+        blocked_fit_is_supported,
+        blocked_fold_bounds,
+        proper_subset_design_row,
+        ridge_coefficient_matrix,
+        select_ridge_penalty,
         isolation_forest_anomaly_scores,
         one_class_svm_anomaly_scores,
         autoencoder_anomaly_scores,

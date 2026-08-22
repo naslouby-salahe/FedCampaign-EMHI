@@ -496,3 +496,13 @@ class OutsideContextHistogram:
 class ContextCentroids:
     identity: ContextClusterIdentity
     centroids: tuple[tuple[FiniteFloat, ...], ...]
+
+
+@dataclass(frozen=True)
+class CrossFittedInnovationCalibration:
+    held_fold_innovations: tuple[tuple[FiniteFloat, ...], ...]
+    coordinate_means: tuple[FiniteFloat, ...]
+    coordinate_deviations: tuple[FiniteFloat, ...]
+    standardized_held_fold_innovations: tuple[tuple[FiniteFloat, ...], ...]
+    complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
+    selected_ridge_penalty: RidgePenalty
