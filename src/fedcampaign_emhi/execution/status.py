@@ -299,6 +299,17 @@ from fedcampaign_emhi.execution.preprocess import (
     preprocess_must_not_regenerate,
     requested_datasets,
 )
+from fedcampaign_emhi.experiments.sequential_evidence import (
+    aggregate_feasibility,
+    calibrated_route_heldout_pfa_gate,
+    deterministic_outside_midpoint,
+    enumerate_feasibility_plan,
+    latent_support_cell,
+    restricted_arl,
+    restricted_arl_lower_bound_passes,
+    support_rows_for_requested_count,
+    theorem_route_assumption_checks,
+)
 from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores, batch_permutation_seed
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_contract as models_autoencoder_autoencoder_contract,
@@ -398,6 +409,15 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         complete_benign_horizons,
         horizons_are_nonoverlapping,
         sequential_stop_reset_epochs,
+        aggregate_feasibility,
+        calibrated_route_heldout_pfa_gate,
+        deterministic_outside_midpoint,
+        enumerate_feasibility_plan,
+        latent_support_cell,
+        restricted_arl,
+        restricted_arl_lower_bound_passes,
+        support_rows_for_requested_count,
+        theorem_route_assumption_checks,
         execute_preprocess,
         nearest_reconstruction_layer,
         preprocess_must_not_regenerate,
