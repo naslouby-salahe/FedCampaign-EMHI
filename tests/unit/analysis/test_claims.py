@@ -3,7 +3,9 @@ from fedcampaign_emhi.analysis.multiplicity import (
     holm_adjusted_p_values,
     holm_placeholder_p_value,
     primary_holm_family_identifiers,
+    secondary_holm_family_identifiers,
 )
+from fedcampaign_emhi.domain.enums import PrimaryHolmHypothesis
 from fedcampaign_emhi.analysis.statistics import (
     bootstrap_is_degenerate,
     degenerate_bootstrap_interval,
@@ -26,7 +28,9 @@ def test_claim_identifiers_are_complete() -> None:
 
 def test_holm_family_has_five_primary_hypotheses() -> None:
     identifiers = primary_holm_family_identifiers()
+    assert identifiers == tuple(hypothesis.value for hypothesis in PrimaryHolmHypothesis)
     assert len(identifiers) == 5
+    assert len(secondary_holm_family_identifiers()) == 6
     adjusted = holm_adjusted_p_values(identifiers, (0.01, 0.04, 0.03, 0.20, 0.50))
     assert adjusted[0] <= 0.05
     assert holm_placeholder_p_value() == 1.0
