@@ -12,10 +12,11 @@ from fedcampaign_emhi.domain.types import (
     NumericalFloor,
     NumericalTolerance,
     ProperSubsetDesignShape,
+    RankValue,
     RecordCount,
     RidgePenalty,
 )
-from fedcampaign_emhi.emhi.basis import tensor_dimension
+from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_dimension, tensor_representation
 
 
 def proper_subset_design_column_count(
@@ -26,6 +27,35 @@ def proper_subset_design_column_count(
     if coalition_order is CoalitionOrder.TWO:
         return 1 + (2 * basis_size)
     return 1 + (3 * basis_size) + (3 * (basis_size**2))
+
+
+def proper_subset_design_row(
+    member_ranks: tuple[RankValue, ...], basis_size: BasisSize
+) -> tuple[FiniteFloat, ...]:
+    order = len(member_ranks)
+    if order < 1:
+        raise ValueError("proper-subset design requires at least one coalition member")
+    intercept = (1.0,)
+    if order == 1:
+        return intercept
+    singletons: list[FiniteFloat] = []
+    for rank in member_ranks:
+        singletons.extend(bounded_basis(rank, basis_size))
+    if order == 2:
+        return intercept + tuple(singletons)
+    pair_coordinates: list[FiniteFloat] = []
+    for left_index in range(order):
+        for right_index in range(left_index + 1, order):
+            pair_coordinates.extend(
+                tensor_representation(
+                    (member_ranks[left_index], member_ranks[right_index]), basis_size
+                )
+            )
+    return intercept + tuple(singletons) + tuple(pair_coordinates)
+
+
+def blocked_fit_is_supported(observation_count: RecordCount, fold_count: FoldCount) -> bool:
+    return observation_count >= fold_count
 
 
 def proper_subset_design_shape(
