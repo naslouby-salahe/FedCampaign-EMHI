@@ -1,0 +1,80 @@
+from dataclasses import dataclass
+
+from fedcampaign_emhi.config.schema import ScientificConfig
+from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
+from fedcampaign_emhi.domain.types import (
+    ClientCount,
+    FiniteFloat,
+    Probability,
+    RecordCount,
+    SeedCount,
+)
+
+
+@dataclass(frozen=True)
+class HofdEquivalencePlan:
+    primary_client_count: ClientCount
+    methods: tuple[MethodName, ...]
+    context_cell_count: RecordCount
+    support_levels: tuple[RecordCount, ...]
+    heldout_samples_per_context_seed: RecordCount
+    development_seed_count: SeedCount
+    confirmatory_seed_count: SeedCount
+    atom_nrmse_upper_margin: FiniteFloat
+    minimum_cosine_similarity: FiniteFloat
+    stopping_time_interval_lower: FiniteFloat
+    stopping_time_interval_upper: FiniteFloat
+
+
+def enumerate_hofd_equivalence_plan(config: ScientificConfig) -> HofdEquivalencePlan:
+    experiment = config.experiments.exclusion_matched_hofd_equivalence
+    materiality = config.claim_materiality.hofd_equivalence
+    interval = materiality.stopping_time_difference_interval_epochs
+    return HofdEquivalencePlan(
+        primary_client_count=config.experiments.pure_order_separation_validation.primary_client_count,
+        methods=tuple(MethodName(method) for method in experiment.methods),
+        context_cell_count=experiment.context_cell_count,
+        support_levels=tuple(experiment.primary_support_levels),
+        heldout_samples_per_context_seed=(
+            config.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
+        ),
+        development_seed_count=len(config.randomness.synthetic_development_roots),
+        confirmatory_seed_count=len(config.randomness.synthetic_confirmatory_roots),
+        atom_nrmse_upper_margin=materiality.atom_nrmse_upper_margin,
+        minimum_cosine_similarity=materiality.minimum_cosine_similarity,
+        stopping_time_interval_lower=interval[0],
+        stopping_time_interval_upper=interval[1],
+    )
+
+
+def hofd_equivalence_support_levels(config: ScientificConfig) -> tuple[RecordCount, ...]:
+    return config.experiments.exclusion_matched_hofd_equivalence.primary_support_levels
+
+
+def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount) -> RecordCount:
+    order_size = int(order)
+    if order_size > client_count:
+        raise ValueError("target coalition exceeds the selected client count")
+    target: RecordCount = order_size
+    return target
+
+
+def nrmse_equivalence_gate(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> bool:
+    return nrmse_upper < margin
+
+
+def cosine_equivalence_gate(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> bool:
+    return mean_cosine >= minimum
+
+
+def stopping_time_equivalence_gate(
+    ci_lower: FiniteFloat,
+    ci_upper: FiniteFloat,
+    interval_lower: FiniteFloat,
+    interval_upper: FiniteFloat,
+) -> bool:
+    return ci_lower >= interval_lower and ci_upper <= interval_upper
+
+
+def pfa_prerequisite_gate(null_pfa_upper: Probability, target_pfa: Probability) -> bool:
+    return null_pfa_upper <= target_pfa
