@@ -175,6 +175,12 @@ from fedcampaign_emhi.evaluation.validation import (
     validation_contract as evaluation_validation_validation_contract,
 )
 from fedcampaign_emhi.execution.planning import plan_experiments
+from fedcampaign_emhi.execution.preprocess import (
+    execute_preprocess,
+    nearest_reconstruction_layer,
+    preprocess_must_not_regenerate,
+    requested_datasets,
+)
 from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores, batch_permutation_seed
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_contract as models_autoencoder_autoencoder_contract,
@@ -269,6 +275,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         complete_benign_horizons,
         horizons_are_nonoverlapping,
         sequential_stop_reset_epochs,
+        execute_preprocess,
+        nearest_reconstruction_layer,
+        preprocess_must_not_regenerate,
+        requested_datasets,
         clip_rank,
         histogram_bin_index,
         operating_point_unavailable_outcome,
@@ -453,6 +463,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.rank_fusion",
             ownership="roadmap-defined marginal rank-fusion references",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.execution.preprocess",
+            ownership="preprocess CLI layer reuse, nearest-valid reconstruction, and selective invalidation",
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.datasets.campaigns",

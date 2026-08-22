@@ -189,6 +189,22 @@ class OverwritePolicy(StrEnum):
     OVERWRITE = "overwrite"
 
 
+class PreprocessingLayer(StrEnum):
+    INVENTORY = "inventory"
+    PREPARED = "prepared"
+    SPLITS = "splits"
+    PARTITIONS = "partitions"
+    CAMPAIGN_REGISTRY = "campaign_registry"
+
+
+class DownstreamArtifactKind(StrEnum):
+    DETECTOR_MODELS = "detector models"
+    SCORES = "scores"
+    EXPERIMENT_EVALUATIONS = "experiment evaluations"
+    STATISTICS = "statistics"
+    REPORTS = "reports"
+
+
 class ArtifactLifecycleState(StrEnum):
     MISSING = "missing"
     VALID = "valid"
