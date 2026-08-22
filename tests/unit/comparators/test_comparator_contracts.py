@@ -1,6 +1,16 @@
+from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
+from fedcampaign_emhi.comparators.conditional_log_linear import (
+    log_linear_design_column_count,
+    log_linear_includes_triple,
+)
+from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
+from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
 from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
 from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
-from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
+from fedcampaign_emhi.comparators.pair_dependence import (
+    pair_dependence_moment,
+    pair_dependence_nonconformity,
+)
 from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.domain.types import RankReference
 from fedcampaign_emhi.emhi.ranks import midrank
@@ -27,3 +37,27 @@ def test_pair_and_lancaster_moments_at_one_half_are_zero() -> None:
     assert lancaster_triple_moment(0.5, 0.5, 0.5) == 0.0
     assert pair_dependence_moment(1.0, 1.0) == 1.0
     assert lancaster_triple_moment(1.0, 1.0, 0.0) == -1.0
+    assert pair_dependence_nonconformity(-2.0, 0.0, 1.0, 1.0e-06) == 2.0
+
+
+def test_hofd_zero_when_tensor_in_design_span() -> None:
+    design = ((1.0, 0.0), (1.0, 1.0), (1.0, 2.0))
+    tensor = ((0.0,), (1.0,), (2.0,))
+    residuals = hofd_atom_rows(tensor, design, 0.0, 1.0e-12)
+    assert all(abs(row[0]) < 1.0e-10 for row in residuals)
+
+
+def test_log_linear_has_no_triple_term() -> None:
+    assert log_linear_includes_triple() is False
+    assert log_linear_design_column_count(3) == 37
+
+
+def test_connected_information_initial_table_is_uniform() -> None:
+    table = uniform_probability_table(2)
+    assert abs(table[0][0][0] - 0.125) < 1.0e-12
+
+
+def test_dvine_order_is_lexicographic_and_h_function_is_uniform_at_independence() -> None:
+    assert lexicographic_vine_order(("c3", "c1", "c2")) == ("c1", "c2", "c3")
+    independent = gaussian_h_function(0.3, 0.8, 0.0, 1.0e-12)
+    assert abs(independent - 0.3) < 1.0e-8
