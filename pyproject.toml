@@ -1,0 +1,159 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fedcampaign-emhi"
+version = "0.1.0"
+description = "FedCampaign-EMHI — Exclusion-Matched Hierarchical Innovation"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "Salah Naslouby" }]
+dependencies = [
+    "pydantic>=2.13",
+    "pyyaml>=6.0",
+    "rfc8785>=0.1",
+    "typer>=0.27",
+]
+
+[project.scripts]
+fedcampaign = "fedcampaign_emhi.cli.main:application"
+
+[project.optional-dependencies]
+dev = [
+    "coverage>=7.0",
+    "deptry>=0.23",
+    "import-linter>=2.1",
+    "nox>=2024.4.15",
+    "pyright>=1.1.400",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "semgrep>=1.100",
+    "vulture>=2.14",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fedcampaign_emhi"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/configs",
+    "/tests",
+    "/docs/Roadmap.md",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "src"]
+addopts = ["-q", "--strict-markers", "--strict-config"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["fedcampaign_emhi"]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+target-version = "py313"
+src = ["src", "tests"]
+line-length = 100
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802"]
+"tests/architecture/**" = ["N802", "SIM102"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [".venv"]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+
+[tool.importlinter]
+root_packages = ["fedcampaign_emhi"]
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "fedcampaign_emhi.cli",
+    "fedcampaign_emhi.reporting",
+    "fedcampaign_emhi.execution",
+    "fedcampaign_emhi.analysis",
+    "fedcampaign_emhi.evaluation",
+    "fedcampaign_emhi.experiments",
+    "fedcampaign_emhi.comparators | fedcampaign_emhi.synthetic | fedcampaign_emhi.detection",
+    "fedcampaign_emhi.emhi",
+    "fedcampaign_emhi.datasets | fedcampaign_emhi.models",
+    "fedcampaign_emhi.artifacts",
+    "fedcampaign_emhi.runtime",
+    "fedcampaign_emhi.config",
+    "fedcampaign_emhi.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "CLI contains no scientific implementation layers as reverse dependencies"
+type = "forbidden"
+source_modules = [
+    "fedcampaign_emhi.domain",
+    "fedcampaign_emhi.config",
+    "fedcampaign_emhi.datasets",
+    "fedcampaign_emhi.models",
+    "fedcampaign_emhi.detection",
+    "fedcampaign_emhi.emhi",
+    "fedcampaign_emhi.comparators",
+    "fedcampaign_emhi.synthetic",
+    "fedcampaign_emhi.experiments",
+    "fedcampaign_emhi.evaluation",
+    "fedcampaign_emhi.analysis",
+    "fedcampaign_emhi.artifacts",
+    "fedcampaign_emhi.execution",
+    "fedcampaign_emhi.runtime",
+    "fedcampaign_emhi.reporting",
+]
+forbidden_modules = ["fedcampaign_emhi.cli"]
+
+[tool.deptry]
+known_first_party = ["fedcampaign_emhi"]
+exclude = [".venv", "tests"]
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    "coverage",
+    "deptry",
+    "import-linter",
+    "nox",
+    "pyright",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "semgrep",
+    "vulture",
+]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["src"]
+exclude = [".venv"]
+ignore_names = ["cls"]

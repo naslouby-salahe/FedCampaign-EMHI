@@ -1,0 +1,27 @@
+rules:
+  - id: fedcampaign-no-any
+    languages: [python]
+    severity: ERROR
+    message: Do not use typing.Any in production code.
+    pattern: typing.Any
+    paths:
+      include:
+        - src/fedcampaign_emhi
+      exclude:
+        - src/fedcampaign_emhi/config/validation.py
+  - id: fedcampaign-no-todo
+    languages: [python]
+    severity: ERROR
+    message: Do not leave TODO/FIXME/HACK/XXX residue.
+    pattern-regex: \b(TODO|FIXME|HACK|XXX)\b
+    paths:
+      include:
+        - src/fedcampaign_emhi
+  - id: fedcampaign-no-scientific-cli-flags
+    languages: [python]
+    severity: ERROR
+    message: CLI must not expose scientific-configuration overrides.
+    pattern-regex: --(seed|method|coalition-order|pfa|threshold|run-id|basis|context-cell)
+    paths:
+      include:
+        - src/fedcampaign_emhi/cli

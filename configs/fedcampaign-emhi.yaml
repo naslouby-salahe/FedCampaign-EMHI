@@ -1,0 +1,420 @@
+study:
+  maximum_coalition_order: 3
+
+time:
+  real_data_epoch_seconds: 60
+
+campaign:
+  evaluation_horizon_epochs: 60
+  prestart_warmup_epochs: 200
+  merge_max_intervening_benign_epochs: 10
+  distributed_first_activity_window_epochs: 10
+  minimum_duration_epochs: 3
+
+distributed_support:
+  minimum_clients: 2
+  trailing_window_epochs: 5
+  material_coalition_evidence_threshold: 1.25
+
+context:
+  outside_lag_epochs: 1
+  minimum_available_outside_clients: 2
+  minimum_available_outside_fraction: 0.5
+  rank_clip_epsilon: 1.0e-12
+  outside_histogram_bin_count: 8
+  primary_cell_count: 4
+  cell_count_sensitivity: [2, 8]
+  kmeans:
+    n_init: 20
+    max_iterations: 300
+    tolerance: 0.0001
+    max_fit_rows: 200000
+    assignment_tie_tolerance: 1.0e-12
+  minimum_support_epochs:
+    order_one: 100
+    order_two: 200
+    order_three: 400
+  nuisance_crossfit:
+    fold_count: 5
+
+basis:
+  primary_size: 3
+  sensitivity_sizes: [2, 4]
+
+projection:
+  ridge_candidates: [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0]
+  cross_validation:
+    fold_count: 5
+  selection_tie_tolerance_mse: 1.0e-12
+  zero_ridge_svd_relative_cutoff: 1.0e-12
+  maximum_gram_condition_number: 1000000.0
+  atom_scale_floor: 1.0e-06
+  norm_reference_floor: 1.0e-06
+
+evidence:
+  clip_bound: 1.0
+  bet_lambda: 0.5
+  operational_norm_reference_quantile: 0.95
+  signed_theorem_sequential:
+    arl_alpha: 0.001
+  calibrated_finite_horizon:
+    target_pfa: 0.05
+    calibration_confidence: 0.95
+    threshold_candidates: [2, 3, 5, 10, 20, 50, 100, 200, 500, 1000]
+  no_stop_plot_offset_epochs: 1
+
+datasets:
+  primary:
+    name: Corrected OpTC
+    raw_directory: data/raw/corrected_optc
+    target_client_count: 12
+  secondary:
+    name: Transparent Computing Engagement 5
+    raw_directory: data/raw/tc_engagement_5
+    target_client_count: 12
+    minimum_eligible_client_count: 6
+  external_checksums_directory: data/external_checksums
+  eligibility:
+    minimum_benign_event_records: 5000
+    minimum_nonempty_benign_epochs: 600
+  preprocessing:
+    event_type_hash_bucket_count: 64
+    robust_scaling_iqr_floor: 1.0e-06
+    benign_partition_fractions:
+      detector_fit: 0.1
+      nuisance_fit: 0.18
+      threshold_and_policy_calibration: 0.36
+
+detectors:
+  isolation_forest:
+    trees: 300
+    max_samples_cap: 256
+    max_features: 1.0
+    jobs: 1
+  one_class_svm:
+    nu: 0.01
+    coefficient_zero: 0.0
+    solver_tolerance: 0.001
+    kernel_cache_mib: 1024
+    max_iterations: -1
+  autoencoder:
+    learning_rate: 0.001
+    betas: [0.9, 0.999]
+    optimizer_epsilon: 1.0e-08
+    weight_decay: 0.0
+    batch_size: 128
+    epochs: 50
+
+local_policy:
+  candidate_score_quantiles: [0.99, 0.995, 0.999, 0.9995, 0.9999]
+  candidate_persistence:
+    - required_exceedances: 1
+      window_epochs: 1
+    - required_exceedances: 2
+      window_epochs: 3
+    - required_exceedances: 3
+      window_epochs: 5
+  primary_horizon_pfa_target: 0.05
+  strong_horizon_pfa_target: 0.1
+  pfa_confidence: 0.95
+
+randomness:
+  synthetic_development_roots: [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024, 1025, 1026, 1027, 1028, 1029]
+  synthetic_confirmatory_roots: [9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9010, 9011, 9012, 9013, 9014, 9015, 9016, 9017, 9018, 9019, 9020, 9021, 9022, 9023, 9024, 9025, 9026, 9027, 9028, 9029]
+  real_development_roots: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  real_confirmatory_roots: [9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009]
+  engineering_smoke_root: 999
+  statistical_analysis_base_seed: 3000
+  context_base_seed: 4100
+
+synthetic:
+  sample_sizes:
+    generic_nuisance_fit_epochs: 8000
+    generic_cross_fitted_evaluation_epochs: 4000
+    finite_horizon_calibration_horizons_per_seed: 200
+    finite_horizon_heldout_null_horizons_per_seed: 1000
+    self_explanation_epochs_per_perturbation: 600
+    self_explanation_lag_settling_epochs_discarded: 20
+    pure_order_independent_evaluation_samples_per_condition_seed: 10000
+    hofd_equivalence_heldout_samples_per_context_seed: 4000
+    estimator_evaluation_samples_per_context_seed: 4000
+
+generators:
+  common_mode:
+    latent_ar_coefficient: 0.8
+    client_loading_minimum: 0.6
+    client_loading_maximum: 1.0
+    client_noise_standard_deviation: 0.75
+  controlled_campaigns:
+    marginal:
+      score_shift: 1.0
+    pair_relation:
+      benign_correlation: 0.0
+      campaign_correlation: 0.6
+    single_client:
+      score_shift: 2.0
+  self_explanation:
+    perturbations: [-0.2, -0.1, -0.05, 0.0, 0.05, 0.1, 0.2]
+    derivative_regression_perturbations: [-0.1, -0.05, 0.0, 0.05, 0.1]
+  pure_polynomial:
+    theta:
+      order_one: [0.0, 0.05, 0.1, 0.2, 0.4]
+      order_two: [0.0, 0.05, 0.1, 0.2, 0.3]
+      order_three: [0.0, 0.025, 0.05, 0.1, 0.15, 0.18]
+    primary_reference_theta: 0.1
+  xor:
+    strengths: [0.0, 0.25, 0.5, 0.75, 1.0]
+    primary_reference_strength: 0.5
+  mixed_order:
+    enabled_term_sets:
+      - [1, 2]
+      - [1, 3]
+      - [2, 3]
+      - [1, 2, 3]
+    term_coefficient: 0.05
+  context_dependent_triple:
+    markov_same_probability: 0.9
+    initial_state_probabilities:
+      negative_one: 0.5
+      positive_one: 0.5
+    primary_theta: 0.1
+    outside_rank_intervals:
+      negative_state: [0.25, 0.35]
+      positive_state: [0.65, 0.75]
+  outside_contamination:
+    client_count: 12
+    target_triple_theta: 0.1
+    correlated_campaign_fractions: [0.0, 0.25, 0.5, 1.0]
+    outside_rank_shift: 0.25
+  client_dropout:
+    unavailable_fractions: [0.0, 0.1, 0.25, 0.5]
+
+comparators:
+  common_calibration:
+    nuisance_reference_quantile: 0.95
+  connected_information:
+    bins_per_client: 4
+    jeffreys_pseudocount_per_cell: 0.5
+    ipf_max_iterations: 10000
+    maximum_marginal_absolute_error: 1.0e-08
+    probability_floor: 1.0e-12
+  conditional_log_linear:
+    bins_per_client: 4
+    max_iterations: 10000
+    maximum_fitted_marginal_absolute_error: 1.0e-08
+    probability_floor: 1.0e-12
+  exclusion_matched_conditional_hofd:
+    relative_singular_cutoff: 1.0e-12
+    ridge_penalty: 0.0
+  global_factor_residual:
+    candidate_ranks: [1, 2, 3]
+    cumulative_variance_target: 0.8
+    fallback_rank: 3
+  multistream_cusum:
+    rank_center: 0.5
+    drift_subtraction: 0.05
+    initial_state: 0.0
+  fedavg_autoencoder:
+    rounds: 50
+    local_epochs_per_round: 1
+    client_participation_fraction: 1.0
+
+numerics:
+  metric_denominator_floor: 1.0e-12
+  deterministic_comparison_tolerance: 1.0e-12
+  smoke_repeatability_tolerance: 1.0e-08
+
+statistics:
+  confidence_level: 0.95
+  nominal_significance_alpha: 0.05
+  bootstrap_replicates: 10000
+  synthetic_sign_flip_replicates_when_not_exact: 100000
+
+claim_materiality:
+  self_explanation:
+    exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: 0.05
+    minimum_attenuation_difference: 0.1
+  pure_order:
+    maximum_proper_subset_standardized_drift: 0.1
+    minimum_target_order_standardized_drift: 0.5
+  order_three_estimator:
+    minimum_mean_context_coverage: 0.8
+    maximum_mean_projection_nrmse: 0.1
+    maximum_mean_standardized_null_bias: 0.05
+  maximum_pooled_numerical_failure_rate: 0.01
+  hofd_equivalence:
+    atom_nrmse_upper_margin: 0.05
+    minimum_cosine_similarity: 0.99
+    stopping_time_difference_interval_epochs: [-1.0, 1.0]
+  primary_real:
+    minimum_strict_odi_rate: 0.2
+    minimum_odi_rate_advantage_over_order_at_most_two: 0.1
+    minimum_median_operational_lead_epochs: 2.0
+  benign_common_mode:
+    minimum_false_campaign_suppression: 0.5
+    maximum_detection_rate_loss: 0.1
+  strong_local:
+    minimum_strict_odi_rate: 0.2
+  order_three_real:
+    minimum_material_odi_contribution: 0.02
+  reference_harness:
+    p95_latency_maximum_seconds: 30.0
+
+support_grids:
+  estimator_samples_per_context: [100, 200, 400, 800, 1600, 3200]
+  hofd_equivalence_samples_per_context: [800, 1600, 3200, 6400, 12800]
+  estimator_one_factor_sensitivity_samples_per_context: [800, 1600]
+
+robustness:
+  benign_count_multiplication_factors: [1.25, 1.5, 2.0]
+  scalability_client_counts: [6, 12, 24, 48]
+
+experiments:
+  self_explanation_exclusion_validation:
+    context_methods:
+      - Inclusive Context
+      - Leave-One-Out Insufficient Exclusion
+      - Partial Coalition Exclusion
+      - Exact Coalition Exclusion
+      - Oracle Outside Latent Context
+    primary_condition:
+      client_count: 12
+      coalition_order: 3
+      nuisance_transform: linear
+      comparison:
+        - Exact Coalition Exclusion
+        - Inclusive Context
+
+  pure_order_separation_validation:
+    primary_client_count: 12
+    generators:
+      - Pure Order One
+      - Pure Order Two
+      - Pure Continuous Triple
+      - XOR Parity Triple
+      - Context-Dependent Pure Triple
+      - Mixed Order One Plus Two
+      - Mixed Order One Plus Three
+      - Mixed Order Two Plus Three
+      - Mixed Order One Plus Two Plus Three
+    methods:
+      - Exclusion-Matched Order-One EMHI
+      - Exclusion-Matched Order-at-Most-Two EMHI
+      - Full FedCampaign-EMHI
+      - Exclusion-Matched Conditional HOFD
+      - Conditional Pair Dependence
+      - Exclusion-Matched Lancaster Triple
+      - Connected Information Reference
+      - Conditional Log-Linear Reference
+      - D-Vine Conditional Reference
+    primary_condition:
+      generator: Pure Continuous Triple
+      method: Full FedCampaign-EMHI
+      coalition_order: 3
+
+  exclusion_matched_hofd_equivalence:
+    methods:
+      - Full FedCampaign-EMHI
+      - Exclusion-Matched Conditional HOFD
+    context_cell_count: 1
+    primary_support_levels: [6400, 12800]
+
+  strong_comparator_composition_challenge:
+    candidates:
+      - Conditional Pair Dependence
+      - Exclusion-Matched Lancaster Triple
+      - Connected Information Reference
+      - D-Vine Conditional Reference
+      - Conditional Log-Linear Reference
+    error_tie_tolerance_standardized_units: 0.01
+    runtime_tie_tolerance_seconds: 1.0e-06
+    artifact_filename: strongest-comparator-composition.json
+
+  estimator_support_and_context_feasibility:
+    sensitivity:
+      forced_ridge: 0.0
+      forced_no_abstention: true
+
+  sequential_evidence_validation:
+    signed_theorem:
+      null_theta: 0.0
+      trajectories_per_seed: 100
+      maximum_trajectory_epochs: 10000
+      restricted_arl_bootstrap_lower_bound_minimum_epochs: 900
+
+  primary_strict_odi_evaluation:
+    methods:
+      - Full FedCampaign-EMHI
+      - Raw Mean Rank Fusion
+      - Raw Max Rank Fusion
+      - Exclusion-Matched Order-One EMHI
+      - Exclusion-Matched Order-at-Most-Two EMHI
+      - Exclusion-Matched Conditional HOFD
+      - Global Factor Residual Reference
+      - Multistream CUSUM Reference
+      - Selected Strong Comparator Composition
+      - FedAvg Autoencoder Reference
+
+  exclusion_mechanism_ablation:
+    methods:
+      - Full FedCampaign-EMHI
+      - Inclusive-Context Full Hierarchy
+      - Leave-One-Out Insufficient Exclusion
+      - Partial Coalition Exclusion
+
+  purification_and_order_ablation:
+    methods:
+      - Full FedCampaign-EMHI
+      - No Proper-Subset Purification
+      - Exclusion-Matched Order-One EMHI
+      - Exclusion-Matched Order-at-Most-Two EMHI
+
+  context_and_estimator_sensitivity:
+    forced_ridge: 0.0
+    context_variants:
+      - Shuffled Outside Context
+      - Local-History-Only Context
+      - Forced No-Abstention
+
+  benign_common_mode_robustness:
+    methods:
+      - Full FedCampaign-EMHI
+      - Raw Mean Rank Fusion
+      - Inclusive-Context Full Hierarchy
+      - No-Outside-Context Full Hierarchy
+    native_high_volume_window:
+      stride_epochs: 1
+      top_event_count_fraction: 0.01
+
+  secondary_controlled_trace_generalization:
+    methods:
+      - Full FedCampaign-EMHI
+      - Raw Mean Rank Fusion
+      - Exclusion-Matched Order-One EMHI
+      - Exclusion-Matched Order-at-Most-Two EMHI
+      - Exclusion-Matched Conditional HOFD
+      - Selected Strong Comparator Composition
+
+scalability_timing:
+  measured_repetitions_per_seed_client_count: 5
+  unmeasured_harness_warmup_epochs: 100
+  measured_epochs_per_repetition: 600
+  concurrent_experiment_cells: 1
+  result_quantile: 0.95
+
+runtime:
+  automatic_technical_retries_after_initial_failure: 2
+  required_confirmatory_missing_cell_tolerance: 0
+
+artifacts:
+  outputs_root: outputs
+  results_root: results
+
+reporting:
+  precision:
+    probabilities_and_rates_decimals: 3
+    effect_sizes_decimals: 3
+    epochs_and_minutes_decimals: 1
+    milliseconds_and_seconds_decimals: 2
+    adjusted_p_values_decimals: 4
+    p_value_lower_display_threshold: 0.0001
