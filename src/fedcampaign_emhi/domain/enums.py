@@ -49,6 +49,11 @@ class MethodName(StrEnum):
     SELECTED_STRONG_COMPARATOR_COMPOSITION = "Selected Strong Comparator Composition"
 
 
+class EvidencePath(StrEnum):
+    SIGNED_THEOREM = "signed_theorem"
+    OPERATIONAL_NORM = "operational_norm"
+
+
 class ContextMethodName(StrEnum):
     INCLUSIVE_CONTEXT = "Inclusive Context"
     LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION = "Leave-One-Out Insufficient Exclusion"

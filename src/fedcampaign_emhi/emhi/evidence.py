@@ -1,6 +1,21 @@
 from math import exp, sqrt
 
-from fedcampaign_emhi.domain.types import EvidenceFactor, FiniteFloat, NumericalFloor, PositiveFloat
+import numpy as np
+
+from fedcampaign_emhi.domain.enums import EvidencePath
+from fedcampaign_emhi.domain.types import (
+    EvidenceFactor,
+    FiniteFloat,
+    NumericalFloor,
+    PositiveFloat,
+    Quantile,
+    TensorDimension,
+)
+
+OPERATIONAL_EVIDENCE_COMPENSATOR = 0.125
+LOCKED_SIGNED_CLIP_BOUND = 1.0
+LOCKED_SIGNED_BET_LAMBDA = 0.5
+SIGNED_NULL_EXPECTATION_UPPER_BOUND = 0.0
 
 
 def clip_statistic(statistic: FiniteFloat, clip_bound: PositiveFloat) -> FiniteFloat:
@@ -54,7 +69,62 @@ def operational_evidence_factor(
     statistic = operational_norm_statistic(
         coordinates, reference_quantile, norm_reference_floor, clip_bound
     )
-    return evidence_factor(statistic, clip_bound, bet_lambda)
+    return exp(bet_lambda * statistic - OPERATIONAL_EVIDENCE_COMPENSATOR)
+
+
+def signed_direction_is_fixed_before_evaluation(direction: tuple[FiniteFloat, ...]) -> bool:
+    return any(coordinate != 0.0 for coordinate in direction)
+
+
+def polynomial_signed_direction(
+    tensor_size: TensorDimension, generator_coefficient: FiniteFloat
+) -> tuple[FiniteFloat, ...]:
+    if tensor_size <= 0:
+        raise ValueError("tensor_size must be positive")
+    if generator_coefficient == 0.0:
+        raise ValueError("signed evidence requires a nonzero predeclared generator coefficient")
+    sign = 1.0 if generator_coefficient > 0.0 else -1.0
+    return tuple(sign if index == 0 else 0.0 for index in range(tensor_size))
+
+
+def signed_statistic(
+    standardized_atom: tuple[FiniteFloat, ...],
+    direction: tuple[FiniteFloat, ...],
+    clip_bound: PositiveFloat,
+) -> FiniteFloat:
+    if len(standardized_atom) != len(direction):
+        raise ValueError("standardized atom and signed direction must be aligned")
+    projected = sum(
+        coordinate * loading
+        for coordinate, loading in zip(standardized_atom, direction, strict=True)
+    )
+    return clip_statistic(projected, clip_bound)
+
+
+def signed_conditional_null_holds(expected_statistic: FiniteFloat) -> bool:
+    return expected_statistic <= SIGNED_NULL_EXPECTATION_UPPER_BOUND
+
+
+def conditional_e_detector_path() -> EvidencePath:
+    return EvidencePath.SIGNED_THEOREM
+
+
+def primary_real_data_evidence_path() -> EvidencePath:
+    return EvidencePath.OPERATIONAL_NORM
+
+
+def operational_norm_reference_quantile(
+    standardized_atoms: tuple[tuple[FiniteFloat, ...], ...], quantile: Quantile
+) -> FiniteFloat:
+    if not standardized_atoms:
+        raise ValueError("operational norm reference requires cross-fitted innovations")
+    norms = tuple(euclidean_norm(atom) for atom in standardized_atoms)
+    array = np.asarray(norms, dtype=np.float64)
+    return float(np.quantile(array, quantile))
+
+
+def locked_signed_compensator() -> FiniteFloat:
+    return signed_theorem_compensator(LOCKED_SIGNED_CLIP_BOUND, LOCKED_SIGNED_BET_LAMBDA)
 
 
 def within_order_aggregate(factors: tuple[EvidenceFactor, ...]) -> EvidenceFactor:
