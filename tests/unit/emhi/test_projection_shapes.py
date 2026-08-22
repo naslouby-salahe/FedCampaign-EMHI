@@ -6,7 +6,11 @@ from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.emhi.projection import blocked_fold_sizes, proper_subset_design_shape
 from fedcampaign_emhi.emhi.ranks import clipped_midrank
 from fedcampaign_emhi.emhi.sequential import initial_global_state, next_global_state
-from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
+from fedcampaign_emhi.config.loading import load_production_configuration
+from fedcampaign_emhi.emhi.thresholds import (
+    clopper_pearson_one_sided_upper_bound,
+    select_calibrated_threshold,
+)
 
 
 def test_primary_basis_design_columns() -> None:
@@ -62,6 +66,16 @@ def test_enumerate_coalitions_respects_maximum_order() -> None:
 
 
 def test_clopper_pearson_zero_false_stops() -> None:
-    upper = clopper_pearson_one_sided_upper_bound(0, 59, 0.95)
-    assert upper <= 0.05
-    assert clopper_pearson_one_sided_upper_bound(59, 59, 0.95) == 1.0
+    loaded = load_production_configuration()
+    pfa = loaded.values.evidence.calibrated_finite_horizon.target_pfa
+    confidence = loaded.values.evidence.calibrated_finite_horizon.calibration_confidence
+    horizons = loaded.derived.minimum_nonoverlapping_horizons_for_zero_false_stop
+    upper = clopper_pearson_one_sided_upper_bound(0, horizons, confidence)
+    assert upper <= pfa
+    assert clopper_pearson_one_sided_upper_bound(horizons, horizons, confidence) == 1.0
+    assert loaded.values.runtime.required_confirmatory_missing_cell_tolerance == 0
+    unavailable = select_calibrated_threshold((2, 3), (2, 3), 3, confidence, pfa)
+    assert unavailable is None
+    selected = select_calibrated_threshold((2, 3), (0, 0), horizons, confidence, pfa)
+    assert selected == 2
+
