@@ -1,9 +1,17 @@
 from fedcampaign_emhi.config.loading import load_smoke_configuration
-from fedcampaign_emhi.evaluation.metrics import smoke_module_fixtures
+from fedcampaign_emhi.evaluation.smoke_gate import (
+    run_synthetic_module_validation,
+    smoke_false_stop_counts,
+    smoke_first_activity_epochs,
+)
 
 
-def test_smoke_fixtures() -> None:
-    loaded = load_smoke_configuration()
-    fixtures = smoke_module_fixtures(loaded)
-    assert fixtures.blocked_fold_sizes == (3, 2, 2, 2, 2)
-    assert fixtures.strict_odi_indicator == 1
+def test_smoke_gate_passes_all_exact_roadmap_fixtures() -> None:
+    gate = run_synthetic_module_validation(load_smoke_configuration())
+    assert gate.passed, gate.failures
+    assert gate.failures == ()
+
+
+def test_smoke_fixture_inputs_match_roadmap_table() -> None:
+    assert smoke_false_stop_counts() == (20, 15, 5, 0)
+    assert smoke_first_activity_epochs() == (300, 302)
