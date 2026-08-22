@@ -308,7 +308,15 @@ from fedcampaign_emhi.synthetic.pure_order import (
     pure_order_one_response,
 )
 from fedcampaign_emhi.synthetic.robustness import contaminated_outside_count, round_half_up
-from fedcampaign_emhi.synthetic.self_explanation import analytic_direct_derivative
+from fedcampaign_emhi.synthetic.self_explanation import (
+    analytic_direct_derivative,
+    apply_persistent_perturbation,
+    enumerate_self_exclusion_grid,
+    exact_nuisance_derivative_within_margin,
+    material_attenuation_gate,
+    primary_directional_test_passes,
+    scalar_innovation_fixture,
+)
 
 
 @dataclass(frozen=True)
@@ -575,6 +583,12 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         contaminated_outside_count,
         round_half_up,
         analytic_direct_derivative,
+        apply_persistent_perturbation,
+        enumerate_self_exclusion_grid,
+        exact_nuisance_derivative_within_margin,
+        material_attenuation_gate,
+        primary_directional_test_passes,
+        scalar_innovation_fixture,
         hofd_atom_rows,
         log_linear_includes_triple,
         uniform_probability_table,
