@@ -144,6 +144,8 @@ REQUIRED_TEST_FILES = (
     "tests/architecture/test_canonical_vocabulary.py",
     "tests/architecture/test_no_comments_or_docstrings.py",
     "tests/architecture/test_no_todos_or_temporary_code.py",
+    "tests/architecture/test_no_untyped_boundaries.py",
+    "tests/architecture/test_no_silent_fallbacks.py",
     "tests/architecture/test_static_typing.py",
     "tests/architecture/test_code_quality.py",
     "tests/architecture/test_dependency_hygiene.py",
