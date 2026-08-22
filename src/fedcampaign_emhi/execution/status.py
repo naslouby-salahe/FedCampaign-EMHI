@@ -203,11 +203,19 @@ from fedcampaign_emhi.emhi.projection import (
 )
 from fedcampaign_emhi.emhi.ranks import clip_rank, coalition_conditioned_residual_rank, midrank
 from fedcampaign_emhi.emhi.sequential import (
+    coalition_materially_active,
     first_global_stop_epoch,
     next_global_state,
     statistical_stop,
+    trailing_support_window_client_ids,
+    trailing_window_length,
+    trailing_window_support_predicate,
 )
-from fedcampaign_emhi.emhi.thresholds import operating_point_unavailable_outcome
+from fedcampaign_emhi.emhi.thresholds import (
+    calibrated_finite_horizon_outcome,
+    esr_threshold_from_arl_alpha,
+    operating_point_unavailable_outcome,
+)
 from fedcampaign_emhi.evaluation.benign_horizons import (
     benign_horizons_contract as evaluation_benign_horizons_benign_horizons_contract,
 )
@@ -217,6 +225,11 @@ from fedcampaign_emhi.evaluation.benign_horizons import (
 )
 from fedcampaign_emhi.evaluation.campaign_replay import (
     campaign_replay_contract as evaluation_campaign_replay_campaign_replay_contract,
+)
+from fedcampaign_emhi.evaluation.campaign_replay import (
+    campaign_replay_plan,
+    operational_lead,
+    statistical_lead,
 )
 from fedcampaign_emhi.evaluation.records import global_detection_without_odi, odi_evaluation_record
 from fedcampaign_emhi.evaluation.scalability import (
@@ -348,6 +361,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         minimum_support_epochs_for_order,
         coalition_context_support_is_sufficient,
         operating_point_unavailable_outcome,
+        calibrated_finite_horizon_outcome,
+        esr_threshold_from_arl_alpha,
         signed_evidence_factor,
         across_order_aggregate,
         clip_statistic,
@@ -374,6 +389,13 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         may_reuse,
         next_global_state,
         statistical_stop,
+        coalition_materially_active,
+        trailing_support_window_client_ids,
+        trailing_window_length,
+        trailing_window_support_predicate,
+        campaign_replay_plan,
+        statistical_lead,
+        operational_lead,
         holm_adjusted_p_values,
         holm_placeholder_p_value,
         exact_sign_pattern,

@@ -5,6 +5,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndexValue,
     EvidenceFactor,
     FiniteFloat,
+    PositiveEpochCount,
     ThresholdValue,
 )
 
@@ -42,6 +43,39 @@ def trailing_window_length(window_epochs: EpochCount, elapsed_epochs: EpochCount
     if elapsed_epochs < window_epochs:
         return elapsed_epochs
     return window_epochs
+
+
+def coalition_materially_active(
+    operational_factor: EvidenceFactor, material_threshold: EvidenceFactor
+) -> bool:
+    return operational_factor >= material_threshold
+
+
+def trailing_support_window_client_ids(
+    active_client_ids_per_epoch: tuple[tuple[ClientId, ...], ...],
+    window_epochs: PositiveEpochCount,
+) -> tuple[ClientId, ...]:
+    if window_epochs <= 0:
+        raise ValueError("window_epochs must be positive")
+    seen: set[ClientId] = set()
+    union: list[ClientId] = []
+    for client_ids in active_client_ids_per_epoch[-window_epochs:]:
+        for client_id in client_ids:
+            if client_id not in seen:
+                seen.add(client_id)
+                union.append(client_id)
+    return tuple(union)
+
+
+def trailing_window_support_predicate(
+    active_client_ids_per_epoch: tuple[tuple[ClientId, ...], ...],
+    window_epochs: PositiveEpochCount,
+    minimum_clients: ClientCount,
+) -> bool:
+    return distributed_support_predicate(
+        trailing_support_window_client_ids(active_client_ids_per_epoch, window_epochs),
+        minimum_clients,
+    )
 
 
 def first_global_stop_epoch(
