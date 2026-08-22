@@ -9,9 +9,7 @@ from fedcampaign_emhi.artifacts.dependencies import descendant_ids
 from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, material_fingerprint
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
-from fedcampaign_emhi.comparators.composition import (
-    composition_contract as comparators_composition_composition_contract,
-)
+from fedcampaign_emhi.comparators.composition import select_strongest_comparator
 from fedcampaign_emhi.comparators.conditional_hofd import (
     conditional_hofd_contract as comparators_conditional_hofd_conditional_hofd_contract,
 )
@@ -27,9 +25,7 @@ from fedcampaign_emhi.comparators.d_vine import (
 from fedcampaign_emhi.comparators.fedavg_autoencoder import (
     fedavg_autoencoder_contract as comparators_fedavg_autoencoder_fedavg_autoencoder_contract,
 )
-from fedcampaign_emhi.comparators.global_factor_residual import (
-    global_factor_residual_contract as comparators_global_factor_residual_global_factor_residual_contract,
-)
+from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
 from fedcampaign_emhi.comparators.lancaster import (
     lancaster_contract as comparators_lancaster_lancaster_contract,
 )
@@ -75,9 +71,7 @@ from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.emhi.innovation_calibration import (
     innovation_calibration_contract as emhi_innovation_calibration_innovation_calibration_contract,
 )
-from fedcampaign_emhi.emhi.innovations import (
-    innovations_contract as emhi_innovations_innovations_contract,
-)
+from fedcampaign_emhi.emhi.innovations import center_and_scale_atom
 from fedcampaign_emhi.emhi.ranks import clip_rank
 from fedcampaign_emhi.emhi.sequential import next_global_state, statistical_stop
 from fedcampaign_emhi.emhi.thresholds import operating_point_unavailable_outcome
@@ -100,12 +94,8 @@ from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_contract as models_autoencoder_autoencoder_contract,
 )
-from fedcampaign_emhi.models.isolation_forest import (
-    isolation_forest_contract as models_isolation_forest_isolation_forest_contract,
-)
-from fedcampaign_emhi.models.one_class_svm import (
-    one_class_svm_contract as models_one_class_svm_one_class_svm_contract,
-)
+from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_scores
+from fedcampaign_emhi.models.one_class_svm import one_class_svm_anomaly_scores
 from fedcampaign_emhi.runtime.logging import logging_contract as runtime_logging_logging_contract
 from fedcampaign_emhi.synthetic.common_mode import equally_spaced_loadings
 from fedcampaign_emhi.synthetic.context_boundaries import (
@@ -210,6 +200,11 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         persistence_is_triggered,
         equally_spaced_loadings,
         next_cusum_state,
+        select_strongest_comparator,
+        selected_factor_rank,
+        center_and_scale_atom,
+        isolation_forest_anomaly_scores,
+        one_class_svm_anomaly_scores,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -243,13 +238,19 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.artifacts.validation",
             ownership="artifact identity, persistence, validation, path, and provenance",
         ),
-        comparators_composition_composition_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.composition",
+            ownership="materializes the predeclared strongest-comparator composition using fixed selection rules",
+        ),
         comparators_conditional_hofd_conditional_hofd_contract(),
         comparators_conditional_log_linear_conditional_log_linear_contract(),
         comparators_connected_information_connected_information_contract(),
         comparators_d_vine_d_vine_contract(),
         comparators_fedavg_autoencoder_fedavg_autoencoder_contract(),
-        comparators_global_factor_residual_global_factor_residual_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.global_factor_residual",
+            ownership="PCA global-factor residualization and deterministic rank selection",
+        ),
         comparators_lancaster_lancaster_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.multistream_cusum",
@@ -311,7 +312,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ),
         detection_scoring_scoring_contract(),
         emhi_innovation_calibration_innovation_calibration_contract(),
-        emhi_innovations_innovations_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.emhi.innovations",
+            ownership="purified hierarchical innovation atoms and centered/scaled representations",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.emhi.sequential",
             ownership="sequential recursion, distributed support, and stopping-time semantics",
@@ -322,8 +326,14 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         evaluation_scalability_scalability_contract(),
         evaluation_validation_validation_contract(),
         models_autoencoder_autoencoder_contract(),
-        models_isolation_forest_isolation_forest_contract(),
-        models_one_class_svm_one_class_svm_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.models.isolation_forest",
+            ownership="Isolation Forest construction, fitting, persistence, and anomaly-score orientation",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.models.one_class_svm",
+            ownership="RBF One-Class SVM construction, fitting, persistence, and anomaly-score orientation",
+        ),
         runtime_logging_logging_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.synthetic.common_mode",
