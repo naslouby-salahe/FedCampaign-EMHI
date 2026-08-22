@@ -179,6 +179,11 @@ class ArtifactNamespace(StrEnum):
     RESULTS = "results"
 
 
+class OverwritePolicy(StrEnum):
+    REUSE_COMPATIBLE = "reuse_compatible"
+    OVERWRITE = "overwrite"
+
+
 class ArtifactLifecycleState(StrEnum):
     MISSING = "missing"
     VALID = "valid"
