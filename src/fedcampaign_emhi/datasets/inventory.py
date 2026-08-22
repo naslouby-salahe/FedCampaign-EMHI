@@ -7,11 +7,14 @@ from fedcampaign_emhi.domain.types import FileInventoryEntry
 
 
 def discover_raw_paths(raw_directory: Path) -> tuple[Path, ...]:
+    candidates: tuple[Path, ...]
     if not raw_directory.exists():
-        return ()
-    if raw_directory.is_file():
-        return (raw_directory.resolve(),)
-    return tuple(sorted(path.resolve() for path in raw_directory.rglob("*") if path.is_file()))
+        candidates = ()
+    elif raw_directory.is_file():
+        candidates = (raw_directory,)
+    else:
+        candidates = tuple(raw_directory.rglob("*"))
+    return tuple(sorted(path.resolve() for path in candidates if path.is_file()))
 
 
 def configured_raw_directory(

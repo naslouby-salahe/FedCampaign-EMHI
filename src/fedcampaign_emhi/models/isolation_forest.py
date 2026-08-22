@@ -35,7 +35,7 @@ def isolation_forest_anomaly_scores(
     fit_matrix = np.asarray(fit_rows, dtype=np.float64)
     score_matrix = np.asarray(score_rows, dtype=np.float64)
     max_samples = min(int(max_samples_cap), int(fit_matrix.shape[0]))
-    model = IsolationForest()
+    model = IsolationForest(random_state=int(thirty_two_bit_seed(seed)))
     model.set_params(
         n_estimators=int(tree_count),
         max_samples=max_samples,
@@ -45,7 +45,6 @@ def isolation_forest_anomaly_scores(
         contamination="auto",
         warm_start=False,
         verbose=0,
-        random_state=int(thirty_two_bit_seed(seed)),
     )
     model.fit(fit_matrix)
     scored = np.array(model.score_samples(score_matrix), dtype=np.float64)

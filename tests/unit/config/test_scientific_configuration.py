@@ -17,6 +17,7 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, Scient
 from fedcampaign_emhi.config.validation import (
     ConfigurationValidationError,
     reject_forbidden_derived_keys,
+    validate_scientific_config,
 )
 from fedcampaign_emhi.domain.enums import (
     ConfigurationProfile,
@@ -126,10 +127,9 @@ def test_partition_fractions_leave_heldout_remainder(repo_root: Path) -> None:
         "nuisance_fit": 0.4,
         "threshold_and_policy_calibration": 0.3,
     }
+    config = ScientificConfig.model_validate(payload)
     with pytest.raises(ConfigurationValidationError):
-        from fedcampaign_emhi.config.validation import validate_scientific_config
-
-        validate_scientific_config(ScientificConfig.model_validate(payload))
+        validate_scientific_config(config)
 
 
 def test_locked_core_scientific_configuration(
@@ -446,7 +446,6 @@ def test_ridge_candidates_must_include_zero(repo_root: Path) -> None:
         yaml.safe_load((repo_root / "configs" / "fedcampaign-emhi.yaml").read_text())
     )
     payload["projection"]["ridge_candidates"] = [0.0001, 0.001]
+    config = ScientificConfig.model_validate(payload)
     with pytest.raises(ConfigurationValidationError):
-        from fedcampaign_emhi.config.validation import validate_scientific_config
-
-        validate_scientific_config(ScientificConfig.model_validate(payload))
+        validate_scientific_config(config)

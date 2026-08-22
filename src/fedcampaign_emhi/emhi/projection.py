@@ -126,7 +126,7 @@ def ridge_coefficient_matrix(
     if design.shape[1] > 1:
         penalty[1:, 1:] = np.eye(design.shape[1] - 1, dtype=np.float64) * ridge_penalty
     gram = design.T @ design
-    if ridge_penalty == 0.0:
+    if ridge_penalty <= 0.0:
         coefficients = _zero_ridge_svd_solve(design, target, svd_relative_cutoff)
     else:
         coefficients = np.linalg.solve(gram + penalty, design.T @ target)

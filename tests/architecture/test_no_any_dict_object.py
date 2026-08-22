@@ -20,10 +20,18 @@ def _file_violations(path: Path) -> list[str]:
     return violations
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+def _scanned_source_files() -> tuple[Path, ...]:
+    return tuple(
+        path
+        for path in source_files()
+        if path.relative_to(SRC_ROOT).as_posix() != "config/validation.py"
+    )
+
+
+@pytest.mark.parametrize(
+    "path", _scanned_source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix()
+)
 def test_no_any_dict_object(path: Path) -> None:
-    if path.relative_to(SRC_ROOT).as_posix() == "config/validation.py":
-        return
     assert _file_violations(path) == []
 
 
