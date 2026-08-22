@@ -11,18 +11,10 @@ from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, mate
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
 from fedcampaign_emhi.comparators.composition import select_strongest_comparator
-from fedcampaign_emhi.comparators.conditional_hofd import (
-    conditional_hofd_contract as comparators_conditional_hofd_conditional_hofd_contract,
-)
-from fedcampaign_emhi.comparators.conditional_log_linear import (
-    conditional_log_linear_contract as comparators_conditional_log_linear_conditional_log_linear_contract,
-)
-from fedcampaign_emhi.comparators.connected_information import (
-    connected_information_contract as comparators_connected_information_connected_information_contract,
-)
-from fedcampaign_emhi.comparators.d_vine import (
-    d_vine_contract as comparators_d_vine_d_vine_contract,
-)
+from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
+from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_includes_triple
+from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
+from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
 from fedcampaign_emhi.comparators.fedavg_autoencoder import (
     fedavg_autoencoder_contract as comparators_fedavg_autoencoder_fedavg_autoencoder_contract,
 )
@@ -220,6 +212,11 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         contaminated_outside_count,
         round_half_up,
         analytic_direct_derivative,
+        hofd_atom_rows,
+        log_linear_includes_triple,
+        uniform_probability_table,
+        gaussian_h_function,
+        lexicographic_vine_order,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -257,10 +254,22 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.comparators.composition",
             ownership="materializes the predeclared strongest-comparator composition using fixed selection rules",
         ),
-        comparators_conditional_hofd_conditional_hofd_contract(),
-        comparators_conditional_log_linear_conditional_log_linear_contract(),
-        comparators_connected_information_connected_information_contract(),
-        comparators_d_vine_d_vine_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.conditional_hofd",
+            ownership="exclusion-matched conditional HOFD equivalence comparison",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.conditional_log_linear",
+            ownership="conditional log-linear interaction reference",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.connected_information",
+            ownership="connected-information reference",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.d_vine",
+            ownership="D-vine conditional-dependence reference",
+        ),
         comparators_fedavg_autoencoder_fedavg_autoencoder_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.global_factor_residual",
