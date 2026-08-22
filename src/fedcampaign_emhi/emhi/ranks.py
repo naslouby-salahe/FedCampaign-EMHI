@@ -23,3 +23,9 @@ def clipped_midrank(
     score: FiniteFloat, reference: RankReference, epsilon: NumericalFloor
 ) -> RankValue:
     return clip_rank(midrank(score, reference), epsilon)
+
+
+def coalition_conditioned_residual_rank(
+    marginal_rank: RankValue, context_reference: RankReference, epsilon: NumericalFloor
+) -> RankValue:
+    return clipped_midrank(marginal_rank, context_reference, epsilon)

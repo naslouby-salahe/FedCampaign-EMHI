@@ -10,6 +10,7 @@ from fedcampaign_emhi.domain.enums import (
     ClaimIdentifier,
     ClaimState,
     CoalitionOrder,
+    ContextMethodName,
     DatasetName,
     DetectorFamily,
     ExperimentName,
@@ -459,3 +460,39 @@ class EdgeIiotsetBenignEvaluationSeparation:
     evaluation_records: tuple[EdgeIiotsetFlowRecord, ...]
     discrepancies: tuple[EdgeIiotsetGroundTruthDiscrepancy, ...]
     experiment_state: ExperimentState
+
+
+@dataclass(frozen=True)
+class MaximalOutsideField:
+    coalition: CoalitionMembers
+    complement_client_ids: tuple[ClientId, ...]
+
+
+@dataclass(frozen=True)
+class ContextClusterIdentity:
+    dataset: DatasetName
+    coalition_order: CoalitionOrder
+    context_method: ContextMethodName
+    experiment_seed: SeedValue | None
+
+
+@dataclass(frozen=True)
+class ContextTrainingRow:
+    dataset: DatasetName
+    coalition_order: CoalitionOrder
+    coalition_client_ids: tuple[ClientId, ...]
+    epoch_index: EpochIndexValue
+    histogram: tuple[FiniteFloat, ...]
+
+
+@dataclass(frozen=True)
+class OutsideContextHistogram:
+    bin_mass: tuple[FiniteFloat, ...]
+    available_client_ids: tuple[ClientId, ...]
+    abstained: bool
+
+
+@dataclass(frozen=True)
+class ContextCentroids:
+    identity: ContextClusterIdentity
+    centroids: tuple[tuple[FiniteFloat, ...], ...]

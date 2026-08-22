@@ -144,13 +144,28 @@ from fedcampaign_emhi.detection.local_policy import (
 from fedcampaign_emhi.detection.scoring import oriented_score_stream
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ModuleContract, SeedCount
-from fedcampaign_emhi.emhi.contexts import histogram_bin_index
+from fedcampaign_emhi.emhi.contexts import (
+    assign_context_cell,
+    cap_context_training_rows,
+    coalition_context_support_is_sufficient,
+    context_cluster_identity,
+    context_row_ranking_value,
+    exact_exclusion_members,
+    fit_context_centroids,
+    histogram_bin_index,
+    histogram_one_hot,
+    maximal_outside_field,
+    minimum_support_epochs_for_order,
+    nuisance_field_is_admissible,
+    outside_availability_is_sufficient,
+    outside_context_histogram,
+)
 from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.emhi.innovation_calibration import (
     innovation_calibration_contract as emhi_innovation_calibration_innovation_calibration_contract,
 )
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom
-from fedcampaign_emhi.emhi.ranks import clip_rank
+from fedcampaign_emhi.emhi.ranks import clip_rank, coalition_conditioned_residual_rank, midrank
 from fedcampaign_emhi.emhi.sequential import (
     first_global_stop_epoch,
     next_global_state,
@@ -280,7 +295,22 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         preprocess_must_not_regenerate,
         requested_datasets,
         clip_rank,
+        midrank,
+        coalition_conditioned_residual_rank,
         histogram_bin_index,
+        histogram_one_hot,
+        exact_exclusion_members,
+        maximal_outside_field,
+        nuisance_field_is_admissible,
+        outside_availability_is_sufficient,
+        outside_context_histogram,
+        context_cluster_identity,
+        context_row_ranking_value,
+        cap_context_training_rows,
+        assign_context_cell,
+        fit_context_centroids,
+        minimum_support_epochs_for_order,
+        coalition_context_support_is_sufficient,
         operating_point_unavailable_outcome,
         signed_evidence_factor,
         descendant_ids,
