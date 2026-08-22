@@ -42,7 +42,7 @@ from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
 from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
 from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.datasets.campaigns import merge_malicious_runs
+from fedcampaign_emhi.datasets.campaigns import build_campaign_registry, merge_malicious_runs
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     canonical_event_type as edge_iiotset_canonical_event_type,
 )
@@ -244,6 +244,27 @@ from fedcampaign_emhi.evaluation.campaign_replay import (
     campaign_replay_plan,
     operational_lead,
     statistical_lead,
+)
+from fedcampaign_emhi.evaluation.metrics import (
+    auprc,
+    auroc,
+    campaign_detection_rate,
+    censored_plot_value,
+    context_coverage,
+    decisive_order,
+    false_campaigns_per_ten_thousand_benign_epochs,
+    finite_horizon_pfa_point_estimate,
+    mean_log_evidence_growth,
+    order_evidence_share,
+    projection_nrmse,
+    proper_subset_drift,
+    registry_coalition_count,
+    seed_level_odi_rate,
+    self_explanation_attenuation,
+    self_explanation_material_contrast,
+    standardized_null_bias,
+    target_order_drift,
+    throughput,
 )
 from fedcampaign_emhi.evaluation.records import global_detection_without_odi, odi_evaluation_record
 from fedcampaign_emhi.evaluation.scalability import (
@@ -456,6 +477,26 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         mean_rank_fusion,
         max_rank_fusion,
         merge_malicious_runs,
+        build_campaign_registry,
+        auroc,
+        auprc,
+        campaign_detection_rate,
+        censored_plot_value,
+        context_coverage,
+        decisive_order,
+        false_campaigns_per_ten_thousand_benign_epochs,
+        finite_horizon_pfa_point_estimate,
+        mean_log_evidence_growth,
+        order_evidence_share,
+        projection_nrmse,
+        proper_subset_drift,
+        registry_coalition_count,
+        seed_level_odi_rate,
+        self_explanation_attenuation,
+        self_explanation_material_contrast,
+        standardized_null_bias,
+        target_order_drift,
+        throughput,
         ton_iot_network_field_mapping,
         adapter_producer_commit,
         build_ton_iot_network_release_identity,
