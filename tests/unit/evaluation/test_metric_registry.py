@@ -51,7 +51,8 @@ def test_censored_plot_value_uses_configured_offset() -> None:
     loaded = load_production_configuration()
     offset = loaded.values.evidence.no_stop_plot_offset_epochs
     horizon = loaded.values.campaign.evaluation_horizon_epochs
-    assert offset == 1 and horizon == 60
+    assert offset == 1
+    assert horizon == 60
     assert censored_plot_value(horizon, offset) == 61
 
 
@@ -202,7 +203,8 @@ def test_auroc_probability_of_ranking_interpretation() -> None:
     tied = auroc(tie_scores, tie_labels)
     assert tied.metric_value == 0.5
     single_class = auroc((0.5,), (True,))
-    assert single_class.is_not_defined and single_class.metric_value is None
+    assert single_class.is_not_defined
+    assert single_class.metric_value is None
 
 
 def test_auprc_average_precision_and_single_class_state() -> None:

@@ -73,7 +73,7 @@ def operational_evidence_factor(
 
 
 def signed_direction_is_fixed_before_evaluation(direction: tuple[FiniteFloat, ...]) -> bool:
-    return any(coordinate != 0.0 for coordinate in direction)
+    return any(coordinate > 0.0 or coordinate < 0.0 for coordinate in direction)
 
 
 def polynomial_signed_direction(
@@ -81,9 +81,9 @@ def polynomial_signed_direction(
 ) -> tuple[FiniteFloat, ...]:
     if tensor_size <= 0:
         raise ValueError("tensor_size must be positive")
-    if generator_coefficient == 0.0:
+    if not (generator_coefficient > 0.0 or generator_coefficient < 0.0):
         raise ValueError("signed evidence requires a nonzero predeclared generator coefficient")
-    sign = 1.0 if generator_coefficient > 0.0 else -1.0
+    sign: FiniteFloat = 1.0 if generator_coefficient > 0.0 else -1.0
     return tuple(sign if index == 0 else 0.0 for index in range(tensor_size))
 
 
