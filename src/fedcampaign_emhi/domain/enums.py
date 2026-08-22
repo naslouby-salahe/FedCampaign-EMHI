@@ -228,6 +228,7 @@ class RecordExclusionReason(StrEnum):
     UNPARSEABLE_TIMESTAMP = "unparseable_timestamp"
     UNUSABLE_HOST_IDENTITY = "unusable_host_identity"
     STRUCTURALLY_INVALID_EVENT = "structurally_invalid_event"
+    MISSING_FIELD_VALUE = "missing_field_value"
 
 
 class GroundTruthClass(StrEnum):
