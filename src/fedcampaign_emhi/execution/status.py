@@ -43,6 +43,12 @@ from fedcampaign_emhi.comparators.fedavg_autoencoder import (
     optimizer_state_resets_each_round,
 )
 from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
+from fedcampaign_emhi.comparators.hofd_equivalence import (
+    cosine_equivalence_gate,
+    enumerate_hofd_equivalence_plan,
+    nrmse_equivalence_gate,
+    stopping_time_equivalence_gate,
+)
 from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
 from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
 from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
@@ -536,6 +542,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         conditional_pair_dependence_maximum_order,
         no_outside_context_cell_count,
         order_at_most_two_weights,
+        cosine_equivalence_gate,
+        enumerate_hofd_equivalence_plan,
+        nrmse_equivalence_gate,
+        stopping_time_equivalence_gate,
         selected_factor_rank,
         center_and_scale_atom,
         bounded_basis,
@@ -628,6 +638,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         ModuleContract(
             module_name="fedcampaign_emhi.artifacts.validation",
             ownership=ARTIFACT_OWNERSHIP,
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.comparators.hofd_equivalence",
+            ownership="exclusion-matched conditional HOFD equivalence plan and gates",
         ),
         ModuleContract(
             module_name="fedcampaign_emhi.comparators.composition",
