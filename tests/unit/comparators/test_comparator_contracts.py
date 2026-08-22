@@ -1,4 +1,6 @@
+from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
 from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
+from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
 from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.domain.types import RankReference
 from fedcampaign_emhi.emhi.ranks import midrank
@@ -18,3 +20,10 @@ def test_smoke_midrank_fixture() -> None:
 def test_cusum_does_not_go_negative() -> None:
     assert next_cusum_state(0.0, 0.5, 0.5, 0.05) == 0.0
     assert next_cusum_state(1.0, 0.9, 0.5, 0.05) == 1.35
+
+
+def test_pair_and_lancaster_moments_at_one_half_are_zero() -> None:
+    assert pair_dependence_moment(0.5, 0.5) == 0.0
+    assert lancaster_triple_moment(0.5, 0.5, 0.5) == 0.0
+    assert pair_dependence_moment(1.0, 1.0) == 1.0
+    assert lancaster_triple_moment(1.0, 1.0, 0.0) == -1.0
