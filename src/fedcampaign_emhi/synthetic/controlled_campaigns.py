@@ -1,8 +1,67 @@
-from fedcampaign_emhi.domain.types import ModuleContract
+from math import erf, sqrt
+from random import Random
+
+from fedcampaign_emhi.domain.types import (
+    ClientId,
+    Correlation,
+    FiniteFloat,
+    RankValue,
+    ScoreShift,
+    SeedValue,
+)
+from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
+from fedcampaign_emhi.synthetic.pure_order import lexicographic_target_clients
 
 
-def controlled_campaigns_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.synthetic.controlled_campaigns",
-        ownership="controlled campaign alternatives and interaction structures",
-    )
+def standard_normal_cdf(gaussian_coordinate: FiniteFloat) -> RankValue:
+    return 0.5 * (1.0 + erf(gaussian_coordinate / sqrt(2.0)))
+
+
+def marginal_campaign_targets(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
+    return lexicographic_target_clients(client_ids, 3)
+
+
+def pair_relation_targets(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
+    return lexicographic_target_clients(client_ids, 2)
+
+
+def single_client_target(client_ids: tuple[ClientId, ...]) -> ClientId:
+    return lexicographic_target_clients(client_ids, 1)[0]
+
+
+def apply_marginal_score_shift(
+    scores: tuple[FiniteFloat, ...],
+    ordered_client_ids: tuple[ClientId, ...],
+    score_shift: ScoreShift,
+) -> tuple[FiniteFloat, ...]:
+    attacked = set(marginal_campaign_targets(ordered_client_ids))
+    shifted: list[FiniteFloat] = []
+    for client_id, score in zip(ordered_client_ids, scores, strict=True):
+        if client_id in attacked:
+            shifted.append(score + score_shift)
+        else:
+            shifted.append(score)
+    return tuple(shifted)
+
+
+def apply_single_client_score_shift(
+    scores: tuple[FiniteFloat, ...],
+    ordered_client_ids: tuple[ClientId, ...],
+    score_shift: ScoreShift,
+) -> tuple[FiniteFloat, ...]:
+    attacked = single_client_target(ordered_client_ids)
+    shifted: list[FiniteFloat] = []
+    for client_id, score in zip(ordered_client_ids, scores, strict=True):
+        if client_id == attacked:
+            shifted.append(score + score_shift)
+        else:
+            shifted.append(score)
+    return tuple(shifted)
+
+
+def gaussian_copula_pair(correlation: Correlation, seed: SeedValue) -> tuple[RankValue, RankValue]:
+    generator = Random(thirty_two_bit_seed(seed))
+    first = generator.gauss(0.0, 1.0)
+    residual_scale = sqrt(1.0 - (correlation**2))
+    second = (correlation * first) + (residual_scale * generator.gauss(0.0, 1.0))
+    return (standard_normal_cdf(first), standard_normal_cdf(second))

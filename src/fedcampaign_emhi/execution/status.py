@@ -95,19 +95,18 @@ from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_sc
 from fedcampaign_emhi.models.one_class_svm import one_class_svm_anomaly_scores
 from fedcampaign_emhi.runtime.logging import logging_contract as runtime_logging_logging_contract
 from fedcampaign_emhi.synthetic.common_mode import equally_spaced_loadings
-from fedcampaign_emhi.synthetic.context_boundaries import (
-    context_boundaries_contract as synthetic_context_boundaries_context_boundaries_contract,
-)
+from fedcampaign_emhi.synthetic.context_boundaries import next_markov_state
 from fedcampaign_emhi.synthetic.controlled_campaigns import (
-    controlled_campaigns_contract as synthetic_controlled_campaigns_controlled_campaigns_contract,
+    apply_single_client_score_shift,
+    marginal_campaign_targets,
 )
-from fedcampaign_emhi.synthetic.pure_order import pure_order_one_response
-from fedcampaign_emhi.synthetic.robustness import (
-    robustness_contract as synthetic_robustness_robustness_contract,
+from fedcampaign_emhi.synthetic.pure_order import (
+    polynomial_density_is_valid,
+    polynomial_scale,
+    pure_order_one_response,
 )
-from fedcampaign_emhi.synthetic.self_explanation import (
-    self_explanation_contract as synthetic_self_explanation_self_explanation_contract,
-)
+from fedcampaign_emhi.synthetic.robustness import contaminated_outside_count, round_half_up
+from fedcampaign_emhi.synthetic.self_explanation import analytic_direct_derivative
 from fedcampaign_emhi.synthetic.validation import (
     validation_contract as synthetic_validation_validation_contract,
 )
@@ -213,6 +212,14 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         first_local_stop_epoch,
         global_detection_without_odi,
         odi_evaluation_record,
+        next_markov_state,
+        apply_single_client_score_shift,
+        marginal_campaign_targets,
+        polynomial_density_is_valid,
+        polynomial_scale,
+        contaminated_outside_count,
+        round_half_up,
+        analytic_direct_derivative,
     )
     if not production_functions:
         raise RuntimeError("production function surface is empty")
@@ -359,13 +366,25 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.synthetic.common_mode",
             ownership="latent common-mode benign coordination and count-stress scenarios",
         ),
-        synthetic_context_boundaries_context_boundaries_contract(),
-        synthetic_controlled_campaigns_controlled_campaigns_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.context_boundaries",
+            ownership="estimator-support, context-support, and numerical-feasibility boundary scenarios",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.controlled_campaigns",
+            ownership="controlled campaign alternatives and interaction structures",
+        ),
         ModuleContract(
             module_name="fedcampaign_emhi.synthetic.pure_order",
             ownership="polynomial, XOR, context-dependent, and mixed pure-order alternatives",
         ),
-        synthetic_robustness_robustness_contract(),
-        synthetic_self_explanation_self_explanation_contract(),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.robustness",
+            ownership="outside-contamination, dropout, and context-sparsity robustness scenarios",
+        ),
+        ModuleContract(
+            module_name="fedcampaign_emhi.synthetic.self_explanation",
+            ownership="exact-exclusion versus inclusive-context self-explanation experiments",
+        ),
         synthetic_validation_validation_contract(),
     )
