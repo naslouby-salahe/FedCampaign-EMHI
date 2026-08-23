@@ -17,6 +17,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    BasisSize,
     BinIndex,
     ByteCount,
     ClientId,
@@ -254,6 +255,9 @@ class EMHIFitArtifactRecord(FrozenConfigModel):
     root_seed: SeedValue
     method_name: MethodName
     selected_client_ids: tuple[ClientId, ...]
+    basis_size: BasisSize
+    proper_subset_purification_enabled: bool
+    forced_no_abstention: bool
     order_contexts: tuple[OrderContextFitRecord, ...]
     coalition_fits: tuple[CoalitionFitRecord, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
