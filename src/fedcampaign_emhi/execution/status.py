@@ -335,6 +335,11 @@ from fedcampaign_emhi.experiments.sequential_evidence import (
     support_rows_for_requested_count,
     theorem_route_assumption_checks,
 )
+from fedcampaign_emhi.experiments.strong_local import (
+    enumerate_strong_local_policy_plan,
+    strong_local_directional_margin,
+    strong_local_odi_rate_gate,
+)
 from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores, batch_permutation_seed
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_contract as models_autoencoder_autoencoder_contract,
@@ -458,6 +463,9 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         seed_level_power_loss,
         select_top_event_count_windows,
         synthetic_count_stress_multiplier,
+        enumerate_strong_local_policy_plan,
+        strong_local_directional_margin,
+        strong_local_odi_rate_gate,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
