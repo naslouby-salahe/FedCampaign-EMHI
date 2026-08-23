@@ -11,7 +11,7 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, score_exceeds_threshold
-from fedcampaign_emhi.domain.enums import ClaimState, CoalitionOrder
+from fedcampaign_emhi.domain.enums import ClaimState, CoalitionOrder, ContextMethodName
 from fedcampaign_emhi.domain.types import (
     BinIndex,
     ClientId,
@@ -30,7 +30,10 @@ from fedcampaign_emhi.emhi.basis import tensor_representation
 from fedcampaign_emhi.emhi.contexts import (
     assign_context_cell,
     exact_exclusion_members,
+    inclusive_context_members,
+    leave_one_out_context_members,
     outside_context_histogram,
+    partial_coalition_context_members,
 )
 from fedcampaign_emhi.emhi.evidence import (
     across_order_aggregate,
@@ -39,16 +42,16 @@ from fedcampaign_emhi.emhi.evidence import (
 )
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
-from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank
+from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank, rank_at_epoch
 from fedcampaign_emhi.emhi.sequential import (
     coalition_materially_active,
     first_global_stop_epoch,
     trailing_window_support_predicate,
 )
 from fedcampaign_emhi.evaluation.records import (
+    ClientLocalOperatingPoint,
     CoalitionEpochEvidence,
     EpochOperationalEvidence,
-    ClientLocalOperatingPoint,
     SequentialTrajectory,
 )
 
@@ -92,27 +95,6 @@ def operational_lead(
 ) -> FiniteFloat:
     delay_in_epochs = detection_delay_seconds / real_data_epoch_seconds
     return earliest_local_stop_epoch - (global_stop_epoch + delay_in_epochs)
-
-
-def rank_at_epoch(
-    ranks: MarginalRankArtifactRecord,
-    client_id: ClientId,
-    epoch_index: EpochIndexValue,
-) -> RankValue | None:
-    stream = next(
-        (stream for stream in ranks.client_streams if stream.client_id == client_id),
-        None,
-    )
-    if stream is None:
-        return None
-    return next(
-        (
-            rank
-            for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
-            if epoch == epoch_index
-        ),
-        None,
-    )
 
 
 def score_at_epoch(
@@ -163,32 +145,62 @@ def _order_context(
     )
 
 
+def _context_members(
+    context_method: ContextMethodName,
+    selected_client_ids: tuple[ClientId, ...],
+    coalition_client_ids: tuple[ClientId, ...],
+) -> tuple[ClientId, ...]:
+    if context_method in {
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        ContextMethodName.FORCED_NO_ABSTENTION,
+    }:
+        return exact_exclusion_members(selected_client_ids, coalition_client_ids)
+    if context_method is ContextMethodName.INCLUSIVE_CONTEXT:
+        return inclusive_context_members(selected_client_ids, coalition_client_ids)
+    if context_method is ContextMethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION:
+        return leave_one_out_context_members(selected_client_ids, coalition_client_ids)
+    if context_method is ContextMethodName.PARTIAL_COALITION_EXCLUSION:
+        if len(coalition_client_ids) == 1:
+            return exact_exclusion_members(selected_client_ids, coalition_client_ids)
+        return partial_coalition_context_members(selected_client_ids, coalition_client_ids)
+    if context_method is ContextMethodName.LOCAL_HISTORY_ONLY_CONTEXT:
+        return tuple(sorted(coalition_client_ids))
+    if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
+        return ()
+    raise ValueError(f"context method {context_method.value} requires specialized replay")
+
+
 def _coalition_context_cell(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
     coalition: CoalitionMembers,
     order_context: OrderContextFitRecord,
     epoch_index: EpochIndexValue,
 ) -> BinIndex | None:
+    context_method = order_context.context_method
+    if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
+        return 0
     lagged_epoch = epoch_index - config.context.outside_lag_epochs
-    complement = exact_exclusion_members(ranks.selected_client_ids, coalition.client_ids)
-    lagged_ranks: list[tuple[ClientId, RankValue]] = []
-    available: list[ClientId] = []
-    for client_id in complement:
-        rank = rank_at_epoch(ranks, client_id, lagged_epoch)
-        if rank is None:
-            continue
-        lagged_ranks.append((client_id, rank))
-        available.append(client_id)
+    members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
+    lagged_ranks = tuple(
+        (client_id, rank)
+        for client_id in members
+        for rank in (rank_at_epoch(ranks, client_id, lagged_epoch),)
+        if rank is not None
+    )
+    available = tuple(client_id for client_id, _rank in lagged_ranks)
     histogram = outside_context_histogram(
-        tuple(lagged_ranks),
-        tuple(available),
-        complement,
+        lagged_ranks,
+        available,
+        members,
         config.context.outside_histogram_bin_count,
         config.context.minimum_available_outside_clients,
         config.context.minimum_available_outside_fraction,
     )
     if histogram.abstained or not order_context.centroids:
+        if fit.forced_no_abstention and order_context.centroids:
+            return 0
         return None
     return assign_context_cell(
         histogram.bin_mass,
@@ -256,14 +268,20 @@ def coalition_evidence_at_epoch(
         client_ids=coalition_fit.coalition_client_ids,
         order=coalition_fit.coalition_order,
     )
-    context_cell = _coalition_context_cell(config, ranks, coalition, order_context, epoch_index)
+    context_cell = _coalition_context_cell(
+        config,
+        ranks,
+        fit,
+        coalition,
+        order_context,
+        epoch_index,
+    )
     if context_cell is None:
         return None
     cell = _projection_cell(coalition_fit, context_cell)
     if (
         cell is None
         or cell.operational_norm_reference is None
-        or not cell.complete_nuisance_coefficients
         or not cell.coordinate_means
         or not cell.coordinate_deviations
     ):
@@ -271,9 +289,14 @@ def coalition_evidence_at_epoch(
     conditioned = _conditioned_member_ranks(config, ranks, coalition_fit, cell, epoch_index)
     if conditioned is None:
         return None
-    design_row = proper_subset_design_row(conditioned, config.basis.primary_size)
-    tensor = tensor_representation(conditioned, config.basis.primary_size)
-    raw_atom = projection_residual(tensor, cell.complete_nuisance_coefficients, design_row)
+    tensor = tensor_representation(conditioned, fit.basis_size)
+    if fit.proper_subset_purification_enabled:
+        if not cell.complete_nuisance_coefficients:
+            return None
+        design_row = proper_subset_design_row(conditioned, fit.basis_size)
+        raw_atom = projection_residual(tensor, cell.complete_nuisance_coefficients, design_row)
+    else:
+        raw_atom = tensor
     standardized = center_and_scale_atom(
         raw_atom,
         cell.coordinate_means,
@@ -296,7 +319,10 @@ def operational_evidence_at_epoch(
     epoch_index: EpochIndexValue,
     maximum_order: CoalitionOrder | None = None,
 ) -> EpochOperationalEvidence:
-    enabled_maximum = maximum_order or CoalitionOrder(int(config.study.maximum_coalition_order))
+    enabled_maximum = maximum_order or max(
+        (context.coalition_order for context in fit.order_contexts),
+        default=CoalitionOrder.ONE,
+    )
     coalition_factors: list[CoalitionEpochEvidence] = []
     active_clients: set[ClientId] = set()
     eligible = 0
