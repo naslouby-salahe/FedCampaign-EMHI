@@ -319,6 +319,10 @@ from fedcampaign_emhi.experiments.primary_odi import (
     paired_odi_advantage_gate,
     strict_odi_rate_gate,
 )
+from fedcampaign_emhi.experiments.secondary_generalization import (
+    enumerate_secondary_generalization_plan,
+    secondary_interpretation_is_validation_only,
+)
 from fedcampaign_emhi.experiments.sensitivity import (
     enumerate_sensitivity_cells,
     exactly_one_factor_changes,
@@ -466,6 +470,8 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         enumerate_strong_local_policy_plan,
         strong_local_directional_margin,
         strong_local_odi_rate_gate,
+        enumerate_secondary_generalization_plan,
+        secondary_interpretation_is_validation_only,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
