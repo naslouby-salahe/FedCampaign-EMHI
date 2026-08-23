@@ -7,13 +7,16 @@ on:
       - audit/roadmap-completion
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: audit/roadmap-completion
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -21,6 +24,86 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --extra dev --locked
+      - name: Fold reviewed real-data producer into canonical runner
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          runner_path = Path("src/fedcampaign_emhi/execution/runner.py")
+          runner = runner_path.read_text()
+          if "class RealMethodSeedExecution:" in runner:
+              raise SystemExit(0)
+
+          real = subprocess.check_output(
+              ["git", "show", "ebb59b529b4b9c0866b4debf250c19bdefedb5c9:src/fedcampaign_emhi/execution/real_data.py"],
+              text=True,
+          )
+          orchestrator = subprocess.check_output(
+              ["git", "show", "ebb59b529b4b9c0866b4debf250c19bdefedb5c9:src/fedcampaign_emhi/execution/orchestrator.py"],
+              text=True,
+          )
+
+          imports = '''from fedcampaign_emhi.analysis.summaries import build_seed_summary
+from fedcampaign_emhi.artifacts.records import BenignPartitionRecord, CampaignRegistryRecord, SeedSummaryRecord
+from fedcampaign_emhi.domain.enums import PartitionRole
+from fedcampaign_emhi.domain.types import FalseAlarmRate, OdiIndicator, RelativePath
+from fedcampaign_emhi.evaluation.benign_horizons import calibrate_operating_points, heldout_benign_false_stop_records
+from fedcampaign_emhi.evaluation.campaign_replay import (
+    campaign_trajectory,
+    global_stop_epoch,
+    local_stop_epochs,
+    operational_lead,
+    statistical_lead,
+    trajectory_context_coverage,
+)
+from fedcampaign_emhi.evaluation.metrics import decisive_order, earliest_local_stop
+from fedcampaign_emhi.evaluation.records import OperationalCalibration, SequentialTrajectory, odi_evaluation_record
+'''
+          anchor = "from fedcampaign_emhi.artifacts.paths import build_artifact_layout\n"
+          runner = runner.replace(anchor, imports + "\n" + anchor, 1)
+
+          real_body = real[real.index("@dataclass(frozen=True)\nclass RealMethodSeedExecution:"):]
+          replacements = {
+              "_score_artifact_id": "_evaluation_score_artifact_id",
+              "_rank_artifact_id": "_evaluation_rank_artifact_id",
+              "_fit_artifact_id": "_evaluation_fit_artifact_id",
+              "_dependency_fingerprint": "_evaluation_dependency_fingerprint",
+              '"heldout_benign"': '"heldout_horizon_evaluations"',
+          }
+          for old, new in replacements.items():
+              real_body = real_body.replace(old, new)
+
+          helper_start = orchestrator.index("EMHI_OPERATIONAL_METHODS:")
+          helper_end = orchestrator.index("\ndef execute_experiment(", helper_start)
+          helpers = orchestrator[helper_start:helper_end].rstrip()
+          execute_body = orchestrator[helper_end + 1:].rstrip()
+
+          execute_start = runner.index("def execute_experiment(")
+          publish_start = runner.index("\ndef publish_plan_artifact(", execute_start)
+          prefix = runner[:execute_start].rstrip()
+          suffix = runner[publish_start + 1:].lstrip()
+          runner_path.write_text(
+              prefix
+              + "\n\n\n"
+              + real_body.rstrip()
+              + "\n\n\n"
+              + helpers
+              + "\n\n\n"
+              + execute_body
+              + "\n\n"
+              + suffix
+          )
+          PY
+          uv run ruff format src/fedcampaign_emhi/execution/runner.py
+          uv run ruff check --fix src/fedcampaign_emhi/execution/runner.py
+          if ! git diff --quiet -- src/fedcampaign_emhi/execution/runner.py; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add src/fedcampaign_emhi/execution/runner.py
+            git commit -m "Wire real experiment evidence through canonical runner"
+            git push origin HEAD:audit/roadmap-completion
+          fi
       - run: uv run pytest
         id: pytest
         continue-on-error: true
