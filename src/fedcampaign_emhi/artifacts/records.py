@@ -138,6 +138,9 @@ class ClientFeatureScalerRecord(FrozenConfigModel):
 
 class PreparedDatasetRecord(FrozenConfigModel):
     dataset_name: DatasetName
+    selected_client_ids: tuple[ClientId, ...] = ()
+    eligible_client_ids: tuple[ClientId, ...] = ()
+    selection_claim_state: ClaimState = ClaimState.NOT_TESTED
     epochs: tuple[PreparedEpochRecord, ...]
     client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
