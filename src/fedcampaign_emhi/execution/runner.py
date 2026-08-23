@@ -47,6 +47,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentState,
     MethodName,
     OverwritePolicy,
+    PreprocessingLayer,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -411,6 +412,34 @@ def _score_client(
     )
 
 
+def _write_manifest(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    destination: Path,
+    artifact_id: ArtifactIdentity,
+    content_digest: str,
+    fingerprint: MaterialDependencyFingerprint,
+    upstream_ids: tuple[ArtifactIdentity, ...],
+) -> None:
+    layout = build_artifact_layout(loaded, repository)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    manifest = ArtifactManifest(
+        artifact_id=artifact_id,
+        namespace=ArtifactNamespace.OUTPUTS,
+        experiment_name=None,
+        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
+        content_digest=content_digest,
+        material_fingerprint=fingerprint,
+        upstream_ids=upstream_ids,
+        lifecycle_state=ArtifactLifecycleState.VALID,
+    )
+    write_atomic_json(
+        destination.with_suffix(".manifest.json"),
+        cast(YamlNode, manifest.model_dump(mode="json")),
+        staging,
+    )
+
+
 def _materialize_detector_scores(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -432,13 +461,9 @@ def _materialize_detector_scores(
     assignments = assign_detector_families(split.selected_client_ids)
     streams: list[ClientDetectorScoreStream] = []
     for assignment in assignments:
-        client_rows = tuple(
-            row for row in prepared.epochs if row.client_id == assignment.client_id
-        )
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == assignment.client_id)
         fit_rows = tuple(
-            row.feature_values
-            for row in client_rows
-            if row.epoch_index in split.detector_fit_epochs
+            row.feature_values for row in client_rows if row.epoch_index in split.detector_fit_epochs
         )
         if not fit_rows:
             raise ValueError(
@@ -476,24 +501,17 @@ def _materialize_detector_scores(
     content_digest = write_atomic_json(
         destination, cast(YamlNode, record.model_dump(mode="json")), staging
     )
-    manifest = ArtifactManifest(
-        artifact_id=_score_artifact_id(dataset_name, root_seed),
-        namespace=ArtifactNamespace.OUTPUTS,
-        experiment_name=None,
-        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
-        content_digest=content_digest,
-        material_fingerprint=fingerprint,
-        upstream_ids=(
-            layer_artifact_id(dataset_name, loaded.values_to_preprocessing_layer_prepared),
-        )
-        if hasattr(loaded, "values_to_preprocessing_layer_prepared")
-        else (),
-        lifecycle_state=ArtifactLifecycleState.VALID,
-    )
-    write_atomic_json(
-        destination.with_suffix(".manifest.json"),
-        cast(YamlNode, manifest.model_dump(mode="json")),
-        staging,
+    _write_manifest(
+        loaded,
+        repository,
+        destination,
+        _score_artifact_id(dataset_name, root_seed),
+        content_digest,
+        fingerprint,
+        (
+            layer_artifact_id(dataset_name, PreprocessingLayer.PREPARED),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+        ),
     )
     return destination
 
@@ -548,9 +566,7 @@ def _materialize_marginal_ranks(
     for score_stream in scores.client_streams:
         reference_scores = tuple(
             score
-            for epoch, score in zip(
-                score_stream.epoch_indexes, score_stream.scores, strict=True
-            )
+            for epoch, score in zip(score_stream.epoch_indexes, score_stream.scores, strict=True)
             if epoch in nuisance_epochs
         )
         ranks = rank_stream(
@@ -575,7 +591,21 @@ def _materialize_marginal_ranks(
     )
     layout = build_artifact_layout(loaded, repository)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
+    content_digest = write_atomic_json(
+        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    )
+    _write_manifest(
+        loaded,
+        repository,
+        destination,
+        _rank_artifact_id(dataset_name, root_seed),
+        content_digest,
+        fingerprint,
+        (
+            _score_artifact_id(dataset_name, root_seed),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+        ),
+    )
     return destination
 
 
@@ -625,9 +655,7 @@ def _coalition_context_row(
     epoch_index: EpochIndexValue,
 ) -> ContextTrainingRow | None:
     lagged_epoch = epoch_index - loaded.values.context.outside_lag_epochs
-    complement = exact_exclusion_members(
-        ranks.selected_client_ids, coalition.client_ids
-    )
+    complement = exact_exclusion_members(ranks.selected_client_ids, coalition.client_ids)
     lagged_ranks: list[tuple[ClientId, RankValue]] = []
     available_clients: list[ClientId] = []
     for client_id in complement:
@@ -682,9 +710,7 @@ def _fit_order_context(
         for row in (_coalition_context_row(loaded, ranks, coalition, epoch_index),)
         if row is not None
     )
-    context_seed = _context_seed(
-        loaded, ranks.dataset_name, ranks.root_seed, coalition_order
-    )
+    context_seed = _context_seed(loaded, ranks.dataset_name, ranks.root_seed, coalition_order)
     capped = cap_context_training_rows(
         rows,
         context_seed,
@@ -815,19 +841,15 @@ def _fit_projection_cell(
         conditioned
         for epoch_index in epochs
         for conditioned in (
-            _conditioned_member_ranks(
-                loaded, ranks, coalition, epoch_index, references
-            ),
+            _conditioned_member_ranks(loaded, ranks, coalition, epoch_index, references),
         )
         if conditioned is not None
     )
     design_rows = tuple(
-        proper_subset_design_row(row, loaded.values.basis.primary_size)
-        for row in conditioned_rows
+        proper_subset_design_row(row, loaded.values.basis.primary_size) for row in conditioned_rows
     )
     tensors = tuple(
-        tensor_representation(row, loaded.values.basis.primary_size)
-        for row in conditioned_rows
+        tensor_representation(row, loaded.values.basis.primary_size) for row in conditioned_rows
     )
     calibration = calibrate_innovations_on_nuisance_fit(
         design_rows,
@@ -909,6 +931,10 @@ def _fit_coalition(
     )
 
 
+def _emhi_fit_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
+    return f"full-emhi-fit.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+
+
 def _emhi_fit_path(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -980,11 +1006,7 @@ def _materialize_full_emhi_fit(
             ranks,
             coalition,
             split.nuisance_fit_epochs,
-            next(
-                context
-                for context in order_contexts
-                if context.coalition_order is coalition.order
-            ),
+            next(context for context in order_contexts if context.coalition_order is coalition.order),
         )
         for coalition in coalitions
     )
@@ -999,7 +1021,21 @@ def _materialize_full_emhi_fit(
     )
     layout = build_artifact_layout(loaded, repository)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
+    content_digest = write_atomic_json(
+        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    )
+    _write_manifest(
+        loaded,
+        repository,
+        destination,
+        _emhi_fit_artifact_id(dataset_name, root_seed),
+        content_digest,
+        fingerprint,
+        (
+            _rank_artifact_id(dataset_name, root_seed),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+        ),
+    )
     return destination
 
 
@@ -1012,9 +1048,7 @@ def _materialize_real_prerequisites(
     roots = _required_real_roots(loaded, experiment_name)
     produced: list[Path] = []
     for root_seed in roots:
-        score_path = _materialize_detector_scores(
-            loaded, repository, dataset_name, root_seed
-        )
+        score_path = _materialize_detector_scores(loaded, repository, dataset_name, root_seed)
         rank_path = _materialize_marginal_ranks(
             loaded, repository, dataset_name, root_seed, score_path
         )
@@ -1032,15 +1066,11 @@ def execute_experiment(
     overwrite_policy: OverwritePolicy,
 ) -> ExperimentExecutionResult:
     validate_scientific_implementation_registry(loaded.values, experiment_name)
-    reused = _existing_completed_run(
-        loaded, repository, experiment_name, overwrite_policy
-    )
+    reused = _existing_completed_run(loaded, repository, experiment_name, overwrite_policy)
     if reused is not None:
         return reused
     if experiment_name is ExperimentName.SYNTHETIC_MODULE_VALIDATION:
-        return _execute_synthetic_module_validation(
-            loaded, repository, overwrite_policy
-        )
+        return _execute_synthetic_module_validation(loaded, repository, overwrite_policy)
     contract = _experiment_contract(loaded.values, experiment_name)
     if contract.uses_synthetic_seeds and not contract.uses_real_seeds:
         run_path = publish_experiment_run_record(
@@ -1057,9 +1087,7 @@ def execute_experiment(
             completed_cell_count=0,
             detail="synthetic experiment producer remains to be executed",
         )
-    required = _required_preprocessing_artifacts(
-        loaded, repository, experiment_name
-    )
+    required = _required_preprocessing_artifacts(loaded, repository, experiment_name)
     missing = tuple(path for path in required if not path.is_file())
     if missing:
         run_path = publish_experiment_run_record(
@@ -1076,9 +1104,7 @@ def execute_experiment(
             completed_cell_count=0,
             detail="required canonical preprocessing artifacts are missing",
         )
-    produced = _materialize_real_prerequisites(
-        loaded, repository, experiment_name
-    )
+    produced = _materialize_real_prerequisites(loaded, repository, experiment_name)
     run_path = publish_experiment_run_record(
         loaded,
         repository,
@@ -1095,17 +1121,10 @@ def execute_experiment(
     )
 
 
-def publish_plan_artifact(
-    loaded: LoadedScientificConfiguration, repository: Path
-) -> Path:
+def publish_plan_artifact(loaded: LoadedScientificConfiguration, repository: Path) -> Path:
     layout = build_artifact_layout(loaded, repository)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    destination = (
-        layout.roots.outputs_root
-        / "preprocessing"
-        / "metadata"
-        / "execution-plan.json"
-    )
+    destination = layout.roots.outputs_root / "preprocessing" / "metadata" / "execution-plan.json"
     record = PlanArtifactRecord(
         material_digest=loaded.material_digest,
         resume_sequence=RESUME_SEQUENCE,
@@ -1119,7 +1138,5 @@ def publish_plan_artifact(
             for planned in plan_experiments(loaded)
         ),
     )
-    write_atomic_json(
-        destination, cast(YamlNode, record.model_dump(mode="json")), staging
-    )
+    write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
     return destination
