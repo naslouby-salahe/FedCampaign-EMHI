@@ -90,6 +90,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/experiments/strong_local.py",
     "src/fedcampaign_emhi/experiments/secondary_generalization.py",
     "src/fedcampaign_emhi/experiments/boundaries.py",
+    "src/fedcampaign_emhi/experiments/scalability.py",
     "src/fedcampaign_emhi/experiments/primary_odi.py",
     "src/fedcampaign_emhi/evaluation/__init__.py",
     "src/fedcampaign_emhi/evaluation/records.py",

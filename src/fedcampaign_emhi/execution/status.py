@@ -324,6 +324,14 @@ from fedcampaign_emhi.experiments.primary_odi import (
     paired_odi_advantage_gate,
     strict_odi_rate_gate,
 )
+from fedcampaign_emhi.experiments.scalability import (
+    common_mode_loading,
+    derived_coalition_count,
+    enumerate_scalability_plan,
+    latency_gate,
+    scalability_numerical_failure_gate,
+    synthetic_workload_feature_dimension,
+)
 from fedcampaign_emhi.experiments.secondary_generalization import (
     enumerate_secondary_generalization_plan,
     secondary_interpretation_is_validation_only,
@@ -480,6 +488,12 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         enumerate_outside_contamination_plan,
         enumerate_dropout_boundary_plan,
         over_conditioning_drift_indicator,
+        enumerate_scalability_plan,
+        common_mode_loading,
+        derived_coalition_count,
+        synthetic_workload_feature_dimension,
+        latency_gate,
+        scalability_numerical_failure_gate,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
