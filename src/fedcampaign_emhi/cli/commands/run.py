@@ -2,8 +2,8 @@ import typer
 
 from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
-from fedcampaign_emhi.execution.orchestrator import execute_experiment
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, resolve_requested_experiment
+from fedcampaign_emhi.execution.runner import execute_experiment
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
 
 _REQUESTED_EXPERIMENT_ARGUMENT: ExperimentName = typer.Argument()
