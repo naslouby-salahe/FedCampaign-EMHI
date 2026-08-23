@@ -3,96 +3,78 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
+from fedcampaign_emhi.analysis.summaries import build_seed_summary
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ArtifactManifest,
-    ClientDetectorScoreStream,
-    ClientMarginalRankStream,
-    CoalitionFitRecord,
+    BenignPartitionRecord,
+    CampaignRegistryRecord,
     CompletionRecord,
-    ConditionalRankReferenceRecord,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
     ExperimentRunRecord,
     MarginalRankArtifactRecord,
-    OrderContextFitRecord,
     PlanArtifactRecord,
     PlannedExperimentRecord,
     PreparedDatasetRecord,
-    ProjectionCellFitRecord,
     ScientificCellRecord,
 )
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
+from fedcampaign_emhi.comparators.contracts import ComparatorMethodContract, comparator_method_contracts
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.detection.detector_assignment import assign_detector_families
-from fedcampaign_emhi.detection.fitting import (
-    score_autoencoder,
-    score_isolation_forest,
-    score_one_class_svm,
-)
-from fedcampaign_emhi.detection.scoring import rank_stream, score_stream_isolation_check
+from fedcampaign_emhi.detection.scoring import build_detector_score_artifact
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
-    DetectorFamily,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
     MethodName,
     OverwritePolicy,
+    PartitionRole,
     PreprocessingLayer,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
-    BinIndex,
-    ClientId,
-    CoalitionMembers,
     ComponentName,
     ConfigurationDigest,
-    ContextTrainingRow,
-    EpochIndexValue,
+    FalseAlarmRate,
     FiniteFloat,
     MaterialDependencyFingerprint,
-    RankReference,
-    RankValue,
+    OdiIndicator,
     RecordCount,
+    RelativePath,
     ResumeStep,
     RuntimeSeconds,
-    SeedDerivationIdentity,
     SeedValue,
 )
-from fedcampaign_emhi.emhi.basis import tensor_representation
-from fedcampaign_emhi.emhi.coalitions import enumerate_coalitions
-from fedcampaign_emhi.emhi.contexts import (
-    assign_context_cell,
-    cap_context_training_rows,
-    context_cluster_identity,
-    exact_exclusion_members,
-    fit_context_centroids,
-    minimum_support_epochs_for_order,
-    outside_context_histogram,
+from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
+from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
+from fedcampaign_emhi.evaluation.benign_horizons import (
+    calibrate_operating_points,
+    heldout_benign_false_stop_records,
 )
-from fedcampaign_emhi.emhi.evidence import operational_norm_reference_quantile
-from fedcampaign_emhi.emhi.innovation_calibration import (
-    calibrate_innovations_on_nuisance_fit,
-    moments_from_held_fold_innovations,
+from fedcampaign_emhi.evaluation.campaign_replay import (
+    campaign_trajectory,
+    global_stop_epoch,
+    local_stop_epochs,
+    operational_lead,
+    statistical_lead,
+    trajectory_context_coverage,
 )
-from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
-from fedcampaign_emhi.emhi.projection import blocked_fold_bounds, proper_subset_design_row
-from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank
+from fedcampaign_emhi.evaluation.metrics import decisive_order, earliest_local_stop
+from fedcampaign_emhi.evaluation.records import OperationalCalibration, SequentialTrajectory, odi_evaluation_record
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
 from fedcampaign_emhi.execution.preprocess import dataset_directory_stem, layer_artifact_id
 from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
-from fedcampaign_emhi.runtime.determinism import derive_component_seed
 from fedcampaign_emhi.synthetic.validation import validate_synthetic_generators
 
 
@@ -105,8 +87,26 @@ class ExperimentExecutionResult:
     detail: ComponentName
 
 
+@dataclass(frozen=True)
+class _EmhiMethodSpecification:
+    method_name: MethodName
+    context_method: ContextMethodName
+    maximum_order: CoalitionOrder
+    purification_enabled: bool
+
+
 def resume_sequence() -> tuple[ResumeStep, ...]:
     return RESUME_SEQUENCE
+
+
+def _experiment_contract(
+    config: ScientificConfig, experiment_name: ExperimentName
+) -> ExperimentContract:
+    return next(
+        contract
+        for contract in experiment_registry(config)
+        if contract.experiment_name is experiment_name
+    )
 
 
 def validate_scientific_implementation_registry(
@@ -126,13 +126,36 @@ def validate_scientific_implementation_registry(
         raise ValueError(f"real-data experiment {experiment_name.value} has no configured methods")
 
 
-def _experiment_contract(
-    config: ScientificConfig, experiment_name: ExperimentName
-) -> ExperimentContract:
+def _method_contract(method_name: MethodName) -> ComparatorMethodContract | None:
     return next(
-        contract
-        for contract in experiment_registry(config)
-        if contract.experiment_name is experiment_name
+        (contract for contract in comparator_method_contracts() if contract.method_name is method_name),
+        None,
+    )
+
+
+def _emhi_method_specification(method_name: MethodName) -> _EmhiMethodSpecification | None:
+    contract = _method_contract(method_name)
+    if contract is None or contract.context_method is None or contract.enabled_order_set is None:
+        return None
+    if contract.is_equivalence_comparator:
+        return None
+    purification = contract.proper_subset_purification_enabled
+    if purification is None:
+        return None
+    return _EmhiMethodSpecification(
+        method_name=method_name,
+        context_method=contract.context_method,
+        maximum_order=max(contract.enabled_order_set),
+        purification_enabled=purification,
+    )
+
+
+def _method_slug(method_name: MethodName) -> RelativePath:
+    return (
+        method_name.value.lower()
+        .replace(" ", "-")
+        .replace("≤", "at-most-")
+        .replace("_", "-")
     )
 
 
@@ -173,6 +196,24 @@ def publish_experiment_run_record(
     return destination
 
 
+def _completed_cell_is_reusable(repository: Path, path: Path, material_digest: ConfigurationDigest) -> bool:
+    try:
+        cell = ScientificCellRecord.model_validate_json(path.read_bytes())
+    except ValueError:
+        return False
+    if cell.state is not ExperimentState.COMPLETED or cell.material_digest != material_digest:
+        return False
+    outputs = cell.completion_record.mandatory_output_paths
+    hashes = cell.completion_record.mandatory_output_hashes
+    if len(outputs) != len(hashes):
+        return False
+    for relative_path, expected_hash in zip(outputs, hashes, strict=True):
+        absolute = repository / relative_path
+        if not absolute.is_file() or file_sha256(absolute) != expected_hash:
+            return False
+    return True
+
+
 def _existing_completed_run(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -188,19 +229,19 @@ def _existing_completed_run(
         record = ExperimentRunRecord.model_validate_json(path.read_bytes())
     except ValueError:
         return None
-    if (
-        record.material_digest != loaded.material_digest
-        or record.state is not ExperimentState.COMPLETED
-    ):
+    if record.material_digest != loaded.material_digest or record.state is not ExperimentState.COMPLETED:
         return None
-    completed_cells = tuple(child for child in path.parent.glob("cell-*.json") if child.is_file())
-    if not completed_cells:
+    cell_paths = tuple(sorted(path.parent.glob("cell-*.json")))
+    if not cell_paths or not all(
+        _completed_cell_is_reusable(repository, cell_path, loaded.material_digest)
+        for cell_path in cell_paths
+    ):
         return None
     return ExperimentExecutionResult(
         experiment_name=experiment_name,
         state=ExperimentState.COMPLETED,
         run_record_path=path,
-        completed_cell_count=len(completed_cells),
+        completed_cell_count=len(cell_paths),
         detail="reused compatible completed experiment",
     )
 
@@ -229,7 +270,7 @@ def _execute_synthetic_module_validation(
         "generator_failures": list(generator_gate.failed_checks),
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
-    dependency_fingerprint = material_fingerprint(loaded.material_digest, ())
+    fingerprint = material_fingerprint(loaded.material_digest, ())
     completion = CompletionRecord(
         state=state,
         mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
@@ -246,7 +287,7 @@ def _execute_synthetic_module_validation(
         material_digest=loaded.material_digest,
         selected_client_ids=(),
         upstream_artifact_ids=(),
-        dependency_fingerprint=dependency_fingerprint,
+        dependency_fingerprint=fingerprint,
         runtime_seconds=elapsed,
         peak_rss_bytes=0,
         application_payload_bytes=len(diagnostic_path.read_bytes()),
@@ -255,7 +296,11 @@ def _execute_synthetic_module_validation(
     cell_path = root / "provenance" / "dependencies" / "cell-validation.json"
     write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     run_path = publish_experiment_run_record(
-        loaded, repository, experiment_name, overwrite_policy, state
+        loaded,
+        repository,
+        experiment_name,
+        overwrite_policy,
+        state,
     )
     return ExperimentExecutionResult(
         experiment_name=experiment_name,
@@ -302,23 +347,23 @@ def _required_preprocessing_artifacts(
     return _preprocessing_paths(loaded, repository, _experiment_dataset(loaded, experiment_name))
 
 
-def _required_real_roots(
-    loaded: LoadedScientificConfiguration, experiment_name: ExperimentName
-) -> tuple[SeedValue, ...]:
-    contract = _experiment_contract(loaded.values, experiment_name)
-    roots: list[SeedValue] = []
-    if not contract.uses_real_seeds:
-        return ()
-    for role in contract.execution_roles:
-        if role is ExecutionRole.CONFIRMATORY:
-            roots.extend(loaded.values.randomness.real_confirmatory_roots)
-        else:
-            roots.extend(loaded.values.randomness.real_development_roots)
-    return tuple(dict.fromkeys(roots))
-
-
 def _score_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
     return f"detector-scores.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+
+
+def _rank_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
+    return f"marginal-ranks.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+
+
+def _fit_artifact_id(
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    method_name: MethodName,
+) -> ArtifactIdentity:
+    return (
+        f"emhi-fit.{dataset_directory_stem(dataset_name)}."
+        f"seed-{root_seed}.{_method_slug(method_name)}"
+    )
 
 
 def _score_artifact_path(
@@ -337,196 +382,6 @@ def _score_artifact_path(
     )
 
 
-def _detector_dependency_fingerprint(
-    loaded: LoadedScientificConfiguration,
-    prepared_path: Path,
-    split_path: Path,
-    root_seed: SeedValue,
-) -> MaterialDependencyFingerprint:
-    detector_config_digest = payload_digest(
-        cast(YamlNode, loaded.values.detectors.model_dump(mode="json"))
-    )
-    seed_digest = payload_digest(cast(YamlNode, {"root_seed": root_seed}))
-    return material_fingerprint(
-        detector_config_digest,
-        (file_sha256(prepared_path), file_sha256(split_path), seed_digest),
-    )
-
-
-def _detector_seed(
-    root_seed: SeedValue, dataset_name: DatasetName, client_id: ClientId
-) -> SeedValue:
-    return derive_component_seed(
-        SeedDerivationIdentity(
-            base_seed=root_seed,
-            component_name="local-detector-fit",
-            dataset=dataset_name,
-            client_ids=(client_id,),
-            coalition_ids=(),
-            condition_coordinates=(),
-        )
-    )
-
-
-def _score_client(
-    loaded: LoadedScientificConfiguration,
-    detector_family: DetectorFamily,
-    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
-    detector_seed: SeedValue,
-    client_id: ClientId,
-) -> tuple[FiniteFloat, ...]:
-    if detector_family is DetectorFamily.ISOLATION_FOREST:
-        config = loaded.values.detectors.isolation_forest
-        return score_isolation_forest(
-            fit_rows,
-            score_rows,
-            config.trees,
-            config.max_samples_cap,
-            config.max_features,
-            config.jobs,
-            detector_seed,
-        )
-    if detector_family is DetectorFamily.ONE_CLASS_SVM:
-        config = loaded.values.detectors.one_class_svm
-        return score_one_class_svm(
-            fit_rows,
-            score_rows,
-            config.nu,
-            config.coefficient_zero,
-            config.solver_tolerance,
-            config.kernel_cache_mib,
-            config.max_iterations,
-            detector_seed,
-        )
-    config = loaded.values.detectors.autoencoder
-    if len(config.betas) != 2:
-        raise ValueError("autoencoder requires exactly two Adam beta coefficients")
-    return score_autoencoder(
-        fit_rows,
-        score_rows,
-        config.learning_rate,
-        config.betas[0],
-        config.betas[1],
-        config.optimizer_epsilon,
-        config.weight_decay,
-        config.batch_size,
-        config.epochs,
-        detector_seed,
-        client_id,
-    )
-
-
-def _write_manifest(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    destination: Path,
-    artifact_id: ArtifactIdentity,
-    content_digest: ConfigurationDigest,
-    fingerprint: MaterialDependencyFingerprint,
-    upstream_ids: tuple[ArtifactIdentity, ...],
-) -> None:
-    layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging"
-    manifest = ArtifactManifest(
-        artifact_id=artifact_id,
-        namespace=ArtifactNamespace.OUTPUTS,
-        experiment_name=None,
-        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
-        content_digest=content_digest,
-        material_fingerprint=fingerprint,
-        upstream_ids=upstream_ids,
-        lifecycle_state=ArtifactLifecycleState.VALID,
-    )
-    write_atomic_json(
-        destination.with_suffix(".manifest.json"),
-        cast(YamlNode, manifest.model_dump(mode="json")),
-        staging,
-    )
-
-
-def _materialize_detector_scores(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    dataset_name: DatasetName,
-    root_seed: SeedValue,
-) -> Path:
-    _, prepared_path, split_path, _, _ = _preprocessing_paths(loaded, repository, dataset_name)
-    fingerprint = _detector_dependency_fingerprint(loaded, prepared_path, split_path, root_seed)
-    destination = _score_artifact_path(loaded, repository, dataset_name, root_seed)
-    if destination.is_file():
-        try:
-            existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
-        except ValueError:
-            existing = None
-        if existing is not None and existing.dependency_fingerprint == fingerprint:
-            return destination
-    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
-    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
-    assignments = assign_detector_families(split.selected_client_ids)
-    streams: list[ClientDetectorScoreStream] = []
-    for assignment in assignments:
-        client_rows = tuple(row for row in prepared.epochs if row.client_id == assignment.client_id)
-        fit_rows = tuple(
-            row.feature_values
-            for row in client_rows
-            if row.epoch_index in split.detector_fit_epochs
-        )
-        if not fit_rows:
-            raise ValueError(
-                f"selected client {assignment.client_id} has no benign detector-fit rows"
-            )
-        score_rows = tuple(row.feature_values for row in client_rows)
-        detector_seed = _detector_seed(root_seed, dataset_name, assignment.client_id)
-        scores = _score_client(
-            loaded,
-            assignment.family,
-            fit_rows,
-            score_rows,
-            detector_seed,
-            assignment.client_id,
-        )
-        score_stream_isolation_check(len(scores), len(client_rows))
-        streams.append(
-            ClientDetectorScoreStream(
-                client_id=assignment.client_id,
-                detector_family=assignment.family,
-                detector_seed=detector_seed,
-                epoch_indexes=tuple(row.epoch_index for row in client_rows),
-                scores=scores,
-            )
-        )
-    record = DetectorScoreArtifactRecord(
-        dataset_name=dataset_name,
-        root_seed=root_seed,
-        selected_client_ids=split.selected_client_ids,
-        client_streams=tuple(streams),
-        dependency_fingerprint=fingerprint,
-    )
-    layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging"
-    content_digest = write_atomic_json(
-        destination, cast(YamlNode, record.model_dump(mode="json")), staging
-    )
-    _write_manifest(
-        loaded,
-        repository,
-        destination,
-        _score_artifact_id(dataset_name, root_seed),
-        content_digest,
-        fingerprint,
-        (
-            layer_artifact_id(dataset_name, PreprocessingLayer.PREPARED),
-            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
-        ),
-    )
-    return destination
-
-
-def _rank_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"marginal-ranks.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
-
-
 def _rank_artifact_path(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -543,46 +398,103 @@ def _rank_artifact_path(
     )
 
 
-def _rank_record_for_reference_epochs(
+def _fit_artifact_path(
     loaded: LoadedScientificConfiguration,
-    scores: DetectorScoreArtifactRecord,
-    reference_epochs: tuple[EpochIndexValue, ...],
-) -> MarginalRankArtifactRecord:
-    reference_epoch_set = set(reference_epochs)
-    streams: list[ClientMarginalRankStream] = []
-    for score_stream in scores.client_streams:
-        reference_scores = tuple(
-            score
-            for epoch, score in zip(score_stream.epoch_indexes, score_stream.scores, strict=True)
-            if epoch in reference_epoch_set
-        )
-        ranks = rank_stream(
-            score_stream.scores,
-            reference_scores,
-            loaded.values.context.rank_clip_epsilon,
-        )
-        streams.append(
-            ClientMarginalRankStream(
-                client_id=score_stream.client_id,
-                nuisance_reference_scores=reference_scores,
-                epoch_indexes=score_stream.epoch_indexes,
-                ranks=ranks,
-            )
-        )
-    reference_digest = payload_digest(
-        cast(YamlNode, {"reference_epochs": list(reference_epochs)})
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    method_name: MethodName,
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    return (
+        layout.roots.outputs_root
+        / "artifacts"
+        / "fitted"
+        / dataset_directory_stem(dataset_name)
+        / f"seed-{root_seed}"
+        / f"{_method_slug(method_name)}.json"
     )
+
+
+def _write_manifest(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    destination: Path,
+    artifact_id: ArtifactIdentity,
+    content_digest: ConfigurationDigest,
+    fingerprint: MaterialDependencyFingerprint,
+    upstream_ids: tuple[ArtifactIdentity, ...],
+) -> None:
+    layout = build_artifact_layout(loaded, repository)
+    manifest = ArtifactManifest(
+        artifact_id=artifact_id,
+        namespace=ArtifactNamespace.OUTPUTS,
+        experiment_name=None,
+        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
+        content_digest=content_digest,
+        material_fingerprint=fingerprint,
+        upstream_ids=upstream_ids,
+        lifecycle_state=ArtifactLifecycleState.VALID,
+    )
+    write_atomic_json(
+        destination.with_suffix(".manifest.json"),
+        cast(YamlNode, manifest.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+
+
+def _materialize_detector_scores(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+) -> Path:
+    _inventory_path, prepared_path, split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    detector_digest = payload_digest(cast(YamlNode, loaded.values.detectors.model_dump(mode="json")))
+    seed_digest = payload_digest(cast(YamlNode, {"root_seed": root_seed}))
     fingerprint = material_fingerprint(
-        scores.dependency_fingerprint,
-        (reference_digest,),
+        detector_digest,
+        (file_sha256(prepared_path), file_sha256(split_path), seed_digest),
     )
-    return MarginalRankArtifactRecord(
-        dataset_name=scores.dataset_name,
-        root_seed=scores.root_seed,
-        selected_client_ids=scores.selected_client_ids,
-        client_streams=tuple(streams),
-        dependency_fingerprint=fingerprint,
+    destination = _score_artifact_path(loaded, repository, dataset_name, root_seed)
+    if destination.is_file():
+        try:
+            existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
+        except ValueError:
+            existing = None
+        if existing is not None and existing.dependency_fingerprint == fingerprint:
+            return destination
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    record = build_detector_score_artifact(
+        loaded.values,
+        prepared,
+        split,
+        dataset_name,
+        root_seed,
+        fingerprint,
     )
+    layout = build_artifact_layout(loaded, repository)
+    content_hash = write_atomic_json(
+        destination,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    _write_manifest(
+        loaded,
+        repository,
+        destination,
+        _score_artifact_id(dataset_name, root_seed),
+        content_hash,
+        fingerprint,
+        (
+            layer_artifact_id(dataset_name, PreprocessingLayer.PREPARED),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+        ),
+    )
+    return destination
 
 
 def _materialize_marginal_ranks(
@@ -592,14 +504,16 @@ def _materialize_marginal_ranks(
     root_seed: SeedValue,
     score_path: Path,
 ) -> Path:
-    _, _, split_path, _, _ = _preprocessing_paths(loaded, repository, dataset_name)
-    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    _inventory_path, _prepared_path, split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
-    rank_config_digest = payload_digest(
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    rank_digest = payload_digest(
         cast(YamlNode, {"rank_clip_epsilon": loaded.values.context.rank_clip_epsilon})
     )
     fingerprint = material_fingerprint(
-        rank_config_digest,
+        rank_digest,
         (file_sha256(score_path), file_sha256(split_path)),
     )
     destination = _rank_artifact_path(loaded, repository, dataset_name, root_seed)
@@ -610,27 +524,24 @@ def _materialize_marginal_ranks(
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
             return destination
-    fold_independent = _rank_record_for_reference_epochs(
-        loaded, scores, split.nuisance_fit_epochs
-    )
-    record = MarginalRankArtifactRecord(
-        dataset_name=fold_independent.dataset_name,
-        root_seed=fold_independent.root_seed,
-        selected_client_ids=fold_independent.selected_client_ids,
-        client_streams=fold_independent.client_streams,
-        dependency_fingerprint=fingerprint,
+    record = build_marginal_rank_artifact(
+        scores,
+        split.nuisance_fit_epochs,
+        loaded.values.context.rank_clip_epsilon,
+        fingerprint,
     )
     layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging"
-    content_digest = write_atomic_json(
-        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    content_hash = write_atomic_json(
+        destination,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
     )
     _write_manifest(
         loaded,
         repository,
         destination,
         _rank_artifact_id(dataset_name, root_seed),
-        content_digest,
+        content_hash,
         fingerprint,
         (
             _score_artifact_id(dataset_name, root_seed),
@@ -640,575 +551,50 @@ def _materialize_marginal_ranks(
     return destination
 
 
-def _rank_at_epoch(
-    ranks: MarginalRankArtifactRecord,
-    client_id: ClientId,
-    epoch_index: EpochIndexValue,
-) -> RankValue | None:
-    stream = next(
-        (stream for stream in ranks.client_streams if stream.client_id == client_id),
-        None,
-    )
-    if stream is None:
-        return None
-    return next(
-        (
-            rank
-            for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
-            if epoch == epoch_index
-        ),
-        None,
-    )
-
-
-def _context_seed(
-    loaded: LoadedScientificConfiguration,
-    dataset_name: DatasetName,
-    root_seed: SeedValue,
-    coalition_order: CoalitionOrder,
-) -> SeedValue:
-    return derive_component_seed(
-        SeedDerivationIdentity(
-            base_seed=loaded.values.randomness.context_base_seed,
-            component_name=f"exact-exclusion-context-order-{int(coalition_order)}-root-{root_seed}",
-            dataset=dataset_name,
-            client_ids=(),
-            coalition_ids=(),
-            condition_coordinates=(),
-        )
-    )
-
-
-def _coalition_context_row(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalition: CoalitionMembers,
-    epoch_index: EpochIndexValue,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
-) -> ContextTrainingRow | None:
-    lagged_epoch = epoch_index - loaded.values.context.outside_lag_epochs
-    if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
-        return None
-    complement = exact_exclusion_members(ranks.selected_client_ids, coalition.client_ids)
-    lagged_ranks: list[tuple[ClientId, RankValue]] = []
-    available_clients: list[ClientId] = []
-    for client_id in complement:
-        rank = _rank_at_epoch(ranks, client_id, lagged_epoch)
-        if rank is None:
-            continue
-        lagged_ranks.append((client_id, rank))
-        available_clients.append(client_id)
-    histogram = outside_context_histogram(
-        tuple(lagged_ranks),
-        tuple(available_clients),
-        complement,
-        loaded.values.context.outside_histogram_bin_count,
-        loaded.values.context.minimum_available_outside_clients,
-        loaded.values.context.minimum_available_outside_fraction,
-    )
-    if histogram.abstained:
-        return None
-    return ContextTrainingRow(
-        dataset=ranks.dataset_name,
-        coalition_order=coalition.order,
-        coalition_client_ids=coalition.client_ids,
-        epoch_index=epoch_index,
-        histogram=histogram.bin_mass,
-    )
-
-
-def _minimum_support(
-    loaded: LoadedScientificConfiguration, coalition_order: CoalitionOrder
-) -> RecordCount:
-    minimum = loaded.values.context.minimum_support_epochs
-    return minimum_support_epochs_for_order(
-        coalition_order,
-        minimum.order_one,
-        minimum.order_two,
-        minimum.order_three,
-    )
-
-
-def _fit_order_context(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalitions: tuple[CoalitionMembers, ...],
-    nuisance_epochs: tuple[EpochIndexValue, ...],
-    coalition_order: CoalitionOrder,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
-) -> OrderContextFitRecord:
-    rows = tuple(
-        row
-        for coalition in coalitions
-        if coalition.order is coalition_order
-        for epoch_index in nuisance_epochs
-        for row in (
-            _coalition_context_row(
-                loaded,
-                ranks,
-                coalition,
-                epoch_index,
-                permitted_lag_epochs,
-            ),
-        )
-        if row is not None
-    )
-    context_seed = _context_seed(loaded, ranks.dataset_name, ranks.root_seed, coalition_order)
-    capped = cap_context_training_rows(
-        rows,
-        context_seed,
-        loaded.values.context.kmeans.max_fit_rows,
-    )
-    identity = context_cluster_identity(
-        ranks.dataset_name,
-        coalition_order,
-        ContextMethodName.EXACT_COALITION_EXCLUSION,
-        ranks.root_seed,
-    )
-    centroids = fit_context_centroids(
-        capped,
-        identity,
-        loaded.values.context.primary_cell_count,
-        loaded.values.context.kmeans.n_init,
-        loaded.values.context.kmeans.max_iterations,
-        loaded.values.context.kmeans.tolerance,
-        loaded.values.context.kmeans.assignment_tie_tolerance,
-        context_seed,
-    )
-    if centroids is None:
-        return OrderContextFitRecord(
-            coalition_order=coalition_order,
-            context_method=ContextMethodName.EXACT_COALITION_EXCLUSION,
-            centroids=(),
-            state=ClaimState.NOT_TESTED,
-        )
-    return OrderContextFitRecord(
-        coalition_order=coalition_order,
-        context_method=ContextMethodName.EXACT_COALITION_EXCLUSION,
-        centroids=centroids.centroids,
-        state=ClaimState.SUPPORTED,
-    )
-
-
-def _coalition_cell_epochs(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalition: CoalitionMembers,
-    nuisance_epochs: tuple[EpochIndexValue, ...],
-    centroids: tuple[tuple[FiniteFloat, ...], ...],
-    context_cell: BinIndex,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
-) -> tuple[EpochIndexValue, ...]:
-    selected: list[EpochIndexValue] = []
-    for epoch_index in nuisance_epochs:
-        row = _coalition_context_row(
-            loaded,
-            ranks,
-            coalition,
-            epoch_index,
-            permitted_lag_epochs,
-        )
-        if row is None:
-            continue
-        assigned = assign_context_cell(
-            row.histogram,
-            centroids,
-            loaded.values.context.kmeans.assignment_tie_tolerance,
-        )
-        if assigned == context_cell:
-            selected.append(epoch_index)
-    return tuple(selected)
-
-
-def _conditional_rank_reference(
-    ranks: MarginalRankArtifactRecord,
-    client_id: ClientId,
-    context_cell: BinIndex,
-    epochs: tuple[EpochIndexValue, ...],
-) -> ConditionalRankReferenceRecord:
-    reference = tuple(
-        rank
-        for epoch_index in epochs
-        for rank in (_rank_at_epoch(ranks, client_id, epoch_index),)
-        if rank is not None
-    )
-    return ConditionalRankReferenceRecord(
-        client_id=client_id,
-        context_cell=context_cell,
-        reference_ranks=reference,
-    )
-
-
-def _conditioned_member_ranks(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalition: CoalitionMembers,
-    epoch_index: EpochIndexValue,
-    references: tuple[ConditionalRankReferenceRecord, ...],
-) -> tuple[RankValue, ...] | None:
-    conditioned: list[RankValue] = []
-    for client_id in coalition.client_ids:
-        marginal = _rank_at_epoch(ranks, client_id, epoch_index)
-        reference_record = next(
-            (reference for reference in references if reference.client_id == client_id),
-            None,
-        )
-        if marginal is None or reference_record is None or not reference_record.reference_ranks:
-            return None
-        conditioned.append(
-            coalition_conditioned_residual_rank(
-                marginal,
-                RankReference(scores=reference_record.reference_ranks),
-                loaded.values.context.rank_clip_epsilon,
-            )
-        )
-    return tuple(conditioned)
-
-
-def _conditioned_design_and_tensors(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalition: CoalitionMembers,
-    epochs: tuple[EpochIndexValue, ...],
-    references: tuple[ConditionalRankReferenceRecord, ...],
-) -> tuple[
-    tuple[tuple[FiniteFloat, ...], ...],
-    tuple[tuple[FiniteFloat, ...], ...],
-]:
-    conditioned_rows = tuple(
-        conditioned
-        for epoch_index in epochs
-        for conditioned in (
-            _conditioned_member_ranks(
-                loaded,
-                ranks,
-                coalition,
-                epoch_index,
-                references,
-            ),
-        )
-        if conditioned is not None
-    )
-    design_rows = tuple(
-        proper_subset_design_row(row, loaded.values.basis.primary_size)
-        for row in conditioned_rows
-    )
-    tensors = tuple(
-        tensor_representation(row, loaded.values.basis.primary_size)
-        for row in conditioned_rows
-    )
-    return design_rows, tensors
-
-
-def _cross_fitted_cell_statistics(
-    loaded: LoadedScientificConfiguration,
-    scores: DetectorScoreArtifactRecord,
-    split: DatasetSplitRecord,
-    coalitions: tuple[CoalitionMembers, ...],
-    coalition: CoalitionMembers,
-    context_cell: BinIndex,
-) -> tuple[
-    tuple[FiniteFloat, ...],
-    tuple[FiniteFloat, ...],
-    FiniteFloat,
-] | None:
-    nuisance_epochs = split.nuisance_fit_epochs
-    fold_count = loaded.values.context.nuisance_crossfit.fold_count
-    if len(nuisance_epochs) < fold_count:
-        return None
-    held_innovations: list[tuple[FiniteFloat, ...]] = []
-    for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
-        held_epochs = nuisance_epochs[start:end]
-        training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
-        fold_ranks = _rank_record_for_reference_epochs(
-            loaded,
-            scores,
-            training_epochs,
-        )
-        order_context = _fit_order_context(
-            loaded,
-            fold_ranks,
-            coalitions,
-            training_epochs,
-            coalition.order,
-            training_epochs,
-        )
-        if order_context.state is not ClaimState.SUPPORTED:
-            continue
-        if context_cell >= len(order_context.centroids):
-            continue
-        training_cell_epochs = _coalition_cell_epochs(
-            loaded,
-            fold_ranks,
-            coalition,
-            training_epochs,
-            order_context.centroids,
-            context_cell,
-            training_epochs,
-        )
-        if len(training_cell_epochs) < _minimum_support(loaded, coalition.order):
-            continue
-        references = tuple(
-            _conditional_rank_reference(
-                fold_ranks,
-                client_id,
-                context_cell,
-                training_cell_epochs,
-            )
-            for client_id in coalition.client_ids
-        )
-        design_rows, tensors = _conditioned_design_and_tensors(
-            loaded,
-            fold_ranks,
-            coalition,
-            training_cell_epochs,
-            references,
-        )
-        calibration = calibrate_innovations_on_nuisance_fit(
-            design_rows,
-            tensors,
-            loaded.values.projection.ridge_candidates,
-            loaded.values.projection.cross_validation.fold_count,
-            loaded.values.projection.selection_tie_tolerance_mse,
-            loaded.values.projection.zero_ridge_svd_relative_cutoff,
-            loaded.values.projection.atom_scale_floor,
-        )
-        if calibration is None:
-            continue
-        for epoch_index in held_epochs:
-            row = _coalition_context_row(
-                loaded,
-                fold_ranks,
-                coalition,
-                epoch_index,
-            )
-            if row is None:
-                continue
-            assigned = assign_context_cell(
-                row.histogram,
-                order_context.centroids,
-                loaded.values.context.kmeans.assignment_tie_tolerance,
-            )
-            if assigned != context_cell:
-                continue
-            conditioned = _conditioned_member_ranks(
-                loaded,
-                fold_ranks,
-                coalition,
-                epoch_index,
-                references,
-            )
-            if conditioned is None:
-                continue
-            design_row = proper_subset_design_row(
-                conditioned,
-                loaded.values.basis.primary_size,
-            )
-            tensor = tensor_representation(
-                conditioned,
-                loaded.values.basis.primary_size,
-            )
-            held_innovations.append(
-                projection_residual(
-                    tensor,
-                    calibration.complete_nuisance_coefficients,
-                    design_row,
-                )
-            )
-    moments = moments_from_held_fold_innovations(tuple(held_innovations))
-    if moments is None:
-        return None
-    means, deviations = moments
-    standardized = tuple(
-        center_and_scale_atom(
-            innovation,
-            means,
-            deviations,
-            loaded.values.projection.atom_scale_floor,
-        )
-        for innovation in held_innovations
-    )
-    norm_reference = operational_norm_reference_quantile(
-        standardized,
-        loaded.values.evidence.operational_norm_reference_quantile,
-    )
-    return means, deviations, norm_reference
-
-
-def _fit_projection_cell(
-    loaded: LoadedScientificConfiguration,
-    ranks: MarginalRankArtifactRecord,
-    coalition: CoalitionMembers,
-    context_cell: BinIndex,
-    epochs: tuple[EpochIndexValue, ...],
-    cross_fitted_statistics: tuple[
-        tuple[FiniteFloat, ...],
-        tuple[FiniteFloat, ...],
-        FiniteFloat,
-    ]
-    | None,
-) -> ProjectionCellFitRecord:
-    references = tuple(
-        _conditional_rank_reference(ranks, client_id, context_cell, epochs)
-        for client_id in coalition.client_ids
-    )
-    if len(epochs) < _minimum_support(loaded, coalition.order):
-        return ProjectionCellFitRecord(
-            context_cell=context_cell,
-            conditional_rank_references=references,
-            selected_ridge_penalty=None,
-            complete_nuisance_coefficients=(),
-            coordinate_means=(),
-            coordinate_deviations=(),
-            operational_norm_reference=None,
-            state=ClaimState.NOT_TESTED,
-        )
-    design_rows, tensors = _conditioned_design_and_tensors(
-        loaded,
-        ranks,
-        coalition,
-        epochs,
-        references,
-    )
-    complete_fit = calibrate_innovations_on_nuisance_fit(
-        design_rows,
-        tensors,
-        loaded.values.projection.ridge_candidates,
-        loaded.values.projection.cross_validation.fold_count,
-        loaded.values.projection.selection_tie_tolerance_mse,
-        loaded.values.projection.zero_ridge_svd_relative_cutoff,
-        loaded.values.projection.atom_scale_floor,
-    )
-    if complete_fit is None or cross_fitted_statistics is None:
-        return ProjectionCellFitRecord(
-            context_cell=context_cell,
-            conditional_rank_references=references,
-            selected_ridge_penalty=None,
-            complete_nuisance_coefficients=(),
-            coordinate_means=(),
-            coordinate_deviations=(),
-            operational_norm_reference=None,
-            state=ClaimState.NOT_TESTED,
-        )
-    means, deviations, norm_reference = cross_fitted_statistics
-    return ProjectionCellFitRecord(
-        context_cell=context_cell,
-        conditional_rank_references=references,
-        selected_ridge_penalty=complete_fit.selected_ridge_penalty,
-        complete_nuisance_coefficients=complete_fit.complete_nuisance_coefficients,
-        coordinate_means=means,
-        coordinate_deviations=deviations,
-        operational_norm_reference=norm_reference,
-        state=ClaimState.SUPPORTED,
-    )
-
-
-def _fit_coalition(
-    loaded: LoadedScientificConfiguration,
-    scores: DetectorScoreArtifactRecord,
-    ranks: MarginalRankArtifactRecord,
-    split: DatasetSplitRecord,
-    coalitions: tuple[CoalitionMembers, ...],
-    coalition: CoalitionMembers,
-    order_context: OrderContextFitRecord,
-) -> CoalitionFitRecord:
-    if order_context.state is not ClaimState.SUPPORTED:
-        return CoalitionFitRecord(
-            coalition_client_ids=coalition.client_ids,
-            coalition_order=coalition.order,
-            cells=(),
-            state=ClaimState.NOT_TESTED,
-        )
-    cells = tuple(
-        _fit_projection_cell(
-            loaded,
-            ranks,
-            coalition,
-            context_cell,
-            _coalition_cell_epochs(
-                loaded,
-                ranks,
-                coalition,
-                split.nuisance_fit_epochs,
-                order_context.centroids,
-                context_cell,
-            ),
-            _cross_fitted_cell_statistics(
-                loaded,
-                scores,
-                split,
-                coalitions,
-                coalition,
-                context_cell,
-            ),
-        )
-        for context_cell in range(len(order_context.centroids))
-    )
-    state = (
-        ClaimState.SUPPORTED
-        if any(cell.state is ClaimState.SUPPORTED for cell in cells)
-        else ClaimState.NOT_TESTED
-    )
-    return CoalitionFitRecord(
-        coalition_client_ids=coalition.client_ids,
-        coalition_order=coalition.order,
-        cells=cells,
-        state=state,
-    )
-
-
-def _emhi_fit_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"full-emhi-fit.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
-
-
-def _emhi_fit_path(
+def _materialize_emhi_fit(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     dataset_name: DatasetName,
     root_seed: SeedValue,
-) -> Path:
-    layout = build_artifact_layout(loaded, repository)
-    return (
-        layout.roots.outputs_root
-        / "artifacts"
-        / "fitted"
-        / dataset_directory_stem(dataset_name)
-        / f"seed-{root_seed}-full-emhi.json"
-    )
-
-
-def _materialize_full_emhi_fit(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    dataset_name: DatasetName,
-    root_seed: SeedValue,
+    method_name: MethodName,
     score_path: Path,
     rank_path: Path,
 ) -> Path:
-    _, _, split_path, _, _ = _preprocessing_paths(loaded, repository, dataset_name)
-    fit_config_digest = payload_digest(
+    specification = _emhi_method_specification(method_name)
+    if specification is None:
+        raise ValueError(f"method {method_name.value} is not an EMHI hierarchy")
+    _inventory_path, _prepared_path, split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    method_digest = payload_digest(
         cast(
             YamlNode,
             {
-                "context": loaded.values.context.model_dump(mode="json"),
-                "basis": loaded.values.basis.model_dump(mode="json"),
-                "projection": loaded.values.projection.model_dump(mode="json"),
-                "evidence": {
-                    "operational_norm_reference_quantile": loaded.values.evidence.operational_norm_reference_quantile
-                },
-                "maximum_coalition_order": loaded.values.study.maximum_coalition_order,
+                "method_name": method_name.value,
+                "context_method": specification.context_method.value,
+                "maximum_order": int(specification.maximum_order),
+                "basis_size": loaded.values.basis.primary_size,
+                "cell_count": loaded.values.context.primary_cell_count,
+                "purification_enabled": specification.purification_enabled,
             },
         )
     )
     fingerprint = material_fingerprint(
-        fit_config_digest,
+        loaded.material_digest,
         (
+            method_digest,
             file_sha256(score_path),
             file_sha256(rank_path),
             file_sha256(split_path),
         ),
     )
-    destination = _emhi_fit_path(loaded, repository, dataset_name, root_seed)
+    destination = _fit_artifact_path(
+        loaded,
+        repository,
+        dataset_name,
+        root_seed,
+        method_name,
+    )
     if destination.is_file():
         try:
             existing = EMHIFitArtifactRecord.model_validate_json(destination.read_bytes())
@@ -1219,55 +605,32 @@ def _materialize_full_emhi_fit(
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
-    maximum_order = CoalitionOrder(int(loaded.values.study.maximum_coalition_order))
-    coalitions = enumerate_coalitions(split.selected_client_ids, maximum_order)
-    order_contexts = tuple(
-        _fit_order_context(
-            loaded,
-            ranks,
-            coalitions,
-            split.nuisance_fit_epochs,
-            coalition_order,
-        )
-        for coalition_order in CoalitionOrder
-        if coalition_order <= maximum_order
-    )
-    coalition_fits = tuple(
-        _fit_coalition(
-            loaded,
-            scores,
-            ranks,
-            split,
-            coalitions,
-            coalition,
-            next(
-                context
-                for context in order_contexts
-                if context.coalition_order is coalition.order
-            ),
-        )
-        for coalition in coalitions
-    )
-    record = EMHIFitArtifactRecord(
-        dataset_name=dataset_name,
-        root_seed=root_seed,
-        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI,
-        selected_client_ids=split.selected_client_ids,
-        order_contexts=order_contexts,
-        coalition_fits=coalition_fits,
-        dependency_fingerprint=fingerprint,
+    record = build_emhi_fit_artifact(
+        loaded.values,
+        scores,
+        ranks,
+        split,
+        method_name,
+        specification.context_method,
+        specification.maximum_order,
+        loaded.values.basis.primary_size,
+        loaded.values.context.primary_cell_count,
+        specification.purification_enabled,
+        False,
+        fingerprint,
     )
     layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging"
-    content_digest = write_atomic_json(
-        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    content_hash = write_atomic_json(
+        destination,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
     )
     _write_manifest(
         loaded,
         repository,
         destination,
-        _emhi_fit_artifact_id(dataset_name, root_seed),
-        content_digest,
+        _fit_artifact_id(dataset_name, root_seed, method_name),
+        content_hash,
         fingerprint,
         (
             _score_artifact_id(dataset_name, root_seed),
@@ -1278,33 +641,392 @@ def _materialize_full_emhi_fit(
     return destination
 
 
-def _materialize_real_prerequisites(
+def _local_pfa_target(
+    loaded: LoadedScientificConfiguration,
+    experiment_name: ExperimentName,
+) -> FalseAlarmRate:
+    if experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
+        return loaded.values.local_policy.strong_horizon_pfa_target
+    return loaded.values.local_policy.primary_horizon_pfa_target
+
+
+def _calibration_payload(calibration: OperationalCalibration) -> YamlNode:
+    global_point = calibration.global_operating_point
+    return {
+        "global": {
+            "threshold": global_point.threshold,
+            "calibration_false_stop_counts": list(global_point.calibration_false_stop_counts),
+            "calibration_horizon_count": global_point.calibration_horizon_count,
+            "heldout_false_stop_count": global_point.heldout_false_stop_count,
+            "heldout_horizon_count": global_point.heldout_horizon_count,
+            "heldout_upper_pfa": global_point.heldout_upper_pfa,
+        },
+        "local": [
+            {
+                "client_id": point.client_id,
+                "policy": None
+                if point.policy is None
+                else {
+                    "threshold": point.policy.threshold,
+                    "required_exceedances": point.policy.required_exceedances,
+                    "window_epochs": point.policy.window_epochs,
+                },
+                "calibration_false_stop_count": point.calibration_false_stop_count,
+                "heldout_false_stop_count": point.heldout_false_stop_count,
+                "heldout_horizon_count": point.heldout_horizon_count,
+                "heldout_upper_pfa": point.heldout_upper_pfa,
+            }
+            for point in calibration.local_operating_points
+        ],
+    }
+
+
+def _trajectory_decisive_order(
+    loaded: LoadedScientificConfiguration,
+    trajectory: SequentialTrajectory,
+    stop_epoch: int | None,
+) -> CoalitionOrder | None:
+    if stop_epoch is None:
+        return None
+    row = next((item for item in trajectory.epochs if item.epoch_index == stop_epoch), None)
+    if row is None:
+        return None
+    return decisive_order(
+        row.order_factors,
+        loaded.values.numerics.deterministic_comparison_tolerance,
+    )
+
+
+def _campaign_rows(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    campaigns: CampaignRegistryRecord,
+    calibration: OperationalCalibration,
+) -> tuple[tuple[YamlNode, ...], tuple[FiniteFloat, ...]]:
+    rows: list[YamlNode] = []
+    odi_values: list[FiniteFloat] = []
+    threshold = calibration.global_operating_point.threshold
+    for campaign in campaigns.campaigns:
+        started = perf_counter()
+        trajectory = campaign_trajectory(loaded.values, ranks, fit, campaign)
+        elapsed: RuntimeSeconds = perf_counter() - started
+        evaluation_epochs = tuple(row.epoch_index for row in trajectory.epochs)
+        global_stop = None if threshold is None else global_stop_epoch(trajectory, threshold)
+        local_stops = local_stop_epochs(
+            scores,
+            calibration.local_operating_points,
+            evaluation_epochs,
+        )
+        odi = odi_evaluation_record(global_stop, local_stops)
+        earliest_local = earliest_local_stop(local_stops)
+        statistical = (
+            None
+            if global_stop is None or earliest_local is None
+            else statistical_lead(earliest_local, global_stop)
+        )
+        operational = (
+            None
+            if global_stop is None or earliest_local is None
+            else operational_lead(
+                earliest_local,
+                global_stop,
+                elapsed,
+                loaded.values.time.real_data_epoch_seconds,
+            )
+        )
+        coverage = trajectory_context_coverage(trajectory)
+        decisive = _trajectory_decisive_order(loaded, trajectory, global_stop)
+        indicator: OdiIndicator = odi.indicator
+        odi_values.append(float(indicator))
+        rows.append(
+            {
+                "start_epoch": campaign.start_epoch,
+                "end_epoch": campaign.end_epoch,
+                "participating_client_ids": list(campaign.participating_client_ids),
+                "global_stop_epoch": global_stop,
+                "local_stop_epochs": list(local_stops),
+                "local_min_stop_epoch": earliest_local,
+                "strict_odi": indicator,
+                "statistical_lead_epochs": statistical,
+                "operational_lead_epochs": operational,
+                "global_detected_within_horizon": odi.global_detection_indicator,
+                "local_detected_within_horizon": 0 if earliest_local is None else 1,
+                "decisive_order": None if decisive is None else int(decisive),
+                "context_coverage": coverage,
+                "abstention_rate": 1.0 - coverage,
+                "server_latency_seconds": elapsed,
+                "end_to_end_latency_seconds": elapsed,
+            }
+        )
+    return tuple(rows), tuple(odi_values)
+
+
+def _heldout_rows(
+    loaded: LoadedScientificConfiguration,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    partitions: BenignPartitionRecord,
+    calibration: OperationalCalibration,
+) -> tuple[YamlNode, ...]:
+    threshold = calibration.global_operating_point.threshold
+    if threshold is None:
+        return ()
+    records = heldout_benign_false_stop_records(
+        loaded.values,
+        ranks,
+        fit,
+        partitions,
+        threshold,
+    )
+    return tuple(
+        {
+            "split_role": PartitionRole.HELDOUT_BENIGN.value,
+            "horizon_index": index,
+            "start_epoch": horizon.start_epoch,
+            "threshold": threshold,
+            "false_campaign": 0 if stop_epoch is None else 1,
+            "first_stop_epoch": stop_epoch,
+            "context_coverage": trajectory_context_coverage(trajectory),
+            "abstention_rate": 1.0 - trajectory_context_coverage(trajectory),
+        }
+        for index, (horizon, trajectory, stop_epoch) in enumerate(records)
+    )
+
+
+def _evaluation_artifact_id(
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+) -> ArtifactIdentity:
+    return (
+        f"evaluation.{experiment_name.value}.{execution_role.value}."
+        f"{_method_slug(method_name)}.seed-{seed}"
+    )
+
+
+def _evaluate_emhi_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     experiment_name: ExperimentName,
-) -> tuple[Path, ...]:
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+    score_path: Path,
+    rank_path: Path,
+    fit_path: Path,
+) -> Path:
+    started = perf_counter()
+    _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
+        _preprocessing_paths(loaded, repository, _experiment_dataset(loaded, experiment_name))
+    )
+    target_local_pfa = _local_pfa_target(loaded, experiment_name)
+    method_digest = payload_digest(
+        cast(
+            YamlNode,
+            {
+                "method_name": method_name.value,
+                "target_local_pfa": target_local_pfa,
+                "execution_role": execution_role.value,
+                "seed": seed,
+            },
+        )
+    )
+    required_paths = (
+        score_path,
+        rank_path,
+        fit_path,
+        split_path,
+        partitions_path,
+        campaigns_path,
+    )
+    fingerprint = material_fingerprint(
+        loaded.material_digest,
+        (method_digest,) + tuple(file_sha256(path) for path in required_paths),
+    )
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+    ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    calibration = calibrate_operating_points(
+        loaded.values,
+        scores,
+        ranks,
+        fit,
+        split.nuisance_fit_epochs,
+        partitions,
+        target_local_pfa,
+    )
+    campaign_rows, odi_values = _campaign_rows(
+        loaded,
+        scores,
+        ranks,
+        fit,
+        campaigns,
+        calibration,
+    )
+    heldout_rows = _heldout_rows(loaded, ranks, fit, partitions, calibration)
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    method_slug = _method_slug(method_name)
+    evaluation_id = _evaluation_artifact_id(
+        experiment_name,
+        execution_role,
+        method_name,
+        seed,
+    )
+    raw_path = (
+        root
+        / "evaluations"
+        / "raw"
+        / execution_role.value
+        / method_slug
+        / f"seed-{seed}.json"
+    )
+    raw_payload: YamlNode = {
+        "artifact_id": evaluation_id,
+        "experiment_name": experiment_name.value,
+        "execution_role": execution_role.value,
+        "dataset_name": fit.dataset_name.value,
+        "method_name": method_name.value,
+        "seed": seed,
+        "dependency_fingerprint": fingerprint,
+        "calibration": _calibration_payload(calibration),
+        "heldout_benign": list(heldout_rows),
+        "campaigns": list(campaign_rows),
+    }
+    raw_hash = write_atomic_json(raw_path, raw_payload, staging)
+    output_paths = [raw_path.relative_to(repository).as_posix()]
+    output_hashes = [raw_hash]
+    if odi_values:
+        summary = build_seed_summary(
+            experiment_name=experiment_name,
+            execution_role=execution_role,
+            method_name=method_name,
+            reference_method_name=None,
+            metric_name="strict_odi_rate",
+            seed=seed,
+            method_values=odi_values,
+            reference_values=None,
+            source_evaluation_ids=(evaluation_id,),
+            dependency_fingerprint=fingerprint,
+        )
+        summary_path = (
+            root
+            / "metrics"
+            / "seed-summaries"
+            / execution_role.value
+            / method_slug
+            / f"seed-{seed}.json"
+        )
+        summary_hash = write_atomic_json(
+            summary_path,
+            cast(YamlNode, summary.model_dump(mode="json")),
+            staging,
+        )
+        output_paths.append(summary_path.relative_to(repository).as_posix())
+        output_hashes.append(summary_hash)
+    dataset_name = fit.dataset_name
+    upstream_ids = (
+        _score_artifact_id(dataset_name, seed),
+        _rank_artifact_id(dataset_name, seed),
+        _fit_artifact_id(dataset_name, seed, method_name),
+        layer_artifact_id(dataset_name, PreprocessingLayer.PARTITIONS),
+        layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY),
+    )
+    elapsed: RuntimeSeconds = perf_counter() - started
+    completion = CompletionRecord(
+        state=ExperimentState.COMPLETED,
+        mandatory_output_paths=tuple(output_paths),
+        mandatory_output_hashes=tuple(output_hashes),
+    )
+    cell = ScientificCellRecord(
+        experiment_name=experiment_name,
+        execution_role=execution_role,
+        semantic_cell_path=f"{execution_role.value}/{method_slug}/seed-{seed}",
+        method_name=method_name,
+        seed=seed,
+        state=ExperimentState.COMPLETED,
+        material_digest=loaded.material_digest,
+        selected_client_ids=fit.selected_client_ids,
+        upstream_artifact_ids=upstream_ids,
+        dependency_fingerprint=fingerprint,
+        runtime_seconds=elapsed,
+        peak_rss_bytes=0,
+        application_payload_bytes=len(raw_path.read_bytes()),
+        completion_record=completion,
+    )
+    cell_path = (
+        root
+        / "provenance"
+        / "dependencies"
+        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json"
+    )
+    write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+    return cell_path
+
+
+def _role_seeds(
+    loaded: LoadedScientificConfiguration,
+    role: ExecutionRole,
+) -> tuple[SeedValue, ...]:
+    if role is ExecutionRole.CONFIRMATORY:
+        return loaded.values.randomness.real_confirmatory_roots
+    return loaded.values.randomness.real_development_roots
+
+
+def _execute_real_emhi_methods(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+) -> tuple[RecordCount, tuple[MethodName, ...]]:
+    contract = _experiment_contract(loaded.values, experiment_name)
     dataset_name = _experiment_dataset(loaded, experiment_name)
-    roots = _required_real_roots(loaded, experiment_name)
-    produced: list[Path] = []
-    for root_seed in roots:
-        score_path = _materialize_detector_scores(loaded, repository, dataset_name, root_seed)
-        rank_path = _materialize_marginal_ranks(
-            loaded,
-            repository,
-            dataset_name,
-            root_seed,
-            score_path,
-        )
-        fit_path = _materialize_full_emhi_fit(
-            loaded,
-            repository,
-            dataset_name,
-            root_seed,
-            score_path,
-            rank_path,
-        )
-        produced.extend((score_path, rank_path, fit_path))
-    return tuple(produced)
+    supported = tuple(
+        method for method in contract.methods if _emhi_method_specification(method) is not None
+    )
+    missing = tuple(
+        method for method in contract.methods if _emhi_method_specification(method) is None
+    )
+    completed: RecordCount = 0
+    for role in contract.execution_roles:
+        for seed in _role_seeds(loaded, role):
+            score_path = _materialize_detector_scores(loaded, repository, dataset_name, seed)
+            rank_path = _materialize_marginal_ranks(
+                loaded,
+                repository,
+                dataset_name,
+                seed,
+                score_path,
+            )
+            for method_name in supported:
+                fit_path = _materialize_emhi_fit(
+                    loaded,
+                    repository,
+                    dataset_name,
+                    seed,
+                    method_name,
+                    score_path,
+                    rank_path,
+                )
+                _evaluate_emhi_seed_cell(
+                    loaded,
+                    repository,
+                    experiment_name,
+                    role,
+                    method_name,
+                    seed,
+                    score_path,
+                    rank_path,
+                    fit_path,
+                )
+                completed += 1
+    return completed, missing
 
 
 def execute_experiment(
@@ -1314,13 +1036,18 @@ def execute_experiment(
     overwrite_policy: OverwritePolicy,
 ) -> ExperimentExecutionResult:
     validate_scientific_implementation_registry(loaded.values, experiment_name)
-    reused = _existing_completed_run(loaded, repository, experiment_name, overwrite_policy)
-    if reused is not None:
-        return reused
+    reusable = _existing_completed_run(
+        loaded,
+        repository,
+        experiment_name,
+        overwrite_policy,
+    )
+    if reusable is not None:
+        return reusable
     if experiment_name is ExperimentName.SYNTHETIC_MODULE_VALIDATION:
         return _execute_synthetic_module_validation(loaded, repository, overwrite_policy)
     contract = _experiment_contract(loaded.values, experiment_name)
-    if contract.uses_synthetic_seeds and not contract.uses_real_seeds:
+    if not contract.uses_real_seeds:
         run_path = publish_experiment_run_record(
             loaded,
             repository,
@@ -1333,11 +1060,10 @@ def execute_experiment(
             state=ExperimentState.BLOCKED,
             run_record_path=run_path,
             completed_cell_count=0,
-            detail="synthetic experiment producer remains to be executed",
+            detail="synthetic experiment producer is not yet wired",
         )
     required = _required_preprocessing_artifacts(loaded, repository, experiment_name)
-    missing = tuple(path for path in required if not path.is_file())
-    if missing:
+    if any(not path.is_file() for path in required):
         run_path = publish_experiment_run_record(
             loaded,
             repository,
@@ -1352,20 +1078,45 @@ def execute_experiment(
             completed_cell_count=0,
             detail="required canonical preprocessing artifacts are missing",
         )
-    produced = _materialize_real_prerequisites(loaded, repository, experiment_name)
+    if not contract.methods:
+        run_path = publish_experiment_run_record(
+            loaded,
+            repository,
+            experiment_name,
+            overwrite_policy,
+            ExperimentState.BLOCKED,
+        )
+        return ExperimentExecutionResult(
+            experiment_name=experiment_name,
+            state=ExperimentState.BLOCKED,
+            run_record_path=run_path,
+            completed_cell_count=0,
+            detail="experiment requires coordinate-specific producer cells",
+        )
+    completed, missing_methods = _execute_real_emhi_methods(
+        loaded,
+        repository,
+        experiment_name,
+    )
+    state = ExperimentState.COMPLETED if not missing_methods else ExperimentState.BLOCKED
     run_path = publish_experiment_run_record(
         loaded,
         repository,
         experiment_name,
         overwrite_policy,
-        ExperimentState.BLOCKED,
+        state,
+    )
+    detail = (
+        "all configured real-data method cells completed"
+        if not missing_methods
+        else "unwired methods: " + ", ".join(method.value for method in missing_methods)
     )
     return ExperimentExecutionResult(
         experiment_name=experiment_name,
-        state=ExperimentState.BLOCKED,
+        state=state,
         run_record_path=run_path,
-        completed_cell_count=0,
-        detail=f"materialized {len(produced)} reusable detector, rank, and fully cross-fitted EMHI artifacts; evaluation remains",
+        completed_cell_count=completed,
+        detail=detail,
     )
 
 
