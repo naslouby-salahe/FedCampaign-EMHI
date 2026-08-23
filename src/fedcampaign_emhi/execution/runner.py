@@ -1,70 +1,60 @@
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
+from typing import cast
 
-from fedcampaign_emhi.analysis.claims import evaluate_strict_odi
-from fedcampaign_emhi.analysis.statistics import paired_difference
-from fedcampaign_emhi.analysis.summaries import build_seed_summary
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
+    ArtifactManifest,
+    ClientDetectorScoreStream,
     CompletionRecord,
+    DatasetSplitRecord,
+    DetectorScoreArtifactRecord,
     ExperimentRunRecord,
     PlanArtifactRecord,
     PlannedExperimentRecord,
+    PreparedDatasetRecord,
     ScientificCellRecord,
 )
-from fedcampaign_emhi.artifacts.storage import write_atomic_json
-from fedcampaign_emhi.comparators.composition import select_strongest_comparator
-from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
-from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_design_column_count
-from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
-from fedcampaign_emhi.comparators.contracts import comparator_method_contracts
-from fedcampaign_emhi.comparators.d_vine import lexicographic_vine_order
-from fedcampaign_emhi.comparators.fedavg_autoencoder import fedavg_weighted_mean
-from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
-from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
-from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
-from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
-from fedcampaign_emhi.comparators.rank_fusion import mean_rank_fusion
+from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.datasets.preprocessing import epoch_feature_vector
 from fedcampaign_emhi.detection.detector_assignment import assign_detector_families
-from fedcampaign_emhi.detection.fitting import score_autoencoder, score_isolation_forest, score_one_class_svm
+from fedcampaign_emhi.detection.fitting import (
+    score_autoencoder,
+    score_isolation_forest,
+    score_one_class_svm,
+)
+from fedcampaign_emhi.detection.scoring import score_stream_isolation_check
 from fedcampaign_emhi.domain.enums import (
+    ArtifactLifecycleState,
+    ArtifactNamespace,
+    DatasetName,
+    DetectorFamily,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
+    GroundTruthClass,
     OverwritePolicy,
 )
-from fedcampaign_emhi.domain.types import ComponentName, RecordCount, ResumeStep, RuntimeSeconds
-from fedcampaign_emhi.evaluation.scalability import summarize_scalability
+from fedcampaign_emhi.domain.types import (
+    ArtifactIdentity,
+    ClientId,
+    ComponentName,
+    FiniteFloat,
+    MaterialDependencyFingerprint,
+    RecordCount,
+    ResumeStep,
+    RuntimeSeconds,
+    SeedDerivationIdentity,
+    SeedValue,
+)
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
-from fedcampaign_emhi.evaluation.validation import campaign_record_state
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
-from fedcampaign_emhi.experiments.ablations import (
-    enumerate_exclusion_mechanism_ablation,
-    enumerate_purification_and_order_ablation,
-)
-from fedcampaign_emhi.experiments.benign_robustness import enumerate_benign_common_mode_plan
-from fedcampaign_emhi.experiments.boundaries import (
-    enumerate_dropout_boundary_plan,
-    enumerate_outside_contamination_plan,
-)
-from fedcampaign_emhi.experiments.definitions import experiment_registry
-from fedcampaign_emhi.experiments.primary_odi import enumerate_primary_strict_odi_plan
-from fedcampaign_emhi.experiments.scalability import enumerate_scalability_plan
-from fedcampaign_emhi.experiments.secondary_generalization import (
-    enumerate_secondary_generalization_plan,
-)
-from fedcampaign_emhi.experiments.sensitivity import enumerate_sensitivity_cells
-from fedcampaign_emhi.experiments.strong_local import enumerate_strong_local_policy_plan
+from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
-from fedcampaign_emhi.synthetic.common_mode import generate_common_mode_scores
-from fedcampaign_emhi.synthetic.controlled_campaigns import apply_marginal_score_shift
-from fedcampaign_emhi.synthetic.robustness import availability_mask
-from fedcampaign_emhi.synthetic.self_explanation import enumerate_self_exclusion_grid
+from fedcampaign_emhi.runtime.determinism import derive_component_seed
 from fedcampaign_emhi.synthetic.validation import validate_synthetic_generators
 
 
@@ -77,76 +67,30 @@ class ExperimentExecutionResult:
     detail: ComponentName
 
 
-_IMPLEMENTATION_PROBES = (
-    evaluate_strict_odi,
-    paired_difference,
-    build_seed_summary,
-    select_strongest_comparator,
-    hofd_atom_rows,
-    log_linear_design_column_count,
-    uniform_probability_table,
-    lexicographic_vine_order,
-    fedavg_weighted_mean,
-    selected_factor_rank,
-    lancaster_triple_moment,
-    next_cusum_state,
-    pair_dependence_moment,
-    mean_rank_fusion,
-    epoch_feature_vector,
-    assign_detector_families,
-    score_autoencoder,
-    score_isolation_forest,
-    score_one_class_svm,
-    summarize_scalability,
-    campaign_record_state,
-    generate_common_mode_scores,
-    apply_marginal_score_shift,
-    availability_mask,
-    enumerate_self_exclusion_grid,
-)
-
-
 def resume_sequence() -> tuple[ResumeStep, ...]:
     return RESUME_SEQUENCE
 
 
-def implementation_probe_names() -> tuple[ComponentName, ...]:
-    return tuple(f"{probe.__module__}.{probe.__name__}" for probe in _IMPLEMENTATION_PROBES)
-
-
 def validate_scientific_implementation_registry(
     config: ScientificConfig, experiment_name: ExperimentName
-) -> tuple[ComponentName, ...]:
+) -> None:
     assert_known_experiment(config, experiment_name)
-    contracts = comparator_method_contracts()
-    if len({contract.method_name for contract in contracts}) != len(contracts):
-        raise ValueError("comparator method contracts must have unique method ownership")
-    if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
-        enumerate_self_exclusion_grid(config)
-    elif experiment_name is ExperimentName.PRIMARY_STRICT_ODI_EVALUATION:
-        enumerate_primary_strict_odi_plan(config)
-    elif experiment_name is ExperimentName.EXCLUSION_MECHANISM_ABLATION:
-        enumerate_exclusion_mechanism_ablation(config)
-    elif experiment_name is ExperimentName.PURIFICATION_AND_ORDER_ABLATION:
-        enumerate_purification_and_order_ablation(config)
-    elif experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
-        enumerate_sensitivity_cells(config)
-    elif experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
-        enumerate_benign_common_mode_plan(config)
-    elif experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
-        enumerate_strong_local_policy_plan(config)
-    elif experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION:
-        enumerate_secondary_generalization_plan(config)
-    elif experiment_name is ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY:
-        enumerate_outside_contamination_plan(config)
-    elif experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
-        enumerate_dropout_boundary_plan(config)
-    elif experiment_name is ExperimentName.COALITION_SCALABILITY:
-        enumerate_scalability_plan(config)
-    probes = implementation_probe_names()
-    if not probes:
-        raise ValueError("scientific implementation registry is empty")
-    return probes
+    contract = _experiment_contract(config, experiment_name)
+    if contract.uses_real_seeds and not contract.methods and experiment_name not in {
+        ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY,
+        ExperimentName.COALITION_SCALABILITY,
+    }:
+        raise ValueError(f"real-data experiment {experiment_name.value} has no configured methods")
+
+
+def _experiment_contract(
+    config: ScientificConfig, experiment_name: ExperimentName
+) -> ExperimentContract:
+    return next(
+        contract
+        for contract in experiment_registry(config)
+        if contract.experiment_name is experiment_name
+    )
 
 
 def _run_record_path(
@@ -182,7 +126,7 @@ def publish_experiment_run_record(
         resume_sequence=RESUME_SEQUENCE,
         state=state,
     )
-    write_atomic_json(destination, record.model_dump(mode="json"), staging)
+    write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
     return destination
 
 
@@ -203,8 +147,7 @@ def _existing_completed_run(
         or record.state is not ExperimentState.COMPLETED
     ):
         return None
-    cell_root = path.parent
-    completed_cells = tuple(child for child in cell_root.glob("cell-*.json") if child.is_file())
+    completed_cells = tuple(child for child in path.parent.glob("cell-*.json") if child.is_file())
     if not completed_cells:
         return None
     return ExperimentExecutionResult(
@@ -241,10 +184,9 @@ def _execute_synthetic_module_validation(
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
     dependency_fingerprint = material_fingerprint(loaded.material_digest, ())
-    relative_output = str(diagnostic_path.relative_to(repository))
     completion = CompletionRecord(
         state=state,
-        mandatory_output_paths=(relative_output,),
+        mandatory_output_paths=(str(diagnostic_path.relative_to(repository)),),
         mandatory_output_hashes=(diagnostic_hash,),
     )
     elapsed: RuntimeSeconds = perf_counter() - started
@@ -265,7 +207,7 @@ def _execute_synthetic_module_validation(
         completion_record=completion,
     )
     cell_path = root / "provenance" / "dependencies" / "cell-validation.json"
-    write_atomic_json(cell_path, cell.model_dump(mode="json"), staging)
+    write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     run_path = publish_experiment_run_record(
         loaded, repository, experiment_name, overwrite_policy, state
     )
@@ -278,25 +220,21 @@ def _execute_synthetic_module_validation(
     )
 
 
-def _required_preprocessing_artifacts(
+def _experiment_dataset(
+    loaded: LoadedScientificConfiguration, experiment_name: ExperimentName
+) -> DatasetName:
+    if experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION:
+        return loaded.values.datasets.secondary.name
+    return loaded.values.datasets.primary.name
+
+
+def _preprocessing_paths(
     loaded: LoadedScientificConfiguration,
     repository: Path,
-    experiment_name: ExperimentName,
-) -> tuple[Path, ...]:
-    contract = next(
-        contract
-        for contract in experiment_registry(loaded.values)
-        if contract.experiment_name is experiment_name
-    )
-    if not contract.uses_real_seeds:
-        return ()
+    dataset_name: DatasetName,
+) -> tuple[Path, Path, Path, Path, Path]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.roots.outputs_root / "preprocessing"
-    dataset_name = (
-        loaded.values.datasets.secondary.name
-        if experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION
-        else loaded.values.datasets.primary.name
-    )
     stem = dataset_name.value.replace(" ", "_")
     return (
         root / "inventories" / f"{stem}.json",
@@ -305,6 +243,226 @@ def _required_preprocessing_artifacts(
         root / "metadata" / f"{stem}-benign-partitions.json",
         root / "metadata" / f"{stem}-campaign-registry.json",
     )
+
+
+def _required_preprocessing_artifacts(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+) -> tuple[Path, ...]:
+    contract = _experiment_contract(loaded.values, experiment_name)
+    if not contract.uses_real_seeds:
+        return ()
+    return _preprocessing_paths(
+        loaded, repository, _experiment_dataset(loaded, experiment_name)
+    )
+
+
+def _required_real_roots(
+    loaded: LoadedScientificConfiguration, experiment_name: ExperimentName
+) -> tuple[SeedValue, ...]:
+    contract = _experiment_contract(loaded.values, experiment_name)
+    roots: list[SeedValue] = []
+    if not contract.uses_real_seeds:
+        return ()
+    for role in contract.execution_roles:
+        if role is ExecutionRole.CONFIRMATORY:
+            roots.extend(loaded.values.randomness.real_confirmatory_roots)
+        else:
+            roots.extend(loaded.values.randomness.real_development_roots)
+    return tuple(dict.fromkeys(roots))
+
+
+def _score_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
+    stem = dataset_name.value.replace(" ", "_")
+    return f"detector-scores.{stem}.seed-{root_seed}"
+
+
+def _score_artifact_path(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    stem = dataset_name.value.replace(" ", "_")
+    return layout.roots.outputs_root / "artifacts" / "scores" / stem / f"seed-{root_seed}.json"
+
+
+def _detector_dependency_fingerprint(
+    loaded: LoadedScientificConfiguration,
+    prepared_path: Path,
+    split_path: Path,
+    root_seed: SeedValue,
+) -> MaterialDependencyFingerprint:
+    detector_config_digest = payload_digest(
+        cast(YamlNode, loaded.values.detectors.model_dump(mode="json"))
+    )
+    seed_digest = payload_digest(cast(YamlNode, {"root_seed": root_seed}))
+    return material_fingerprint(
+        detector_config_digest,
+        (file_sha256(prepared_path), file_sha256(split_path), seed_digest),
+    )
+
+
+def _detector_seed(
+    root_seed: SeedValue, dataset_name: DatasetName, client_id: ClientId
+) -> SeedValue:
+    return derive_component_seed(
+        SeedDerivationIdentity(
+            base_seed=root_seed,
+            component_name="local-detector-fit",
+            dataset=dataset_name,
+            client_ids=(client_id,),
+            coalition_ids=(),
+            condition_coordinates=(),
+        )
+    )
+
+
+def _score_client(
+    loaded: LoadedScientificConfiguration,
+    detector_family: DetectorFamily,
+    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
+    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    detector_seed: SeedValue,
+    client_id: ClientId,
+) -> tuple[FiniteFloat, ...]:
+    if detector_family is DetectorFamily.ISOLATION_FOREST:
+        config = loaded.values.detectors.isolation_forest
+        return score_isolation_forest(
+            fit_rows,
+            score_rows,
+            config.trees,
+            config.max_samples_cap,
+            config.max_features,
+            config.jobs,
+            detector_seed,
+        )
+    if detector_family is DetectorFamily.ONE_CLASS_SVM:
+        config = loaded.values.detectors.one_class_svm
+        return score_one_class_svm(
+            fit_rows,
+            score_rows,
+            config.nu,
+            config.coefficient_zero,
+            config.solver_tolerance,
+            config.kernel_cache_mib,
+            config.max_iterations,
+            detector_seed,
+        )
+    config = loaded.values.detectors.autoencoder
+    if len(config.betas) != 2:
+        raise ValueError("autoencoder requires exactly two Adam beta coefficients")
+    return score_autoencoder(
+        fit_rows,
+        score_rows,
+        config.learning_rate,
+        config.betas[0],
+        config.betas[1],
+        config.optimizer_epsilon,
+        config.weight_decay,
+        config.batch_size,
+        config.epochs,
+        detector_seed,
+        client_id,
+    )
+
+
+def _materialize_detector_scores(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+) -> Path:
+    _, prepared_path, split_path, _, _ = _preprocessing_paths(
+        loaded, repository, dataset_name
+    )
+    fingerprint = _detector_dependency_fingerprint(
+        loaded, prepared_path, split_path, root_seed
+    )
+    destination = _score_artifact_path(
+        loaded, repository, dataset_name, root_seed
+    )
+    if destination.is_file():
+        try:
+            existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
+        except ValueError:
+            existing = None
+        if existing is not None and existing.dependency_fingerprint == fingerprint:
+            return destination
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    assignments = assign_detector_families(split.selected_client_ids)
+    streams: list[ClientDetectorScoreStream] = []
+    for assignment in assignments:
+        client_rows = tuple(
+            row
+            for row in prepared.epochs
+            if row.client_id == assignment.client_id
+            and row.ground_truth is not GroundTruthClass.AMBIGUOUS
+        )
+        fit_rows = tuple(
+            row.feature_values
+            for row in client_rows
+            if row.epoch_index in split.detector_fit_epochs
+            and row.ground_truth is GroundTruthClass.BENIGN
+        )
+        if not fit_rows:
+            raise ValueError(
+                f"selected client {assignment.client_id} has no benign detector-fit rows"
+            )
+        score_rows = tuple(row.feature_values for row in client_rows)
+        detector_seed = _detector_seed(root_seed, dataset_name, assignment.client_id)
+        scores = _score_client(
+            loaded,
+            assignment.family,
+            fit_rows,
+            score_rows,
+            detector_seed,
+            assignment.client_id,
+        )
+        score_stream_isolation_check(len(scores), len(client_rows))
+        streams.append(
+            ClientDetectorScoreStream(
+                client_id=assignment.client_id,
+                detector_family=assignment.family,
+                detector_seed=detector_seed,
+                epoch_indexes=tuple(row.epoch_index for row in client_rows),
+                scores=scores,
+            )
+        )
+    record = DetectorScoreArtifactRecord(
+        dataset_name=dataset_name,
+        root_seed=root_seed,
+        selected_client_ids=split.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=fingerprint,
+    )
+    layout = build_artifact_layout(loaded, repository)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    content_digest = write_atomic_json(
+        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    )
+    manifest = ArtifactManifest(
+        artifact_id=_score_artifact_id(dataset_name, root_seed),
+        namespace=ArtifactNamespace.OUTPUTS,
+        experiment_name=None,
+        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
+        content_digest=content_digest,
+        material_fingerprint=fingerprint,
+        upstream_ids=(
+            f"preprocess.{dataset_name.value.replace(' ', '_')}.prepared",
+            f"preprocess.{dataset_name.value.replace(' ', '_')}.splits",
+        ),
+        lifecycle_state=ArtifactLifecycleState.VALID,
+    )
+    write_atomic_json(
+        destination.with_suffix(".manifest.json"),
+        cast(YamlNode, manifest.model_dump(mode="json")),
+        staging,
+    )
+    return destination
 
 
 def execute_experiment(
@@ -339,6 +497,11 @@ def execute_experiment(
             completed_cell_count=0,
             detail="required canonical preprocessing artifacts are missing",
         )
+    dataset_name = _experiment_dataset(loaded, experiment_name)
+    score_paths = tuple(
+        _materialize_detector_scores(loaded, repository, dataset_name, root_seed)
+        for root_seed in _required_real_roots(loaded, experiment_name)
+    )
     run_path = publish_experiment_run_record(
         loaded,
         repository,
@@ -351,7 +514,7 @@ def execute_experiment(
         state=ExperimentState.BLOCKED,
         run_record_path=run_path,
         completed_cell_count=0,
-        detail="scientific producer has unresolved execution cells",
+        detail=f"materialized {len(score_paths)} reusable detector score streams; EMHI fit remains",
     )
 
 
@@ -372,5 +535,7 @@ def publish_plan_artifact(loaded: LoadedScientificConfiguration, repository: Pat
             for planned in plan_experiments(loaded)
         ),
     )
-    write_atomic_json(destination, record.model_dump(mode="json"), staging)
+    write_atomic_json(
+        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    )
     return destination

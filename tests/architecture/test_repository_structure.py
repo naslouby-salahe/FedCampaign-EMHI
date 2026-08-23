@@ -83,16 +83,6 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/experiments/definitions.py",
     "src/fedcampaign_emhi/experiments/coordinates.py",
     "src/fedcampaign_emhi/experiments/validation.py",
-    "src/fedcampaign_emhi/experiments/sequential_evidence.py",
-    "src/fedcampaign_emhi/experiments/ablations.py",
-    "src/fedcampaign_emhi/experiments/sensitivity.py",
-    "src/fedcampaign_emhi/experiments/benign_robustness.py",
-    "src/fedcampaign_emhi/experiments/strong_local.py",
-    "src/fedcampaign_emhi/experiments/secondary_generalization.py",
-    "src/fedcampaign_emhi/experiments/boundaries.py",
-    "src/fedcampaign_emhi/experiments/scalability.py",
-    "src/fedcampaign_emhi/experiments/downscope.py",
-    "src/fedcampaign_emhi/experiments/primary_odi.py",
     "src/fedcampaign_emhi/evaluation/__init__.py",
     "src/fedcampaign_emhi/evaluation/records.py",
     "src/fedcampaign_emhi/evaluation/campaign_replay.py",
@@ -201,6 +191,13 @@ REQUIRED_TEST_DIRECTORIES = (
     "tests/unit/cli",
 )
 
+EXPECTED_EXPERIMENT_MODULES = {
+    "__init__.py",
+    "coordinates.py",
+    "definitions.py",
+    "validation.py",
+}
+
 
 def test_canonical_repository_files_exist(repo_root: Path) -> None:
     missing = [
@@ -225,16 +222,20 @@ def test_data_raw_is_external_symlink(repo_root: Path) -> None:
     assert checksums.is_dir()
 
 
+def test_experiment_layer_matches_authoritative_tree(repo_root: Path) -> None:
+    experiment_root = repo_root / "src" / "fedcampaign_emhi" / "experiments"
+    discovered = {path.name for path in experiment_root.glob("*.py")}
+    assert discovered == EXPECTED_EXPERIMENT_MODULES
+
+
 def test_source_tree_contains_no_undeclared_python_modules(repo_root: Path) -> None:
-    declared = {relative for relative in REQUIRED_SOURCE_FILES}
+    declared = set(REQUIRED_SOURCE_FILES)
     discovered = {
         path.relative_to(repo_root).as_posix()
         for path in (repo_root / "src" / "fedcampaign_emhi").rglob("*.py")
     }
-    extra = sorted(discovered - declared)
-    missing = sorted(declared - discovered)
-    assert extra == []
-    assert missing == []
+    assert sorted(discovered - declared) == []
+    assert sorted(declared - discovered) == []
 
 
 def test_required_architecture_tests_are_discoverable(repo_root: Path) -> None:

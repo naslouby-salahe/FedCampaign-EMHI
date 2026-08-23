@@ -78,9 +78,7 @@ def evaluate_operational_feasibility(
     suppression_passed = false_campaign_suppression >= minimum_false_campaign_suppression
     power_passed = power_loss <= maximum_power_loss
     state = (
-        ClaimState.SUPPORTED
-        if suppression_passed and power_passed
-        else ClaimState.NOT_SUPPORTED
+        ClaimState.SUPPORTED if suppression_passed and power_passed else ClaimState.NOT_SUPPORTED
     )
     return ClaimEvaluation(
         claim_identifier=ClaimIdentifier.CLAIM_OPERATIONAL_FEASIBILITY,

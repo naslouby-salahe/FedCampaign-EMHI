@@ -4,9 +4,7 @@ from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
 from fedcampaign_emhi.domain.types import CanonicalUtf8Bytes, FiniteFloat
 
 
-def _scaled_y(
-    metric_value: FiniteFloat, minimum: FiniteFloat, maximum: FiniteFloat
-) -> FiniteFloat:
+def _scaled_y(metric_value: FiniteFloat, minimum: FiniteFloat, maximum: FiniteFloat) -> FiniteFloat:
     if maximum == minimum:
         return 50
     return 90 - (80 * (metric_value - minimum) / (maximum - minimum))
@@ -33,9 +31,7 @@ def paired_difference_svg(records: tuple[SeedSummaryRecord, ...]) -> CanonicalUt
         lines.append(
             f'<circle cx="{x_coordinate}" cy="{y_coordinate:.3f}" r="4" fill="black"/>'
         )
-        lines.append(
-            f'<text x="{x_coordinate - 6}" y="110" font-size="9">{index}</text>'
-        )
+        lines.append(f'<text x="{x_coordinate - 6}" y="110" font-size="9">{index}</text>')
     lines.append("</svg>")
     return "\n".join(lines).encode("utf-8")
 

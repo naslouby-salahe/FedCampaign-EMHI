@@ -13,9 +13,7 @@ def report_command(
 ) -> None:
     repository, loaded = production_configuration_context()
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
-    reports = materialize_report_scope(
-        loaded, repository, experiment_name, policy
-    )
+    reports = materialize_report_scope(loaded, repository, experiment_name, policy)
     if experiment_name is not None:
         typer.echo(f"experiment={experiment_name.value}")
     else:
