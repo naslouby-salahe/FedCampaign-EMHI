@@ -3,8 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import SRC_ROOT, module_ast, source_files
+from tests.architecture.ast_scans import SRC_ROOT, module_ast, parametrize_source_files
 
 
 def _scan(path: Path) -> list[str]:
@@ -32,7 +31,7 @@ def _scan(path: Path) -> list[str]:
     return findings
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_no_silent_fallbacks(path: Path) -> None:
     assert _scan(path) == []
 
