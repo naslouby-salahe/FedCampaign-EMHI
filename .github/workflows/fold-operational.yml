@@ -1,6 +1,8 @@
 name: fold-operational
 on:
-  workflow_dispatch:
+  push:
+    branches: [audit/roadmap-completion]
+    paths: [.github/workflows/fold-operational.yml]
 permissions:
   contents: write
 jobs:
