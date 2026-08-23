@@ -4,6 +4,8 @@ from fedcampaign_emhi.domain.enums import (
     ArtifactNamespace,
     ClaimIdentifier,
     ClaimState,
+    CoalitionOrder,
+    ContextMethodName,
     DatasetName,
     DetectorFamily,
     ExecutionRole,
@@ -15,6 +17,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    BinIndex,
     ByteCount,
     ClientId,
     ComponentName,
@@ -28,6 +31,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     RelativePath,
     ResumeStep,
+    RidgePenalty,
     RuntimeSeconds,
     SeedCount,
     SeedValue,
@@ -211,6 +215,47 @@ class MarginalRankArtifactRecord(FrozenConfigModel):
     root_seed: SeedValue
     selected_client_ids: tuple[ClientId, ...]
     client_streams: tuple[ClientMarginalRankStream, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+
+
+class OrderContextFitRecord(FrozenConfigModel):
+    coalition_order: CoalitionOrder
+    context_method: ContextMethodName
+    centroids: tuple[tuple[FiniteFloat, ...], ...]
+    state: ClaimState
+
+
+class ConditionalRankReferenceRecord(FrozenConfigModel):
+    client_id: ClientId
+    context_cell: BinIndex
+    reference_ranks: tuple[RankValue, ...]
+
+
+class ProjectionCellFitRecord(FrozenConfigModel):
+    context_cell: BinIndex
+    conditional_rank_references: tuple[ConditionalRankReferenceRecord, ...]
+    selected_ridge_penalty: RidgePenalty | None
+    complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
+    coordinate_means: tuple[FiniteFloat, ...]
+    coordinate_deviations: tuple[FiniteFloat, ...]
+    operational_norm_reference: FiniteFloat | None
+    state: ClaimState
+
+
+class CoalitionFitRecord(FrozenConfigModel):
+    coalition_client_ids: tuple[ClientId, ...]
+    coalition_order: CoalitionOrder
+    cells: tuple[ProjectionCellFitRecord, ...]
+    state: ClaimState
+
+
+class EMHIFitArtifactRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    root_seed: SeedValue
+    method_name: MethodName
+    selected_client_ids: tuple[ClientId, ...]
+    order_contexts: tuple[OrderContextFitRecord, ...]
+    coalition_fits: tuple[CoalitionFitRecord, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
 
 
