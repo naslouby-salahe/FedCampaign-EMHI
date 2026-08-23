@@ -2,6 +2,12 @@ from dataclasses import dataclass, replace
 from types import FunctionType
 
 from fedcampaign_emhi.analysis.claims import evaluate_threshold_claim
+from fedcampaign_emhi.analysis.identity import (
+    all_declared_components_have_explicit_novelty_scope,
+    contribution_identity_matches,
+    no_novelty_claim_outside_identity,
+    roadmap_is_scientific_authority,
+)
 from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_placeholder_p_value
 from fedcampaign_emhi.analysis.statistics import (
     controlled_experimental_unit,
@@ -705,6 +711,10 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         pair_dependence_moment,
         oriented_score_stream,
         evaluate_threshold_claim,
+        roadmap_is_scientific_authority,
+        contribution_identity_matches,
+        no_novelty_claim_outside_identity,
+        all_declared_components_have_explicit_novelty_scope,
         pure_order_one_response,
         first_global_stop_epoch,
         first_local_stop_epoch,
