@@ -1,36 +1,15 @@
 from dataclasses import dataclass
 
+from fedcampaign_emhi.domain.enums import ClaimState
 from fedcampaign_emhi.domain.types import ComponentName, RecordCount, Sha256Hex
 
-
-@dataclass(frozen=True)
-class ClaimRegistryState:
-    label: ComponentName
-
-
-SUPPORTED = ClaimRegistryState("SUPPORTED")
-PARTIALLY_SUPPORTED = ClaimRegistryState("PARTIALLY_SUPPORTED")
-MECHANISM_ONLY = ClaimRegistryState("MECHANISM_ONLY")
-CONDITIONAL = ClaimRegistryState("CONDITIONAL")
-NULL_RESULT = ClaimRegistryState("NULL_RESULT")
-NOT_SUPPORTED = ClaimRegistryState("NOT_SUPPORTED")
-NOT_TESTED = ClaimRegistryState("NOT_TESTED")
-
-ALL_REGISTRY_STATES: tuple[ClaimRegistryState, ...] = (
-    SUPPORTED,
-    PARTIALLY_SUPPORTED,
-    MECHANISM_ONLY,
-    CONDITIONAL,
-    NULL_RESULT,
-    NOT_SUPPORTED,
-    NOT_TESTED,
-)
+ALL_REGISTRY_STATES: tuple[ClaimState, ...] = tuple(ClaimState)
 
 
 @dataclass(frozen=True)
 class ClaimRegistryEntry:
     claim_name: ComponentName
-    state: ClaimRegistryState
+    state: ClaimState
     source_artifact_hash: Sha256Hex
     mandatory_cell_count: RecordCount
     completed_cell_count: RecordCount
@@ -40,25 +19,22 @@ class ClaimRegistryEntry:
             raise ValueError("completed cells cannot exceed the declared mandatory cells")
 
 
-def state_is_byte_exact_serializable(state: ClaimRegistryState) -> bool:
-    return state.label == state.label.strip() and " " not in str(state.label)
+def state_is_byte_exact_serializable(state: ClaimState) -> bool:
+    return state.value == state.value.strip() and " " not in state.value
 
 
-def registry_states_are_distinct(states: tuple[ClaimRegistryState, ...]) -> bool:
-    labels = [state.label for state in states]
-    return len(set(labels)) == len(labels)
+def registry_states_are_distinct(states: tuple[ClaimState, ...]) -> bool:
+    return len(set(states)) == len(states)
 
 
-def defect_blocks_claim(claimed_state: ClaimRegistryState | None, artifact_current: bool) -> bool:
+def defect_blocks_claim(claimed_state: ClaimState | None, artifact_current: bool) -> bool:
     if claimed_state is None:
         return True
     return not artifact_current
 
 
-def not_tested_requires_eligibility_failure(
-    state: ClaimRegistryState, eligibility_failed: bool
-) -> bool:
-    if state is NOT_TESTED:
+def not_tested_requires_eligibility_failure(state: ClaimState, eligibility_failed: bool) -> bool:
+    if state is ClaimState.NOT_TESTED:
         return eligibility_failed
     return True
 
@@ -70,17 +46,17 @@ def compute_registry_state(
     null_observation: bool,
     conditionality_declared: bool,
     eligibility_failed: bool,
-) -> ClaimRegistryState:
+) -> ClaimState:
     if eligibility_failed:
-        return NOT_TESTED
+        return ClaimState.NOT_TESTED
     if null_observation:
-        return NULL_RESULT
+        return ClaimState.NULL_RESULT
     if not gates_pass:
-        return NOT_SUPPORTED
+        return ClaimState.NOT_SUPPORTED
     if mechanism_only_evidence:
-        return MECHANISM_ONLY
+        return ClaimState.MECHANISM_ONLY
     if conditionality_declared:
-        return CONDITIONAL
+        return ClaimState.CONDITIONAL
     if partial_support:
-        return PARTIALLY_SUPPORTED
-    return SUPPORTED
+        return ClaimState.PARTIALLY_SUPPORTED
+    return ClaimState.SUPPORTED

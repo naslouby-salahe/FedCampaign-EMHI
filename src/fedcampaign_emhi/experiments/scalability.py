@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import ScientificConfig
@@ -53,13 +54,7 @@ def derived_coalition_count(client_count: ClientCount, maximum_order: RecordCoun
         raise ValueError("maximum coalition order must be positive")
     if maximum_order > client_count:
         raise ValueError("maximum coalition order cannot exceed the client count")
-    total = 0
-    for order in range(1, maximum_order + 1):
-        coefficient = 1
-        for multiplier in range(order):
-            coefficient = coefficient * (client_count - multiplier) // (multiplier + 1)
-        total += coefficient
-    return total
+    return sum(math.comb(client_count, order) for order in range(1, maximum_order + 1))
 
 
 def latency_gate(p95_seconds: FiniteFloat, maximum_seconds: FiniteFloat) -> bool:

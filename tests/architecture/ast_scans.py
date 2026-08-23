@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "fedcampaign_emhi"
 PRIMITIVE_NAMES = frozenset({"str", "int", "float", "object", "Any", "bytes"})
@@ -74,6 +76,11 @@ def python_files(root: Path) -> tuple[Path, ...]:
 
 def source_files() -> tuple[Path, ...]:
     return python_files(SRC_ROOT)
+
+
+parametrize_source_files = pytest.mark.parametrize(
+    "path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix()
+)
 
 
 def architecture_test_paths() -> tuple[Path, ...]:

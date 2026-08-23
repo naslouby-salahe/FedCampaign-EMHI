@@ -1,4 +1,4 @@
-from math import sqrt
+import statistics
 
 from fedcampaign_emhi.domain.types import FiniteFloat, NumericalFloor, RecordCount
 
@@ -6,16 +6,13 @@ from fedcampaign_emhi.domain.types import FiniteFloat, NumericalFloor, RecordCou
 def sample_mean(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
     if not values:
         raise ValueError("mean requires at least one observation")
-    return sum(values) / len(values)
+    return statistics.fmean(values)
 
 
 def sample_standard_deviation(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
-    count = len(values)
-    if count < 2:
+    if len(values) < 2:
         raise ValueError("sample standard deviation requires at least two observations")
-    mean = sample_mean(values)
-    squared = sum((value - mean) ** 2 for value in values)
-    return sqrt(squared / (count - 1))
+    return statistics.stdev(values)
 
 
 def centered_scaled_coordinate(

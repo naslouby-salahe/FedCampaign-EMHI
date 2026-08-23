@@ -3,6 +3,7 @@ from math import sqrt
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.spatial.distance import cdist
 from scipy.stats import norm
 
 from fedcampaign_emhi.config.loading import histogram_edges
@@ -324,14 +325,10 @@ def _lloyd_kmeans(
     centroids = matrix[chosen].copy()
     assignments = np.zeros(row_count, dtype=np.int64)
     for _iteration in range(max_iterations):
-        for row_index in range(row_count):
-            histogram = tuple(float(coordinate) for coordinate in matrix[row_index])
-            packed = tuple(
-                tuple(float(coordinate) for coordinate in centroid) for centroid in centroids
-            )
-            assignments[row_index] = assign_context_cell(
-                histogram, packed, assignment_tie_tolerance
-            )
+        distances = cdist(matrix, centroids)
+        best = distances.min(axis=1, keepdims=True)
+        within_tolerance = (distances - best) <= assignment_tie_tolerance
+        assignments = within_tolerance.argmax(axis=1)
         updated = centroids.copy()
         for cell_index in range(cell_count):
             members = matrix[assignments == cell_index]

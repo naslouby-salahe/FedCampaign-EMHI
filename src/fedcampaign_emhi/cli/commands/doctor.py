@@ -3,7 +3,7 @@ from collections.abc import Callable
 import typer
 
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
-from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
+from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.datasets.inventory import configured_raw_directory, discover_raw_paths
 from fedcampaign_emhi.domain.enums import DatasetName
 from fedcampaign_emhi.execution.status import module_contracts
@@ -15,8 +15,7 @@ from fedcampaign_emhi.runtime.monitoring import assess_implementation_readiness
 
 def doctor_command() -> None:
     emit: Callable[[str], None] = typer.echo
-    repository = repository_root()
-    loaded = load_production_configuration(repository)
+    repository, loaded = production_configuration_context()
     readiness = assess_implementation_readiness(loaded, repository)
     layout = build_artifact_layout(loaded, repository)
     primary_raw = configured_raw_directory(loaded, DatasetName.TON_IOT_NETWORK, repository)

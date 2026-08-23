@@ -1,21 +1,19 @@
 import typer
 
-from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
+from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import ExperimentName
 from fedcampaign_emhi.execution.status import project_status
-from fedcampaign_emhi.experiments.definitions import resolve_experiment_name
+
+_OPTIONAL_EXPERIMENT_ARGUMENT: ExperimentName | None = typer.Argument(default=None)
 
 
 def status_command(
-    experiment_name: str | None = typer.Argument(default=None),
+    experiment_name: ExperimentName | None = _OPTIONAL_EXPERIMENT_ARGUMENT,
 ) -> None:
-    loaded = load_production_configuration(repository_root())
-    selected: ExperimentName | None = None
-    if experiment_name is not None:
-        selected = resolve_experiment_name(experiment_name)
+    _, loaded = production_configuration_context()
     typer.echo(f"material_digest={loaded.material_digest}")
     for item in project_status(loaded):
-        if selected is not None and item.experiment_name is not selected:
+        if experiment_name is not None and item.experiment_name is not experiment_name:
             continue
         typer.echo(
             f"{item.experiment_name.value}"

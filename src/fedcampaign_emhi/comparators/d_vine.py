@@ -1,6 +1,6 @@
 from math import sqrt
 
-from scipy.special import erfinv
+from scipy.stats import norm
 
 from fedcampaign_emhi.domain.types import (
     ClientId,
@@ -23,7 +23,7 @@ def standard_normal_quantile(rank: RankValue, rank_clip_epsilon: NumericalFloor)
     lower = rank_clip_epsilon
     upper = 1.0 - rank_clip_epsilon
     clipped = min(max(rank, lower), upper)
-    return sqrt(2.0) * float(erfinv((2.0 * clipped) - 1.0))
+    return float(norm.ppf(clipped))
 
 
 def gaussian_h_function(

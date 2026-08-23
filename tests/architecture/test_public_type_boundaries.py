@@ -3,13 +3,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
 from tests.architecture.ast_scans import (
     SRC_ROOT,
     annotation_primitives,
     iter_functions,
     module_ast,
-    source_files,
+    parametrize_source_files,
 )
 
 PUBLIC_PACKAGES = frozenset(
@@ -39,7 +38,7 @@ def _public_functions(path: Path) -> list[ast.FunctionDef]:
     return functions
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_public_type_boundaries(path: Path) -> None:
     rel = path.relative_to(SRC_ROOT).as_posix()
     package = rel.split("/")[0]

@@ -15,14 +15,8 @@ def payload_digest(payload: YamlNode) -> ConfigurationDigest:
 
 
 def file_sha256(path: Path) -> ConfigurationDigest:
-    digest = hashlib.sha256()
     with path.open("rb") as handle:
-        while True:
-            chunk = handle.read(1 << 20)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
+        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def write_atomic_json(

@@ -1,13 +1,12 @@
 import typer
 
-from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
+from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
 from fedcampaign_emhi.execution.runner import publish_plan_artifact
 
 
 def plan_command() -> None:
-    repository = repository_root()
-    loaded = load_production_configuration(repository)
+    repository, loaded = production_configuration_context()
     plan_path = publish_plan_artifact(loaded, repository)
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"plan_artifact={plan_path}")

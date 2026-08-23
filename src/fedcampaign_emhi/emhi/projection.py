@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import NDArray
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
@@ -157,22 +156,7 @@ def ridge_coefficient_matrix(
         penalty[1:, 1:] = np.eye(design.shape[1] - 1, dtype=np.float64) * ridge_penalty
     gram = design.T @ design
     if ridge_penalty <= 0.0:
-        coefficients = _zero_ridge_svd_solve(design, target, svd_relative_cutoff)
+        coefficients = np.linalg.pinv(design, rcond=svd_relative_cutoff) @ target
     else:
         coefficients = np.linalg.solve(gram + penalty, design.T @ target)
     return tuple(tuple(float(value) for value in row) for row in coefficients)
-
-
-def _zero_ridge_svd_solve(
-    design: NDArray[np.float64],
-    target: NDArray[np.float64],
-    svd_relative_cutoff: NumericalFloor,
-) -> NDArray[np.float64]:
-    left, singular_values, right = np.linalg.svd(design, full_matrices=False)
-    maximum = float(np.max(singular_values)) if singular_values.size else 0.0
-    cutoff = svd_relative_cutoff * maximum
-    inverted = np.array(
-        [0.0 if value <= cutoff else 1.0 / value for value in singular_values],
-        dtype=np.float64,
-    )
-    return (right.T * inverted) @ left.T @ target

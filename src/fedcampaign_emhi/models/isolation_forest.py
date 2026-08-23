@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import NDArray
 from sklearn.ensemble import IsolationForest
 
 from fedcampaign_emhi.domain.types import (
@@ -11,14 +10,6 @@ from fedcampaign_emhi.domain.types import (
     WorkerCount,
 )
 from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
-
-
-def _float64_row(values: NDArray[np.float64]) -> tuple[FiniteFloat, ...]:
-    array = np.array(values, dtype=np.float64).reshape(-1)
-    oriented: list[FiniteFloat] = []
-    for index in range(int(array.shape[0])):
-        oriented.append(float(array[index]))
-    return tuple(oriented)
 
 
 def isolation_forest_anomaly_scores(
@@ -48,5 +39,4 @@ def isolation_forest_anomaly_scores(
     )
     model.fit(fit_matrix)
     scored = np.array(model.score_samples(score_matrix), dtype=np.float64)
-    raw_scores = _float64_row(scored)
-    return tuple(-score for score in raw_scores)
+    return tuple((-scored).tolist())

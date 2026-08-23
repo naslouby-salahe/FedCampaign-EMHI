@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 from fedcampaign_emhi.artifacts.storage import file_sha256
@@ -72,16 +73,17 @@ def edge_iiotset_field_mapping(
 
 
 def adapter_producer_commit(repository: Path) -> CanonicalEventToken:
-    head = repository / ".git" / "HEAD"
-    if not head.is_file():
-        raise ValueError("adapter producer commit is unavailable")
-    text = head.read_text(encoding="utf-8").strip()
-    if text.startswith("ref:"):
-        reference = repository / ".git" / text.split(" ", 1)[1].strip()
-        if not reference.is_file():
-            raise ValueError("adapter producer commit reference is unavailable")
-        return reference.read_text(encoding="utf-8").strip()
-    return text
+    try:
+        completed = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=repository,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError("adapter producer commit is unavailable") from error
+    return completed.stdout.strip()
 
 
 def build_ton_iot_network_release_identity(
