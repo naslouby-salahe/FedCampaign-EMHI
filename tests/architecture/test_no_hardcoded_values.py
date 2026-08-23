@@ -3,8 +3,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import REPO_ROOT, SRC_ROOT, module_ast, source_files
+from tests.architecture.ast_scans import (
+    REPO_ROOT,
+    SRC_ROOT,
+    module_ast,
+    parametrize_source_files,
+)
 
 ALLOWED_FLOATS = {0.0, 0.5, 1.0, 2.0, 8.0}
 CONFIG_OWNERS = frozenset({"config/schema.py", "config/loading.py", "config/validation.py"})
@@ -40,7 +44,7 @@ def _scan_literals(path: Path) -> list[tuple[int, str]]:
     return findings
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_no_hardcoded_values(path: Path) -> None:
     findings = _scan_literals(path)
     assert not findings, f"{path}: {findings}"

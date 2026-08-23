@@ -1,3 +1,4 @@
+import statistics
 from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import ScientificConfig
@@ -61,11 +62,7 @@ def median_operational_lead_gate(
 def median_of(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
     if not values:
         raise ValueError("median requires at least one value")
-    ordered = sorted(values)
-    midpoint = len(ordered) // 2
-    if len(ordered) % 2 == 1:
-        return ordered[midpoint]
-    return (ordered[midpoint - 1] + ordered[midpoint]) / 2.0
+    return statistics.median(values)
 
 
 def matched_operating_point_requirement(

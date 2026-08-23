@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 from pathlib import Path
 from typing import cast
@@ -18,7 +17,6 @@ from fedcampaign_emhi.config.validation import (
     ConfigurationValidationError,
     YamlNode,
     reject_forbidden_derived_keys,
-    validate_scientific_config,
 )
 from fedcampaign_emhi.domain.enums import ConfigurationProfile
 from fedcampaign_emhi.domain.types import (
@@ -59,7 +57,7 @@ def canonical_utf8(payload: YamlNode) -> CanonicalUtf8Bytes:
 
 
 def configuration_digest(config: ScientificConfig) -> ConfigurationDigest:
-    record: YamlNode = json.loads(config.model_dump_json())
+    record: YamlNode = cast(YamlNode, config.model_dump(mode="json"))
     digest = hashlib.sha256(canonical_utf8(record)).hexdigest()
     return digest
 
@@ -114,7 +112,6 @@ def load_scientific_configuration(
     payload = _load_mapping(path)
     reject_forbidden_derived_keys(payload)
     config = ScientificConfig.model_validate(payload)
-    validate_scientific_config(config)
     derived = derive_scientific_values(config)
     digest = configuration_digest(config)
     return LoadedScientificConfiguration(
@@ -134,6 +131,13 @@ def load_production_configuration(
         repository / PRODUCTION_CONFIGURATION_RELATIVE_PATH,
         ConfigurationProfile.PRODUCTION,
     )
+
+
+def production_configuration_context(
+    root: Path | None = None,
+) -> tuple[Path, LoadedScientificConfiguration]:
+    repository = root or repository_root()
+    return repository, load_production_configuration(repository)
 
 
 def load_tests_configuration(root: Path | None = None) -> LoadedScientificConfiguration:

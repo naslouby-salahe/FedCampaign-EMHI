@@ -4,7 +4,6 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-import pytest
 from tests.architecture.ast_scans import (
     LOCAL_LEAK_CONTAINER_NAMES,
     SRC_ROOT,
@@ -15,7 +14,7 @@ from tests.architecture.ast_scans import (
     iter_functions,
     local_annotations,
     module_ast,
-    source_files,
+    parametrize_source_files,
     type_alias_annotations,
 )
 
@@ -34,18 +33,6 @@ ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
             "src/fedcampaign_emhi/cli/commands/preprocess.py",
             43,
             "_parse_dataset_name",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/run.py",
-            11,
-            "run_command",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/report.py",
-            12,
-            "report_command",
             "str",
         ),
         AllowlistEntry(
@@ -120,7 +107,7 @@ def _report(findings: list[tuple[str, int, str, str, str]]) -> str:
     return "\n".join(lines)
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_no_primitive_leaks(path: Path) -> None:
     findings = _scan_file(path)
     allowed = {

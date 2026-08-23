@@ -1,6 +1,6 @@
-from collections.abc import Sequence
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from fedcampaign_emhi.domain.enums import (
     ConfigurationProfile,
@@ -144,6 +144,12 @@ class ProjectionConfig(FrozenConfigModel):
     atom_scale_floor: NumericalFloor
     norm_reference_floor: NumericalFloor
 
+    @model_validator(mode="after")
+    def _validate_ridge_candidates(self) -> Self:
+        if 0.0 not in self.ridge_candidates:
+            raise ValueError("ridge_candidates must include 0.0")
+        return self
+
 
 class EvidenceSignedTheoremSequentialConfig(FrozenConfigModel):
     arl_alpha: FalseAlarmRate
@@ -187,6 +193,19 @@ class DatasetsPreprocessingBenignPartitionFractionsConfig(FrozenConfigModel):
     nuisance_fit: Probability
     threshold_and_policy_calibration: Probability
 
+    @model_validator(mode="after")
+    def _validate_bounds(self) -> Self:
+        if self.detector_fit <= 0.0 or self.nuisance_fit <= 0.0:
+            raise ValueError("benign partition fractions must be positive")
+        if self.threshold_and_policy_calibration <= 0.0:
+            raise ValueError("benign partition fractions must be positive")
+        fraction_sum = self.detector_fit + self.nuisance_fit + self.threshold_and_policy_calibration
+        if fraction_sum >= 1.0:
+            raise ValueError(
+                "heldout_benign is the chronological remainder and is not independently configurable"
+            )
+        return self
+
 
 class DatasetsPreprocessingConfig(FrozenConfigModel):
     event_type_hash_bucket_count: HashBucketCount
@@ -200,6 +219,12 @@ class DatasetsConfig(FrozenConfigModel):
     external_checksums_directory: RelativePath
     eligibility: DatasetsEligibilityConfig
     preprocessing: DatasetsPreprocessingConfig
+
+    @model_validator(mode="after")
+    def _validate_distinct_datasets(self) -> Self:
+        if self.primary.name == self.secondary.name:
+            raise ValueError("primary and secondary datasets must differ")
+        return self
 
 
 class DetectorsIsolationForestConfig(FrozenConfigModel):
@@ -243,6 +268,17 @@ class LocalPolicyConfig(FrozenConfigModel):
     primary_horizon_pfa_target: FalseAlarmRate
     strong_horizon_pfa_target: FalseAlarmRate
     pfa_confidence: ConfidenceLevel
+
+    @model_validator(mode="after")
+    def _validate_candidate_persistence(self) -> Self:
+        persistence = tuple(
+            (item.required_exceedances, item.window_epochs) for item in self.candidate_persistence
+        )
+        if persistence != ((1, 1), (2, 3), (3, 5)):
+            raise ValueError(
+                "candidate persistence must be the fixed 1-of-1, 2-of-3, 3-of-5 sequence"
+            )
+        return self
 
 
 class RandomnessConfig(FrozenConfigModel):
@@ -321,22 +357,6 @@ class GeneratorsXorConfig(FrozenConfigModel):
 class GeneratorsMixedOrderConfig(FrozenConfigModel):
     enabled_term_sets: tuple[tuple[PositiveInt, ...], ...]
     term_coefficient: EffectCoefficient
-
-    @field_validator("enabled_term_sets", mode="before")
-    @classmethod
-    def freeze_term_sets(
-        cls, raw_term_sets: Sequence[Sequence[PositiveInt]]
-    ) -> tuple[tuple[PositiveInt, ...], ...]:
-        if "enabled_term_sets" not in cls.model_fields:
-            raise TypeError("enabled_term_sets field is missing")
-        if not isinstance(raw_term_sets, list | tuple):
-            raise TypeError("enabled_term_sets must be a sequence of integer sequences")
-        frozen_sets: list[tuple[PositiveInt, ...]] = []
-        for term_set in raw_term_sets:
-            if not isinstance(term_set, list | tuple):
-                raise TypeError("each enabled term set must be a sequence of integers")
-            frozen_sets.append(tuple(term_set))
-        return tuple(frozen_sets)
 
 
 class GeneratorsContextDependentTripleInitialStateProbabilitiesConfig(FrozenConfigModel):
@@ -637,6 +657,12 @@ class RuntimeConfig(FrozenConfigModel):
 class ArtifactsConfig(FrozenConfigModel):
     outputs_root: RelativePath
     results_root: RelativePath
+
+    @model_validator(mode="after")
+    def _validate_distinct_roots(self) -> Self:
+        if self.outputs_root == self.results_root:
+            raise ValueError("outputs_root and results_root must be distinct")
+        return self
 
 
 class ReportingPrecisionConfig(FrozenConfigModel):

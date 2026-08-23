@@ -28,7 +28,7 @@ from fedcampaign_emhi.domain.enums import (
 NonNegativeInt = Annotated[int, Field(ge=0)]
 PositiveInt = Annotated[int, Field(gt=0)]
 NonNegativeFloat = Annotated[float, Field(ge=0.0)]
-PositiveFloat = Annotated[float, Field(gt=0.0)]
+PositiveFloat = Annotated[float, Field(gt=0.0, allow_inf_nan=False)]
 UnitInterval = Annotated[float, Field(ge=0.0, le=1.0)]
 OpenUnitInterval = Annotated[float, Field(gt=0.0, lt=1.0)]
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]

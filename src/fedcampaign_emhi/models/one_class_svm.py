@@ -39,7 +39,4 @@ def one_class_svm_anomaly_scores(
     )
     model.fit(fit_matrix)
     scored = np.array(model.decision_function(score_matrix), dtype=np.float64)
-    oriented: list[FiniteFloat] = []
-    for index in range(int(scored.reshape(-1).shape[0])):
-        oriented.append(-float(scored.reshape(-1)[index]))
-    return tuple(oriented)
+    return tuple((-scored).tolist())

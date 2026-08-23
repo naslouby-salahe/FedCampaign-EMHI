@@ -1,8 +1,6 @@
 from collections.abc import Mapping, Sequence
-from math import isfinite
 
-from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.types import FiniteFloat, YamlKeyPath
+from fedcampaign_emhi.domain.types import YamlKeyPath
 
 type YamlNode = str | int | float | bool | Sequence[YamlNode] | Mapping[str, YamlNode] | None
 
@@ -53,52 +51,3 @@ def reject_forbidden_derived_keys(payload: YamlNode) -> None:
         raise ConfigurationValidationError(
             f"derived configuration values are not independently configurable: {joined}"
         )
-
-
-def _require_finite(field_name: YamlKeyPath, numeric_value: FiniteFloat) -> None:
-    if not isfinite(numeric_value):
-        raise ConfigurationValidationError(f"{field_name} must be finite")
-
-
-def validate_scientific_config(config: ScientificConfig) -> None:
-    fractions = config.datasets.preprocessing.benign_partition_fractions
-    fraction_sum = (
-        fractions.detector_fit + fractions.nuisance_fit + fractions.threshold_and_policy_calibration
-    )
-    if fractions.detector_fit <= 0.0 or fractions.nuisance_fit <= 0.0:
-        raise ConfigurationValidationError("benign partition fractions must be positive")
-    if fractions.threshold_and_policy_calibration <= 0.0:
-        raise ConfigurationValidationError("benign partition fractions must be positive")
-    if fraction_sum >= 1.0:
-        raise ConfigurationValidationError(
-            "heldout_benign is the chronological remainder and is not independently configurable"
-        )
-    if config.study.maximum_coalition_order < 1:
-        raise ConfigurationValidationError("maximum_coalition_order must be at least 1")
-    if config.artifacts.outputs_root == config.artifacts.results_root:
-        raise ConfigurationValidationError("outputs_root and results_root must be distinct")
-    if config.runtime.required_confirmatory_missing_cell_tolerance < 0:
-        raise ConfigurationValidationError(
-            "required_confirmatory_missing_cell_tolerance must be non-negative"
-        )
-    if 0.0 not in config.projection.ridge_candidates:
-        raise ConfigurationValidationError("ridge_candidates must include 0.0")
-    persistence = tuple(
-        (item.required_exceedances, item.window_epochs)
-        for item in config.local_policy.candidate_persistence
-    )
-    if persistence != ((1, 1), (2, 3), (3, 5)):
-        raise ConfigurationValidationError(
-            "candidate persistence must be the fixed 1-of-1, 2-of-3, 3-of-5 sequence"
-        )
-    _require_finite("evidence.clip_bound", config.evidence.clip_bound)
-    _require_finite("evidence.bet_lambda", config.evidence.bet_lambda)
-    _require_finite("context.rank_clip_epsilon", config.context.rank_clip_epsilon)
-    if config.evidence.clip_bound <= 0.0:
-        raise ConfigurationValidationError("evidence.clip_bound must be positive")
-    if config.evidence.bet_lambda <= 0.0:
-        raise ConfigurationValidationError("evidence.bet_lambda must be positive")
-    if config.time.real_data_epoch_seconds <= 0:
-        raise ConfigurationValidationError("real_data_epoch_seconds must be positive")
-    if config.datasets.primary.name == config.datasets.secondary.name:
-        raise ConfigurationValidationError("primary and secondary datasets must differ")

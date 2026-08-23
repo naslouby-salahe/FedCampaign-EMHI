@@ -4,8 +4,7 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import SRC_ROOT, iter_functions, source_files
+from tests.architecture.ast_scans import SRC_ROOT, iter_functions, parametrize_source_files
 
 OPAQUE = re.compile(r"^[A-Z]+_?[0-9]+$|^[A-Z][0-9]+$")
 NUMERIC_SUFFIX = re.compile(r"^[a-z][a-z0-9]*_[0-9]+$")
@@ -61,7 +60,7 @@ def _identifier_findings(path: Path) -> list[tuple[str, int, str, str]]:
     return findings
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_naming_policy(path: Path) -> None:
     findings = _identifier_findings(path)
     assert findings == [], f"naming policy violations: {findings}"

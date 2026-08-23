@@ -1,21 +1,22 @@
 import typer
 
-from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
-from fedcampaign_emhi.experiments.definitions import resolve_experiment_name
+from fedcampaign_emhi.config.loading import production_configuration_context
+from fedcampaign_emhi.domain.enums import ExperimentName
 from fedcampaign_emhi.reporting.evidence import (
     results_are_scientific_inputs,
     results_are_terminal_exports,
 )
 
+_OPTIONAL_EXPERIMENT_ARGUMENT: ExperimentName | None = typer.Argument(default=None)
+
 
 def report_command(
-    experiment_name: str | None = typer.Argument(default=None),
+    experiment_name: ExperimentName | None = _OPTIONAL_EXPERIMENT_ARGUMENT,
     overwrite: bool = typer.Option(False, "--overwrite"),
 ) -> None:
-    loaded = load_production_configuration(repository_root())
+    _, loaded = production_configuration_context()
     if experiment_name is not None:
-        resolved = resolve_experiment_name(experiment_name)
-        typer.echo(f"experiment={resolved.value}")
+        typer.echo(f"experiment={experiment_name.value}")
     else:
         typer.echo("scope=project_summary")
     typer.echo(f"material_digest={loaded.material_digest}")

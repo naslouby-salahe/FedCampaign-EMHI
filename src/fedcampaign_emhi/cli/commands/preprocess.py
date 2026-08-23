@@ -1,6 +1,6 @@
 import typer
 
-from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
+from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import DatasetName, OverwritePolicy, PreprocessingLayer
 from fedcampaign_emhi.execution.preprocess import (
     execute_preprocess,
@@ -13,8 +13,7 @@ def preprocess_command(
     dataset_name: str | None = typer.Argument(default=None),
     overwrite: bool = typer.Option(False, "--overwrite"),
 ) -> None:
-    repository = repository_root()
-    loaded = load_production_configuration(repository)
+    repository, loaded = production_configuration_context()
     selected = None if dataset_name is None else _parse_dataset_name(dataset_name)
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
     record = execute_preprocess(loaded, repository, selected, policy)

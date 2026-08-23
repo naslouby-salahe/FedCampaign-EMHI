@@ -1,3 +1,4 @@
+import statistics
 from dataclasses import dataclass
 
 from fedcampaign_emhi.artifacts.provenance import content_digest
@@ -60,11 +61,7 @@ def mean_standardized_error(
 def median_runtime_seconds(runtimes: tuple[RuntimeSeconds, ...]) -> RuntimeSeconds:
     if not runtimes:
         raise ValueError("median runtime requires at least one measurement")
-    ordered = sorted(runtimes)
-    midpoint = len(ordered) // 2
-    if len(ordered) % 2 == 1:
-        return ordered[midpoint]
-    return (ordered[midpoint - 1] + ordered[midpoint]) / 2.0
+    return statistics.median(runtimes)
 
 
 def select_strongest_comparator(

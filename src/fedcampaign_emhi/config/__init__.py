@@ -21,7 +21,6 @@ from fedcampaign_emhi.config.validation import (
     FORBIDDEN_DERIVED_KEYS,
     ConfigurationValidationError,
     reject_forbidden_derived_keys,
-    validate_scientific_config,
 )
 
 __all__ = [
@@ -43,5 +42,4 @@ __all__ = [
     "minimum_zero_false_stop_horizons",
     "reject_forbidden_derived_keys",
     "repository_root",
-    "validate_scientific_config",
 ]

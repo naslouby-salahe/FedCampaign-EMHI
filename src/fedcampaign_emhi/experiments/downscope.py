@@ -1,49 +1,48 @@
 from dataclasses import dataclass
 
+from fedcampaign_emhi.domain.enums import ClaimIdentifier
 from fedcampaign_emhi.domain.types import ComponentName, FiniteFloat, Probability, RecordCount
 
 
 @dataclass(frozen=True)
-class ClaimState:
+class ClaimScopeState:
     claim_name: ComponentName
     is_supported: bool
     is_not_tested: bool
     limitation_statement_required: bool
 
 
-ORDER_THREE_SCOPE_CLAIM = "Order-Three Scope"
-
-
 def order_three_estimator_failure_scope(
     feasibility_passed: bool, materiality_met: bool
-) -> ClaimState:
+) -> ClaimScopeState:
+    claim_name = ClaimIdentifier.CLAIM_ORDER_THREE_SCOPE.value
     if not feasibility_passed:
-        return ClaimState(
-            claim_name=ORDER_THREE_SCOPE_CLAIM,
+        return ClaimScopeState(
+            claim_name=claim_name,
             is_supported=False,
             is_not_tested=False,
             limitation_statement_required=True,
         )
     if not materiality_met:
-        return ClaimState(
-            claim_name=ORDER_THREE_SCOPE_CLAIM,
+        return ClaimScopeState(
+            claim_name=claim_name,
             is_supported=False,
             is_not_tested=True,
             limitation_statement_required=False,
         )
-    return ClaimState(
-        claim_name=ORDER_THREE_SCOPE_CLAIM,
+    return ClaimScopeState(
+        claim_name=claim_name,
         is_supported=True,
         is_not_tested=False,
         limitation_statement_required=False,
     )
 
 
-def primary_threshold_absent_state(has_eligible_threshold: bool) -> ClaimState:
+def primary_threshold_absent_state(has_eligible_threshold: bool) -> ClaimScopeState:
     if has_eligible_threshold:
         raise ValueError("threshold-absence state requires an absent eligible threshold")
-    return ClaimState(
-        claim_name="Strict ODI on TON_IoT Network",
+    return ClaimScopeState(
+        claim_name=ClaimIdentifier.CLAIM_STRICT_ODI.value,
         is_supported=False,
         is_not_tested=True,
         limitation_statement_required=False,
@@ -58,10 +57,10 @@ def no_post_hoc_grid_expansion(
 
 def secondary_ineligibility_contribution_state(
     minimum_clients_met: bool, minimum_benign_epochs_met: bool
-) -> ClaimState:
+) -> ClaimScopeState:
     if minimum_clients_met and minimum_benign_epochs_met:
         raise ValueError("contribution-expansion block requires unmet secondary requirements")
-    return ClaimState(
+    return ClaimScopeState(
         claim_name="Secondary Controlled-Trace Generalization",
         is_supported=False,
         is_not_tested=False,
@@ -71,11 +70,11 @@ def secondary_ineligibility_contribution_state(
 
 def null_order_three_material_claim_state(
     synthetic_evidence_passes: bool, real_contribution: Probability
-) -> ClaimState:
+) -> ClaimScopeState:
     del synthetic_evidence_passes
     if real_contribution > 0.0:
         raise ValueError("null-contribution state requires a non-positive real contribution")
-    return ClaimState(
+    return ClaimScopeState(
         claim_name="Real Order-3 Material Contribution",
         is_supported=False,
         is_not_tested=False,

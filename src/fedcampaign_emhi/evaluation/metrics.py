@@ -1,4 +1,7 @@
 from math import log, sqrt
+from typing import cast
+
+from sklearn import metrics as sklearn_metrics
 
 from fedcampaign_emhi.domain.types import (
     CensoredPlotEpoch,
@@ -312,18 +315,8 @@ def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDef
     negatives = len(labels) - positives
     if positives == 0 or negatives == 0:
         return MaybeDefinedMetric.not_defined()
-    concordance = 0.0
-    for positive_index, positive_label in enumerate(labels):
-        if not positive_label:
-            continue
-        for negative_index, negative_label in enumerate(labels):
-            if negative_label:
-                continue
-            if scores[positive_index] > scores[negative_index]:
-                concordance += 1.0
-            elif scores[positive_index] == scores[negative_index]:
-                concordance += 0.5
-    return MaybeDefinedMetric.defined(concordance / (positives * negatives))
+    raw_value = cast(float, sklearn_metrics.roc_auc_score(list(labels), list(scores)))
+    return MaybeDefinedMetric.defined(float(raw_value))
 
 
 def auprc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDefinedMetric:
@@ -332,17 +325,8 @@ def auprc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDef
     positives = sum(1 for label in labels if label)
     if positives == 0 or positives == len(labels):
         return MaybeDefinedMetric.not_defined()
-    ordered = sorted(range(len(scores)), key=lambda index: scores[index], reverse=True)
-    true_positives = 0
-    false_positives = 0
-    precision_sum = 0.0
-    for index in ordered:
-        if labels[index]:
-            true_positives += 1
-            precision_sum += true_positives / (true_positives + false_positives)
-        else:
-            false_positives += 1
-    return MaybeDefinedMetric.defined(precision_sum / positives)
+    raw_value = cast(float, sklearn_metrics.average_precision_score(list(labels), list(scores)))
+    return MaybeDefinedMetric.defined(float(raw_value))
 
 
 def registry_coalition_count(
