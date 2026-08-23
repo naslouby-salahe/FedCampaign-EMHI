@@ -17,18 +17,15 @@ def resume_sequence() -> tuple[ResumeStep, ...]:
     return RESUME_SEQUENCE
 
 
-def run_is_blocked_until_scientific_producers_exist(
-    experiment_name: ExperimentName,
-) -> ExperimentState:
-    return ExperimentState.READY if experiment_name else ExperimentState.BLOCKED
-
-
 def publish_experiment_run_record(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     experiment_name: ExperimentName,
     overwrite_policy: OverwritePolicy,
+    state: ExperimentState,
 ) -> Path:
+    if state in {ExperimentState.NOT_STARTED, ExperimentState.READY}:
+        raise ValueError("run records require an active or terminal execution state")
     layout = build_artifact_layout(loaded, repository)
     staging = layout.roots.outputs_root / "cache" / "staging"
     destination = (
@@ -42,7 +39,7 @@ def publish_experiment_run_record(
         material_digest=loaded.material_digest,
         overwrite_policy=overwrite_policy,
         resume_sequence=RESUME_SEQUENCE,
-        state=ExperimentState.COMPLETED,
+        state=state,
     )
     write_atomic_json(destination, record.model_dump(mode="json"), staging)
     return destination
