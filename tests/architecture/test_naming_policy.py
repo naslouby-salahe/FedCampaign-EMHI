@@ -50,7 +50,7 @@ def _identifier_findings(path: Path) -> list[tuple[str, int, str, str]]:
         if name in VAGUE:
             findings.append((rel, getattr(node, "lineno", 0), name, kind))
 
-    for node, _owner in iter_functions(tree, path):
+    for node, _owner in iter_functions(tree):
         record(node, node.name, "function")
         for arg in node.args.args + node.args.kwonlyargs:
             record(arg, arg.arg, "parameter")

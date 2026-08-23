@@ -6,10 +6,6 @@ from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.datasets.inventory import configured_raw_directory, discover_raw_paths
 from fedcampaign_emhi.domain.enums import DatasetName
-from fedcampaign_emhi.execution.status import module_contracts
-from fedcampaign_emhi.reporting.figures import figures_contract
-from fedcampaign_emhi.reporting.reproducibility import reproducibility_contract
-from fedcampaign_emhi.reporting.tables import tables_contract
 from fedcampaign_emhi.runtime.monitoring import assess_implementation_readiness
 
 
@@ -35,9 +31,4 @@ def doctor_command() -> None:
     emit(f"secondary_raw_directory={secondary_raw}")
     emit(f"secondary_raw_file_count={len(secondary_files)}")
     emit(f"missing_artifact_directories={len(missing_directories)}")
-    contract_count = len(module_contracts()) + 3
-    tables_contract()
-    figures_contract()
-    reproducibility_contract()
-    emit(f"module_contracts={contract_count}")
     emit("next_action=fedcampaign preprocess")

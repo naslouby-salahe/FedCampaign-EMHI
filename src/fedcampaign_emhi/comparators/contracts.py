@@ -2,13 +2,7 @@ from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, MethodName
-from fedcampaign_emhi.domain.types import (
-    CellCount,
-    OwnershipStatement,
-    PositiveEpochCount,
-    Probability,
-    ThresholdValue,
-)
+from fedcampaign_emhi.domain.types import CellCount, PositiveEpochCount, Probability, ThresholdValue
 from fedcampaign_emhi.emhi.contexts import NO_OUTSIDE_CONTEXT_CELL_COUNT
 
 
@@ -21,22 +15,6 @@ class ComparatorMethodContract:
     native_maximum_interaction_order: PositiveEpochCount | None
     is_equivalence_comparator: bool
     determines_primary_causal_claim: bool
-
-
-SHARED_COMPARISON_INPUTS: tuple[OwnershipStatement, ...] = (
-    "dataset bytes",
-    "selected clients",
-    "preprocessing",
-    "local detector score streams where applicable",
-    "campaign registry",
-    "nuisance-fit/calibration/held-out partitions",
-    "calibrated finite-horizon horizon",
-    "PFA target",
-    "threshold-selection rule",
-    "campaign replay semantics",
-    "seeds",
-    "latency accounting",
-)
 
 
 def native_target_order(method_name: MethodName) -> CoalitionOrder | None:

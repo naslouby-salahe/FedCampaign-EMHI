@@ -6,7 +6,6 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     LearningRate,
     MemoryMib,
-    ModuleContract,
     NumericalTolerance,
     Probability,
     SampleCap,
@@ -18,13 +17,6 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores
 from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_scores
 from fedcampaign_emhi.models.one_class_svm import one_class_svm_anomaly_scores
-
-
-def fitting_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.detection.fitting",
-        ownership="fits local detectors exclusively from permitted benign detector-fit data",
-    )
 
 
 def permitted_fitting_partitions() -> tuple[PartitionRole, ...]:

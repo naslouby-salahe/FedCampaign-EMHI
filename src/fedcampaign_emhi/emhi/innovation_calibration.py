@@ -2,7 +2,6 @@ from fedcampaign_emhi.domain.types import (
     CrossFittedInnovationCalibration,
     FiniteFloat,
     FoldCount,
-    ModuleContract,
     NumericalFloor,
     NumericalTolerance,
     RecordCount,
@@ -22,13 +21,6 @@ from fedcampaign_emhi.emhi.projection import (
     ridge_coefficient_matrix,
     select_ridge_penalty,
 )
-
-
-def innovation_calibration_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.emhi.innovation_calibration",
-        ownership="blocked nuisance cross-fitting, held-fold calibration, and complete nuisance refitting",
-    )
 
 
 def fold_observation_indexes(

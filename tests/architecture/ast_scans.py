@@ -95,7 +95,7 @@ def module_ast(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
-def iter_functions(tree: ast.Module, path: Path) -> list[tuple[ast.FunctionDef, str | None]]:
+def iter_functions(tree: ast.Module) -> list[tuple[ast.FunctionDef, str | None]]:
     functions: list[tuple[ast.FunctionDef, str | None]] = []
 
     def _collect(nodes: list[ast.stmt], owner: str | None) -> None:
@@ -184,6 +184,22 @@ def type_alias_annotations(tree: ast.Module) -> list[tuple[str, ast.expr, int]]:
         ):
             aliases.append((node.target.id, node.value, node.lineno))
     return aliases
+
+
+def bare_literal_only_names(tree: ast.Module) -> set[str]:
+    bare_occurrences: dict[str, int] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Tuple | ast.List | ast.Set):
+            for elt in node.elts:
+                if isinstance(elt, ast.Name):
+                    bare_occurrences[elt.id] = bare_occurrences.get(elt.id, 0) + 1
+    load_occurrences: dict[str, int] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            load_occurrences[node.id] = load_occurrences.get(node.id, 0) + 1
+    return {
+        name for name, count in bare_occurrences.items() if load_occurrences.get(name, 0) == count
+    }
 
 
 def package_of(rel: str) -> str:

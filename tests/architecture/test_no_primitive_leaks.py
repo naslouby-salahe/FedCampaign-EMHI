@@ -37,7 +37,7 @@ ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
         ),
         AllowlistEntry(
             "src/fedcampaign_emhi/evaluation/smoke_gate.py",
-            65,
+            57,
             "_check",
             "list",
         ),
@@ -65,7 +65,7 @@ def _scan_file(path: Path) -> list[tuple[str, int, str, str, str]]:
     tree = module_ast(path)
     findings: list[tuple[str, int, str, str, str]] = []
     rel = path.resolve().relative_to(SRC_ROOT.parent.parent).as_posix()
-    for node, owner in iter_functions(tree, path):
+    for node, owner in iter_functions(tree):
         symbol = f"{owner}.{node.name}" if owner else node.name
         for arg in node.args.args + node.args.kwonlyargs + node.args.posonlyargs:
             _record_parameter(findings, rel, symbol, arg)

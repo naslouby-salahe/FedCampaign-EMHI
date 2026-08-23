@@ -9,7 +9,6 @@ from pydantic import Field, StringConstraints
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimIdentifier,
     ClaimState,
     CoalitionOrder,
     ContextMethodName,
@@ -117,14 +116,6 @@ ConfigurationDigest = Annotated[
     StringConstraints(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
 ]
 MaterialDependencyFingerprint = ConfigurationDigest
-ModuleName = Annotated[
-    str,
-    StringConstraints(
-        min_length=1,
-        strip_whitespace=True,
-        pattern=r"^fedcampaign_emhi(\.[A-Za-z_][A-Za-z0-9_]*)+$",
-    ),
-]
 OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -135,12 +126,6 @@ ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespa
 ByteCount = NonNegativeInt
 Sha256Hex = ConfigurationDigest
 ThirtyTwoBitSeed = Annotated[int, Field(ge=0, lt=4_294_967_296)]
-
-
-@dataclass(frozen=True)
-class ModuleContract:
-    module_name: ModuleName
-    ownership: OwnershipStatement
 
 
 @dataclass(frozen=True)
@@ -171,12 +156,6 @@ class ScientificOutcome:
     operating_point_state: OperatingPointState
     experiment_state: ExperimentState
     is_implementation_error: bool
-
-
-@dataclass(frozen=True)
-class ClaimEvaluation:
-    identifier: ClaimIdentifier
-    state: ClaimState
 
 
 @dataclass(frozen=True)
