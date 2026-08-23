@@ -55,6 +55,7 @@ from fedcampaign_emhi.domain.types import (
     ClientId,
     CoalitionMembers,
     ComponentName,
+    ConfigurationDigest,
     ContextTrainingRow,
     EpochIndexValue,
     FiniteFloat,
@@ -417,7 +418,7 @@ def _write_manifest(
     repository: Path,
     destination: Path,
     artifact_id: ArtifactIdentity,
-    content_digest: str,
+    content_digest: ConfigurationDigest,
     fingerprint: MaterialDependencyFingerprint,
     upstream_ids: tuple[ArtifactIdentity, ...],
 ) -> None:
@@ -463,7 +464,9 @@ def _materialize_detector_scores(
     for assignment in assignments:
         client_rows = tuple(row for row in prepared.epochs if row.client_id == assignment.client_id)
         fit_rows = tuple(
-            row.feature_values for row in client_rows if row.epoch_index in split.detector_fit_epochs
+            row.feature_values
+            for row in client_rows
+            if row.epoch_index in split.detector_fit_epochs
         )
         if not fit_rows:
             raise ValueError(
@@ -1006,7 +1009,9 @@ def _materialize_full_emhi_fit(
             ranks,
             coalition,
             split.nuisance_fit_epochs,
-            next(context for context in order_contexts if context.coalition_order is coalition.order),
+            next(
+                context for context in order_contexts if context.coalition_order is coalition.order
+            ),
         )
         for coalition in coalitions
     )
