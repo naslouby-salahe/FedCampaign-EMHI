@@ -10,14 +10,15 @@ _OPTIONAL_EXPERIMENT_ARGUMENT: ExperimentName | None = typer.Argument(default=No
 def status_command(
     experiment_name: ExperimentName | None = _OPTIONAL_EXPERIMENT_ARGUMENT,
 ) -> None:
-    _, loaded = production_configuration_context()
+    repository, loaded = production_configuration_context()
     typer.echo(f"material_digest={loaded.material_digest}")
-    for item in project_status(loaded):
+    for item in project_status(loaded, repository):
         if experiment_name is not None and item.experiment_name is not experiment_name:
             continue
         typer.echo(
             f"{item.experiment_name.value}"
             f" state={item.state.value}"
+            f" lifecycle={item.lifecycle_state.value}"
             f" development_seeds={item.development_seed_count}"
             f" confirmatory_seeds={item.confirmatory_seed_count}"
         )
