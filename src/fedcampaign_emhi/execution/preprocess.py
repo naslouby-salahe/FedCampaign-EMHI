@@ -85,7 +85,8 @@ from fedcampaign_emhi.domain.types import (
     EdgeIiotsetFlowRecord,
     EpochIndexValue,
     ExcludedRecord,
-    FiniteFloat,
+    FileInventoryEntry,
+    HashBucketCount,
     MaterialDependencyFingerprint,
     PreprocessExecutionRecord,
     PreprocessingLayerDecision,
@@ -429,7 +430,7 @@ def _resolve_materialization(
     layout: ArtifactLayout,
     dataset_name: DatasetName,
     raw_directory: Path,
-    raw_inventory: tuple,
+    raw_inventory: tuple[FileInventoryEntry, ...],
     inventory_digest: ConfigurationDigest,
     start_layer: PreprocessingLayer,
 ) -> DatasetMaterialization:
@@ -449,11 +450,7 @@ def _resolve_materialization(
         if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PARTITIONS)
         else _read_partitions(layout, dataset_name)
     )
-    campaigns = (
-        _campaigns_from_prepared(loaded, prepared, split)
-        if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.CAMPAIGN_REGISTRY)
-        else _read_campaigns(layout, dataset_name)
-    )
+    campaigns = _campaigns_from_prepared(loaded, prepared, split)
     del repository
     return DatasetMaterialization(
         inventory=inventory,
@@ -466,7 +463,7 @@ def _resolve_materialization(
 
 def _inventory_record(
     dataset_name: DatasetName,
-    inventory_entries: tuple,
+    inventory_entries: tuple[FileInventoryEntry, ...],
     inventory_digest: ConfigurationDigest,
 ) -> DatasetInventoryRecord:
     return DatasetInventoryRecord(
@@ -496,11 +493,6 @@ def _read_split(layout: ArtifactLayout, dataset_name: DatasetName) -> DatasetSpl
 def _read_partitions(layout: ArtifactLayout, dataset_name: DatasetName) -> BenignPartitionRecord:
     path = _product_path(layout, dataset_name, PreprocessingLayer.PARTITIONS)
     return BenignPartitionRecord.model_validate_json(path.read_bytes())
-
-
-def _read_campaigns(layout: ArtifactLayout, dataset_name: DatasetName) -> CampaignRegistryRecord:
-    path = _product_path(layout, dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY)
-    return CampaignRegistryRecord.model_validate_json(path.read_bytes())
 
 
 def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
@@ -551,9 +543,7 @@ def _build_prepared_and_split(
         discrepancy_count = sum(
             1
             for record in records
-            if ton_iot_network_ground_truth(
-                record.binary_label, record.attack_type
-            ).classification
+            if ton_iot_network_ground_truth(record.binary_label, record.attack_type).classification
             is GroundTruthClass.AMBIGUOUS
         )
         prepared = _prepare_ton_epochs(
@@ -763,7 +753,7 @@ def _prepare_edge_epochs(
 def _dense_prepared_epochs(
     dataset_name: DatasetName,
     selected_client_ids: tuple[ClientId, ...],
-    bucket_count: RecordCount,
+    bucket_count: HashBucketCount,
     counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]],
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
@@ -981,8 +971,7 @@ def _campaigns_from_prepared(
             malicious_epochs=tuple(
                 row.epoch_index
                 for row in prepared.epochs
-                if row.client_id == client_id
-                and row.ground_truth is GroundTruthClass.MALICIOUS
+                if row.client_id == client_id and row.ground_truth is GroundTruthClass.MALICIOUS
             ),
         )
         for client_id in split.selected_client_ids
