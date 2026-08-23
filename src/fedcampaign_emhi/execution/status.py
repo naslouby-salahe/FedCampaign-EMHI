@@ -1,6 +1,13 @@
 from dataclasses import dataclass, replace
 from types import FunctionType
 
+from fedcampaign_emhi.analysis.claim_registry import (
+    compute_registry_state,
+    defect_blocks_claim,
+    not_tested_requires_eligibility_failure,
+    registry_states_are_distinct,
+    state_is_byte_exact_serializable,
+)
 from fedcampaign_emhi.analysis.claims import evaluate_threshold_claim
 from fedcampaign_emhi.analysis.identity import (
     all_declared_components_have_explicit_novelty_scope,
@@ -723,6 +730,11 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         synthesis_may_proceed,
         reporting_command_stops_on_missing_dependency,
         confirmatory_cell_completion,
+        state_is_byte_exact_serializable,
+        registry_states_are_distinct,
+        defect_blocks_claim,
+        not_tested_requires_eligibility_failure,
+        compute_registry_state,
         pure_order_one_response,
         first_global_stop_epoch,
         first_local_stop_epoch,
