@@ -28,9 +28,7 @@ def paired_difference_svg(records: tuple[SeedSummaryRecord, ...]) -> CanonicalUt
     for index, paired_difference in enumerate(paired_differences):
         x_coordinate = 60 + index * 40
         y_coordinate = _scaled_y(paired_difference, minimum, maximum)
-        lines.append(
-            f'<circle cx="{x_coordinate}" cy="{y_coordinate:.3f}" r="4" fill="black"/>'
-        )
+        lines.append(f'<circle cx="{x_coordinate}" cy="{y_coordinate:.3f}" r="4" fill="black"/>')
         lines.append(f'<text x="{x_coordinate - 6}" y="110" font-size="9">{index}</text>')
     lines.append("</svg>")
     return "\n".join(lines).encode("utf-8")
