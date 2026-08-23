@@ -15,8 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fold temporary real execution into canonical runner
-        if: github.event_name == 'push'
         run: |
+          git fetch origin audit/roadmap-completion
+          git checkout -B audit/roadmap-completion origin/audit/roadmap-completion
           python - <<'PY'
           from pathlib import Path
 
