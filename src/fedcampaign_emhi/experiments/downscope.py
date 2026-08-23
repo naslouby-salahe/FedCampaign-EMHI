@@ -11,25 +11,28 @@ class ClaimState:
     limitation_statement_required: bool
 
 
+ORDER_THREE_SCOPE_CLAIM = "Order-Three Scope"
+
+
 def order_three_estimator_failure_scope(
     feasibility_passed: bool, materiality_met: bool
 ) -> ClaimState:
     if not feasibility_passed:
         return ClaimState(
-            claim_name="Order-Three Scope",
+            claim_name=ORDER_THREE_SCOPE_CLAIM,
             is_supported=False,
             is_not_tested=False,
             limitation_statement_required=True,
         )
     if not materiality_met:
         return ClaimState(
-            claim_name="Order-Three Scope",
+            claim_name=ORDER_THREE_SCOPE_CLAIM,
             is_supported=False,
             is_not_tested=True,
             limitation_statement_required=False,
         )
     return ClaimState(
-        claim_name="Order-Three Scope",
+        claim_name=ORDER_THREE_SCOPE_CLAIM,
         is_supported=True,
         is_not_tested=False,
         limitation_statement_required=False,
