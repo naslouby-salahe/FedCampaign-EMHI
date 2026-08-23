@@ -9,7 +9,11 @@ from fedcampaign_emhi.cli.commands.smoke import smoke_command
 from fedcampaign_emhi.cli.commands.status import status_command
 
 application = typer.Typer(
-    add_completion=False, no_args_is_help=True, pretty_exceptions_show_locals=False
+    add_completion=False,
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
+    rich_markup_mode=None,
+    context_settings={"max_content_width": 120},
 )
 application.command("doctor")(doctor_command)
 application.command("preprocess")(preprocess_command)

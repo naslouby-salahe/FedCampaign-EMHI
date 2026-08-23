@@ -22,5 +22,17 @@ jobs:
           python-version: "3.13"
       - run: uv sync --extra dev --locked
       - run: uv run pytest
+        id: pytest
+        continue-on-error: true
       - run: uv run pyright
+        id: pyright
+        continue-on-error: true
       - run: uv run lint-imports
+        id: imports
+        continue-on-error: true
+      - name: Enforce verification result
+        if: always()
+        run: |
+          test "${{ steps.pytest.outcome }}" = success
+          test "${{ steps.pyright.outcome }}" = success
+          test "${{ steps.imports.outcome }}" = success
