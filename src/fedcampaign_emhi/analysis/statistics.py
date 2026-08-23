@@ -1,5 +1,4 @@
 import random
-from math import sqrt
 from statistics import NormalDist
 
 from fedcampaign_emhi.domain.enums import ExperimentalUnitKind
