@@ -60,6 +60,7 @@ class ContextMethodName(StrEnum):
     PARTIAL_COALITION_EXCLUSION = "Partial Coalition Exclusion"
     EXACT_COALITION_EXCLUSION = "Exact Coalition Exclusion"
     ORACLE_OUTSIDE_LATENT_CONTEXT = "Oracle Outside Latent Context"
+    NO_OUTSIDE_CONTEXT = "No Outside Context"
     SHUFFLED_OUTSIDE_CONTEXT = "Shuffled Outside Context"
     LOCAL_HISTORY_ONLY_CONTEXT = "Local-History-Only Context"
     FORCED_NO_ABSTENTION = "Forced No-Abstention"
