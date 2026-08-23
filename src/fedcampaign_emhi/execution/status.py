@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+from types import FunctionType
 
 from fedcampaign_emhi.analysis.claims import evaluate_threshold_claim
 from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values, holm_placeholder_p_value
@@ -298,6 +299,15 @@ from fedcampaign_emhi.experiments.ablations import (
     order_three_material_contribution,
     order_three_scope_gate,
 )
+from fedcampaign_emhi.experiments.benign_robustness import (
+    enumerate_benign_common_mode_plan,
+    false_campaign_suppression_gate,
+    paired_false_campaign_difference,
+    power_loss_gate,
+    seed_level_power_loss,
+    select_top_event_count_windows,
+    synthetic_count_stress_multiplier,
+)
 from fedcampaign_emhi.experiments.primary_odi import (
     campaign_evaluation_universe,
     campaign_registry_universe_size,
@@ -405,7 +415,7 @@ DATASET_ADAPTER_OWNERSHIP = "dataset adapter contract"
 
 
 def module_contracts() -> tuple[ModuleContract, ...]:
-    production_functions = (
+    production_functions: tuple[FunctionType, ...] = (
         epoch_index,
         chronological_partition_lengths,
         apply_robust_scaler,
@@ -441,6 +451,13 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         enumerate_sensitivity_cells,
         exactly_one_factor_changes,
         sensitivity_p_value_never_claimed,
+        enumerate_benign_common_mode_plan,
+        false_campaign_suppression_gate,
+        paired_false_campaign_difference,
+        power_loss_gate,
+        seed_level_power_loss,
+        select_top_event_count_windows,
+        synthetic_count_stress_multiplier,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
