@@ -24,11 +24,12 @@ def doctor_command() -> None:
     primary_files = discover_raw_paths(primary_raw)
     secondary_files = discover_raw_paths(secondary_raw)
     missing_directories = [path for path in layout.required_directories() if not path.exists()]
+    raw_inventory_executable = primary_raw.exists() and secondary_raw.exists()
     emit(f"repository={repository}")
     emit(f"configuration={loaded.source_path}")
     emit(f"material_digest={readiness.material_digest}")
     emit(f"production_configuration_valid={readiness.production_configuration_valid}")
-    emit("raw_inventory_executable=True")
+    emit(f"raw_inventory_executable={raw_inventory_executable}")
     emit(f"unspecified_scientific_choice_count={readiness.unspecified_scientific_choice_count}")
     emit(f"primary_raw_directory={primary_raw}")
     emit(f"primary_raw_file_count={len(primary_files)}")
