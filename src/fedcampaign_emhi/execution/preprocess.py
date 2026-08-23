@@ -1,4 +1,5 @@
 import hashlib
+import inspect
 from collections.abc import MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ from fedcampaign_emhi.artifacts.records import (
     BenignPartitionRecord,
     CampaignRecord,
     CampaignRegistryRecord,
+    ClientFeatureScalerRecord,
     DatasetInventoryFileRecord,
     DatasetInventoryRecord,
     DatasetSplitRecord,
@@ -30,9 +32,9 @@ from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv_with_exclusions
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
-    select_secondary_clients,
-    separate_benign_and_evaluation as separate_edge_benign_and_evaluation,
+    adapter_material_code_fingerprint as edge_adapter_material_code_fingerprint,
 )
+from fedcampaign_emhi.datasets.edge_iiotset.validation import select_secondary_clients
 from fedcampaign_emhi.datasets.inventory import (
     configured_raw_directory,
     discover_raw_paths,
@@ -40,12 +42,14 @@ from fedcampaign_emhi.datasets.inventory import (
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.datasets.preprocessing import (
+    apply_robust_scaler,
     chronological_benign_partitions,
     chronological_partition_lengths,
-    common_benign_epoch_bounds,
     complete_benign_horizons,
     epoch_feature_vector,
+    fit_robust_scaler,
     inclusive_epoch_range,
+    retain_first_chronological,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_client_id,
@@ -57,15 +61,16 @@ from fedcampaign_emhi.datasets.ton_iot_network.loading import (
     load_ton_iot_network_csv_with_exclusions,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
-    select_primary_clients,
-    separate_benign_and_evaluation as separate_ton_benign_and_evaluation,
+    adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )
+from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_clients
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
     ClaimState,
     DatasetName,
     DownstreamArtifactKind,
+    ExperimentState,
     GroundTruthClass,
     OverwritePolicy,
     PreprocessingLayer,
@@ -73,16 +78,20 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
+    CanonicalEventToken,
     ClientId,
     ClientMaliciousEpochs,
     ConfigurationDigest,
     EdgeIiotsetFlowRecord,
     EpochIndexValue,
     ExcludedRecord,
+    FiniteFloat,
     MaterialDependencyFingerprint,
     PreprocessExecutionRecord,
     PreprocessingLayerDecision,
     RecordCount,
+    RetainedEvent,
+    RobustScaler,
     SignedInt,
     TonIotNetworkFlowRecord,
 )
@@ -147,14 +156,13 @@ def preprocessing_dependency_graph(dataset_name: DatasetName) -> tuple[ArtifactD
                 upstream_ids=upstream_ids,
             )
         )
-    registry_id = layer_ids[-1]
     for kind in preprocess_must_not_regenerate():
         downstream_id = downstream_artifact_id(dataset_name, kind)
         nodes.append(
             ArtifactDependencyNode(
                 artifact_id=downstream_id,
                 material_fingerprint=_structural_fingerprint(downstream_id),
-                upstream_ids=(registry_id,),
+                upstream_ids=(layer_ids[-1],),
             )
         )
     return tuple(nodes)
@@ -237,8 +245,15 @@ def _execute_dataset(
             )
             for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
         )
-    materialization = _build_dataset_materialization(
-        loaded, repository, dataset_name, inventory_digest
+    materialization = _resolve_materialization(
+        loaded,
+        repository,
+        layout,
+        dataset_name,
+        raw_directory,
+        raw_inventory,
+        inventory_digest,
+        start_layer,
     )
     decisions: list[PreprocessingLayerDecision] = []
     ancestor_changed = False
@@ -283,34 +298,105 @@ def _expected_fingerprints(
     dataset_name: DatasetName,
     inventory_digest: ConfigurationDigest,
 ) -> tuple[MaterialDependencyFingerprint, ...]:
-    fingerprints: list[MaterialDependencyFingerprint] = []
-    producer_digest = _producer_code_digest()
-    for layer in PREPROCESSING_LAYER_ORDER:
-        upstream = fingerprints[-1] if fingerprints else None
-        payload = cast(
+    inventory_identity = payload_digest(cast(YamlNode, {"dataset": dataset_name.value}))
+    inventory_fingerprint = material_fingerprint(inventory_identity, (inventory_digest,))
+    prepared_configuration = payload_digest(
+        cast(
             YamlNode,
             {
-                "configuration_digest": loaded.material_digest,
-                "dataset": dataset_name.value,
-                "layer": layer.value,
-                "raw_inventory_digest": inventory_digest,
-                "upstream": upstream,
-                "producer_code_digest": producer_digest,
+                "time": loaded.values.time.model_dump(mode="json"),
+                "eligibility": loaded.values.datasets.eligibility.model_dump(mode="json"),
+                "preprocessing": loaded.values.datasets.preprocessing.model_dump(mode="json"),
+                "dataset": _dataset_configuration_payload(loaded, dataset_name),
             },
         )
-        layer_digest = payload_digest(payload)
-        upstream_digests = () if upstream is None else (upstream,)
-        fingerprints.append(
-            material_fingerprint(
-                loaded.material_digest,
-                (*upstream_digests, inventory_digest, layer_digest),
-            )
+    )
+    adapter_digest = (
+        ton_adapter_material_code_fingerprint()
+        if dataset_name is DatasetName.TON_IOT_NETWORK
+        else edge_adapter_material_code_fingerprint()
+    )
+    prepared_fingerprint = material_fingerprint(
+        prepared_configuration,
+        (
+            inventory_fingerprint,
+            adapter_digest,
+            _layer_code_digest(PreprocessingLayer.PREPARED),
+            _layer_code_digest(PreprocessingLayer.SPLITS),
+        ),
+    )
+    split_fingerprint = material_fingerprint(
+        prepared_configuration,
+        (prepared_fingerprint, _layer_code_digest(PreprocessingLayer.SPLITS)),
+    )
+    partition_configuration = payload_digest(
+        cast(
+            YamlNode,
+            {"evaluation_horizon_epochs": loaded.values.campaign.evaluation_horizon_epochs},
         )
-    return tuple(fingerprints)
+    )
+    partition_fingerprint = material_fingerprint(
+        partition_configuration,
+        (split_fingerprint, _layer_code_digest(PreprocessingLayer.PARTITIONS)),
+    )
+    campaign_configuration = payload_digest(
+        cast(
+            YamlNode,
+            {
+                "campaign": loaded.values.campaign.model_dump(mode="json"),
+                "distributed_support": loaded.values.distributed_support.model_dump(mode="json"),
+            },
+        )
+    )
+    campaign_fingerprint = material_fingerprint(
+        campaign_configuration,
+        (
+            prepared_fingerprint,
+            split_fingerprint,
+            partition_fingerprint,
+            _layer_code_digest(PreprocessingLayer.CAMPAIGN_REGISTRY),
+        ),
+    )
+    return (
+        inventory_fingerprint,
+        prepared_fingerprint,
+        split_fingerprint,
+        partition_fingerprint,
+        campaign_fingerprint,
+    )
 
 
-def _producer_code_digest() -> ConfigurationDigest:
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+def _dataset_configuration_payload(
+    loaded: LoadedScientificConfiguration, dataset_name: DatasetName
+) -> YamlNode:
+    if dataset_name is DatasetName.TON_IOT_NETWORK:
+        return cast(YamlNode, loaded.values.datasets.primary.model_dump(mode="json"))
+    return cast(YamlNode, loaded.values.datasets.secondary.model_dump(mode="json"))
+
+
+def _layer_code_digest(layer: PreprocessingLayer) -> ConfigurationDigest:
+    if layer is PreprocessingLayer.INVENTORY:
+        sources = (inspect.getsource(inventory_raw_directory), inspect.getsource(_inventory_record))
+    elif layer is PreprocessingLayer.PREPARED:
+        sources = (
+            inspect.getsource(_deduplicate_ton_records),
+            inspect.getsource(_deduplicate_edge_records),
+            inspect.getsource(_prepare_ton_epochs),
+            inspect.getsource(_prepare_edge_epochs),
+            inspect.getsource(_dense_prepared_epochs),
+            inspect.getsource(_scale_prepared),
+            inspect.getsource(_prepared_epoch),
+        )
+    elif layer is PreprocessingLayer.SPLITS:
+        sources = (inspect.getsource(_split_from_prepared),)
+    elif layer is PreprocessingLayer.PARTITIONS:
+        sources = (inspect.getsource(_partitions_from_split),)
+    else:
+        sources = (inspect.getsource(_campaigns_from_prepared),)
+    digest = hashlib.sha256()
+    for source in sources:
+        digest.update(source.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def _layer_is_reusable(
@@ -320,9 +406,7 @@ def _layer_is_reusable(
     expected_fingerprint: MaterialDependencyFingerprint,
 ) -> bool:
     manifest = _read_manifest(layout, dataset_name, layer)
-    if manifest is None:
-        return False
-    if manifest.lifecycle_state is not ArtifactLifecycleState.VALID:
+    if manifest is None or manifest.lifecycle_state is not ArtifactLifecycleState.VALID:
         return False
     if manifest.material_fingerprint != expected_fingerprint:
         return False
@@ -339,15 +423,53 @@ def _stored_fingerprint(
     return None if manifest is None else manifest.material_fingerprint
 
 
-def _build_dataset_materialization(
+def _resolve_materialization(
     loaded: LoadedScientificConfiguration,
     repository: Path,
+    layout: ArtifactLayout,
     dataset_name: DatasetName,
+    raw_directory: Path,
+    raw_inventory: tuple,
     inventory_digest: ConfigurationDigest,
+    start_layer: PreprocessingLayer,
 ) -> DatasetMaterialization:
-    raw_directory = configured_raw_directory(loaded, dataset_name, repository)
-    inventory_entries = inventory_raw_directory(raw_directory, repository)
-    inventory = DatasetInventoryRecord(
+    inventory = _inventory_record(dataset_name, raw_inventory, inventory_digest)
+    start_index = PREPROCESSING_LAYER_ORDER.index(start_layer)
+    if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PREPARED):
+        prepared, split = _build_prepared_and_split(loaded, raw_directory, dataset_name)
+    else:
+        prepared = _read_prepared(layout, dataset_name)
+        split = (
+            _split_from_prepared(loaded, prepared)
+            if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.SPLITS)
+            else _read_split(layout, dataset_name)
+        )
+    partitions = (
+        _partitions_from_split(loaded, split)
+        if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PARTITIONS)
+        else _read_partitions(layout, dataset_name)
+    )
+    campaigns = (
+        _campaigns_from_prepared(loaded, prepared, split)
+        if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.CAMPAIGN_REGISTRY)
+        else _read_campaigns(layout, dataset_name)
+    )
+    del repository
+    return DatasetMaterialization(
+        inventory=inventory,
+        prepared=prepared,
+        split=split,
+        partitions=partitions,
+        campaigns=campaigns,
+    )
+
+
+def _inventory_record(
+    dataset_name: DatasetName,
+    inventory_entries: tuple,
+    inventory_digest: ConfigurationDigest,
+) -> DatasetInventoryRecord:
+    return DatasetInventoryRecord(
         dataset_name=dataset_name,
         files=tuple(
             DatasetInventoryFileRecord(
@@ -359,24 +481,31 @@ def _build_dataset_materialization(
         ),
         content_digest=inventory_digest,
     )
-    if dataset_name is DatasetName.TON_IOT_NETWORK:
-        return _build_ton_materialization(loaded, raw_directory, inventory)
-    if dataset_name is DatasetName.EDGE_IIOTSET:
-        return _build_edge_materialization(loaded, raw_directory, inventory)
-    raise ValueError(f"unsupported dataset {dataset_name.value}")
+
+
+def _read_prepared(layout: ArtifactLayout, dataset_name: DatasetName) -> PreparedDatasetRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.PREPARED)
+    return PreparedDatasetRecord.model_validate_json(path.read_bytes())
+
+
+def _read_split(layout: ArtifactLayout, dataset_name: DatasetName) -> DatasetSplitRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.SPLITS)
+    return DatasetSplitRecord.model_validate_json(path.read_bytes())
+
+
+def _read_partitions(layout: ArtifactLayout, dataset_name: DatasetName) -> BenignPartitionRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.PARTITIONS)
+    return BenignPartitionRecord.model_validate_json(path.read_bytes())
+
+
+def _read_campaigns(layout: ArtifactLayout, dataset_name: DatasetName) -> CampaignRegistryRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY)
+    return CampaignRegistryRecord.model_validate_json(path.read_bytes())
 
 
 def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
     return tuple(
         path for path in discover_raw_paths(raw_directory) if path.suffix.lower() == ".csv"
-    )
-
-
-def _increment_bucket(
-    counts: tuple[RecordCount, ...], bucket_index: SignedInt
-) -> tuple[RecordCount, ...]:
-    return tuple(
-        count + 1 if index == bucket_index else count for index, count in enumerate(counts)
     )
 
 
@@ -392,54 +521,157 @@ def _load_ton_records(
     return records, exclusions
 
 
-def _build_ton_materialization(
+def _load_edge_records(
+    raw_directory: Path,
+) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
+    records: tuple[EdgeIiotsetFlowRecord, ...] = ()
+    exclusions: tuple[ExcludedRecord, ...] = ()
+    for path in _csv_paths(raw_directory):
+        file_records, file_exclusions = load_edge_iiotset_csv_with_exclusions(path)
+        records = (*records, *file_records)
+        exclusions = (*exclusions, *file_exclusions)
+    return records, exclusions
+
+
+def _build_prepared_and_split(
     loaded: LoadedScientificConfiguration,
     raw_directory: Path,
-    inventory: DatasetInventoryRecord,
-) -> DatasetMaterialization:
-    records, exclusions = _load_ton_records(raw_directory)
-    separation = separate_ton_benign_and_evaluation(records)
-    selection = select_primary_clients(
-        records,
-        loaded.values.time.real_data_epoch_seconds,
-        loaded.values.datasets.eligibility.minimum_benign_event_records,
-        loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
-        loaded.values.datasets.primary.target_client_count,
+    dataset_name: DatasetName,
+) -> tuple[PreparedDatasetRecord, DatasetSplitRecord]:
+    if dataset_name is DatasetName.TON_IOT_NETWORK:
+        records, exclusions = _load_ton_records(raw_directory)
+        records, duplicate_count = _deduplicate_ton_records(records)
+        selection = select_primary_clients(
+            records,
+            loaded.values.time.real_data_epoch_seconds,
+            loaded.values.datasets.eligibility.minimum_benign_event_records,
+            loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
+            loaded.values.datasets.primary.target_client_count,
+        )
+        discrepancy_count = sum(
+            1
+            for record in records
+            if ton_iot_network_ground_truth(
+                record.binary_label, record.attack_type
+            ).classification
+            is GroundTruthClass.AMBIGUOUS
+        )
+        prepared = _prepare_ton_epochs(
+            loaded,
+            records,
+            selection.selected_client_ids,
+            selection.eligible_client_ids,
+            selection.claim_state,
+            len(exclusions),
+            duplicate_count,
+            discrepancy_count,
+        )
+    else:
+        records, exclusions = _load_edge_records(raw_directory)
+        records, duplicate_count = _deduplicate_edge_records(records)
+        selection = select_secondary_clients(
+            records,
+            loaded.values.time.real_data_epoch_seconds,
+            loaded.values.datasets.eligibility.minimum_benign_event_records,
+            loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
+            loaded.values.datasets.secondary.target_client_count,
+            loaded.values.datasets.secondary.minimum_eligible_client_count,
+        )
+        discrepancy_count = sum(
+            1
+            for record in records
+            if edge_iiotset_ground_truth(record.binary_label, record.attack_type).classification
+            is GroundTruthClass.AMBIGUOUS
+        )
+        prepared = _prepare_edge_epochs(
+            loaded,
+            records,
+            selection.selected_client_ids,
+            selection.eligible_client_ids,
+            selection.claim_state,
+            len(exclusions),
+            duplicate_count,
+            discrepancy_count,
+        )
+    split = _split_from_prepared(loaded, prepared)
+    return _scale_prepared(loaded, prepared, split), split
+
+
+def _deduplicate_ton_records(
+    records: tuple[TonIotNetworkFlowRecord, ...],
+) -> tuple[tuple[TonIotNetworkFlowRecord, ...], RecordCount]:
+    events = tuple(
+        RetainedEvent(
+            dataset_name=DatasetName.TON_IOT_NETWORK,
+            client_id=canonical_client_id(record.source_ip),
+            timestamp_seconds=record.timestamp_seconds,
+            event_type=ton_canonical_event_type(record.protocol_token, record.service_token),
+            payload=_payload_identity((str(record.binary_label), record.attack_type)),
+            unique_identifier=None,
+            original_order=index,
+        )
+        for index, record in enumerate(records)
     )
-    prepared = _prepare_ton_epochs(
-        loaded, records, len(exclusions), len(separation.discrepancies)
+    outcome = retain_first_chronological(events)
+    if outcome.experiment_state is ExperimentState.INVALID:
+        raise ValueError("conflicting TON_IoT Network duplicate identifiers are invalid")
+    retained_indexes = tuple(event.original_order for event in outcome.retained_events)
+    return tuple(records[index] for index in retained_indexes), outcome.duplicate_count
+
+
+def _deduplicate_edge_records(
+    records: tuple[EdgeIiotsetFlowRecord, ...],
+) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], RecordCount]:
+    events = tuple(
+        RetainedEvent(
+            dataset_name=DatasetName.EDGE_IIOTSET,
+            client_id=record.source_host.strip(),
+            timestamp_seconds=record.timestamp_seconds,
+            event_type=edge_canonical_event_type(record.protocol_group),
+            payload=_payload_identity((str(record.binary_label), record.attack_type)),
+            unique_identifier=None,
+            original_order=index,
+        )
+        for index, record in enumerate(records)
     )
-    split, partitions = _build_ton_partitions(
-        loaded,
-        selection.selected_client_ids,
-        selection.eligible_client_ids,
-        selection.claim_state,
-        separation.benign_records,
-    )
-    campaigns = _build_ton_campaigns(
-        loaded, selection.selected_client_ids, separation.evaluation_records
-    )
-    return DatasetMaterialization(
-        inventory=inventory,
-        prepared=prepared,
-        split=split,
-        partitions=partitions,
-        campaigns=campaigns,
+    outcome = retain_first_chronological(events)
+    if outcome.experiment_state is ExperimentState.INVALID:
+        raise ValueError("conflicting Edge-IIoTset duplicate identifiers are invalid")
+    retained_indexes = tuple(event.original_order for event in outcome.retained_events)
+    return tuple(records[index] for index in retained_indexes), outcome.duplicate_count
+
+
+def _payload_identity(parts: tuple[CanonicalEventToken, ...]) -> CanonicalEventToken:
+    return payload_digest(cast(YamlNode, list(parts)))
+
+
+def _increment_bucket(
+    counts: tuple[RecordCount, ...], bucket_index: SignedInt
+) -> tuple[RecordCount, ...]:
+    return tuple(
+        count + 1 if index == bucket_index else count for index, count in enumerate(counts)
     )
 
 
 def _prepare_ton_epochs(
     loaded: LoadedScientificConfiguration,
     records: tuple[TonIotNetworkFlowRecord, ...],
+    selected_client_ids: tuple[ClientId, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    claim_state: ClaimState,
     excluded_count: RecordCount,
+    duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
 ) -> PreparedDatasetRecord:
     bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
+    selected = set(selected_client_ids)
     counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     for record in records:
         client_id = canonical_client_id(record.source_ip)
+        if client_id not in selected:
+            continue
         epoch = epoch_index(
             record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds
         ).index
@@ -453,23 +685,110 @@ def _prepare_ton_epochs(
             ambiguous[key] = ambiguous.get(key, 0) + 1
         elif ground_truth.classification is GroundTruthClass.MALICIOUS:
             malicious[key] = malicious.get(key, 0) + 1
-    epochs = tuple(
-        _prepared_epoch(
-            DatasetName.TON_IOT_NETWORK,
-            client_id,
-            epoch,
-            bucket_counts,
-            ambiguous.get((client_id, epoch), 0),
-            malicious.get((client_id, epoch), 0),
-        )
-        for (client_id, epoch), bucket_counts in sorted(counts.items())
+    epochs = _dense_prepared_epochs(
+        DatasetName.TON_IOT_NETWORK,
+        selected_client_ids,
+        bucket_count,
+        counts,
+        ambiguous,
+        malicious,
     )
     return PreparedDatasetRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
+        selected_client_ids=selected_client_ids,
+        eligible_client_ids=eligible_client_ids,
+        selection_claim_state=claim_state,
         epochs=epochs,
         excluded_record_count=excluded_count,
+        duplicate_record_count=duplicate_count,
         ground_truth_discrepancy_count=discrepancy_count,
     )
+
+
+def _prepare_edge_epochs(
+    loaded: LoadedScientificConfiguration,
+    records: tuple[EdgeIiotsetFlowRecord, ...],
+    selected_client_ids: tuple[ClientId, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    claim_state: ClaimState,
+    excluded_count: RecordCount,
+    duplicate_count: RecordCount,
+    discrepancy_count: RecordCount,
+) -> PreparedDatasetRecord:
+    bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
+    selected = set(selected_client_ids)
+    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
+    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    for record in records:
+        client_id = record.source_host.strip()
+        if client_id not in selected:
+            continue
+        epoch = epoch_index(
+            record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds
+        ).index
+        key = (client_id, epoch)
+        current = counts.get(key, tuple(0 for _index in range(bucket_count)))
+        if record_enters_epoch_event_count(record.protocol_group):
+            event_type = edge_canonical_event_type(record.protocol_group)
+            bucket = ton_event_type_hash_bucket(event_type, bucket_count)
+            counts[key] = _increment_bucket(current, bucket)
+        else:
+            counts[key] = current
+        ground_truth = edge_iiotset_ground_truth(record.binary_label, record.attack_type)
+        if ground_truth.classification is GroundTruthClass.AMBIGUOUS:
+            ambiguous[key] = ambiguous.get(key, 0) + 1
+        elif ground_truth.classification is GroundTruthClass.MALICIOUS:
+            malicious[key] = malicious.get(key, 0) + 1
+    epochs = _dense_prepared_epochs(
+        DatasetName.EDGE_IIOTSET,
+        selected_client_ids,
+        bucket_count,
+        counts,
+        ambiguous,
+        malicious,
+    )
+    return PreparedDatasetRecord(
+        dataset_name=DatasetName.EDGE_IIOTSET,
+        selected_client_ids=selected_client_ids,
+        eligible_client_ids=eligible_client_ids,
+        selection_claim_state=claim_state,
+        epochs=epochs,
+        excluded_record_count=excluded_count,
+        duplicate_record_count=duplicate_count,
+        ground_truth_discrepancy_count=discrepancy_count,
+    )
+
+
+def _dense_prepared_epochs(
+    dataset_name: DatasetName,
+    selected_client_ids: tuple[ClientId, ...],
+    bucket_count: RecordCount,
+    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]],
+    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
+    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
+) -> tuple[PreparedEpochRecord, ...]:
+    rows: list[PreparedEpochRecord] = []
+    zero_counts = tuple(0 for _index in range(bucket_count))
+    for client_id in selected_client_ids:
+        observed = tuple(
+            epoch for candidate_client, epoch in counts if candidate_client == client_id
+        )
+        if not observed:
+            continue
+        for epoch in inclusive_epoch_range(min(observed), max(observed)):
+            bucket_counts = counts.get((client_id, epoch), zero_counts)
+            rows.append(
+                _prepared_epoch(
+                    dataset_name,
+                    client_id,
+                    epoch,
+                    bucket_counts,
+                    ambiguous.get((client_id, epoch), 0),
+                    malicious.get((client_id, epoch), 0),
+                )
+            )
+    return tuple(rows)
 
 
 def _prepared_epoch(
@@ -481,278 +800,51 @@ def _prepared_epoch(
     malicious_count: RecordCount,
 ) -> PreparedEpochRecord:
     vector = epoch_feature_vector(bucket_counts)
+    unscaled = (
+        *vector.log1p_bucket_counts,
+        float(vector.total_raw_event_count),
+        vector.shannon_entropy,
+    )
     ground_truth = GroundTruthClass.BENIGN
-    if malicious_count > 0:
-        ground_truth = GroundTruthClass.MALICIOUS
     if ambiguous_count > 0:
         ground_truth = GroundTruthClass.AMBIGUOUS
+    if malicious_count > 0:
+        ground_truth = GroundTruthClass.MALICIOUS
     return PreparedEpochRecord(
         dataset_name=dataset_name,
         client_id=client_id,
         epoch_index=epoch,
-        feature_values=(
-            *vector.log1p_bucket_counts,
-            float(vector.total_raw_event_count),
-            vector.shannon_entropy,
-        ),
+        unscaled_feature_values=unscaled,
+        feature_values=unscaled,
         ground_truth=ground_truth,
         raw_event_count=vector.total_raw_event_count,
         ambiguous_event_count=ambiguous_count,
     )
 
 
-def _build_ton_partitions(
-    loaded: LoadedScientificConfiguration,
-    selected_client_ids: tuple[ClientId, ...],
-    eligible_client_ids: tuple[ClientId, ...],
-    claim_state: ClaimState,
-    benign_records: tuple[TonIotNetworkFlowRecord, ...],
-) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
-    per_client_epochs = tuple(
-        tuple(
-            sorted(
-                {
-                    epoch_index(
-                        record.timestamp_seconds,
-                        loaded.values.time.real_data_epoch_seconds,
-                    ).index
-                    for record in benign_records
-                    if canonical_client_id(record.source_ip) == client_id
-                }
-            )
+def _split_from_prepared(
+    loaded: LoadedScientificConfiguration, prepared: PreparedDatasetRecord
+) -> DatasetSplitRecord:
+    selected_client_ids = prepared.selected_client_ids
+    if not selected_client_ids:
+        return _empty_split(prepared)
+    starts: list[EpochIndexValue] = []
+    benign_ends: list[EpochIndexValue] = []
+    for client_id in selected_client_ids:
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == client_id)
+        if not client_rows:
+            return _empty_split(prepared)
+        starts.append(min(row.epoch_index for row in client_rows))
+        non_benign = tuple(
+            row.epoch_index
+            for row in client_rows
+            if row.ground_truth is not GroundTruthClass.BENIGN
         )
-        for client_id in selected_client_ids
-    )
-    return _build_common_partitions(
-        loaded,
-        DatasetName.TON_IOT_NETWORK,
-        selected_client_ids,
-        eligible_client_ids,
-        claim_state,
-        per_client_epochs,
-    )
-
-
-def _build_ton_campaigns(
-    loaded: LoadedScientificConfiguration,
-    selected_client_ids: tuple[ClientId, ...],
-    evaluation_records: tuple[TonIotNetworkFlowRecord, ...],
-) -> CampaignRegistryRecord:
-    malicious_epochs = tuple(
-        ClientMaliciousEpochs(
-            client_id=client_id,
-            malicious_epochs=tuple(
-                sorted(
-                    {
-                        epoch_index(
-                            record.timestamp_seconds,
-                            loaded.values.time.real_data_epoch_seconds,
-                        ).index
-                        for record in evaluation_records
-                        if canonical_client_id(record.source_ip) == client_id
-                        and ton_iot_network_ground_truth(
-                            record.binary_label, record.attack_type
-                        ).classification
-                        is GroundTruthClass.MALICIOUS
-                    }
-                )
-            ),
-        )
-        for client_id in selected_client_ids
-    )
-    return _campaign_record(
-        loaded, DatasetName.TON_IOT_NETWORK, selected_client_ids, malicious_epochs
-    )
-
-
-def _load_edge_records(
-    raw_directory: Path,
-) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
-    records: tuple[EdgeIiotsetFlowRecord, ...] = ()
-    exclusions: tuple[ExcludedRecord, ...] = ()
-    for path in _csv_paths(raw_directory):
-        file_records, file_exclusions = load_edge_iiotset_csv_with_exclusions(path)
-        records = (*records, *file_records)
-        exclusions = (*exclusions, *file_exclusions)
-    return records, exclusions
-
-
-def _build_edge_materialization(
-    loaded: LoadedScientificConfiguration,
-    raw_directory: Path,
-    inventory: DatasetInventoryRecord,
-) -> DatasetMaterialization:
-    records, exclusions = _load_edge_records(raw_directory)
-    separation = separate_edge_benign_and_evaluation(records)
-    selection = select_secondary_clients(
-        records,
-        loaded.values.time.real_data_epoch_seconds,
-        loaded.values.datasets.eligibility.minimum_benign_event_records,
-        loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
-        loaded.values.datasets.secondary.target_client_count,
-        loaded.values.datasets.secondary.minimum_eligible_client_count,
-    )
-    prepared = _prepare_edge_epochs(
-        loaded, records, len(exclusions), len(separation.discrepancies)
-    )
-    split, partitions = _build_edge_partitions(
-        loaded,
-        selection.selected_client_ids,
-        selection.eligible_client_ids,
-        selection.claim_state,
-        separation.benign_records,
-    )
-    campaigns = _build_edge_campaigns(
-        loaded, selection.selected_client_ids, separation.evaluation_records
-    )
-    return DatasetMaterialization(
-        inventory=inventory,
-        prepared=prepared,
-        split=split,
-        partitions=partitions,
-        campaigns=campaigns,
-    )
-
-
-def _prepare_edge_epochs(
-    loaded: LoadedScientificConfiguration,
-    records: tuple[EdgeIiotsetFlowRecord, ...],
-    excluded_count: RecordCount,
-    discrepancy_count: RecordCount,
-) -> PreparedDatasetRecord:
-    bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
-    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
-    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
-    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
-    for record in records:
-        client_id = record.source_host.strip()
-        epoch = epoch_index(
-            record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds
-        ).index
-        key = (client_id, epoch)
-        if record_enters_epoch_event_count(record.protocol_group):
-            current = counts.get(key, tuple(0 for _index in range(bucket_count)))
-            event_type = edge_canonical_event_type(record.protocol_group)
-            bucket = ton_event_type_hash_bucket(event_type, bucket_count)
-            counts[key] = _increment_bucket(current, bucket)
-        elif key not in counts:
-            counts[key] = tuple(0 for _index in range(bucket_count))
-        ground_truth = edge_iiotset_ground_truth(record.binary_label, record.attack_type)
-        if ground_truth.classification is GroundTruthClass.AMBIGUOUS:
-            ambiguous[key] = ambiguous.get(key, 0) + 1
-        elif ground_truth.classification is GroundTruthClass.MALICIOUS:
-            malicious[key] = malicious.get(key, 0) + 1
-    epochs = tuple(
-        _prepared_epoch(
-            DatasetName.EDGE_IIOTSET,
-            client_id,
-            epoch,
-            bucket_counts,
-            ambiguous.get((client_id, epoch), 0),
-            malicious.get((client_id, epoch), 0),
-        )
-        for (client_id, epoch), bucket_counts in sorted(counts.items())
-    )
-    return PreparedDatasetRecord(
-        dataset_name=DatasetName.EDGE_IIOTSET,
-        epochs=epochs,
-        excluded_record_count=excluded_count,
-        ground_truth_discrepancy_count=discrepancy_count,
-    )
-
-
-def _build_edge_partitions(
-    loaded: LoadedScientificConfiguration,
-    selected_client_ids: tuple[ClientId, ...],
-    eligible_client_ids: tuple[ClientId, ...],
-    claim_state: ClaimState,
-    benign_records: tuple[EdgeIiotsetFlowRecord, ...],
-) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
-    per_client_epochs = tuple(
-        tuple(
-            sorted(
-                {
-                    epoch_index(
-                        record.timestamp_seconds,
-                        loaded.values.time.real_data_epoch_seconds,
-                    ).index
-                    for record in benign_records
-                    if record.source_host.strip() == client_id
-                }
-            )
-        )
-        for client_id in selected_client_ids
-    )
-    return _build_common_partitions(
-        loaded,
-        DatasetName.EDGE_IIOTSET,
-        selected_client_ids,
-        eligible_client_ids,
-        claim_state,
-        per_client_epochs,
-    )
-
-
-def _build_edge_campaigns(
-    loaded: LoadedScientificConfiguration,
-    selected_client_ids: tuple[ClientId, ...],
-    evaluation_records: tuple[EdgeIiotsetFlowRecord, ...],
-) -> CampaignRegistryRecord:
-    malicious_epochs = tuple(
-        ClientMaliciousEpochs(
-            client_id=client_id,
-            malicious_epochs=tuple(
-                sorted(
-                    {
-                        epoch_index(
-                            record.timestamp_seconds,
-                            loaded.values.time.real_data_epoch_seconds,
-                        ).index
-                        for record in evaluation_records
-                        if record.source_host.strip() == client_id
-                        and edge_iiotset_ground_truth(
-                            record.binary_label, record.attack_type
-                        ).classification
-                        is GroundTruthClass.MALICIOUS
-                    }
-                )
-            ),
-        )
-        for client_id in selected_client_ids
-    )
-    return _campaign_record(
-        loaded, DatasetName.EDGE_IIOTSET, selected_client_ids, malicious_epochs
-    )
-
-
-def _build_common_partitions(
-    loaded: LoadedScientificConfiguration,
-    dataset_name: DatasetName,
-    selected_client_ids: tuple[ClientId, ...],
-    eligible_client_ids: tuple[ClientId, ...],
-    claim_state: ClaimState,
-    per_client_epochs: tuple[tuple[EpochIndexValue, ...], ...],
-) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
-    bounds = common_benign_epoch_bounds(per_client_epochs)
-    if bounds is None:
-        return (
-            DatasetSplitRecord(
-                dataset_name=dataset_name,
-                selected_client_ids=selected_client_ids,
-                eligible_client_ids=eligible_client_ids,
-                claim_state=ClaimState.NOT_TESTED,
-                detector_fit_epochs=(),
-                nuisance_fit_epochs=(),
-                threshold_calibration_epochs=(),
-                heldout_benign_epochs=(),
-            ),
-            BenignPartitionRecord(
-                dataset_name=dataset_name,
-                calibration_horizons=(),
-                heldout_horizons=(),
-            ),
-        )
-    common_epochs = inclusive_epoch_range(bounds[0], bounds[1])
+        observed_end = max(row.epoch_index for row in client_rows)
+        benign_ends.append(min(non_benign) - 1 if non_benign else observed_end)
+    common_epochs = inclusive_epoch_range(max(starts), min(benign_ends))
+    if not common_epochs:
+        return _empty_split(prepared)
     fractions = loaded.values.datasets.preprocessing.benign_partition_fractions
     lengths = chronological_partition_lengths(
         len(common_epochs),
@@ -761,52 +853,143 @@ def _build_common_partitions(
         fractions.threshold_and_policy_calibration,
     )
     partitions = chronological_benign_partitions(common_epochs, lengths)
-    split = DatasetSplitRecord(
-        dataset_name=dataset_name,
+    claim_state = prepared.selection_claim_state
+    if not partitions.detector_fit or not partitions.nuisance_fit:
+        claim_state = ClaimState.NOT_TESTED
+    return DatasetSplitRecord(
+        dataset_name=prepared.dataset_name,
         selected_client_ids=selected_client_ids,
-        eligible_client_ids=eligible_client_ids,
+        eligible_client_ids=prepared.eligible_client_ids,
         claim_state=claim_state,
         detector_fit_epochs=partitions.detector_fit,
         nuisance_fit_epochs=partitions.nuisance_fit,
         threshold_calibration_epochs=partitions.threshold_and_policy_calibration,
         heldout_benign_epochs=partitions.heldout_benign,
     )
+
+
+def _empty_split(prepared: PreparedDatasetRecord) -> DatasetSplitRecord:
+    return DatasetSplitRecord(
+        dataset_name=prepared.dataset_name,
+        selected_client_ids=prepared.selected_client_ids,
+        eligible_client_ids=prepared.eligible_client_ids,
+        claim_state=ClaimState.NOT_TESTED,
+        detector_fit_epochs=(),
+        nuisance_fit_epochs=(),
+        threshold_calibration_epochs=(),
+        heldout_benign_epochs=(),
+    )
+
+
+def _scale_prepared(
+    loaded: LoadedScientificConfiguration,
+    prepared: PreparedDatasetRecord,
+    split: DatasetSplitRecord,
+) -> PreparedDatasetRecord:
+    if not split.detector_fit_epochs:
+        return prepared
+    floor = loaded.values.datasets.preprocessing.robust_scaling_iqr_floor
+    scaled_rows: list[PreparedEpochRecord] = []
+    scaler_records: list[ClientFeatureScalerRecord] = []
+    for client_id in prepared.selected_client_ids:
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == client_id)
+        fit_rows = tuple(
+            row.unscaled_feature_values
+            for row in client_rows
+            if row.epoch_index in split.detector_fit_epochs
+        )
+        if not fit_rows:
+            return prepared
+        feature_count = len(fit_rows[0])
+        scalers: tuple[RobustScaler, ...] = tuple(
+            fit_robust_scaler(tuple(row[index] for row in fit_rows), floor)
+            for index in range(feature_count)
+        )
+        scaler_records.append(
+            ClientFeatureScalerRecord(
+                client_id=client_id,
+                medians=tuple(scaler.median for scaler in scalers),
+                iqrs=tuple(scaler.iqr for scaler in scalers),
+                iqr_floor=floor,
+            )
+        )
+        for row in client_rows:
+            scaled = tuple(
+                apply_robust_scaler(scaler, (value,))[0]
+                for scaler, value in zip(scalers, row.unscaled_feature_values, strict=True)
+            )
+            scaled_rows.append(
+                PreparedEpochRecord(
+                    dataset_name=row.dataset_name,
+                    client_id=row.client_id,
+                    epoch_index=row.epoch_index,
+                    unscaled_feature_values=row.unscaled_feature_values,
+                    feature_values=scaled,
+                    ground_truth=row.ground_truth,
+                    raw_event_count=row.raw_event_count,
+                    ambiguous_event_count=row.ambiguous_event_count,
+                )
+            )
+    return PreparedDatasetRecord(
+        dataset_name=prepared.dataset_name,
+        selected_client_ids=prepared.selected_client_ids,
+        eligible_client_ids=prepared.eligible_client_ids,
+        selection_claim_state=prepared.selection_claim_state,
+        epochs=tuple(sorted(scaled_rows, key=lambda row: (row.client_id, row.epoch_index))),
+        client_scalers=tuple(scaler_records),
+        excluded_record_count=prepared.excluded_record_count,
+        duplicate_record_count=prepared.duplicate_record_count,
+        ground_truth_discrepancy_count=prepared.ground_truth_discrepancy_count,
+    )
+
+
+def _partitions_from_split(
+    loaded: LoadedScientificConfiguration, split: DatasetSplitRecord
+) -> BenignPartitionRecord:
     horizon_length = loaded.values.campaign.evaluation_horizon_epochs
     calibration_horizons = complete_benign_horizons(
-        partitions.threshold_and_policy_calibration, horizon_length
+        split.threshold_calibration_epochs, horizon_length
     )
-    heldout_horizons = complete_benign_horizons(partitions.heldout_benign, horizon_length)
-    return (
-        split,
-        BenignPartitionRecord(
-            dataset_name=dataset_name,
-            calibration_horizons=tuple(
-                BenignHorizonRecord(
-                    start_epoch=horizon.start_epoch,
-                    epoch_indexes=horizon.epoch_indexes,
-                )
-                for horizon in calibration_horizons
-            ),
-            heldout_horizons=tuple(
-                BenignHorizonRecord(
-                    start_epoch=horizon.start_epoch,
-                    epoch_indexes=horizon.epoch_indexes,
-                )
-                for horizon in heldout_horizons
-            ),
+    heldout_horizons = complete_benign_horizons(split.heldout_benign_epochs, horizon_length)
+    return BenignPartitionRecord(
+        dataset_name=split.dataset_name,
+        calibration_horizons=tuple(
+            BenignHorizonRecord(
+                start_epoch=horizon.start_epoch,
+                epoch_indexes=horizon.epoch_indexes,
+            )
+            for horizon in calibration_horizons
+        ),
+        heldout_horizons=tuple(
+            BenignHorizonRecord(
+                start_epoch=horizon.start_epoch,
+                epoch_indexes=horizon.epoch_indexes,
+            )
+            for horizon in heldout_horizons
         ),
     )
 
 
-def _campaign_record(
+def _campaigns_from_prepared(
     loaded: LoadedScientificConfiguration,
-    dataset_name: DatasetName,
-    selected_client_ids: tuple[ClientId, ...],
-    malicious_epochs: tuple[ClientMaliciousEpochs, ...],
+    prepared: PreparedDatasetRecord,
+    split: DatasetSplitRecord,
 ) -> CampaignRegistryRecord:
+    malicious_epochs = tuple(
+        ClientMaliciousEpochs(
+            client_id=client_id,
+            malicious_epochs=tuple(
+                row.epoch_index
+                for row in prepared.epochs
+                if row.client_id == client_id
+                and row.ground_truth is GroundTruthClass.MALICIOUS
+            ),
+        )
+        for client_id in split.selected_client_ids
+    )
     registry = build_campaign_registry(
-        dataset_name,
-        selected_client_ids,
+        prepared.dataset_name,
+        split.selected_client_ids,
         malicious_epochs,
         loaded.values.campaign.merge_max_intervening_benign_epochs,
         loaded.values.distributed_support.minimum_clients,
@@ -815,7 +998,7 @@ def _campaign_record(
         loaded.values.campaign.prestart_warmup_epochs,
     )
     return CampaignRegistryRecord(
-        dataset_name=dataset_name,
+        dataset_name=prepared.dataset_name,
         campaigns=tuple(
             CampaignRecord(
                 start_epoch=entry.start_epoch,
