@@ -308,6 +308,11 @@ from fedcampaign_emhi.experiments.benign_robustness import (
     select_top_event_count_windows,
     synthetic_count_stress_multiplier,
 )
+from fedcampaign_emhi.experiments.boundaries import (
+    enumerate_dropout_boundary_plan,
+    enumerate_outside_contamination_plan,
+    over_conditioning_drift_indicator,
+)
 from fedcampaign_emhi.experiments.primary_odi import (
     campaign_evaluation_universe,
     campaign_registry_universe_size,
@@ -472,6 +477,9 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         strong_local_odi_rate_gate,
         enumerate_secondary_generalization_plan,
         secondary_interpretation_is_validation_only,
+        enumerate_outside_contamination_plan,
+        enumerate_dropout_boundary_plan,
+        over_conditioning_drift_indicator,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
