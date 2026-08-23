@@ -24,6 +24,11 @@ from fedcampaign_emhi.analysis.statistics import (
 from fedcampaign_emhi.analysis.summaries import (
     summaries_contract as analysis_summaries_summaries_contract,
 )
+from fedcampaign_emhi.analysis.synthesis import (
+    confirmatory_cell_completion,
+    reporting_command_stops_on_missing_dependency,
+    synthesis_may_proceed,
+)
 from fedcampaign_emhi.artifacts.dependencies import descendant_ids
 from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, material_fingerprint
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
@@ -715,6 +720,9 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         contribution_identity_matches,
         no_novelty_claim_outside_identity,
         all_declared_components_have_explicit_novelty_scope,
+        synthesis_may_proceed,
+        reporting_command_stops_on_missing_dependency,
+        confirmatory_cell_completion,
         pure_order_one_response,
         first_global_stop_epoch,
         first_local_stop_epoch,

@@ -106,6 +106,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/analysis/multiplicity.py",
     "src/fedcampaign_emhi/analysis/claims.py",
     "src/fedcampaign_emhi/analysis/identity.py",
+    "src/fedcampaign_emhi/analysis/synthesis.py",
     "src/fedcampaign_emhi/artifacts/__init__.py",
     "src/fedcampaign_emhi/artifacts/paths.py",
     "src/fedcampaign_emhi/artifacts/records.py",
