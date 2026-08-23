@@ -313,6 +313,15 @@ from fedcampaign_emhi.experiments.boundaries import (
     enumerate_outside_contamination_plan,
     over_conditioning_drift_indicator,
 )
+from fedcampaign_emhi.experiments.downscope import (
+    failure_does_not_raise_thresholds,
+    margin_preserved,
+    no_post_hoc_grid_expansion,
+    null_order_three_material_claim_state,
+    order_three_estimator_failure_scope,
+    primary_threshold_absent_state,
+    secondary_ineligibility_contribution_state,
+)
 from fedcampaign_emhi.experiments.primary_odi import (
     campaign_evaluation_universe,
     campaign_registry_universe_size,
@@ -494,6 +503,13 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         synthetic_workload_feature_dimension,
         latency_gate,
         scalability_numerical_failure_gate,
+        order_three_estimator_failure_scope,
+        primary_threshold_absent_state,
+        no_post_hoc_grid_expansion,
+        secondary_ineligibility_contribution_state,
+        null_order_three_material_claim_state,
+        failure_does_not_raise_thresholds,
+        margin_preserved,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
