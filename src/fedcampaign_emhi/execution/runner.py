@@ -80,8 +80,12 @@ from fedcampaign_emhi.emhi.contexts import (
     outside_context_histogram,
 )
 from fedcampaign_emhi.emhi.evidence import operational_norm_reference_quantile
-from fedcampaign_emhi.emhi.innovation_calibration import calibrate_innovations_on_nuisance_fit
-from fedcampaign_emhi.emhi.projection import proper_subset_design_row
+from fedcampaign_emhi.emhi.innovation_calibration import (
+    calibrate_innovations_on_nuisance_fit,
+    moments_from_held_fold_innovations,
+)
+from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
+from fedcampaign_emhi.emhi.projection import blocked_fold_bounds, proper_subset_design_row
 from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
@@ -539,6 +543,48 @@ def _rank_artifact_path(
     )
 
 
+def _rank_record_for_reference_epochs(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    reference_epochs: tuple[EpochIndexValue, ...],
+) -> MarginalRankArtifactRecord:
+    reference_epoch_set = set(reference_epochs)
+    streams: list[ClientMarginalRankStream] = []
+    for score_stream in scores.client_streams:
+        reference_scores = tuple(
+            score
+            for epoch, score in zip(score_stream.epoch_indexes, score_stream.scores, strict=True)
+            if epoch in reference_epoch_set
+        )
+        ranks = rank_stream(
+            score_stream.scores,
+            reference_scores,
+            loaded.values.context.rank_clip_epsilon,
+        )
+        streams.append(
+            ClientMarginalRankStream(
+                client_id=score_stream.client_id,
+                nuisance_reference_scores=reference_scores,
+                epoch_indexes=score_stream.epoch_indexes,
+                ranks=ranks,
+            )
+        )
+    reference_digest = payload_digest(
+        cast(YamlNode, {"reference_epochs": list(reference_epochs)})
+    )
+    fingerprint = material_fingerprint(
+        scores.dependency_fingerprint,
+        (reference_digest,),
+    )
+    return MarginalRankArtifactRecord(
+        dataset_name=scores.dataset_name,
+        root_seed=scores.root_seed,
+        selected_client_ids=scores.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=fingerprint,
+    )
+
+
 def _materialize_marginal_ranks(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -564,32 +610,14 @@ def _materialize_marginal_ranks(
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
             return destination
-    streams: list[ClientMarginalRankStream] = []
-    nuisance_epochs = set(split.nuisance_fit_epochs)
-    for score_stream in scores.client_streams:
-        reference_scores = tuple(
-            score
-            for epoch, score in zip(score_stream.epoch_indexes, score_stream.scores, strict=True)
-            if epoch in nuisance_epochs
-        )
-        ranks = rank_stream(
-            score_stream.scores,
-            reference_scores,
-            loaded.values.context.rank_clip_epsilon,
-        )
-        streams.append(
-            ClientMarginalRankStream(
-                client_id=score_stream.client_id,
-                nuisance_reference_scores=reference_scores,
-                epoch_indexes=score_stream.epoch_indexes,
-                ranks=ranks,
-            )
-        )
+    fold_independent = _rank_record_for_reference_epochs(
+        loaded, scores, split.nuisance_fit_epochs
+    )
     record = MarginalRankArtifactRecord(
-        dataset_name=dataset_name,
-        root_seed=root_seed,
-        selected_client_ids=scores.selected_client_ids,
-        client_streams=tuple(streams),
+        dataset_name=fold_independent.dataset_name,
+        root_seed=fold_independent.root_seed,
+        selected_client_ids=fold_independent.selected_client_ids,
+        client_streams=fold_independent.client_streams,
         dependency_fingerprint=fingerprint,
     )
     layout = build_artifact_layout(loaded, repository)
@@ -656,8 +684,11 @@ def _coalition_context_row(
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
     epoch_index: EpochIndexValue,
+    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
 ) -> ContextTrainingRow | None:
     lagged_epoch = epoch_index - loaded.values.context.outside_lag_epochs
+    if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
+        return None
     complement = exact_exclusion_members(ranks.selected_client_ids, coalition.client_ids)
     lagged_ranks: list[tuple[ClientId, RankValue]] = []
     available_clients: list[ClientId] = []
@@ -704,13 +735,22 @@ def _fit_order_context(
     coalitions: tuple[CoalitionMembers, ...],
     nuisance_epochs: tuple[EpochIndexValue, ...],
     coalition_order: CoalitionOrder,
+    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
 ) -> OrderContextFitRecord:
     rows = tuple(
         row
         for coalition in coalitions
         if coalition.order is coalition_order
         for epoch_index in nuisance_epochs
-        for row in (_coalition_context_row(loaded, ranks, coalition, epoch_index),)
+        for row in (
+            _coalition_context_row(
+                loaded,
+                ranks,
+                coalition,
+                epoch_index,
+                permitted_lag_epochs,
+            ),
+        )
         if row is not None
     )
     context_seed = _context_seed(loaded, ranks.dataset_name, ranks.root_seed, coalition_order)
@@ -757,10 +797,17 @@ def _coalition_cell_epochs(
     nuisance_epochs: tuple[EpochIndexValue, ...],
     centroids: tuple[tuple[FiniteFloat, ...], ...],
     context_cell: BinIndex,
+    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None = None,
 ) -> tuple[EpochIndexValue, ...]:
     selected: list[EpochIndexValue] = []
     for epoch_index in nuisance_epochs:
-        row = _coalition_context_row(loaded, ranks, coalition, epoch_index)
+        row = _coalition_context_row(
+            loaded,
+            ranks,
+            coalition,
+            epoch_index,
+            permitted_lag_epochs,
+        )
         if row is None:
             continue
         assigned = assign_context_cell(
@@ -818,12 +865,188 @@ def _conditioned_member_ranks(
     return tuple(conditioned)
 
 
+def _conditioned_design_and_tensors(
+    loaded: LoadedScientificConfiguration,
+    ranks: MarginalRankArtifactRecord,
+    coalition: CoalitionMembers,
+    epochs: tuple[EpochIndexValue, ...],
+    references: tuple[ConditionalRankReferenceRecord, ...],
+) -> tuple[
+    tuple[tuple[FiniteFloat, ...], ...],
+    tuple[tuple[FiniteFloat, ...], ...],
+]:
+    conditioned_rows = tuple(
+        conditioned
+        for epoch_index in epochs
+        for conditioned in (
+            _conditioned_member_ranks(
+                loaded,
+                ranks,
+                coalition,
+                epoch_index,
+                references,
+            ),
+        )
+        if conditioned is not None
+    )
+    design_rows = tuple(
+        proper_subset_design_row(row, loaded.values.basis.primary_size)
+        for row in conditioned_rows
+    )
+    tensors = tuple(
+        tensor_representation(row, loaded.values.basis.primary_size)
+        for row in conditioned_rows
+    )
+    return design_rows, tensors
+
+
+def _cross_fitted_cell_statistics(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    split: DatasetSplitRecord,
+    coalitions: tuple[CoalitionMembers, ...],
+    coalition: CoalitionMembers,
+    context_cell: BinIndex,
+) -> tuple[
+    tuple[FiniteFloat, ...],
+    tuple[FiniteFloat, ...],
+    FiniteFloat,
+] | None:
+    nuisance_epochs = split.nuisance_fit_epochs
+    fold_count = loaded.values.context.nuisance_crossfit.fold_count
+    if len(nuisance_epochs) < fold_count:
+        return None
+    held_innovations: list[tuple[FiniteFloat, ...]] = []
+    for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
+        held_epochs = nuisance_epochs[start:end]
+        training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
+        fold_ranks = _rank_record_for_reference_epochs(
+            loaded,
+            scores,
+            training_epochs,
+        )
+        order_context = _fit_order_context(
+            loaded,
+            fold_ranks,
+            coalitions,
+            training_epochs,
+            coalition.order,
+            training_epochs,
+        )
+        if order_context.state is not ClaimState.SUPPORTED:
+            continue
+        if context_cell >= len(order_context.centroids):
+            continue
+        training_cell_epochs = _coalition_cell_epochs(
+            loaded,
+            fold_ranks,
+            coalition,
+            training_epochs,
+            order_context.centroids,
+            context_cell,
+            training_epochs,
+        )
+        if len(training_cell_epochs) < _minimum_support(loaded, coalition.order):
+            continue
+        references = tuple(
+            _conditional_rank_reference(
+                fold_ranks,
+                client_id,
+                context_cell,
+                training_cell_epochs,
+            )
+            for client_id in coalition.client_ids
+        )
+        design_rows, tensors = _conditioned_design_and_tensors(
+            loaded,
+            fold_ranks,
+            coalition,
+            training_cell_epochs,
+            references,
+        )
+        calibration = calibrate_innovations_on_nuisance_fit(
+            design_rows,
+            tensors,
+            loaded.values.projection.ridge_candidates,
+            loaded.values.projection.cross_validation.fold_count,
+            loaded.values.projection.selection_tie_tolerance_mse,
+            loaded.values.projection.zero_ridge_svd_relative_cutoff,
+            loaded.values.projection.atom_scale_floor,
+        )
+        if calibration is None:
+            continue
+        for epoch_index in held_epochs:
+            row = _coalition_context_row(
+                loaded,
+                fold_ranks,
+                coalition,
+                epoch_index,
+            )
+            if row is None:
+                continue
+            assigned = assign_context_cell(
+                row.histogram,
+                order_context.centroids,
+                loaded.values.context.kmeans.assignment_tie_tolerance,
+            )
+            if assigned != context_cell:
+                continue
+            conditioned = _conditioned_member_ranks(
+                loaded,
+                fold_ranks,
+                coalition,
+                epoch_index,
+                references,
+            )
+            if conditioned is None:
+                continue
+            design_row = proper_subset_design_row(
+                conditioned,
+                loaded.values.basis.primary_size,
+            )
+            tensor = tensor_representation(
+                conditioned,
+                loaded.values.basis.primary_size,
+            )
+            held_innovations.append(
+                projection_residual(
+                    tensor,
+                    calibration.complete_nuisance_coefficients,
+                    design_row,
+                )
+            )
+    moments = moments_from_held_fold_innovations(tuple(held_innovations))
+    if moments is None:
+        return None
+    means, deviations = moments
+    standardized = tuple(
+        center_and_scale_atom(
+            innovation,
+            means,
+            deviations,
+            loaded.values.projection.atom_scale_floor,
+        )
+        for innovation in held_innovations
+    )
+    norm_reference = operational_norm_reference_quantile(
+        standardized,
+        loaded.values.evidence.operational_norm_reference_quantile,
+    )
+    return means, deviations, norm_reference
+
+
 def _fit_projection_cell(
     loaded: LoadedScientificConfiguration,
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
     context_cell: BinIndex,
     epochs: tuple[EpochIndexValue, ...],
+    cross_fitted_statistics: tuple[
+        tuple[FiniteFloat, ...],
+        tuple[FiniteFloat, ...],
+        FiniteFloat,
+    ]
+    | None,
 ) -> ProjectionCellFitRecord:
     references = tuple(
         _conditional_rank_reference(ranks, client_id, context_cell, epochs)
@@ -840,30 +1063,23 @@ def _fit_projection_cell(
             operational_norm_reference=None,
             state=ClaimState.NOT_TESTED,
         )
-    conditioned_rows = tuple(
-        conditioned
-        for epoch_index in epochs
-        for conditioned in (
-            _conditioned_member_ranks(loaded, ranks, coalition, epoch_index, references),
-        )
-        if conditioned is not None
+    design_rows, tensors = _conditioned_design_and_tensors(
+        loaded,
+        ranks,
+        coalition,
+        epochs,
+        references,
     )
-    design_rows = tuple(
-        proper_subset_design_row(row, loaded.values.basis.primary_size) for row in conditioned_rows
-    )
-    tensors = tuple(
-        tensor_representation(row, loaded.values.basis.primary_size) for row in conditioned_rows
-    )
-    calibration = calibrate_innovations_on_nuisance_fit(
+    complete_fit = calibrate_innovations_on_nuisance_fit(
         design_rows,
         tensors,
         loaded.values.projection.ridge_candidates,
-        loaded.values.context.nuisance_crossfit.fold_count,
+        loaded.values.projection.cross_validation.fold_count,
         loaded.values.projection.selection_tie_tolerance_mse,
         loaded.values.projection.zero_ridge_svd_relative_cutoff,
         loaded.values.projection.atom_scale_floor,
     )
-    if calibration is None:
+    if complete_fit is None or cross_fitted_statistics is None:
         return ProjectionCellFitRecord(
             context_cell=context_cell,
             conditional_rank_references=references,
@@ -874,17 +1090,14 @@ def _fit_projection_cell(
             operational_norm_reference=None,
             state=ClaimState.NOT_TESTED,
         )
-    norm_reference = operational_norm_reference_quantile(
-        calibration.standardized_held_fold_innovations,
-        loaded.values.evidence.operational_norm_reference_quantile,
-    )
+    means, deviations, norm_reference = cross_fitted_statistics
     return ProjectionCellFitRecord(
         context_cell=context_cell,
         conditional_rank_references=references,
-        selected_ridge_penalty=calibration.selected_ridge_penalty,
-        complete_nuisance_coefficients=calibration.complete_nuisance_coefficients,
-        coordinate_means=calibration.coordinate_means,
-        coordinate_deviations=calibration.coordinate_deviations,
+        selected_ridge_penalty=complete_fit.selected_ridge_penalty,
+        complete_nuisance_coefficients=complete_fit.complete_nuisance_coefficients,
+        coordinate_means=means,
+        coordinate_deviations=deviations,
         operational_norm_reference=norm_reference,
         state=ClaimState.SUPPORTED,
     )
@@ -892,9 +1105,11 @@ def _fit_projection_cell(
 
 def _fit_coalition(
     loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
     ranks: MarginalRankArtifactRecord,
+    split: DatasetSplitRecord,
+    coalitions: tuple[CoalitionMembers, ...],
     coalition: CoalitionMembers,
-    nuisance_epochs: tuple[EpochIndexValue, ...],
     order_context: OrderContextFitRecord,
 ) -> CoalitionFitRecord:
     if order_context.state is not ClaimState.SUPPORTED:
@@ -914,8 +1129,16 @@ def _fit_coalition(
                 loaded,
                 ranks,
                 coalition,
-                nuisance_epochs,
+                split.nuisance_fit_epochs,
                 order_context.centroids,
+                context_cell,
+            ),
+            _cross_fitted_cell_statistics(
+                loaded,
+                scores,
+                split,
+                coalitions,
+                coalition,
                 context_cell,
             ),
         )
@@ -959,6 +1182,7 @@ def _materialize_full_emhi_fit(
     repository: Path,
     dataset_name: DatasetName,
     root_seed: SeedValue,
+    score_path: Path,
     rank_path: Path,
 ) -> Path:
     _, _, split_path, _, _ = _preprocessing_paths(loaded, repository, dataset_name)
@@ -978,7 +1202,11 @@ def _materialize_full_emhi_fit(
     )
     fingerprint = material_fingerprint(
         fit_config_digest,
-        (file_sha256(rank_path), file_sha256(split_path)),
+        (
+            file_sha256(score_path),
+            file_sha256(rank_path),
+            file_sha256(split_path),
+        ),
     )
     destination = _emhi_fit_path(loaded, repository, dataset_name, root_seed)
     if destination.is_file():
@@ -988,6 +1216,7 @@ def _materialize_full_emhi_fit(
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
             return destination
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     maximum_order = CoalitionOrder(int(loaded.values.study.maximum_coalition_order))
@@ -1006,11 +1235,15 @@ def _materialize_full_emhi_fit(
     coalition_fits = tuple(
         _fit_coalition(
             loaded,
+            scores,
             ranks,
+            split,
+            coalitions,
             coalition,
-            split.nuisance_fit_epochs,
             next(
-                context for context in order_contexts if context.coalition_order is coalition.order
+                context
+                for context in order_contexts
+                if context.coalition_order is coalition.order
             ),
         )
         for coalition in coalitions
@@ -1037,6 +1270,7 @@ def _materialize_full_emhi_fit(
         content_digest,
         fingerprint,
         (
+            _score_artifact_id(dataset_name, root_seed),
             _rank_artifact_id(dataset_name, root_seed),
             layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
         ),
@@ -1055,10 +1289,19 @@ def _materialize_real_prerequisites(
     for root_seed in roots:
         score_path = _materialize_detector_scores(loaded, repository, dataset_name, root_seed)
         rank_path = _materialize_marginal_ranks(
-            loaded, repository, dataset_name, root_seed, score_path
+            loaded,
+            repository,
+            dataset_name,
+            root_seed,
+            score_path,
         )
         fit_path = _materialize_full_emhi_fit(
-            loaded, repository, dataset_name, root_seed, rank_path
+            loaded,
+            repository,
+            dataset_name,
+            root_seed,
+            score_path,
+            rank_path,
         )
         produced.extend((score_path, rank_path, fit_path))
     return tuple(produced)
@@ -1122,7 +1365,7 @@ def execute_experiment(
         state=ExperimentState.BLOCKED,
         run_record_path=run_path,
         completed_cell_count=0,
-        detail=f"materialized {len(produced)} reusable detector, rank, and EMHI fit artifacts; evaluation remains",
+        detail=f"materialized {len(produced)} reusable detector, rank, and fully cross-fitted EMHI artifacts; evaluation remains",
     )
 
 
