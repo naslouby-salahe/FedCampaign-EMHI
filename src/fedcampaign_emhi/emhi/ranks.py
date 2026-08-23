@@ -4,6 +4,7 @@ from fedcampaign_emhi.artifacts.records import (
     MarginalRankArtifactRecord,
 )
 from fedcampaign_emhi.domain.types import (
+    ClientId,
     EpochIndexValue,
     FiniteFloat,
     MaterialDependencyFingerprint,
@@ -41,6 +42,27 @@ def coalition_conditioned_residual_rank(
     marginal_rank: RankValue, context_reference: RankReference, epsilon: NumericalFloor
 ) -> RankValue:
     return clipped_midrank(marginal_rank, context_reference, epsilon)
+
+
+def rank_at_epoch(
+    ranks: MarginalRankArtifactRecord,
+    client_id: ClientId,
+    epoch_index: EpochIndexValue,
+) -> RankValue | None:
+    stream = next(
+        (stream for stream in ranks.client_streams if stream.client_id == client_id),
+        None,
+    )
+    if stream is None:
+        return None
+    return next(
+        (
+            rank
+            for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+            if epoch == epoch_index
+        ),
+        None,
+    )
 
 
 def build_marginal_rank_artifact(
