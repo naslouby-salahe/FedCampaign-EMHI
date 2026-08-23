@@ -123,6 +123,7 @@ class PreparedEpochRecord(FrozenConfigModel):
     dataset_name: DatasetName
     client_id: ClientId
     epoch_index: EpochIndexValue
+    unscaled_feature_values: tuple[FiniteFloat, ...] = ()
     feature_values: tuple[FiniteFloat, ...]
     ground_truth: GroundTruthClass
     raw_event_count: RecordCount
