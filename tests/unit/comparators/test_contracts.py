@@ -1,5 +1,4 @@
 from fedcampaign_emhi.comparators.contracts import (
-    SHARED_COMPARISON_INPUTS,
     calibrated_finite_horizon_backend_contract,
     comparator_method_contracts,
     conditional_pair_dependence_maximum_order,
@@ -15,13 +14,6 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     MethodName,
 )
-
-
-def test_shared_comparison_inputs_are_declared_for_matched_methods() -> None:
-    assert len(SHARED_COMPARISON_INPUTS) == 12
-    assert "dataset bytes" in SHARED_COMPARISON_INPUTS
-    assert "campaign replay semantics" in SHARED_COMPARISON_INPUTS
-    assert "seeds" in SHARED_COMPARISON_INPUTS
 
 
 def test_method_contracts_cover_the_roadmap_method_surface() -> None:

@@ -29,7 +29,7 @@ PUBLIC_PACKAGES = frozenset(
 def _public_functions(path: Path) -> list[ast.FunctionDef]:
     tree = module_ast(path)
     functions: list[ast.FunctionDef] = []
-    for node, owner in iter_functions(tree, path):
+    for node, owner in iter_functions(tree):
         if node.name.startswith("_"):
             continue
         if owner is not None and owner.split(".")[-1].startswith("_"):

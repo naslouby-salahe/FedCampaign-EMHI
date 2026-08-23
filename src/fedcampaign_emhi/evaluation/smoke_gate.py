@@ -11,7 +11,6 @@ from fedcampaign_emhi.domain.types import (
     ConfigurationDigest,
     EpochIndexValue,
     FiniteFloat,
-    ModuleContract,
     OwnershipStatement,
     RankReference,
     RecordCount,
@@ -52,13 +51,6 @@ class SmokeFixtureName:
 class SmokeGateResult:
     passed: bool
     failures: tuple[SmokeFixtureName, ...]
-
-
-def validation_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.evaluation.smoke_gate",
-        ownership="synthetic truth, purity, boundedness, seed behavior, and generator invariants",
-    )
 
 
 def _check(

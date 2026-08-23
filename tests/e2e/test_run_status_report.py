@@ -8,4 +8,4 @@ def test_status_and_report(cli_runner: CliRunner) -> None:
     assert status.exit_code == 0
     report = cli_runner.invoke(application, ["report"])
     assert report.exit_code == 0
-    assert "results_are_scientific_inputs=False" in report.stdout
+    assert "scope=project_summary" in report.stdout

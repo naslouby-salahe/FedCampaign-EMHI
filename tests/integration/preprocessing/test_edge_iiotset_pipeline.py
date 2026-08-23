@@ -14,12 +14,6 @@ from fedcampaign_emhi.datasets.inventory import (
     inventory_raw_directory,
 )
 from fedcampaign_emhi.domain.enums import ClaimState, GroundTruthClass
-from fedcampaign_emhi.execution.status import module_contracts
-
-
-def test_test_edge_iiotset_pipeline_module_contract_exists() -> None:
-    contracts = module_contracts()
-    assert contracts
 
 
 def test_secondary_adapter_pipeline(tmp_path: Path) -> None:

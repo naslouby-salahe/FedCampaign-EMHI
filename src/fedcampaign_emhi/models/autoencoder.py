@@ -10,7 +10,6 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     LayerWidth,
     LearningRate,
-    ModuleContract,
     SeedCoordinate,
     SeedDerivationIdentity,
     SeedValue,
@@ -34,13 +33,6 @@ def autoencoder_layer_widths(
         AUTOENCODER_LATENT_WIDTH,
         AUTOENCODER_DECODER_WIDTH,
         input_dimension,
-    )
-
-
-def autoencoder_contract() -> ModuleContract:
-    return ModuleContract(
-        module_name="fedcampaign_emhi.models.autoencoder",
-        ownership="roadmap-defined autoencoder architecture, deterministic training, and reconstruction scoring",
     )
 
 

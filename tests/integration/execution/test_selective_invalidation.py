@@ -13,12 +13,6 @@ from fedcampaign_emhi.execution.preprocess import (
     preprocess_must_not_regenerate,
     requested_datasets,
 )
-from fedcampaign_emhi.execution.status import module_contracts
-
-
-def test_test_selective_invalidation_module_contract_exists() -> None:
-    contracts = module_contracts()
-    assert contracts
 
 
 def test_requested_datasets_cover_all_or_one() -> None:

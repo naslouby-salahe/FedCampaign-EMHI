@@ -14,12 +14,6 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     separate_benign_and_evaluation,
 )
 from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
-from fedcampaign_emhi.execution.status import module_contracts
-
-
-def test_test_ton_iot_network_pipeline_module_contract_exists() -> None:
-    contracts = module_contracts()
-    assert contracts
 
 
 def test_adapter_pipeline_inventories_selects_and_separates(tmp_path: Path) -> None:

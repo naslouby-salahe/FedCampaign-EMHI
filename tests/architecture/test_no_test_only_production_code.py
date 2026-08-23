@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 from tests.architecture.ast_scans import (
     SRC_ROOT,
     architecture_test_paths,
+    bare_literal_only_names,
     module_ast,
     source_files,
 )
@@ -15,15 +15,20 @@ def _imported_production_modules() -> set[str]:
     imported: set[str] = set()
     for path in source_files():
         tree = module_ast(path)
+        registry_only = bare_literal_only_names(tree)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name.startswith("fedcampaign_emhi"):
+                    local = alias.asname or alias.name.split(".")[0]
+                    if alias.name.startswith("fedcampaign_emhi") and local not in registry_only:
                         imported.add(alias.name)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 if node.module.startswith("fedcampaign_emhi"):
-                    imported.add(node.module)
                     for alias in node.names:
+                        local = alias.asname or alias.name
+                        if local in registry_only:
+                            continue
+                        imported.add(node.module)
                         imported.add(f"{node.module}.{alias.name}")
     return imported
 
@@ -54,7 +59,7 @@ def test_no_test_only_production_code() -> None:
     assert test_only == []
 
 
-def test_no_test_only_production_code_fails_on_fixture(tmp_path: Path) -> None:
+def test_no_test_only_production_code_fails_on_fixture() -> None:
     production = "fedcampaign_emhi.ghost_only_for_tests"
     test_text = f"from {production} import value\n"
     assert production in test_text
