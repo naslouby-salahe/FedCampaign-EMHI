@@ -22,6 +22,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndexValue,
     FiniteFloat,
     MaterialDependencyFingerprint,
+    NumericalFloor,
     Probability,
     RankValue,
     RecordCount,
@@ -128,10 +129,19 @@ class PreparedEpochRecord(FrozenConfigModel):
     ambiguous_event_count: RecordCount
 
 
+class ClientFeatureScalerRecord(FrozenConfigModel):
+    client_id: ClientId
+    medians: tuple[FiniteFloat, ...]
+    iqrs: tuple[FiniteFloat, ...]
+    iqr_floor: NumericalFloor
+
+
 class PreparedDatasetRecord(FrozenConfigModel):
     dataset_name: DatasetName
     epochs: tuple[PreparedEpochRecord, ...]
+    client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
+    duplicate_record_count: RecordCount = 0
     ground_truth_discrepancy_count: RecordCount
 
 
