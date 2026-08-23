@@ -45,9 +45,7 @@ def seed_summary_csv(records: tuple[SeedSummaryRecord, ...]) -> CanonicalUtf8Byt
     return output.getvalue().encode("utf-8")
 
 
-def write_seed_summary_table(
-    destination: Path, records: tuple[SeedSummaryRecord, ...]
-) -> None:
+def write_seed_summary_table(destination: Path, records: tuple[SeedSummaryRecord, ...]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_suffix(destination.suffix + ".partial")
     staging.write_bytes(seed_summary_csv(records))

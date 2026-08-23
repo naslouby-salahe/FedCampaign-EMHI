@@ -5,6 +5,7 @@ from fedcampaign_emhi.domain.enums import (
     ClaimIdentifier,
     ClaimState,
     DatasetName,
+    DetectorFamily,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
@@ -165,6 +166,22 @@ class CampaignRecord(FrozenConfigModel):
 class CampaignRegistryRecord(FrozenConfigModel):
     dataset_name: DatasetName
     campaigns: tuple[CampaignRecord, ...]
+
+
+class ClientDetectorScoreStream(FrozenConfigModel):
+    client_id: ClientId
+    detector_family: DetectorFamily
+    detector_seed: SeedValue
+    epoch_indexes: tuple[EpochIndexValue, ...]
+    scores: tuple[FiniteFloat, ...]
+
+
+class DetectorScoreArtifactRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    root_seed: SeedValue
+    selected_client_ids: tuple[ClientId, ...]
+    client_streams: tuple[ClientDetectorScoreStream, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
 
 
 class SeedSummaryRecord(FrozenConfigModel):

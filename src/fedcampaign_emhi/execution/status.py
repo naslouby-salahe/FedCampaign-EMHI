@@ -69,9 +69,7 @@ def project_status(
             None,
         )
         if existing_index is None:
-            state, lifecycle = _run_record_state(
-                loaded, repository, planned.experiment_name
-            )
+            state, lifecycle = _run_record_state(loaded, repository, planned.experiment_name)
             development = planned.seed_count
             confirmatory = 0
             if planned.execution_role is ExecutionRole.CONFIRMATORY:

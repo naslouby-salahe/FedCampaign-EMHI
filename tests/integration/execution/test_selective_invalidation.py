@@ -60,8 +60,8 @@ def test_reuse_overwrite_and_identity_change(tmp_path: Path) -> None:
         tmp_path
         / "outputs"
         / "preprocessing"
-        / "TON_IoT_Network"
-        / f"{PreprocessingLayer.CAMPAIGN_REGISTRY.value}.json"
+        / "metadata"
+        / "TON_IoT_Network-campaign-registry.json"
     )
     registry.unlink()
     third = execute_preprocess(
