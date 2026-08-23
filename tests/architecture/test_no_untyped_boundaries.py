@@ -3,8 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import SRC_ROOT, module_ast, source_files
+from tests.architecture.ast_scans import SRC_ROOT, module_ast, parametrize_source_files
 
 TYPED_PRIMITIVES_ALLOWED_IN_CLI = {"str", "str | None"}
 
@@ -43,7 +42,7 @@ def _scan(path: Path) -> list[str]:
     return findings
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_no_untyped_public_boundaries(path: Path) -> None:
     assert _scan(path) == []
 

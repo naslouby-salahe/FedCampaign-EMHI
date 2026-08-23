@@ -5,8 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import REPO_ROOT, SRC_ROOT, module_ast, source_files
+from tests.architecture.ast_scans import (
+    REPO_ROOT,
+    SRC_ROOT,
+    module_ast,
+    parametrize_source_files,
+    source_files,
+)
 
 ALLOWED_DEPENDENCIES: dict[str, set[str]] = {
     "domain": set(),
@@ -73,7 +78,7 @@ def _package_of(rel: str) -> str:
     return rel.split("/")[0]
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_dependency_boundaries(path: Path) -> None:
     rel = path.relative_to(SRC_ROOT).as_posix()
     package = _package_of(rel)

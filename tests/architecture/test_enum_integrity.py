@@ -3,8 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-from tests.architecture.ast_scans import SRC_ROOT, source_files
+from tests.architecture.ast_scans import SRC_ROOT, parametrize_source_files, source_files
 
 from fedcampaign_emhi.domain.enums import (
     ClaimIdentifier,
@@ -51,7 +50,7 @@ def _enum_literal_findings(path: Path) -> list[tuple[str, int, str, str]]:
     return findings
 
 
-@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
+@parametrize_source_files
 def test_enum_integrity(path: Path) -> None:
     findings = _enum_literal_findings(path)
     assert findings == [], f"enum-value string literals bypass enums: {findings}"
