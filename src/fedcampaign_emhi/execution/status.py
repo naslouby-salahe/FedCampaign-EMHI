@@ -22,7 +22,6 @@ from fedcampaign_emhi.artifacts.provenance import manifests_are_compatible, mate
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
 from fedcampaign_emhi.comparators.composition import (
-    CompositionSelectionInputs,
     candidate_is_eligible,
     materialize_composition_record,
     mean_standardized_error,
@@ -111,19 +110,14 @@ from fedcampaign_emhi.datasets.preprocessing import (
     detector_fit_sample_requirement_is_met,
     empty_epoch_feature_vector,
     epoch_feature_vector,
+    event_type_hash_bucket,
     fit_robust_scaler,
     horizon_eligibility_state,
     inclusive_epoch_range,
     retain_first_chronological,
     shannon_entropy,
 )
-from fedcampaign_emhi.datasets.preprocessing import (
-    event_type_hash_bucket as preprocessing_event_type_hash_bucket,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    canonical_client_id,
-    event_type_hash_bucket,
-)
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import canonical_client_id
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_event_type as ton_iot_network_canonical_event_type,
 )
@@ -288,7 +282,7 @@ from fedcampaign_emhi.evaluation.smoke_gate import (
     validation_contract as synthetic_validation_validation_contract,
 )
 from fedcampaign_emhi.evaluation.validation import (
-    validation_contract as evaluation_validation_validation_contract,
+    validation_contract,
 )
 from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.execution.preprocess import (
@@ -315,6 +309,11 @@ from fedcampaign_emhi.experiments.primary_odi import (
     paired_odi_advantage_gate,
     strict_odi_rate_gate,
 )
+from fedcampaign_emhi.experiments.sensitivity import (
+    enumerate_sensitivity_cells,
+    exactly_one_factor_changes,
+    sensitivity_p_value_never_claimed,
+)
 from fedcampaign_emhi.experiments.sequential_evidence import (
     aggregate_feasibility,
     calibrated_route_heldout_pfa_gate,
@@ -332,7 +331,7 @@ from fedcampaign_emhi.models.autoencoder import (
 )
 from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_scores
 from fedcampaign_emhi.models.one_class_svm import one_class_svm_anomaly_scores
-from fedcampaign_emhi.runtime.logging import logging_contract as runtime_logging_logging_contract
+from fedcampaign_emhi.runtime.logging import logging_contract
 from fedcampaign_emhi.synthetic.common_mode import equally_spaced_loadings
 from fedcampaign_emhi.synthetic.context_boundaries import next_markov_state
 from fedcampaign_emhi.synthetic.controlled_campaigns import (
@@ -416,7 +415,7 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         detector_fit_sample_requirement_is_met,
         empty_epoch_feature_vector,
         epoch_feature_vector,
-        preprocessing_event_type_hash_bucket,
+        event_type_hash_bucket,
         fit_robust_scaler,
         horizon_eligibility_state,
         inclusive_epoch_range,
@@ -439,6 +438,9 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         enumerate_context_estimator_sensitivity,
         order_three_material_contribution,
         order_three_scope_gate,
+        enumerate_sensitivity_cells,
+        exactly_one_factor_changes,
+        sensitivity_p_value_never_claimed,
         enumerate_primary_strict_odi_plan,
         strict_odi_rate_gate,
         paired_odi_advantage_gate,
@@ -542,7 +544,6 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         build_edge_iiotset_release_identity,
         edge_iiotset_field_mapping,
         ton_iot_network_canonical_event_type,
-        event_type_hash_bucket,
         ton_iot_network_ground_truth,
         load_ton_iot_network_csv,
         ton_iot_network_schema_is_executable,
@@ -590,7 +591,6 @@ def module_contracts() -> tuple[ModuleContract, ...]:
         materialize_composition_record,
         mean_standardized_error,
         median_runtime_seconds,
-        CompositionSelectionInputs,
         null_standard_deviation_is_usable,
         standardized_estimation_error,
         selection_rule_identity,
@@ -816,7 +816,7 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             ownership="typed immutable campaign, horizon, stop, evidence, latency, coverage, and evaluation records",
         ),
         evaluation_scalability_scalability_contract(),
-        evaluation_validation_validation_contract(),
+        validation_contract(),
         models_autoencoder_autoencoder_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.models.isolation_forest",
@@ -826,7 +826,7 @@ def module_contracts() -> tuple[ModuleContract, ...]:
             module_name="fedcampaign_emhi.models.one_class_svm",
             ownership="RBF One-Class SVM construction, fitting, persistence, and anomaly-score orientation",
         ),
-        runtime_logging_logging_contract(),
+        logging_contract(),
         ModuleContract(
             module_name="fedcampaign_emhi.synthetic.common_mode",
             ownership="latent common-mode benign coordination and count-stress scenarios",
