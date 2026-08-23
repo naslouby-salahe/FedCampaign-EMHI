@@ -1,7 +1,5 @@
-from dataclasses import dataclass
 from math import log, sqrt
 
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.types import (
     CensoredPlotEpoch,
     ClientCount,
@@ -19,7 +17,6 @@ from fedcampaign_emhi.domain.types import (
     StrictOdiOutcome,
 )
 from fedcampaign_emhi.emhi.coalitions import coalition_count
-from fedcampaign_emhi.emhi.projection import blocked_fold_sizes
 
 
 def earliest_local_stop(
@@ -365,17 +362,3 @@ def throughput(coalitions_scored: RecordCount, server_compute_seconds: FiniteFlo
     if server_compute_seconds <= 0.0:
         raise ValueError("throughput requires a positive server compute time")
     return coalitions_scored / server_compute_seconds
-
-
-@dataclass(frozen=True)
-class SmokeFixtureResult:
-    blocked_fold_sizes: tuple[RecordCount, ...]
-    strict_odi_indicator: OdiIndicator
-
-
-def smoke_module_fixtures(loaded: LoadedScientificConfiguration) -> SmokeFixtureResult:
-    del loaded
-    return SmokeFixtureResult(
-        blocked_fold_sizes=blocked_fold_sizes(11, 5),
-        strict_odi_indicator=strict_odi_outcome(4, (5, 8)).indicator,
-    )
