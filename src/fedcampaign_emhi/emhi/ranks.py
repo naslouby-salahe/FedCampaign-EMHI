@@ -67,8 +67,7 @@ def build_marginal_rank_artifact(
             )
         reference = RankReference(scores=reference_scores)
         ranks = tuple(
-            clipped_midrank(score, reference, rank_clip_epsilon)
-            for score in score_stream.scores
+            clipped_midrank(score, reference, rank_clip_epsilon) for score in score_stream.scores
         )
         streams.append(
             ClientMarginalRankStream(
