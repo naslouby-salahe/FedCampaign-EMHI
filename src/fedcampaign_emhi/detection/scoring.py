@@ -126,9 +126,7 @@ def build_detector_score_artifact(
     assignments = assign_detector_families(split.selected_client_ids)
     streams: list[ClientDetectorScoreStream] = []
     for assignment in assignments:
-        client_rows = tuple(
-            row for row in prepared.epochs if row.client_id == assignment.client_id
-        )
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == assignment.client_id)
         fit_rows = tuple(
             row.feature_values
             for row in client_rows
