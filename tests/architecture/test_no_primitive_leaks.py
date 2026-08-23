@@ -31,50 +31,14 @@ class AllowlistEntry:
 ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
     {
         AllowlistEntry(
-            "src/fedcampaign_emhi/config/validation.py",
-            7,
-            "YamlNode",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/config/validation.py",
-            7,
-            "YamlNode",
-            "int",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/config/validation.py",
-            7,
-            "YamlNode",
-            "float",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/doctor.py",
-            12,
-            "doctor_command",
-            "str",
-        ),
-        AllowlistEntry(
             "src/fedcampaign_emhi/cli/commands/preprocess.py",
-            9,
-            "preprocess_command",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/preprocess.py",
-            34,
+            43,
             "_parse_dataset_name",
             "str",
         ),
         AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/status.py",
-            10,
-            "status_command",
-            "str",
-        ),
-        AllowlistEntry(
             "src/fedcampaign_emhi/cli/commands/run.py",
-            9,
+            11,
             "run_command",
             "str",
         ),
@@ -82,12 +46,6 @@ ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
             "src/fedcampaign_emhi/cli/commands/report.py",
             12,
             "report_command",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/main.py",
-            21,
-            "main",
             "str",
         ),
         AllowlistEntry(
