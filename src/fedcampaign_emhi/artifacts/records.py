@@ -23,6 +23,7 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     MaterialDependencyFingerprint,
     Probability,
+    RankValue,
     RecordCount,
     RelativePath,
     ResumeStep,
@@ -181,6 +182,21 @@ class DetectorScoreArtifactRecord(FrozenConfigModel):
     root_seed: SeedValue
     selected_client_ids: tuple[ClientId, ...]
     client_streams: tuple[ClientDetectorScoreStream, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+
+
+class ClientMarginalRankStream(FrozenConfigModel):
+    client_id: ClientId
+    nuisance_reference_scores: tuple[FiniteFloat, ...]
+    epoch_indexes: tuple[EpochIndexValue, ...]
+    ranks: tuple[RankValue, ...]
+
+
+class MarginalRankArtifactRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    root_seed: SeedValue
+    selected_client_ids: tuple[ClientId, ...]
+    client_streams: tuple[ClientMarginalRankStream, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
 
 
