@@ -1,3 +1,4 @@
+import math
 import statistics
 from dataclasses import dataclass
 
@@ -10,12 +11,6 @@ from fedcampaign_emhi.domain.types import (
     Probability,
     RecordCount,
     SeedValue,
-)
-from fedcampaign_emhi.experiments.scalability import (
-    derived_coalition_count,
-    enumerate_scalability_plan,
-    latency_gate,
-    scalability_numerical_failure_gate,
 )
 
 
@@ -46,10 +41,10 @@ class ScalabilitySummary:
     state: ExperimentState
 
 
-def _p95(values: tuple[LatencySeconds, ...]) -> LatencySeconds:
-    if not values:
+def _p95(latencies: tuple[LatencySeconds, ...]) -> LatencySeconds:
+    if not latencies:
         raise ValueError("p95 latency requires at least one measurement")
-    ordered = sorted(values)
+    ordered = sorted(latencies)
     rank = ((95 * len(ordered)) + 99) // 100
     return ordered[rank - 1]
 
@@ -70,10 +65,8 @@ def summarize_scalability(
     if attempted_count <= 0:
         raise ValueError("scalability summary requires attempted scientific cells")
     failure_rate = failure_count / attempted_count
-    latency_passed = latency_gate(_p95(server), maximum_p95_server_latency_seconds)
-    failure_passed = scalability_numerical_failure_gate(
-        failure_count, attempted_count, maximum_numerical_failure_rate
-    )
+    latency_passed = _p95(server) <= maximum_p95_server_latency_seconds
+    failure_passed = failure_rate <= maximum_numerical_failure_rate
     return ScalabilitySummary(
         client_count=client_count,
         median_server_latency_seconds=statistics.median(server),
@@ -91,6 +84,7 @@ def summarize_scalability(
 def expected_scalability_coalitions(
     config: ScientificConfig, client_count: ClientCount
 ) -> RecordCount:
-    plan = enumerate_scalability_plan(config)
-    maximum_order = max(int(order) for order in plan.enabled_orders)
-    return derived_coalition_count(client_count, maximum_order)
+    maximum_order = int(config.study.maximum_coalition_order)
+    if maximum_order > client_count:
+        raise ValueError("maximum coalition order cannot exceed the client count")
+    return sum(math.comb(client_count, order) for order in range(1, maximum_order + 1))
