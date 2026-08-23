@@ -8,10 +8,12 @@ from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ArtifactManifest,
     ClientDetectorScoreStream,
+    ClientMarginalRankStream,
     CompletionRecord,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     ExperimentRunRecord,
+    MarginalRankArtifactRecord,
     PlanArtifactRecord,
     PlannedExperimentRecord,
     PreparedDatasetRecord,
@@ -26,7 +28,7 @@ from fedcampaign_emhi.detection.fitting import (
     score_isolation_forest,
     score_one_class_svm,
 )
-from fedcampaign_emhi.detection.scoring import score_stream_isolation_check
+from fedcampaign_emhi.detection.scoring import rank_stream, score_stream_isolation_check
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
@@ -273,9 +275,12 @@ def _required_real_roots(
     return tuple(dict.fromkeys(roots))
 
 
+def _dataset_stem(dataset_name: DatasetName) -> str:
+    return dataset_name.value.replace(" ", "_")
+
+
 def _score_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    stem = dataset_name.value.replace(" ", "_")
-    return f"detector-scores.{stem}.seed-{root_seed}"
+    return f"detector-scores.{_dataset_stem(dataset_name)}.seed-{root_seed}"
 
 
 def _score_artifact_path(
@@ -285,8 +290,13 @@ def _score_artifact_path(
     root_seed: SeedValue,
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
-    stem = dataset_name.value.replace(" ", "_")
-    return layout.roots.outputs_root / "artifacts" / "scores" / stem / f"seed-{root_seed}.json"
+    return (
+        layout.roots.outputs_root
+        / "artifacts"
+        / "scores"
+        / _dataset_stem(dataset_name)
+        / f"seed-{root_seed}.json"
+    )
 
 
 def _detector_dependency_fingerprint(
@@ -381,9 +391,7 @@ def _materialize_detector_scores(
     fingerprint = _detector_dependency_fingerprint(
         loaded, prepared_path, split_path, root_seed
     )
-    destination = _score_artifact_path(
-        loaded, repository, dataset_name, root_seed
-    )
+    destination = _score_artifact_path(loaded, repository, dataset_name, root_seed)
     if destination.is_file():
         try:
             existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
@@ -452,9 +460,117 @@ def _materialize_detector_scores(
         content_digest=content_digest,
         material_fingerprint=fingerprint,
         upstream_ids=(
-            f"preprocess.{dataset_name.value.replace(' ', '_')}.prepared",
-            f"preprocess.{dataset_name.value.replace(' ', '_')}.splits",
+            f"preprocess.{_dataset_stem(dataset_name)}.prepared",
+            f"preprocess.{_dataset_stem(dataset_name)}.splits",
         ),
+        lifecycle_state=ArtifactLifecycleState.VALID,
+    )
+    write_atomic_json(
+        destination.with_suffix(".manifest.json"),
+        cast(YamlNode, manifest.model_dump(mode="json")),
+        staging,
+    )
+    return destination
+
+
+def _rank_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
+    return f"marginal-ranks.{_dataset_stem(dataset_name)}.seed-{root_seed}"
+
+
+def _rank_artifact_path(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    return (
+        layout.roots.outputs_root
+        / "artifacts"
+        / "fitted"
+        / _dataset_stem(dataset_name)
+        / f"seed-{root_seed}-marginal-ranks.json"
+    )
+
+
+def _rank_dependency_fingerprint(
+    loaded: LoadedScientificConfiguration,
+    score_path: Path,
+    split_path: Path,
+) -> MaterialDependencyFingerprint:
+    rank_config_digest = payload_digest(
+        cast(
+            YamlNode,
+            {"rank_clip_epsilon": loaded.values.context.rank_clip_epsilon},
+        )
+    )
+    return material_fingerprint(
+        rank_config_digest,
+        (file_sha256(score_path), file_sha256(split_path)),
+    )
+
+
+def _materialize_marginal_ranks(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    score_path: Path,
+) -> Path:
+    _, _, split_path, _, _ = _preprocessing_paths(loaded, repository, dataset_name)
+    fingerprint = _rank_dependency_fingerprint(loaded, score_path, split_path)
+    destination = _rank_artifact_path(loaded, repository, dataset_name, root_seed)
+    if destination.is_file():
+        try:
+            existing = MarginalRankArtifactRecord.model_validate_json(destination.read_bytes())
+        except ValueError:
+            existing = None
+        if existing is not None and existing.dependency_fingerprint == fingerprint:
+            return destination
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    streams: list[ClientMarginalRankStream] = []
+    for client_stream in scores.client_streams:
+        nuisance_reference_scores = tuple(
+            score
+            for epoch_index, score in zip(
+                client_stream.epoch_indexes, client_stream.scores, strict=True
+            )
+            if epoch_index in split.nuisance_fit_epochs
+        )
+        ranks = rank_stream(
+            client_stream.scores,
+            nuisance_reference_scores,
+            loaded.values.context.rank_clip_epsilon,
+        )
+        streams.append(
+            ClientMarginalRankStream(
+                client_id=client_stream.client_id,
+                nuisance_reference_scores=nuisance_reference_scores,
+                epoch_indexes=client_stream.epoch_indexes,
+                ranks=ranks,
+            )
+        )
+    record = MarginalRankArtifactRecord(
+        dataset_name=dataset_name,
+        root_seed=root_seed,
+        selected_client_ids=scores.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=fingerprint,
+    )
+    layout = build_artifact_layout(loaded, repository)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    content_digest = write_atomic_json(
+        destination, cast(YamlNode, record.model_dump(mode="json")), staging
+    )
+    manifest = ArtifactManifest(
+        artifact_id=_rank_artifact_id(dataset_name, root_seed),
+        namespace=ArtifactNamespace.OUTPUTS,
+        experiment_name=None,
+        relative_path=destination.relative_to(layout.roots.outputs_root).as_posix(),
+        content_digest=content_digest,
+        material_fingerprint=fingerprint,
+        upstream_ids=(_score_artifact_id(dataset_name, root_seed),),
         lifecycle_state=ArtifactLifecycleState.VALID,
     )
     write_atomic_json(
@@ -498,9 +614,16 @@ def execute_experiment(
             detail="required canonical preprocessing artifacts are missing",
         )
     dataset_name = _experiment_dataset(loaded, experiment_name)
+    roots = _required_real_roots(loaded, experiment_name)
     score_paths = tuple(
         _materialize_detector_scores(loaded, repository, dataset_name, root_seed)
-        for root_seed in _required_real_roots(loaded, experiment_name)
+        for root_seed in roots
+    )
+    rank_paths = tuple(
+        _materialize_marginal_ranks(
+            loaded, repository, dataset_name, root_seed, score_path
+        )
+        for root_seed, score_path in zip(roots, score_paths, strict=True)
     )
     run_path = publish_experiment_run_record(
         loaded,
@@ -514,7 +637,10 @@ def execute_experiment(
         state=ExperimentState.BLOCKED,
         run_record_path=run_path,
         completed_cell_count=0,
-        detail=f"materialized {len(score_paths)} reusable detector score streams; EMHI fit remains",
+        detail=(
+            f"materialized {len(score_paths)} detector score streams and "
+            f"{len(rank_paths)} nuisance-fit marginal-rank artifacts; EMHI fit remains"
+        ),
     )
 
 
