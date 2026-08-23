@@ -95,11 +95,7 @@ def calibrate_global_operating_point(
         for horizon in calibration_horizons
     )
     calibration_counts = tuple(
-        sum(
-            1
-            for trajectory in calibration_trajectories
-            if _trajectory_stops(trajectory, threshold)
-        )
+        sum(1 for trajectory in calibration_trajectories if _trajectory_stops(trajectory, threshold))
         for threshold in candidates
     )
     selected = select_calibrated_threshold(
