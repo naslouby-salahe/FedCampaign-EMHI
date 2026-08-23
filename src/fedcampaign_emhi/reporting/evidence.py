@@ -8,7 +8,6 @@ from fedcampaign_emhi.artifacts.storage import file_sha256, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
 from fedcampaign_emhi.domain.types import ConfigurationDigest
-from fedcampaign_emhi.execution.status import project_status
 from fedcampaign_emhi.reporting.figures import write_paired_difference_figure
 from fedcampaign_emhi.reporting.reproducibility import export_reproducibility
 from fedcampaign_emhi.reporting.tables import load_seed_summaries, write_seed_summary_table
@@ -35,6 +34,32 @@ def _json_files(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in root.rglob("*.json") if path.is_file()))
 
 
+def _completed_experiments(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> tuple[ExperimentName, ...]:
+    layout = build_artifact_layout(loaded, repository)
+    completed: list[ExperimentName] = []
+    for experiment_name in ExperimentName:
+        run_record_path = (
+            layout.experiment_outputs_root(experiment_name)
+            / "provenance"
+            / "dependencies"
+            / "run-record.json"
+        )
+        if not run_record_path.is_file():
+            continue
+        try:
+            run_record = ExperimentRunRecord.model_validate_json(run_record_path.read_bytes())
+        except ValueError:
+            continue
+        if (
+            run_record.state is ExperimentState.COMPLETED
+            and run_record.material_digest == loaded.material_digest
+        ):
+            completed.append(experiment_name)
+    return tuple(completed)
+
+
 def select_verified_evidence(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -49,7 +74,9 @@ def select_verified_evidence(
     if run_record.state is not ExperimentState.COMPLETED:
         raise ValueError(f"experiment {experiment_name.value} is not completed")
     if run_record.material_digest != loaded.material_digest:
-        raise ValueError(f"experiment {experiment_name.value} is stale for the active configuration")
+        raise ValueError(
+            f"experiment {experiment_name.value} is stale for the active configuration"
+        )
     seed_paths = _json_files(root / "metrics" / "per_seed")
     statistical_paths = _json_files(root / "statistics")
     cell_paths = tuple(
@@ -121,11 +148,7 @@ def materialize_report_scope(
                 loaded, repository, experiment_name, overwrite_policy
             ),
         )
-    completed = tuple(
-        status.experiment_name
-        for status in project_status(loaded, repository)
-        if status.state is ExperimentState.COMPLETED
-    )
+    completed = _completed_experiments(loaded, repository)
     reports = tuple(
         materialize_verified_experiment_report(
             loaded, repository, completed_experiment, overwrite_policy

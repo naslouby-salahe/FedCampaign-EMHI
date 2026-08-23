@@ -4,9 +4,11 @@ from fedcampaign_emhi.domain.enums import (
     ArtifactNamespace,
     ClaimIdentifier,
     ClaimState,
+    DatasetName,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
+    GroundTruthClass,
     MethodName,
     OverwritePolicy,
 )
@@ -16,6 +18,7 @@ from fedcampaign_emhi.domain.types import (
     ClientId,
     ComponentName,
     ConfigurationDigest,
+    EpochIndexValue,
     FiniteFloat,
     MaterialDependencyFingerprint,
     Probability,
@@ -99,6 +102,69 @@ class PlanArtifactRecord(FrozenConfigModel):
     material_digest: ConfigurationDigest
     resume_sequence: tuple[ResumeStep, ...]
     experiments: tuple[PlannedExperimentRecord, ...]
+
+
+class DatasetInventoryFileRecord(FrozenConfigModel):
+    relative_path: RelativePath
+    sha256: ConfigurationDigest
+    byte_count: ByteCount
+
+
+class DatasetInventoryRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    files: tuple[DatasetInventoryFileRecord, ...]
+    content_digest: ConfigurationDigest
+
+
+class PreparedEpochRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    client_id: ClientId
+    epoch_index: EpochIndexValue
+    feature_values: tuple[FiniteFloat, ...]
+    ground_truth: GroundTruthClass
+    raw_event_count: RecordCount
+    ambiguous_event_count: RecordCount
+
+
+class PreparedDatasetRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    epochs: tuple[PreparedEpochRecord, ...]
+    excluded_record_count: RecordCount
+    ground_truth_discrepancy_count: RecordCount
+
+
+class DatasetSplitRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    selected_client_ids: tuple[ClientId, ...]
+    eligible_client_ids: tuple[ClientId, ...]
+    claim_state: ClaimState
+    detector_fit_epochs: tuple[EpochIndexValue, ...]
+    nuisance_fit_epochs: tuple[EpochIndexValue, ...]
+    threshold_calibration_epochs: tuple[EpochIndexValue, ...]
+    heldout_benign_epochs: tuple[EpochIndexValue, ...]
+
+
+class BenignHorizonRecord(FrozenConfigModel):
+    start_epoch: EpochIndexValue
+    epoch_indexes: tuple[EpochIndexValue, ...]
+
+
+class BenignPartitionRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    calibration_horizons: tuple[BenignHorizonRecord, ...]
+    heldout_horizons: tuple[BenignHorizonRecord, ...]
+
+
+class CampaignRecord(FrozenConfigModel):
+    start_epoch: EpochIndexValue
+    end_epoch: EpochIndexValue
+    participating_client_ids: tuple[ClientId, ...]
+    integrity_checksum: ConfigurationDigest
+
+
+class CampaignRegistryRecord(FrozenConfigModel):
+    dataset_name: DatasetName
+    campaigns: tuple[CampaignRecord, ...]
 
 
 class SeedSummaryRecord(FrozenConfigModel):

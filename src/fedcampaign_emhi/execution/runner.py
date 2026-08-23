@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
+from fedcampaign_emhi.analysis.claims import evaluate_strict_odi
+from fedcampaign_emhi.analysis.statistics import paired_difference
+from fedcampaign_emhi.analysis.summaries import build_seed_summary
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
@@ -12,8 +15,23 @@ from fedcampaign_emhi.artifacts.records import (
     ScientificCellRecord,
 )
 from fedcampaign_emhi.artifacts.storage import write_atomic_json
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
+from fedcampaign_emhi.comparators.composition import select_strongest_comparator
+from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
+from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_design_column_count
+from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
+from fedcampaign_emhi.comparators.contracts import comparator_method_contracts
+from fedcampaign_emhi.comparators.d_vine import lexicographic_vine_order
+from fedcampaign_emhi.comparators.fedavg_autoencoder import fedavg_weighted_mean
+from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
+from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
+from fedcampaign_emhi.comparators.multistream_cusum import next_cusum_state
+from fedcampaign_emhi.comparators.pair_dependence import pair_dependence_moment
+from fedcampaign_emhi.comparators.rank_fusion import mean_rank_fusion
+from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
+from fedcampaign_emhi.datasets.preprocessing import epoch_feature_vector
+from fedcampaign_emhi.detection.detector_assignment import assign_detector_families
+from fedcampaign_emhi.detection.fitting import score_autoencoder, score_isolation_forest, score_one_class_svm
 from fedcampaign_emhi.domain.enums import (
     ExecutionRole,
     ExperimentName,
@@ -21,10 +39,32 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
 )
 from fedcampaign_emhi.domain.types import ComponentName, RecordCount, ResumeStep, RuntimeSeconds
+from fedcampaign_emhi.evaluation.scalability import summarize_scalability
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
+from fedcampaign_emhi.evaluation.validation import campaign_record_state
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
+from fedcampaign_emhi.experiments.ablations import (
+    enumerate_exclusion_mechanism_ablation,
+    enumerate_purification_and_order_ablation,
+)
+from fedcampaign_emhi.experiments.benign_robustness import enumerate_benign_common_mode_plan
+from fedcampaign_emhi.experiments.boundaries import (
+    enumerate_dropout_boundary_plan,
+    enumerate_outside_contamination_plan,
+)
 from fedcampaign_emhi.experiments.definitions import experiment_registry
-from fedcampaign_emhi.experiments.validation import validate_scientific_implementation_registry
+from fedcampaign_emhi.experiments.primary_odi import enumerate_primary_strict_odi_plan
+from fedcampaign_emhi.experiments.scalability import enumerate_scalability_plan
+from fedcampaign_emhi.experiments.secondary_generalization import (
+    enumerate_secondary_generalization_plan,
+)
+from fedcampaign_emhi.experiments.sensitivity import enumerate_sensitivity_cells
+from fedcampaign_emhi.experiments.strong_local import enumerate_strong_local_policy_plan
+from fedcampaign_emhi.experiments.validation import assert_known_experiment
+from fedcampaign_emhi.synthetic.common_mode import generate_common_mode_scores
+from fedcampaign_emhi.synthetic.controlled_campaigns import apply_marginal_score_shift
+from fedcampaign_emhi.synthetic.robustness import availability_mask
+from fedcampaign_emhi.synthetic.self_explanation import enumerate_self_exclusion_grid
 from fedcampaign_emhi.synthetic.validation import validate_synthetic_generators
 
 
@@ -37,8 +77,76 @@ class ExperimentExecutionResult:
     detail: ComponentName
 
 
+_IMPLEMENTATION_PROBES = (
+    evaluate_strict_odi,
+    paired_difference,
+    build_seed_summary,
+    select_strongest_comparator,
+    hofd_atom_rows,
+    log_linear_design_column_count,
+    uniform_probability_table,
+    lexicographic_vine_order,
+    fedavg_weighted_mean,
+    selected_factor_rank,
+    lancaster_triple_moment,
+    next_cusum_state,
+    pair_dependence_moment,
+    mean_rank_fusion,
+    epoch_feature_vector,
+    assign_detector_families,
+    score_autoencoder,
+    score_isolation_forest,
+    score_one_class_svm,
+    summarize_scalability,
+    campaign_record_state,
+    generate_common_mode_scores,
+    apply_marginal_score_shift,
+    availability_mask,
+    enumerate_self_exclusion_grid,
+)
+
+
 def resume_sequence() -> tuple[ResumeStep, ...]:
     return RESUME_SEQUENCE
+
+
+def implementation_probe_names() -> tuple[ComponentName, ...]:
+    return tuple(f"{probe.__module__}.{probe.__name__}" for probe in _IMPLEMENTATION_PROBES)
+
+
+def validate_scientific_implementation_registry(
+    config: ScientificConfig, experiment_name: ExperimentName
+) -> tuple[ComponentName, ...]:
+    assert_known_experiment(config, experiment_name)
+    contracts = comparator_method_contracts()
+    if len({contract.method_name for contract in contracts}) != len(contracts):
+        raise ValueError("comparator method contracts must have unique method ownership")
+    if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
+        enumerate_self_exclusion_grid(config)
+    elif experiment_name is ExperimentName.PRIMARY_STRICT_ODI_EVALUATION:
+        enumerate_primary_strict_odi_plan(config)
+    elif experiment_name is ExperimentName.EXCLUSION_MECHANISM_ABLATION:
+        enumerate_exclusion_mechanism_ablation(config)
+    elif experiment_name is ExperimentName.PURIFICATION_AND_ORDER_ABLATION:
+        enumerate_purification_and_order_ablation(config)
+    elif experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
+        enumerate_sensitivity_cells(config)
+    elif experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
+        enumerate_benign_common_mode_plan(config)
+    elif experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
+        enumerate_strong_local_policy_plan(config)
+    elif experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION:
+        enumerate_secondary_generalization_plan(config)
+    elif experiment_name is ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY:
+        enumerate_outside_contamination_plan(config)
+    elif experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
+        enumerate_dropout_boundary_plan(config)
+    elif experiment_name is ExperimentName.COALITION_SCALABILITY:
+        enumerate_scalability_plan(config)
+    probes = implementation_probe_names()
+    if not probes:
+        raise ValueError("scientific implementation registry is empty")
+    return probes
 
 
 def _run_record_path(
@@ -90,12 +198,13 @@ def _existing_completed_run(
     if not path.is_file():
         return None
     record = ExperimentRunRecord.model_validate_json(path.read_bytes())
-    if record.material_digest != loaded.material_digest or record.state is not ExperimentState.COMPLETED:
+    if (
+        record.material_digest != loaded.material_digest
+        or record.state is not ExperimentState.COMPLETED
+    ):
         return None
     cell_root = path.parent
-    completed_cells = tuple(
-        child for child in cell_root.glob("cell-*.json") if child.is_file()
-    )
+    completed_cells = tuple(child for child in cell_root.glob("cell-*.json") if child.is_file())
     if not completed_cells:
         return None
     return ExperimentExecutionResult(
@@ -190,9 +299,10 @@ def _required_preprocessing_artifacts(
     )
     stem = dataset_name.value.replace(" ", "_")
     return (
-        root / "prepared" / f"{stem}-events.jsonl",
-        root / "features" / f"{stem}-epochs.jsonl",
-        root / "splits" / f"{stem}-partitions.json",
+        root / "inventories" / f"{stem}.json",
+        root / "prepared" / f"{stem}.json",
+        root / "splits" / f"{stem}.json",
+        root / "metadata" / f"{stem}-benign-partitions.json",
         root / "metadata" / f"{stem}-campaign-registry.json",
     )
 
@@ -204,20 +314,14 @@ def execute_experiment(
     overwrite_policy: OverwritePolicy,
 ) -> ExperimentExecutionResult:
     validate_scientific_implementation_registry(loaded.values, experiment_name)
-    reused = _existing_completed_run(
-        loaded, repository, experiment_name, overwrite_policy
-    )
+    reused = _existing_completed_run(loaded, repository, experiment_name, overwrite_policy)
     if reused is not None:
         return reused
     if experiment_name is ExperimentName.SYNTHETIC_MODULE_VALIDATION:
-        return _execute_synthetic_module_validation(
-            loaded, repository, overwrite_policy
-        )
+        return _execute_synthetic_module_validation(loaded, repository, overwrite_policy)
     missing = tuple(
         path
-        for path in _required_preprocessing_artifacts(
-            loaded, repository, experiment_name
-        )
+        for path in _required_preprocessing_artifacts(loaded, repository, experiment_name)
         if not path.is_file()
     )
     if missing:

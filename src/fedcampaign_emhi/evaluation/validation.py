@@ -21,7 +21,7 @@ def campaign_record_state(record: CampaignEvaluationRecord) -> ExperimentState:
         record.server_latency_seconds,
         record.end_to_end_latency_seconds,
     )
-    if not all(isfinite(value) for value in finite_values):
+    if not all(isfinite(metric_value) for metric_value in finite_values):
         return ExperimentState.INVALID
     return ExperimentState.COMPLETED
 
@@ -30,7 +30,7 @@ def benign_horizon_record_state(
     record: BenignHorizonEvaluationRecord,
 ) -> ExperimentState:
     finite_values = (record.threshold, record.context_coverage, record.abstention_rate)
-    if not all(isfinite(value) for value in finite_values):
+    if not all(isfinite(metric_value) for metric_value in finite_values):
         return ExperimentState.INVALID
     return ExperimentState.COMPLETED
 
@@ -43,8 +43,8 @@ def required_record_completeness(
     return ExperimentState.COMPLETED
 
 
-def claim_metric_is_finite(value: FiniteFloat) -> ExperimentState:
-    return ExperimentState.COMPLETED if isfinite(value) else ExperimentState.INVALID
+def claim_metric_is_finite(metric_value: FiniteFloat) -> ExperimentState:
+    return ExperimentState.COMPLETED if isfinite(metric_value) else ExperimentState.INVALID
 
 
 def replay_plan_state(plan: CampaignReplayPlan) -> ExperimentState:
@@ -65,8 +65,8 @@ def benign_horizon_records_state(
     return ExperimentState.COMPLETED
 
 
-def no_imputation(values: tuple[FiniteFloat | None, ...]) -> ExperimentState:
-    if any(value is None for value in values):
+def no_imputation(metric_values: tuple[FiniteFloat | None, ...]) -> ExperimentState:
+    if any(metric_value is None for metric_value in metric_values):
         return ExperimentState.INVALID
     return ExperimentState.COMPLETED
 

@@ -1,29 +1,84 @@
 import hashlib
+from collections.abc import MutableMapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from fedcampaign_emhi.artifacts.dependencies import descendant_ids
 from fedcampaign_emhi.artifacts.paths import ArtifactLayout, build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
-from fedcampaign_emhi.artifacts.records import ArtifactManifest
-from fedcampaign_emhi.artifacts.storage import payload_digest, write_atomic_json
+from fedcampaign_emhi.artifacts.records import (
+    ArtifactManifest,
+    BenignHorizonRecord,
+    BenignPartitionRecord,
+    CampaignRecord,
+    CampaignRegistryRecord,
+    DatasetInventoryFileRecord,
+    DatasetInventoryRecord,
+    DatasetSplitRecord,
+    PreparedDatasetRecord,
+    PreparedEpochRecord,
+)
+from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.datasets.inventory import configured_raw_directory, inventory_raw_directory
+from fedcampaign_emhi.datasets.campaigns import build_campaign_registry
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
+    canonical_event_type as edge_canonical_event_type,
+    record_enters_epoch_event_count,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv_with_exclusions
+from fedcampaign_emhi.datasets.edge_iiotset.validation import (
+    select_secondary_clients,
+    separate_benign_and_evaluation as separate_edge_benign_and_evaluation,
+)
+from fedcampaign_emhi.datasets.inventory import (
+    configured_raw_directory,
+    discover_raw_paths,
+    inventory_raw_directory,
+)
+from fedcampaign_emhi.datasets.partitions import epoch_index
+from fedcampaign_emhi.datasets.preprocessing import (
+    chronological_benign_partitions,
+    chronological_partition_lengths,
+    common_benign_epoch_bounds,
+    complete_benign_horizons,
+    epoch_feature_vector,
+    inclusive_epoch_range,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+    canonical_client_id,
+    canonical_event_type as ton_canonical_event_type,
+    event_type_hash_bucket as ton_event_type_hash_bucket,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.loading import load_ton_iot_network_csv_with_exclusions
+from fedcampaign_emhi.datasets.ton_iot_network.validation import (
+    select_primary_clients,
+    separate_benign_and_evaluation as separate_ton_benign_and_evaluation,
+)
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
+    ClaimState,
     DatasetName,
     DownstreamArtifactKind,
+    GroundTruthClass,
     OverwritePolicy,
     PreprocessingLayer,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
+    ClientId,
+    ClientMaliciousEpochs,
     ConfigurationDigest,
+    EpochIndexValue,
     MaterialDependencyFingerprint,
     PreprocessExecutionRecord,
     PreprocessingLayerDecision,
+    RecordCount,
     SignedInt,
 )
 
@@ -36,14 +91,19 @@ PREPROCESSING_LAYER_ORDER: tuple[PreprocessingLayer, ...] = (
 )
 
 
+@dataclass(frozen=True)
+class DatasetMaterialization:
+    inventory: DatasetInventoryRecord
+    prepared: PreparedDatasetRecord
+    split: DatasetSplitRecord
+    partitions: BenignPartitionRecord
+    campaigns: CampaignRegistryRecord
+
+
 def requested_datasets(dataset_name: DatasetName | None) -> tuple[DatasetName, ...]:
-    selected: list[DatasetName] = []
     if dataset_name is None:
-        selected.append(DatasetName.TON_IOT_NETWORK)
-        selected.append(DatasetName.EDGE_IIOTSET)
-    else:
-        selected.append(dataset_name)
-    return tuple(selected)
+        return (DatasetName.TON_IOT_NETWORK, DatasetName.EDGE_IIOTSET)
+    return (dataset_name,)
 
 
 def preprocess_must_not_regenerate() -> tuple[DownstreamArtifactKind, ...]:
@@ -135,27 +195,80 @@ def _execute_dataset(
     overwrite_policy: OverwritePolicy,
 ) -> tuple[PreprocessingLayer | None, tuple[PreprocessingLayerDecision, ...]]:
     layout = build_artifact_layout(loaded, repository)
+    raw_inventory = inventory_raw_directory(
+        configured_raw_directory(loaded, dataset_name, repository), repository
+    )
+    inventory_digest = payload_digest(
+        cast(
+            YamlNode,
+            [
+                {
+                    "relative_path": item.relative_path,
+                    "sha256": item.sha256,
+                    "byte_count": item.byte_count,
+                }
+                for item in raw_inventory
+            ],
+        )
+    )
     reusable_flags, stored_fingerprints = _existing_layer_state(
-        loaded, repository, layout, dataset_name
+        loaded, layout, dataset_name, inventory_digest
     )
     start_layer = nearest_reconstruction_layer(reusable_flags, overwrite_policy)
+    if start_layer is None:
+        return None, tuple(
+            PreprocessingLayerDecision(
+                dataset_name=dataset_name,
+                layer=layer,
+                reused=True,
+                reconstructed=False,
+                previous_fingerprint=stored_fingerprints[index],
+                current_fingerprint=cast(MaterialDependencyFingerprint, stored_fingerprints[index]),
+                invalidated_descendant_ids=(),
+            )
+            for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
+        )
+    materialization = _build_dataset_materialization(
+        loaded, repository, dataset_name, inventory_digest
+    )
     decisions: list[PreprocessingLayerDecision] = []
+    active_fingerprints = stored_fingerprints
     ancestor_changed = False
     for index, layer in enumerate(PREPROCESSING_LAYER_ORDER):
-        previous = stored_fingerprints[index]
-        current, stored_fingerprints, reconstructed, reused = _apply_layer(
+        previous = active_fingerprints[index]
+        expected = _expected_layer_fingerprint(
             loaded,
-            repository,
             dataset_name,
             layer,
-            index,
-            start_layer,
-            overwrite_policy,
-            reusable_flags[index],
-            ancestor_changed,
-            stored_fingerprints,
+            inventory_digest,
+            _upstream_digest(layer, active_fingerprints),
         )
-        ancestor_changed = _fingerprint_changed(previous, current, reconstructed, ancestor_changed)
+        must_rebuild = overwrite_policy is OverwritePolicy.OVERWRITE or (
+            _layer_at_or_after(layer, start_layer) and (ancestor_changed or not reusable_flags[index])
+        )
+        if must_rebuild:
+            current = _materialize_layer(
+                loaded,
+                layout,
+                dataset_name,
+                layer,
+                expected,
+                materialization,
+                active_fingerprints,
+            )
+            active_fingerprints = (
+                *active_fingerprints[:index],
+                current,
+                *active_fingerprints[index + 1 :],
+            )
+            reconstructed = True
+            reused = False
+        else:
+            current = cast(MaterialDependencyFingerprint, previous)
+            reconstructed = False
+            reused = True
+        changed = reconstructed and previous is not None and previous != current
+        ancestor_changed = ancestor_changed or changed
         decisions.append(
             PreprocessingLayerDecision(
                 dataset_name=dataset_name,
@@ -174,64 +287,575 @@ def _execute_dataset(
 
 def _existing_layer_state(
     loaded: LoadedScientificConfiguration,
-    repository: Path,
     layout: ArtifactLayout,
     dataset_name: DatasetName,
+    inventory_digest: ConfigurationDigest,
 ) -> tuple[tuple[bool, ...], tuple[MaterialDependencyFingerprint | None, ...]]:
-    reusable_flags: list[bool] = []
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...] = ()
+    reusable: list[bool] = []
+    fingerprints: list[MaterialDependencyFingerprint | None] = []
     for layer in PREPROCESSING_LAYER_ORDER:
-        stored = _read_stored_fingerprint(layout, dataset_name, layer)
-        stored_fingerprints = (*stored_fingerprints, stored)
-        current = _layer_fingerprint(loaded, repository, dataset_name, layer, stored_fingerprints)
-        reusable_flags.append(stored is not None and stored == current)
-    return tuple(reusable_flags), stored_fingerprints
+        upstream = fingerprints[-1] if fingerprints else None
+        expected = _expected_layer_fingerprint(
+            loaded, dataset_name, layer, inventory_digest, upstream
+        )
+        manifest = _read_manifest(layout, dataset_name, layer)
+        valid = (
+            manifest is not None
+            and manifest.material_fingerprint == expected
+            and manifest.lifecycle_state is ArtifactLifecycleState.VALID
+            and _manifest_content_is_valid(layout, manifest)
+        )
+        reusable.append(valid)
+        fingerprints.append(manifest.material_fingerprint if valid and manifest is not None else None)
+    return tuple(reusable), tuple(fingerprints)
 
 
-def _apply_layer(
+def _expected_layer_fingerprint(
+    loaded: LoadedScientificConfiguration,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    inventory_digest: ConfigurationDigest,
+    upstream: MaterialDependencyFingerprint | None,
+) -> MaterialDependencyFingerprint:
+    payload = cast(
+        YamlNode,
+        {
+            "configuration_digest": loaded.material_digest,
+            "dataset": dataset_name.value,
+            "layer": layer.value,
+            "raw_inventory_digest": inventory_digest,
+            "upstream": upstream,
+            "producer_code_digest": _producer_code_digest(),
+        },
+    )
+    digest = payload_digest(payload)
+    upstreams = () if upstream is None else (upstream,)
+    return material_fingerprint(loaded.material_digest, (*upstreams, inventory_digest, digest))
+
+
+def _producer_code_digest() -> ConfigurationDigest:
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def _build_dataset_materialization(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     dataset_name: DatasetName,
+    inventory_digest: ConfigurationDigest,
+) -> DatasetMaterialization:
+    raw_directory = configured_raw_directory(loaded, dataset_name, repository)
+    files = inventory_raw_directory(raw_directory, repository)
+    inventory = DatasetInventoryRecord(
+        dataset_name=dataset_name,
+        files=tuple(
+            DatasetInventoryFileRecord(
+                relative_path=item.relative_path,
+                sha256=item.sha256,
+                byte_count=item.byte_count,
+            )
+            for item in files
+        ),
+        content_digest=inventory_digest,
+    )
+    if dataset_name is DatasetName.TON_IOT_NETWORK:
+        return _build_ton_materialization(loaded, raw_directory, inventory)
+    if dataset_name is DatasetName.EDGE_IIOTSET:
+        return _build_edge_materialization(loaded, raw_directory, inventory)
+    raise ValueError(f"unsupported dataset {dataset_name.value}")
+
+
+def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
+    return tuple(path for path in discover_raw_paths(raw_directory) if path.suffix.lower() == ".csv")
+
+
+def _increment_bucket(
+    counts: tuple[RecordCount, ...], bucket_index: SignedInt
+) -> tuple[RecordCount, ...]:
+    return tuple(
+        count + 1 if index == bucket_index else count for index, count in enumerate(counts)
+    )
+
+
+def _build_ton_materialization(
+    loaded: LoadedScientificConfiguration,
+    raw_directory: Path,
+    inventory: DatasetInventoryRecord,
+) -> DatasetMaterialization:
+    records = ()
+    exclusions = ()
+    for path in _csv_paths(raw_directory):
+        loaded_records, loaded_exclusions = load_ton_iot_network_csv_with_exclusions(path)
+        records = (*records, *loaded_records)
+        exclusions = (*exclusions, *loaded_exclusions)
+    separation = separate_ton_benign_and_evaluation(records)
+    selected = select_primary_clients(
+        records,
+        loaded.values.time.real_data_epoch_seconds,
+        loaded.values.datasets.eligibility.minimum_benign_event_records,
+        loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
+        loaded.values.datasets.primary.target_client_count,
+    )
+    prepared = _prepare_ton_epochs(loaded, records, len(exclusions), len(separation.discrepancies))
+    split, partitions = _build_ton_partitions(loaded, selected.selected_client_ids, selected.eligible_client_ids, selected.claim_state, separation.benign_records)
+    campaigns = _build_ton_campaigns(loaded, selected.selected_client_ids, separation.evaluation_records)
+    return DatasetMaterialization(
+        inventory=inventory,
+        prepared=prepared,
+        split=split,
+        partitions=partitions,
+        campaigns=campaigns,
+    )
+
+
+def _prepare_ton_epochs(
+    loaded: LoadedScientificConfiguration,
+    records: tuple,
+    excluded_count: RecordCount,
+    discrepancy_count: RecordCount,
+) -> PreparedDatasetRecord:
+    bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
+    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
+    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    for record in records:
+        client_id = canonical_client_id(record.source_ip)
+        epoch = epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+        key = (client_id, epoch)
+        current = counts.get(key, tuple(0 for _index in range(bucket_count)))
+        event_type = ton_canonical_event_type(record.protocol_token, record.service_token)
+        bucket = ton_event_type_hash_bucket(event_type, bucket_count)
+        counts[key] = _increment_bucket(current, bucket)
+        ground_truth = ton_iot_network_ground_truth(record.binary_label, record.attack_type)
+        if ground_truth.classification is GroundTruthClass.AMBIGUOUS:
+            ambiguous[key] = ambiguous.get(key, 0) + 1
+        elif ground_truth.classification is GroundTruthClass.MALICIOUS:
+            malicious[key] = malicious.get(key, 0) + 1
+    epochs: list[PreparedEpochRecord] = []
+    for key in sorted(counts):
+        client_id, epoch = key
+        vector = epoch_feature_vector(counts[key])
+        ground_truth = GroundTruthClass.BENIGN
+        if malicious.get(key, 0) > 0:
+            ground_truth = GroundTruthClass.MALICIOUS
+        if ambiguous.get(key, 0) > 0:
+            ground_truth = GroundTruthClass.AMBIGUOUS
+        epochs.append(
+            PreparedEpochRecord(
+                dataset_name=DatasetName.TON_IOT_NETWORK,
+                client_id=client_id,
+                epoch_index=epoch,
+                feature_values=(
+                    *vector.log1p_bucket_counts,
+                    float(vector.total_raw_event_count),
+                    vector.shannon_entropy,
+                ),
+                ground_truth=ground_truth,
+                raw_event_count=vector.total_raw_event_count,
+                ambiguous_event_count=ambiguous.get(key, 0),
+            )
+        )
+    return PreparedDatasetRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        epochs=tuple(epochs),
+        excluded_record_count=excluded_count,
+        ground_truth_discrepancy_count=discrepancy_count,
+    )
+
+
+def _build_ton_partitions(
+    loaded: LoadedScientificConfiguration,
+    selected_client_ids: tuple[ClientId, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    claim_state: ClaimState,
+    benign_records: tuple,
+) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
+    per_client_epochs = tuple(
+        tuple(
+            sorted(
+                {
+                    epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+                    for record in benign_records
+                    if canonical_client_id(record.source_ip) == client_id
+                }
+            )
+        )
+        for client_id in selected_client_ids
+    )
+    return _build_common_partitions(
+        loaded,
+        DatasetName.TON_IOT_NETWORK,
+        selected_client_ids,
+        eligible_client_ids,
+        claim_state,
+        per_client_epochs,
+    )
+
+
+def _build_ton_campaigns(
+    loaded: LoadedScientificConfiguration,
+    selected_client_ids: tuple[ClientId, ...],
+    evaluation_records: tuple,
+) -> CampaignRegistryRecord:
+    malicious_epochs = tuple(
+        ClientMaliciousEpochs(
+            client_id=client_id,
+            malicious_epochs=tuple(
+                sorted(
+                    {
+                        epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+                        for record in evaluation_records
+                        if canonical_client_id(record.source_ip) == client_id
+                        and ton_iot_network_ground_truth(record.binary_label, record.attack_type).classification
+                        is GroundTruthClass.MALICIOUS
+                    }
+                )
+            ),
+        )
+        for client_id in selected_client_ids
+    )
+    return _campaign_record(loaded, DatasetName.TON_IOT_NETWORK, selected_client_ids, malicious_epochs)
+
+
+def _build_edge_materialization(
+    loaded: LoadedScientificConfiguration,
+    raw_directory: Path,
+    inventory: DatasetInventoryRecord,
+) -> DatasetMaterialization:
+    records = ()
+    exclusions = ()
+    for path in _csv_paths(raw_directory):
+        loaded_records, loaded_exclusions = load_edge_iiotset_csv_with_exclusions(path)
+        records = (*records, *loaded_records)
+        exclusions = (*exclusions, *loaded_exclusions)
+    separation = separate_edge_benign_and_evaluation(records)
+    selected = select_secondary_clients(
+        records,
+        loaded.values.time.real_data_epoch_seconds,
+        loaded.values.datasets.eligibility.minimum_benign_event_records,
+        loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
+        loaded.values.datasets.secondary.target_client_count,
+        loaded.values.datasets.secondary.minimum_eligible_client_count,
+    )
+    prepared = _prepare_edge_epochs(loaded, records, len(exclusions), len(separation.discrepancies))
+    split, partitions = _build_edge_partitions(loaded, selected.selected_client_ids, selected.eligible_client_ids, selected.claim_state, separation.benign_records)
+    campaigns = _build_edge_campaigns(loaded, selected.selected_client_ids, separation.evaluation_records)
+    return DatasetMaterialization(
+        inventory=inventory,
+        prepared=prepared,
+        split=split,
+        partitions=partitions,
+        campaigns=campaigns,
+    )
+
+
+def _prepare_edge_epochs(
+    loaded: LoadedScientificConfiguration,
+    records: tuple,
+    excluded_count: RecordCount,
+    discrepancy_count: RecordCount,
+) -> PreparedDatasetRecord:
+    bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
+    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
+    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    for record in records:
+        client_id = record.source_host.strip()
+        epoch = epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+        key = (client_id, epoch)
+        if record_enters_epoch_event_count(record.protocol_group):
+            current = counts.get(key, tuple(0 for _index in range(bucket_count)))
+            event_type = edge_canonical_event_type(record.protocol_group)
+            bucket = ton_event_type_hash_bucket(event_type, bucket_count)
+            counts[key] = _increment_bucket(current, bucket)
+        elif key not in counts:
+            counts[key] = tuple(0 for _index in range(bucket_count))
+        ground_truth = edge_iiotset_ground_truth(record.binary_label, record.attack_type)
+        if ground_truth.classification is GroundTruthClass.AMBIGUOUS:
+            ambiguous[key] = ambiguous.get(key, 0) + 1
+        elif ground_truth.classification is GroundTruthClass.MALICIOUS:
+            malicious[key] = malicious.get(key, 0) + 1
+    epochs: list[PreparedEpochRecord] = []
+    for key in sorted(counts):
+        client_id, epoch = key
+        vector = epoch_feature_vector(counts[key])
+        ground_truth = GroundTruthClass.BENIGN
+        if malicious.get(key, 0) > 0:
+            ground_truth = GroundTruthClass.MALICIOUS
+        if ambiguous.get(key, 0) > 0:
+            ground_truth = GroundTruthClass.AMBIGUOUS
+        epochs.append(
+            PreparedEpochRecord(
+                dataset_name=DatasetName.EDGE_IIOTSET,
+                client_id=client_id,
+                epoch_index=epoch,
+                feature_values=(
+                    *vector.log1p_bucket_counts,
+                    float(vector.total_raw_event_count),
+                    vector.shannon_entropy,
+                ),
+                ground_truth=ground_truth,
+                raw_event_count=vector.total_raw_event_count,
+                ambiguous_event_count=ambiguous.get(key, 0),
+            )
+        )
+    return PreparedDatasetRecord(
+        dataset_name=DatasetName.EDGE_IIOTSET,
+        epochs=tuple(epochs),
+        excluded_record_count=excluded_count,
+        ground_truth_discrepancy_count=discrepancy_count,
+    )
+
+
+def _build_edge_partitions(
+    loaded: LoadedScientificConfiguration,
+    selected_client_ids: tuple[ClientId, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    claim_state: ClaimState,
+    benign_records: tuple,
+) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
+    per_client_epochs = tuple(
+        tuple(
+            sorted(
+                {
+                    epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+                    for record in benign_records
+                    if record.source_host.strip() == client_id
+                }
+            )
+        )
+        for client_id in selected_client_ids
+    )
+    return _build_common_partitions(
+        loaded,
+        DatasetName.EDGE_IIOTSET,
+        selected_client_ids,
+        eligible_client_ids,
+        claim_state,
+        per_client_epochs,
+    )
+
+
+def _build_edge_campaigns(
+    loaded: LoadedScientificConfiguration,
+    selected_client_ids: tuple[ClientId, ...],
+    evaluation_records: tuple,
+) -> CampaignRegistryRecord:
+    malicious_epochs = tuple(
+        ClientMaliciousEpochs(
+            client_id=client_id,
+            malicious_epochs=tuple(
+                sorted(
+                    {
+                        epoch_index(record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds).index
+                        for record in evaluation_records
+                        if record.source_host.strip() == client_id
+                        and edge_iiotset_ground_truth(record.binary_label, record.attack_type).classification
+                        is GroundTruthClass.MALICIOUS
+                    }
+                )
+            ),
+        )
+        for client_id in selected_client_ids
+    )
+    return _campaign_record(loaded, DatasetName.EDGE_IIOTSET, selected_client_ids, malicious_epochs)
+
+
+def _build_common_partitions(
+    loaded: LoadedScientificConfiguration,
+    dataset_name: DatasetName,
+    selected_client_ids: tuple[ClientId, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    claim_state: ClaimState,
+    per_client_epochs: tuple[tuple[EpochIndexValue, ...], ...],
+) -> tuple[DatasetSplitRecord, BenignPartitionRecord]:
+    bounds = common_benign_epoch_bounds(per_client_epochs)
+    if bounds is None:
+        split = DatasetSplitRecord(
+            dataset_name=dataset_name,
+            selected_client_ids=selected_client_ids,
+            eligible_client_ids=eligible_client_ids,
+            claim_state=ClaimState.NOT_TESTED,
+            detector_fit_epochs=(),
+            nuisance_fit_epochs=(),
+            threshold_calibration_epochs=(),
+            heldout_benign_epochs=(),
+        )
+        return split, BenignPartitionRecord(
+            dataset_name=dataset_name,
+            calibration_horizons=(),
+            heldout_horizons=(),
+        )
+    common_epochs = inclusive_epoch_range(bounds[0], bounds[1])
+    fractions = loaded.values.datasets.preprocessing.benign_partition_fractions
+    lengths = chronological_partition_lengths(
+        len(common_epochs),
+        fractions.detector_fit,
+        fractions.nuisance_fit,
+        fractions.threshold_and_policy_calibration,
+    )
+    partitions = chronological_benign_partitions(common_epochs, lengths)
+    split = DatasetSplitRecord(
+        dataset_name=dataset_name,
+        selected_client_ids=selected_client_ids,
+        eligible_client_ids=eligible_client_ids,
+        claim_state=claim_state,
+        detector_fit_epochs=partitions.detector_fit,
+        nuisance_fit_epochs=partitions.nuisance_fit,
+        threshold_calibration_epochs=partitions.threshold_and_policy_calibration,
+        heldout_benign_epochs=partitions.heldout_benign,
+    )
+    horizon_length = loaded.values.campaign.evaluation_horizon_epochs
+    calibration_horizons = complete_benign_horizons(
+        partitions.threshold_and_policy_calibration, horizon_length
+    )
+    heldout_horizons = complete_benign_horizons(partitions.heldout_benign, horizon_length)
+    return split, BenignPartitionRecord(
+        dataset_name=dataset_name,
+        calibration_horizons=tuple(
+            BenignHorizonRecord(start_epoch=item.start_epoch, epoch_indexes=item.epoch_indexes)
+            for item in calibration_horizons
+        ),
+        heldout_horizons=tuple(
+            BenignHorizonRecord(start_epoch=item.start_epoch, epoch_indexes=item.epoch_indexes)
+            for item in heldout_horizons
+        ),
+    )
+
+
+def _campaign_record(
+    loaded: LoadedScientificConfiguration,
+    dataset_name: DatasetName,
+    selected_client_ids: tuple[ClientId, ...],
+    malicious_epochs: tuple[ClientMaliciousEpochs, ...],
+) -> CampaignRegistryRecord:
+    registry = build_campaign_registry(
+        dataset_name,
+        selected_client_ids,
+        malicious_epochs,
+        loaded.values.campaign.merge_max_intervening_benign_epochs,
+        loaded.values.distributed_support.minimum_clients,
+        loaded.values.campaign.distributed_first_activity_window_epochs,
+        loaded.values.campaign.minimum_duration_epochs,
+        loaded.values.campaign.prestart_warmup_epochs,
+    )
+    return CampaignRegistryRecord(
+        dataset_name=dataset_name,
+        campaigns=tuple(
+            CampaignRecord(
+                start_epoch=item.start_epoch,
+                end_epoch=item.end_epoch,
+                participating_client_ids=item.sorted_participating_client_ids,
+                integrity_checksum=item.integrity_checksum,
+            )
+            for item in registry
+        ),
+    )
+
+
+def _record_for_layer(
+    materialization: DatasetMaterialization,
     layer: PreprocessingLayer,
-    index: SignedInt,
-    start_layer: PreprocessingLayer | None,
-    overwrite_policy: OverwritePolicy,
-    layer_is_reusable: bool,
-    ancestor_changed: bool,
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
-) -> tuple[
-    MaterialDependencyFingerprint,
-    tuple[MaterialDependencyFingerprint | None, ...],
-    bool,
-    bool,
-]:
-    current = _layer_fingerprint(loaded, repository, dataset_name, layer, stored_fingerprints)
-    must_rebuild = overwrite_policy is OverwritePolicy.OVERWRITE or (
-        start_layer is not None and (ancestor_changed or _layer_at_or_after(layer, start_layer))
-    )
-    reused = (not must_rebuild) and layer_is_reusable
-    if reused:
-        return current, stored_fingerprints, False, True
-    current = _materialize_layer(loaded, repository, dataset_name, layer, stored_fingerprints)
-    stored_fingerprints = (
-        *stored_fingerprints[:index],
-        current,
-        *stored_fingerprints[index + 1 :],
-    )
-    return current, stored_fingerprints, True, False
+) -> DatasetInventoryRecord | PreparedDatasetRecord | DatasetSplitRecord | BenignPartitionRecord | CampaignRegistryRecord:
+    if layer is PreprocessingLayer.INVENTORY:
+        return materialization.inventory
+    if layer is PreprocessingLayer.PREPARED:
+        return materialization.prepared
+    if layer is PreprocessingLayer.SPLITS:
+        return materialization.split
+    if layer is PreprocessingLayer.PARTITIONS:
+        return materialization.partitions
+    return materialization.campaigns
 
 
-def _fingerprint_changed(
-    previous: MaterialDependencyFingerprint | None,
-    current: MaterialDependencyFingerprint,
-    reconstructed: bool,
-    ancestor_changed: bool,
-) -> bool:
-    if not reconstructed:
-        return ancestor_changed
-    if previous is None:
-        return True
-    return previous != current
+def _materialize_layer(
+    loaded: LoadedScientificConfiguration,
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    fingerprint: MaterialDependencyFingerprint,
+    materialization: DatasetMaterialization,
+    active_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
+) -> MaterialDependencyFingerprint:
+    record = _record_for_layer(materialization, layer)
+    payload = cast(YamlNode, record.model_dump(mode="json"))
+    content_digest = payload_digest(payload)
+    product_path = _product_path(layout, dataset_name, layer)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(product_path, payload, staging)
+    upstream = _upstream_digest(layer, active_fingerprints)
+    manifest = ArtifactManifest(
+        artifact_id=layer_artifact_id(dataset_name, layer),
+        namespace=ArtifactNamespace.OUTPUTS,
+        experiment_name=None,
+        relative_path=product_path.relative_to(layout.roots.outputs_root).as_posix(),
+        content_digest=content_digest,
+        material_fingerprint=fingerprint,
+        upstream_ids=()
+        if upstream is None
+        else (
+            layer_artifact_id(
+                dataset_name,
+                PREPROCESSING_LAYER_ORDER[PREPROCESSING_LAYER_ORDER.index(layer) - 1],
+            ),
+        ),
+        lifecycle_state=ArtifactLifecycleState.VALID,
+    )
+    write_atomic_json(
+        _manifest_path(layout, dataset_name, layer),
+        cast(YamlNode, manifest.model_dump(mode="json")),
+        staging,
+    )
+    return fingerprint
+
+
+def _product_path(
+    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+) -> Path:
+    stem = dataset_directory_stem(dataset_name)
+    preprocessing_root = layout.roots.outputs_root / "preprocessing"
+    if layer is PreprocessingLayer.INVENTORY:
+        return preprocessing_root / "inventories" / f"{stem}.json"
+    if layer is PreprocessingLayer.PREPARED:
+        return preprocessing_root / "prepared" / f"{stem}.json"
+    if layer is PreprocessingLayer.SPLITS:
+        return preprocessing_root / "splits" / f"{stem}.json"
+    if layer is PreprocessingLayer.PARTITIONS:
+        return preprocessing_root / "metadata" / f"{stem}-benign-partitions.json"
+    return preprocessing_root / "metadata" / f"{stem}-campaign-registry.json"
+
+
+def _manifest_path(
+    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+) -> Path:
+    stem = dataset_directory_stem(dataset_name)
+    return layout.roots.outputs_root / "preprocessing" / "metadata" / f"{stem}-{layer.value}-manifest.json"
+
+
+def _read_manifest(
+    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+) -> ArtifactManifest | None:
+    path = _manifest_path(layout, dataset_name, layer)
+    if not path.is_file():
+        return None
+    try:
+        return ArtifactManifest.model_validate_json(path.read_bytes())
+    except ValueError:
+        return None
+
+
+def _manifest_content_is_valid(layout: ArtifactLayout, manifest: ArtifactManifest) -> bool:
+    path = layout.roots.outputs_root / manifest.relative_path
+    return path.is_file() and file_sha256(path) == manifest.content_digest
+
+
+def _upstream_digest(
+    layer: PreprocessingLayer,
+    fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
+) -> MaterialDependencyFingerprint | None:
+    index = PREPROCESSING_LAYER_ORDER.index(layer)
+    if index == 0:
+        return None
+    return fingerprints[index - 1]
 
 
 def _downstream_invalidation(
@@ -266,104 +890,3 @@ def _is_protected_downstream(dataset_name: DatasetName, artifact_id: ArtifactIde
         artifact_id == downstream_artifact_id(dataset_name, kind)
         for kind in preprocess_must_not_regenerate()
     )
-
-
-def _layer_path(
-    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
-) -> Path:
-    return (
-        layout.roots.outputs_root
-        / "preprocessing"
-        / dataset_directory_stem(dataset_name)
-        / f"{layer.value}.json"
-    )
-
-
-def _read_stored_fingerprint(
-    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
-) -> MaterialDependencyFingerprint | None:
-    path = _layer_path(layout, dataset_name, layer)
-    if not path.is_file():
-        return None
-    manifest = ArtifactManifest.model_validate_json(path.read_bytes())
-    return manifest.material_fingerprint
-
-
-def _layer_fingerprint(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    dataset_name: DatasetName,
-    layer: PreprocessingLayer,
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
-) -> MaterialDependencyFingerprint:
-    payload = _layer_payload(loaded, repository, dataset_name, layer, stored_fingerprints)
-    content = payload_digest(payload)
-    upstream = _upstream_digest(layer, stored_fingerprints)
-    upstreams = () if upstream is None else (upstream,)
-    return material_fingerprint(loaded.material_digest, (*upstreams, content))
-
-
-def _upstream_digest(
-    layer: PreprocessingLayer,
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
-) -> ConfigurationDigest | None:
-    index = PREPROCESSING_LAYER_ORDER.index(layer)
-    if index == 0:
-        return None
-    return stored_fingerprints[index - 1]
-
-
-def _layer_payload(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    dataset_name: DatasetName,
-    layer: PreprocessingLayer,
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
-) -> YamlNode:
-    raw_directory = configured_raw_directory(loaded, dataset_name, repository)
-    files = inventory_raw_directory(raw_directory, repository)
-    payload: YamlNode = {
-        "dataset": dataset_name.value,
-        "layer": layer.value,
-        "configuration_digest": loaded.material_digest,
-        "file_sha256": [entry.sha256 for entry in files],
-        "file_paths": [entry.relative_path for entry in files],
-        "upstream": _upstream_digest(layer, stored_fingerprints),
-    }
-    return payload
-
-
-def _materialize_layer(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    dataset_name: DatasetName,
-    layer: PreprocessingLayer,
-    stored_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
-) -> MaterialDependencyFingerprint:
-    layout = build_artifact_layout(loaded, repository)
-    payload = _layer_payload(loaded, repository, dataset_name, layer, stored_fingerprints)
-    content = payload_digest(payload)
-    fingerprint = _layer_fingerprint(loaded, repository, dataset_name, layer, stored_fingerprints)
-    relative = (
-        Path("preprocessing") / dataset_directory_stem(dataset_name) / f"{layer.value}.json"
-    ).as_posix()
-    manifest = ArtifactManifest(
-        artifact_id=layer_artifact_id(dataset_name, layer),
-        namespace=ArtifactNamespace.OUTPUTS,
-        experiment_name=None,
-        relative_path=relative,
-        content_digest=content,
-        material_fingerprint=fingerprint,
-        upstream_ids=()
-        if _upstream_digest(layer, stored_fingerprints) is None
-        else (
-            layer_artifact_id(
-                dataset_name, PREPROCESSING_LAYER_ORDER[PREPROCESSING_LAYER_ORDER.index(layer) - 1]
-            ),
-        ),
-        lifecycle_state=ArtifactLifecycleState.VALID,
-    )
-    destination = _layer_path(layout, dataset_name, layer)
-    staging = layout.roots.outputs_root / "cache" / "staging"
-    write_atomic_json(destination, manifest.model_dump(mode="json"), staging)
-    return fingerprint
