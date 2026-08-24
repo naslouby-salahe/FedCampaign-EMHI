@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from fedcampaign_emhi.cli.main import application
 from fedcampaign_emhi.cli.commands import preprocess as preprocess_module
+from fedcampaign_emhi.cli.main import application
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import DatasetName, DownstreamArtifactKind, PreprocessingLayer
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE

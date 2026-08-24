@@ -40,7 +40,7 @@ def test_nearest_reconstruction_starts_at_first_invalid_layer() -> None:
 
 def test_reuse_overwrite_and_identity_change(tmp_path: Path) -> None:
     loaded = load_production_configuration()
-    raw = tmp_path / "data" / "raw" / "ton_iot_network"
+    raw = tmp_path / "data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset"
     raw.mkdir(parents=True)
     (raw / "Network_dataset_1.csv").write_text(
         "ts,src_ip,proto,service,label,type\n1,10.0.0.1,tcp,http,0,normal\n"
