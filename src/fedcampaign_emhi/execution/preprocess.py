@@ -392,6 +392,8 @@ def _layer_code_digest(layer: PreprocessingLayer) -> ConfigurationDigest:
         sources = (
             inspect.getsource(_deduplicate_ton_records),
             inspect.getsource(_deduplicate_edge_records),
+            inspect.getsource(_prepare_ton_epochs_from_csv),
+            inspect.getsource(_duckdb_count),
             inspect.getsource(_prepare_ton_epochs),
             inspect.getsource(_prepare_edge_epochs),
             inspect.getsource(_dense_prepared_epochs),
@@ -587,6 +589,14 @@ def _prepare_ton_epochs_from_csv(
         WHERE try_cast(ts AS DOUBLE) IS NOT NULL AND trim(coalesce(src_ip, '')) NOT IN ('', '-')
             AND try_cast(label AS BIGINT) IS NOT NULL AND trim(coalesce(type, '')) <> ''
     """
+    valid_rows = valid.replace("SELECT DISTINCT", "SELECT", 1)
+    raw_count = _duckdb_count(connection, "SELECT count(*) FROM raw")
+    valid_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid_rows})")
+    distinct_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid})")
+    discrepancy_count = _duckdb_count(
+        connection,
+        f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'normal') OR (binary_label=1 AND lower(attack_type)='normal')",
+    )
     eligibility_rows = connection.execute(
         f"SELECT client_id, count(*), count(DISTINCT floor(timestamp_seconds / ?)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='normal' GROUP BY client_id",
         [epoch_seconds],
@@ -639,10 +649,17 @@ def _prepare_ton_epochs_from_csv(
         eligible_client_ids=selection.eligible_client_ids,
         selection_claim_state=selection.claim_state,
         epochs=epochs,
-        excluded_record_count=0,
-        duplicate_record_count=0,
-        ground_truth_discrepancy_count=sum(ambiguous.values()),
+        excluded_record_count=raw_count - valid_count,
+        duplicate_record_count=valid_count - distinct_count,
+        ground_truth_discrepancy_count=discrepancy_count,
     )
+
+
+def _duckdb_count(connection: duckdb.DuckDBPyConnection, statement: str) -> RecordCount:
+    result = connection.execute(statement).fetchone()
+    if result is None:
+        raise ValueError("DuckDB aggregate query returned no result")
+    return int(cast(tuple[int], result)[0])
 
 
 def _deduplicate_ton_records(
