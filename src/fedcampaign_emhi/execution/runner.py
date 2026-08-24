@@ -1,3 +1,4 @@
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -204,6 +205,15 @@ def _run_record_path(
     )
 
 
+def _implementation_digest(repository: Path) -> ConfigurationDigest:
+    source_root = repository / "src" / "fedcampaign_emhi"
+    digest = hashlib.sha256()
+    for source_path in sorted(source_root.rglob("*.py")):
+        digest.update(source_path.relative_to(source_root).as_posix().encode("utf-8"))
+        digest.update(source_path.read_bytes())
+    return digest.hexdigest()
+
+
 def publish_experiment_run_record(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -219,6 +229,7 @@ def publish_experiment_run_record(
     record = ExperimentRunRecord(
         experiment_name=experiment_name,
         material_digest=loaded.material_digest,
+        implementation_digest=_implementation_digest(repository),
         overwrite_policy=overwrite_policy,
         resume_sequence=RESUME_SEQUENCE,
         state=state,
@@ -264,6 +275,7 @@ def _existing_completed_run(
         return None
     if (
         record.material_digest != loaded.material_digest
+        or record.implementation_digest != _implementation_digest(repository)
         or record.state is not ExperimentState.COMPLETED
     ):
         return None
@@ -429,6 +441,7 @@ def _execute_synthetic_experiment(
                     "state": state.value,
                     "failed_checks": list(outcome.failed_checks),
                     "method_score": outcome.method_score,
+                    "evidence": outcome.evidence,
                 }
                 diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
                 fingerprint = material_fingerprint(

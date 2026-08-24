@@ -7,6 +7,7 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.synthetic.self_explanation import (
     analytic_direct_derivative,
     enumerate_self_exclusion_grid,
+    evaluate_self_explanation_seed,
     exact_nuisance_derivative_within_margin,
     material_attenuation_gate,
     primary_directional_test_passes,
@@ -94,3 +95,18 @@ def test_context_methods_come_from_configuration() -> None:
     assert ContextMethodName.FORCED_NO_ABSTENTION not in methods_in_grid
     assert NuisanceTransformName.LINEAR is not None
     assert CoalitionOrder.ONE is not None
+
+
+def test_seed_evaluation_materializes_every_configured_condition() -> None:
+    loaded = load_production_configuration()
+    result = evaluate_self_explanation_seed(
+        loaded.values, loaded.values.randomness.synthetic_confirmatory_roots[0]
+    )
+    plan = enumerate_self_exclusion_grid(loaded.values)
+    assert len(result.measurements) == len(plan.cells)
+    assert result.primary_exact_nuisance_derivative == 0.0
+    assert result.primary_attenuation_contrast >= 0.1
+    observed_methods = {measurement.cell.context_method for measurement in result.measurements}
+    assert observed_methods == set(
+        loaded.values.experiments.self_explanation_exclusion_validation.context_methods
+    )

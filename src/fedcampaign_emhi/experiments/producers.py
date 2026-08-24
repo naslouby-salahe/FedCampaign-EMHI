@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
+from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ExecutionRole,
@@ -35,8 +36,9 @@ from fedcampaign_emhi.synthetic.robustness import (
     dropout_coalition_is_active,
 )
 from fedcampaign_emhi.synthetic.self_explanation import (
-    enumerate_self_exclusion_grid,
+    evaluate_self_explanation_seed,
     exact_nuisance_derivative_within_margin,
+    material_attenuation_gate,
 )
 
 
@@ -44,6 +46,7 @@ from fedcampaign_emhi.synthetic.self_explanation import (
 class SyntheticCellOutcome:
     failed_checks: tuple[ComponentName, ...]
     method_score: FiniteFloat | None
+    evidence: YamlNode = None
 
 
 def synthetic_role_seeds(
@@ -65,6 +68,46 @@ def run_synthetic_cell(
     method_name: MethodName | None,
 ) -> SyntheticCellOutcome:
     config = loaded.values
+    if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
+        result = evaluate_self_explanation_seed(config, seed)
+        failures: list[ComponentName] = []
+        materiality = config.claim_materiality.self_explanation
+        if not exact_nuisance_derivative_within_margin(
+            result.primary_exact_nuisance_derivative,
+            materiality.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
+        ):
+            failures.append("self-explanation exact nuisance derivative")
+        if not material_attenuation_gate(
+            result.primary_attenuation_contrast,
+            materiality.minimum_attenuation_difference,
+        ):
+            failures.append("self-explanation material attenuation")
+        return SyntheticCellOutcome(
+            tuple(failures),
+            None,
+            {
+                "grid_cell_count": len(result.measurements),
+                "primary_exact_nuisance_derivative": result.primary_exact_nuisance_derivative,
+                "primary_attenuation_contrast": result.primary_attenuation_contrast,
+                "measurements": [
+                    {
+                        "client_count": measurement.cell.client_count,
+                        "coalition_order": int(measurement.cell.coalition_order),
+                        "perturbation": measurement.cell.perturbation,
+                        "nuisance_transform": measurement.cell.nuisance_transform.value,
+                        "context_method": measurement.cell.context_method.value,
+                        "response_mean": measurement.response_mean,
+                        "nuisance_mean": measurement.nuisance_mean,
+                        "innovation_mean": measurement.innovation_mean,
+                        "direct_derivative": measurement.direct_derivative,
+                        "nuisance_derivative": measurement.nuisance_derivative,
+                        "innovation_derivative": measurement.innovation_derivative,
+                        "attenuation": measurement.attenuation,
+                    }
+                    for measurement in result.measurements
+                ],
+            },
+        )
     failures: list[ComponentName] = []
     clients = _client_ids(3)
     ranks = sample_independent_uniform_ranks(len(clients), seed)
@@ -104,14 +147,6 @@ def run_synthetic_cell(
         )
         if not report.is_valid:
             failures.append(f"generator:{report.generator.value}")
-    if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
-        if not enumerate_self_exclusion_grid(config).cells:
-            failures.append("empty self-explanation grid")
-        if not exact_nuisance_derivative_within_margin(
-            0.0,
-            config.claim_materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
-        ):
-            failures.append("self-explanation derivative gate")
     if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
         for order, theta in (
             (CoalitionOrder.ONE, config.generators.pure_polynomial.theta.order_one[0]),

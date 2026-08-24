@@ -94,6 +94,7 @@ class DependencyIndexRecord(FrozenConfigModel):
 class ExperimentRunRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     material_digest: ConfigurationDigest
+    implementation_digest: ConfigurationDigest
     overwrite_policy: OverwritePolicy
     resume_sequence: tuple[ResumeStep, ...]
     state: ExperimentState
