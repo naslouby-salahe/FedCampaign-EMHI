@@ -1,5 +1,5 @@
 import csv
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -50,6 +50,19 @@ def _parse_row_fields(
 def load_edge_iiotset_csv_with_exclusions(
     path: Path,
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
+    records: list[EdgeIiotsetFlowRecord] = []
+    exclusions: list[ExcludedRecord] = []
+    for entry in iter_edge_iiotset_csv_entries(path):
+        if isinstance(entry, ExcludedRecord):
+            exclusions.append(entry)
+        else:
+            records.append(entry)
+    return tuple(records), tuple(exclusions)
+
+
+def iter_edge_iiotset_csv_entries(
+    path: Path,
+) -> Iterator[EdgeIiotsetFlowRecord | ExcludedRecord]:
     with path.open(newline="", encoding="utf-8-sig") as csv_file:
         reader = csv.DictReader(csv_file)
         fieldnames = tuple(reader.fieldnames or ())
@@ -57,16 +70,14 @@ def load_edge_iiotset_csv_with_exclusions(
             raise ValueError(
                 f"{path} is missing required Edge-IIoTset columns {REQUIRED_EDGE_IIOTSET_COLUMNS}"
             )
-        records: list[EdgeIiotsetFlowRecord] = []
-        exclusions: list[ExcludedRecord] = []
         for row in reader:
             parsed = _parse_row_fields(row)
             if isinstance(parsed, ExcludedRecord):
-                exclusions.append(parsed)
+                yield parsed
                 continue
             timestamp_seconds, source_host, binary_label, attack_type = parsed
             fields = tuple((name, row.get(name)) for name in fieldnames)
-            records.append(
+            yield (
                 EdgeIiotsetFlowRecord(
                     timestamp_seconds=timestamp_seconds,
                     source_host=source_host,
@@ -75,7 +86,6 @@ def load_edge_iiotset_csv_with_exclusions(
                     attack_type=attack_type,
                 )
             )
-    return tuple(records), tuple(exclusions)
 
 
 def _parse_frame_time(raw_timestamp: CanonicalEventToken) -> UnixTimestampSeconds:

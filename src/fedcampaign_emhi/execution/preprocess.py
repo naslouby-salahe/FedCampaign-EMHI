@@ -32,7 +32,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     record_enters_epoch_event_count,
 )
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
-from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv_with_exclusions
+from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     adapter_material_code_fingerprint as edge_adapter_material_code_fingerprint,
 )
@@ -63,9 +63,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     event_type_hash_bucket as ton_event_type_hash_bucket,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.loading import (
-    load_ton_iot_network_csv_with_exclusions,
-)
+from fedcampaign_emhi.datasets.ton_iot_network.loading import iter_ton_iot_network_csv_entries
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )
@@ -514,25 +512,29 @@ def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
 def _load_ton_records(
     raw_directory: Path,
 ) -> tuple[tuple[TonIotNetworkFlowRecord, ...], tuple[ExcludedRecord, ...]]:
-    records: tuple[TonIotNetworkFlowRecord, ...] = ()
-    exclusions: tuple[ExcludedRecord, ...] = ()
+    records: list[TonIotNetworkFlowRecord] = []
+    exclusions: list[ExcludedRecord] = []
     for path in _csv_paths(raw_directory):
-        file_records, file_exclusions = load_ton_iot_network_csv_with_exclusions(path)
-        records = (*records, *file_records)
-        exclusions = (*exclusions, *file_exclusions)
-    return records, exclusions
+        for entry in iter_ton_iot_network_csv_entries(path):
+            if isinstance(entry, ExcludedRecord):
+                exclusions.append(entry)
+            else:
+                records.append(entry)
+    return tuple(records), tuple(exclusions)
 
 
 def _load_edge_records(
     raw_directory: Path,
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
-    records: tuple[EdgeIiotsetFlowRecord, ...] = ()
-    exclusions: tuple[ExcludedRecord, ...] = ()
+    records: list[EdgeIiotsetFlowRecord] = []
+    exclusions: list[ExcludedRecord] = []
     for path in _csv_paths(raw_directory):
-        file_records, file_exclusions = load_edge_iiotset_csv_with_exclusions(path)
-        records = (*records, *file_records)
-        exclusions = (*exclusions, *file_exclusions)
-    return records, exclusions
+        for entry in iter_edge_iiotset_csv_entries(path):
+            if isinstance(entry, ExcludedRecord):
+                exclusions.append(entry)
+            else:
+                records.append(entry)
+    return tuple(records), tuple(exclusions)
 
 
 def _build_prepared_and_split(
