@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - audit/roadmap-completion
 
 permissions:
@@ -30,9 +31,25 @@ jobs:
       - run: uv run lint-imports
         id: imports
         continue-on-error: true
+      - run: uv run ruff format --check src tests
+        id: format
+        continue-on-error: true
+      - run: uv run ruff check src tests
+        id: lint
+        continue-on-error: true
+      - run: uv run deptry .
+        id: deptry
+        continue-on-error: true
+      - run: uv run vulture src --min-confidence 100
+        id: vulture
+        continue-on-error: true
       - name: Enforce verification result
         if: always()
         run: |
           test "${{ steps.pytest.outcome }}" = success
           test "${{ steps.pyright.outcome }}" = success
           test "${{ steps.imports.outcome }}" = success
+          test "${{ steps.format.outcome }}" = success
+          test "${{ steps.lint.outcome }}" = success
+          test "${{ steps.deptry.outcome }}" = success
+          test "${{ steps.vulture.outcome }}" = success

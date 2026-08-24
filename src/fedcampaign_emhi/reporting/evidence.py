@@ -3,7 +3,11 @@ from pathlib import Path
 
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import content_digest, material_fingerprint
-from fedcampaign_emhi.artifacts.records import ExperimentRunRecord, ReportSourceRecord
+from fedcampaign_emhi.artifacts.records import (
+    ExperimentRunRecord,
+    ReportSourceRecord,
+    ScientificCellRecord,
+)
 from fedcampaign_emhi.artifacts.storage import file_sha256, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
@@ -77,7 +81,14 @@ def select_verified_evidence(
         raise ValueError(
             f"experiment {experiment_name.value} is stale for the active configuration"
         )
-    seed_paths = _json_files(root / "metrics" / "per_seed")
+    seed_paths = tuple(
+        sorted(
+            {
+                *(_json_files(root / "metrics" / "per_seed")),
+                *(_json_files(root / "metrics" / "seed-summaries")),
+            }
+        )
+    )
     statistical_paths = _json_files(root / "statistics")
     cell_paths = tuple(
         path
@@ -87,6 +98,24 @@ def select_verified_evidence(
     required = seed_paths + statistical_paths + cell_paths
     if not cell_paths:
         raise ValueError(f"experiment {experiment_name.value} lacks scientific cell records")
+    for cell_path in cell_paths:
+        cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+        if cell.material_digest != loaded.material_digest:
+            raise ValueError(f"scientific cell {cell_path} is stale")
+        if cell.state is not ExperimentState.COMPLETED:
+            raise ValueError(f"scientific cell {cell_path} is not completed")
+        if len(cell.completion_record.mandatory_output_paths) != len(
+            cell.completion_record.mandatory_output_hashes
+        ):
+            raise ValueError(f"scientific cell {cell_path} has incomplete output hashes")
+        for relative_path, expected_hash in zip(
+            cell.completion_record.mandatory_output_paths,
+            cell.completion_record.mandatory_output_hashes,
+            strict=True,
+        ):
+            output_path = repository / relative_path
+            if not output_path.is_file() or file_sha256(output_path) != expected_hash:
+                raise ValueError(f"scientific cell {cell_path} has unverifiable outputs")
     return VerifiedExperimentEvidence(
         run_record=run_record,
         seed_summary_paths=seed_paths,
