@@ -826,11 +826,11 @@ evidence:
 datasets:
   primary:
     name: TON_IoT Network
-    raw_directory: data/raw/ton_iot_network
+    raw_directory: data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset
     target_client_count: 12
   secondary:
     name: Edge-IIoTset
-    raw_directory: data/raw/edge_iiotset
+    raw_directory: data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv
     target_client_count: 12
     minimum_eligible_client_count: 6
   external_checksums_directory: data/external_checksums

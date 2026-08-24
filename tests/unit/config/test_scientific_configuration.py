@@ -189,10 +189,16 @@ def test_locked_core_scientific_configuration(
     )
     assert values.evidence.no_stop_plot_offset_epochs == 1
     assert values.datasets.primary.name is DatasetName.TON_IOT_NETWORK
-    assert values.datasets.primary.raw_directory == "data/raw/ton_iot_network"
+    assert (
+        values.datasets.primary.raw_directory
+        == "data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset"
+    )
     assert values.datasets.primary.target_client_count == 12
     assert values.datasets.secondary.name is DatasetName.EDGE_IIOTSET
-    assert values.datasets.secondary.raw_directory == "data/raw/edge_iiotset"
+    assert (
+        values.datasets.secondary.raw_directory
+        == "data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv"
+    )
     assert values.datasets.secondary.target_client_count == 12
     assert values.datasets.secondary.minimum_eligible_client_count == 6
     assert values.datasets.external_checksums_directory == "data/external_checksums"
