@@ -655,7 +655,9 @@ def _prepare_ton_epochs_from_csv(
     )
 
 
-def _duckdb_count(connection: duckdb.DuckDBPyConnection, statement: str) -> RecordCount:
+def _duckdb_count(
+    connection: duckdb.DuckDBPyConnection, statement: CanonicalEventToken
+) -> RecordCount:
     result = connection.execute(statement).fetchone()
     if result is None:
         raise ValueError("DuckDB aggregate query returned no result")
