@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import isnan, sqrt
+from math import isfinite, isnan, sqrt
 
 import numpy as np
 
@@ -168,14 +168,32 @@ def pure_polynomial_marginalizes_to_uniform(
 
 
 def xor_exact_marginals(strength: FiniteFloat) -> bool:
-    del strength
-    ones_per_coordinate = 0
+    if not isfinite(strength) or strength < 0.0 or strength > 1.0:
+        return False
+    probabilities: dict[tuple[int, int, int], FiniteFloat] = {}
     for state in range(XOR_BINARY_STATE_COUNT):
-        for coordinate in range(3):
-            if (state >> coordinate) % 2 == 1:
-                ones_per_coordinate += 2
-    expected = XOR_BINARY_STATE_COUNT // 2
-    return ones_per_coordinate // 3 == expected * 2
+        bits = (state & 1, (state >> 1) & 1, (state >> 2) & 1)
+        parity = (bits[0] ^ bits[1]) == bits[2]
+        probabilities[bits] = (1.0 + strength if parity else 1.0 - strength) / 8.0
+    tolerance = 1.0e-12
+    if abs(sum(probabilities.values()) - 1.0) > tolerance:
+        return False
+    for coordinate in range(3):
+        marginal = sum(
+            probability for bits, probability in probabilities.items() if bits[coordinate] == 1
+        )
+        if abs(marginal - 0.5) > tolerance:
+            return False
+    for left in range(3):
+        for right in range(left + 1, 3):
+            joint = sum(
+                probability
+                for bits, probability in probabilities.items()
+                if bits[left] == 1 and bits[right] == 1
+            )
+            if abs(joint - 0.25) > tolerance:
+                return False
+    return True
 
 
 def context_dependent_pure_triple_marginals(theta: EffectCoefficient) -> bool:
