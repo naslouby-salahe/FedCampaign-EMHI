@@ -4,7 +4,8 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
-from fedcampaign_emhi.artifacts.records import ExperimentRunRecord
+from fedcampaign_emhi.artifacts.records import ExperimentRunRecord, ScientificCellRecord
+from fedcampaign_emhi.artifacts.storage import file_sha256
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
@@ -45,6 +46,30 @@ def _run_record_state(
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
     if record.material_digest != loaded.material_digest:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
+    cell_paths = tuple(sorted(path.parent.glob("cell-*.json")))
+    if not cell_paths:
+        return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
+    for cell_path in cell_paths:
+        try:
+            cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+        except (ValidationError, ValueError):
+            return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
+        if cell.material_digest != loaded.material_digest:
+            return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
+        if cell.state is not ExperimentState.COMPLETED:
+            return cell.state, ArtifactLifecycleState.INCOMPLETE
+        if len(cell.completion_record.mandatory_output_paths) != len(
+            cell.completion_record.mandatory_output_hashes
+        ):
+            return ExperimentState.INVALID, ArtifactLifecycleState.INCOMPLETE
+        for relative_path, expected_hash in zip(
+            cell.completion_record.mandatory_output_paths,
+            cell.completion_record.mandatory_output_hashes,
+            strict=True,
+        ):
+            output_path = repository / relative_path
+            if not output_path.is_file() or file_sha256(output_path) != expected_hash:
+                return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
     lifecycle = (
         ArtifactLifecycleState.VALID
         if record.state is ExperimentState.COMPLETED
