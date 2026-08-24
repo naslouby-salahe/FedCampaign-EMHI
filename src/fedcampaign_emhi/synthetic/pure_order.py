@@ -4,7 +4,7 @@ from math import isfinite, isnan, sqrt
 import numpy as np
 
 from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName
+from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName, MethodName
 from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
@@ -17,6 +17,22 @@ from fedcampaign_emhi.domain.types import (
 )
 from fedcampaign_emhi.emhi.basis import shifted_legendre_phi_one
 from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
+
+
+@dataclass(frozen=True)
+class PureOrderCell:
+    generator: GeneratorName
+    effect: EffectCoefficient
+    method: MethodName
+    target_order: CoalitionOrder
+
+
+def generator_target_order(generator: GeneratorName) -> CoalitionOrder:
+    if generator is GeneratorName.PURE_ORDER_ONE:
+        return CoalitionOrder.ONE
+    if generator is GeneratorName.PURE_ORDER_TWO:
+        return CoalitionOrder.TWO
+    return CoalitionOrder.THREE
 
 
 def generator_effects(
@@ -32,6 +48,21 @@ def generator_effects(
     if generator is GeneratorName.XOR_PARITY_TRIPLE:
         return config.generators.xor.strengths
     return (config.generators.mixed_order.term_coefficient,)
+
+
+def enumerate_pure_order_grid(config: ScientificConfig) -> tuple[PureOrderCell, ...]:
+    experiment = config.experiments.pure_order_separation_validation
+    return tuple(
+        PureOrderCell(
+            generator=generator,
+            effect=effect,
+            method=method,
+            target_order=generator_target_order(generator),
+        )
+        for generator in experiment.generators
+        for effect in generator_effects(config, generator)
+        for method in experiment.methods
+    )
 
 
 def polynomial_scale(order: CoalitionOrder) -> FiniteFloat:

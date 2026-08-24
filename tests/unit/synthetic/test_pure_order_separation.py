@@ -8,11 +8,12 @@ from fedcampaign_emhi.experiments.definitions import experiment_registry
 from fedcampaign_emhi.synthetic.pure_order import (
     GeneratorPurityReport,
     context_dependent_pure_triple_marginals,
+    enumerate_pure_order_grid,
+    generator_effects,
     mixed_order_absent_terms_integrate_to_zero,
     polynomial_density,
     validate_generator_purity,
     xor_exact_marginals,
-    generator_effects,
 )
 
 
@@ -96,4 +97,20 @@ def test_generator_effects_are_configured_not_inferred() -> None:
     config = load_production_configuration().values
     effects = generator_effects(config, GeneratorName.PURE_CONTINUOUS_TRIPLE)
     assert effects == config.generators.pure_polynomial.theta.order_three
-    assert generator_effects(config, GeneratorName.XOR_PARITY_TRIPLE) == config.generators.xor.strengths
+    assert (
+        generator_effects(config, GeneratorName.XOR_PARITY_TRIPLE)
+        == config.generators.xor.strengths
+    )
+
+
+def test_complete_generator_effect_method_grid_is_enumerated() -> None:
+    config = load_production_configuration().values
+    grid = enumerate_pure_order_grid(config)
+    expected = sum(
+        len(generator_effects(config, generator))
+        for generator in config.experiments.pure_order_separation_validation.generators
+    ) * len(config.experiments.pure_order_separation_validation.methods)
+    assert len(grid) == expected
+    assert {cell.method for cell in grid} == set(
+        config.experiments.pure_order_separation_validation.methods
+    )
