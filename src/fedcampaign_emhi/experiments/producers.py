@@ -4,10 +4,8 @@ from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
-    CoalitionOrder,
     ExecutionRole,
     ExperimentName,
-    GeneratorName,
     MethodName,
 )
 from fedcampaign_emhi.domain.types import (
@@ -27,8 +25,8 @@ from fedcampaign_emhi.synthetic.controlled_campaigns import (
     gaussian_copula_pair,
 )
 from fedcampaign_emhi.synthetic.pure_order import (
+    enumerate_pure_order_grid,
     sample_independent_uniform_ranks,
-    sample_pure_polynomial_ranks,
     validate_generator_purity,
 )
 from fedcampaign_emhi.synthetic.robustness import (
@@ -108,6 +106,33 @@ def run_synthetic_cell(
                 ],
             },
         )
+    if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
+        failures: list[ComponentName] = []
+        records: list[YamlNode] = []
+        for cell in enumerate_pure_order_grid(config):
+            report = validate_generator_purity(
+                cell.generator,
+                cell.effect,
+                cell.effect,
+                frozenset({cell.target_order}),
+                config.numerics.deterministic_comparison_tolerance,
+            )
+            if not report.is_valid:
+                failures.append(f"generator:{cell.generator.value}")
+            records.append(
+                {
+                    "generator": cell.generator.value,
+                    "effect": cell.effect,
+                    "method": cell.method.value,
+                    "target_order": int(cell.target_order),
+                    "purity_valid": report.is_valid,
+                }
+            )
+        return SyntheticCellOutcome(
+            tuple(sorted(set(failures))),
+            None,
+            {"condition_count": len(records), "conditions": records},
+        )
     failures: list[ComponentName] = []
     clients = _client_ids(3)
     ranks = sample_independent_uniform_ranks(len(clients), seed)
@@ -137,23 +162,6 @@ def run_synthetic_cell(
     )
     if any(rank < 0.0 or rank > 1.0 for rank in pair):
         failures.append("copula rank range")
-    if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
-        report = validate_generator_purity(
-            GeneratorName.PURE_CONTINUOUS_TRIPLE,
-            config.generators.pure_polynomial.primary_reference_theta,
-            config.generators.xor.primary_reference_strength,
-            frozenset({CoalitionOrder.THREE}),
-            config.numerics.deterministic_comparison_tolerance,
-        )
-        if not report.is_valid:
-            failures.append(f"generator:{report.generator.value}")
-    if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
-        for order, theta in (
-            (CoalitionOrder.ONE, config.generators.pure_polynomial.theta.order_one[0]),
-            (CoalitionOrder.TWO, config.generators.pure_polynomial.theta.order_two[0]),
-            (CoalitionOrder.THREE, config.generators.pure_polynomial.theta.order_three[0]),
-        ):
-            sample_pure_polynomial_ranks(order, theta, len(clients) - int(order), seed)
     if experiment_name is ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY:
         contaminated_outside_clients(
             clients, config.generators.outside_contamination.correlated_campaign_fractions[0]
