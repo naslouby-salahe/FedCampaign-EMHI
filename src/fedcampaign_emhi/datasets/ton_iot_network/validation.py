@@ -218,6 +218,20 @@ def select_primary_clients(
         client_id = canonical_client_id(record.source_ip)
         epoch = epoch_index(record.timestamp_seconds, epoch_seconds).index
         tallies = _add_benign_event(tallies, client_id, epoch)
+    return select_primary_clients_from_tallies(
+        tallies,
+        minimum_benign_event_records,
+        minimum_nonempty_benign_epochs,
+        target_client_count,
+    )
+
+
+def select_primary_clients_from_tallies(
+    tallies: tuple[ClientBenignTally, ...],
+    minimum_benign_event_records: RecordCount,
+    minimum_nonempty_benign_epochs: PositiveEpochCount,
+    target_client_count: ClientCount,
+) -> PrimaryClientSelection:
     eligibility: list[ClientEligibilityRecord] = []
     for tally in sorted(tallies, key=lambda tally: tally.client_id):
         nonempty_epochs = len(tally.observed_epoch_indexes)

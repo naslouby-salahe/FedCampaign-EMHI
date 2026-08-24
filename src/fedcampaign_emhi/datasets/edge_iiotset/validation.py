@@ -205,6 +205,22 @@ def select_secondary_clients(
         client_id = record.source_host.strip()
         epoch = epoch_index(record.timestamp_seconds, epoch_seconds).index
         tallies = _add_benign_event(tallies, client_id, epoch)
+    return select_secondary_clients_from_tallies(
+        tallies,
+        minimum_benign_event_records,
+        minimum_nonempty_benign_epochs,
+        target_client_count,
+        minimum_eligible_client_count,
+    )
+
+
+def select_secondary_clients_from_tallies(
+    tallies: tuple[ClientBenignTally, ...],
+    minimum_benign_event_records: RecordCount,
+    minimum_nonempty_benign_epochs: PositiveEpochCount,
+    target_client_count: ClientCount,
+    minimum_eligible_client_count: ClientCount,
+) -> SecondaryClientSelection:
     eligibility: list[ClientEligibilityRecord] = []
     for tally in sorted(tallies, key=lambda tally: tally.client_id):
         nonempty_epochs = len(tally.observed_epoch_indexes)
