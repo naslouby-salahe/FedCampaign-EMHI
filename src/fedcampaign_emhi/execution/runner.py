@@ -3,6 +3,12 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
+from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values
+from fedcampaign_emhi.analysis.statistics import (
+    exact_sign_flip_means,
+    paired_mean_bca_interval,
+    two_sided_sign_flip_p_value,
+)
 from fedcampaign_emhi.analysis.summaries import build_seed_summary
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
@@ -20,6 +26,8 @@ from fedcampaign_emhi.artifacts.records import (
     PlannedExperimentRecord,
     PreparedDatasetRecord,
     ScientificCellRecord,
+    SeedSummaryRecord,
+    StatisticalRecord,
 )
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.comparators.composition import (
@@ -40,6 +48,7 @@ from fedcampaign_emhi.detection.scoring import build_detector_score_artifact
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
+    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -1296,6 +1305,114 @@ def _comparator_score_at(
     return next((score for score_epoch, score in scores if score_epoch == epoch), None)
 
 
+def _materialize_seed_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+) -> tuple[Path, ...]:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    summary_paths = tuple(sorted((root / "metrics" / "seed-summaries").glob("**/*.json")))
+    summaries = tuple(
+        SeedSummaryRecord.model_validate_json(path.read_bytes()) for path in summary_paths
+    )
+    method_groups: list[tuple[MethodName, tuple[SeedSummaryRecord, ...]]] = []
+    for summary in summaries:
+        existing = next(
+            (
+                index
+                for index, (method_name, _records) in enumerate(method_groups)
+                if method_name is summary.method_name
+            ),
+            None,
+        )
+        if existing is None:
+            method_groups.append((summary.method_name, (summary,)))
+        else:
+            method_name, records = method_groups[existing]
+            method_groups[existing] = (method_name, (*records, summary))
+    if not method_groups:
+        return ()
+    raw_p_values: list[FiniteFloat] = []
+    estimates: list[FiniteFloat] = []
+    intervals: list[tuple[FiniteFloat, FiniteFloat] | None] = []
+    sources: list[tuple[ArtifactIdentity, ...]] = []
+    fingerprints: list[MaterialDependencyFingerprint] = []
+    for _method_name, records in method_groups:
+        values = tuple(record.method_value for record in records)
+        estimate = sum(values) / len(values)
+        estimates.append(estimate)
+        source_ids = tuple(
+            source_id for record in records for source_id in record.source_evaluation_ids
+        )
+        sources.append(source_ids)
+        hashes = tuple(record.content_digest for record in records)
+        fingerprints.append(material_fingerprint(loaded.material_digest, hashes))
+        if len(values) < 2:
+            raw_p_values.append(1.0)
+            intervals.append(None)
+            continue
+        flipped = exact_sign_flip_means(values)
+        raw_p_values.append(two_sided_sign_flip_p_value(estimate, flipped))
+        intervals.append(
+            paired_mean_bca_interval(
+                values,
+                loaded.values.statistics.confidence_level,
+                loaded.values.statistics.bootstrap_replicates,
+                loaded.values.randomness.statistical_analysis_base_seed,
+            )
+        )
+    adjusted = holm_adjusted_p_values(
+        tuple(method_name.value for method_name, _records in method_groups),
+        tuple(raw_p_values),
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    paths: list[Path] = []
+    for index, (method_name, records) in enumerate(method_groups):
+        interval = intervals[index]
+        decision = (
+            ClaimState.SUPPORTED
+            if adjusted[index] < loaded.values.statistics.nominal_significance_alpha
+            else ClaimState.NULL_RESULT
+        )
+        payload: YamlNode = {
+            "experiment_name": experiment_name.value,
+            "method_name": method_name.value,
+            "metric_name": "strict_odi_rate",
+            "estimate": estimates[index],
+            "raw_p_value": raw_p_values[index],
+            "adjusted_p_value": adjusted[index],
+            "confidence_level": loaded.values.statistics.confidence_level,
+            "confidence_lower": None if interval is None else interval[0],
+            "confidence_upper": None if interval is None else interval[1],
+            "decision": decision.value,
+            "source_result_ids": list(sources[index]),
+            "independent_unit_count": len(records),
+        }
+        record = StatisticalRecord(
+            hypothesis_identifier=f"{experiment_name.value}:{method_name.value}:strict_odi_rate",
+            metric_name="strict_odi_rate",
+            method_name=method_name,
+            independent_unit_count=len(records),
+            estimate=estimates[index],
+            raw_p_value=raw_p_values[index],
+            adjusted_p_value=adjusted[index],
+            confidence_level=loaded.values.statistics.confidence_level,
+            confidence_lower=None if interval is None else interval[0],
+            confidence_upper=None if interval is None else interval[1],
+            decision=decision,
+            source_result_ids=sources[index],
+            dependency_fingerprint=fingerprints[index],
+            content_digest=payload_digest(payload),
+        )
+        path = (
+            root / "statistics" / "seed-level" / f"{_method_slug(method_name)}-strict-odi-rate.json"
+        )
+        write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+        paths.append(path)
+    return tuple(paths)
+
+
 def _evaluate_comparator_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -1616,6 +1733,7 @@ def execute_experiment(
         repository,
         experiment_name,
     )
+    _materialize_seed_statistics(loaded, repository, experiment_name)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,
