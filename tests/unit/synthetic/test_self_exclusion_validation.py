@@ -110,3 +110,14 @@ def test_seed_evaluation_materializes_every_configured_condition() -> None:
     assert observed_methods == set(
         loaded.values.experiments.self_explanation_exclusion_validation.context_methods
     )
+    reference = [
+        measurement
+        for measurement in result.measurements
+        if measurement.cell.client_count == 12
+        and measurement.cell.coalition_order is CoalitionOrder.THREE
+        and measurement.cell.nuisance_transform is NuisanceTransformName.LINEAR
+        and measurement.cell.context_method is ContextMethodName.EXACT_COALITION_EXCLUSION
+    ]
+    low = next(measurement for measurement in reference if measurement.cell.perturbation == -0.2)
+    high = next(measurement for measurement in reference if measurement.cell.perturbation == 0.2)
+    assert abs((high.response_mean - low.response_mean) - 0.4) < 1.0e-12

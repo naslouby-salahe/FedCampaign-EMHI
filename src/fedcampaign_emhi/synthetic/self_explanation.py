@@ -229,10 +229,10 @@ def evaluate_self_explanation_seed(
         coalition_ids = selected_ids[: int(cell.coalition_order)]
         coalition_indices = tuple(selected_ids.index(member) for member in coalition_ids)
         context_indices = _context_indices(cell.context_method, selected_ids, coalition_ids)
-        response_by_perturbation: list[FiniteFloat] = []
-        nuisance_by_perturbation: list[FiniteFloat] = []
-        innovation_by_perturbation: list[FiniteFloat] = []
-        for perturbation in config.generators.self_explanation.derivative_regression_perturbations:
+        response_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
+        nuisance_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
+        innovation_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
+        for perturbation in config.generators.self_explanation.perturbations:
             responses: list[FiniteFloat] = []
             nuisances: list[FiniteFloat] = []
             innovations: list[FiniteFloat] = []
@@ -257,39 +257,40 @@ def evaluate_self_explanation_seed(
                 responses.append(response)
                 nuisances.append(nuisance)
                 innovations.append(response - nuisance)
-            response_by_perturbation.append(sum(responses) / len(responses))
-            nuisance_by_perturbation.append(sum(nuisances) / len(nuisances))
-            innovation_by_perturbation.append(sum(innovations) / len(innovations))
+            response_by_perturbation[perturbation] = sum(responses) / len(responses)
+            nuisance_by_perturbation[perturbation] = sum(nuisances) / len(nuisances)
+            innovation_by_perturbation[perturbation] = sum(innovations) / len(innovations)
         direct_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
-            tuple(response_by_perturbation),
+            tuple(
+                response_by_perturbation[perturbation]
+                for perturbation in config.generators.self_explanation.derivative_regression_perturbations
+            ),
         )
         nuisance_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
-            tuple(nuisance_by_perturbation),
+            tuple(
+                nuisance_by_perturbation[perturbation]
+                for perturbation in config.generators.self_explanation.derivative_regression_perturbations
+            ),
         )
         innovation_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
-            tuple(innovation_by_perturbation),
+            tuple(
+                innovation_by_perturbation[perturbation]
+                for perturbation in config.generators.self_explanation.derivative_regression_perturbations
+            ),
         )
         attenuation = 1.0 - (
             abs(innovation_derivative)
             / (abs(direct_derivative) + config.numerics.metric_denominator_floor)
         )
-        perturbation_index = (
-            config.generators.self_explanation.derivative_regression_perturbations.index(
-                cell.perturbation
-            )
-            if cell.perturbation
-            in config.generators.self_explanation.derivative_regression_perturbations
-            else 0
-        )
         measurements.append(
             SelfExplanationMeasurement(
                 cell=cell,
-                response_mean=response_by_perturbation[perturbation_index],
-                nuisance_mean=nuisance_by_perturbation[perturbation_index],
-                innovation_mean=innovation_by_perturbation[perturbation_index],
+                response_mean=response_by_perturbation[cell.perturbation],
+                nuisance_mean=nuisance_by_perturbation[cell.perturbation],
+                innovation_mean=innovation_by_perturbation[cell.perturbation],
                 direct_derivative=direct_derivative,
                 nuisance_derivative=nuisance_derivative,
                 innovation_derivative=innovation_derivative,

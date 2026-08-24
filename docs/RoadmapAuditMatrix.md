@@ -19,7 +19,7 @@ of scientific completion.
 | 11 metrics | PFA, ODI, stopping, derivatives, attenuation, drift, coverage, runtime | In progress | Derivative/attenuation now persisted for self-explanation; comparator ODI path still contains placeholders. |
 | 12 fixtures | Exact deterministic fixture outcomes and tolerances | In progress | Fixture modules/tests exist; full fixture evidence audit pending. |
 | 13.1 synthetic module validation | Every exact fixture and invariant | In progress | Current validation run record is only a diagnostic; required fixture-output audit pending. |
-| 13.2 self-explanation | Complete grid per seed, paired trajectories, OLS derivatives, material gates | Supported for producer | `evaluate_self_explanation_seed` materializes 1,260 conditions per seed and runner persists them. Confirmatory multiplicity synthesis remains open. |
+| 13.2 self-explanation | Complete grid per seed, paired trajectories, OLS derivatives, material gates, and primary Holm decision | In progress | `evaluate_self_explanation_seed` materializes 1,260 conditions per seed and runner persists them. Confirmatory multiplicity synthesis remains open. |
 | 13.3 pure-order separation | Every generator/effect/order/method cell, subset and target drift | Unverified | Generic producer only samples one setting; requires replacement. |
 | 13.4 HOFD equivalence | Configured support grid, paired CIs, cosine and stopping differences | Unverified | Generic producer does not execute the contract. |
 | 13.5 comparator composition | Candidate error, PFA, runtime and tie-break artifact | Unverified | Runner currently selects from a one-seed proxy score and zero runtimes. |
