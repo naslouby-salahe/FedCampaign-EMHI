@@ -12,6 +12,7 @@ from fedcampaign_emhi.synthetic.pure_order import (
     polynomial_density,
     validate_generator_purity,
     xor_exact_marginals,
+    generator_effects,
 )
 
 
@@ -89,3 +90,10 @@ def test_invalid_density_fails_the_gate() -> None:
         GeneratorName.PURE_ORDER_ONE, bad_theta, 0.0, frozenset({CoalitionOrder.ONE}), 1e-12
     )
     del report
+
+
+def test_generator_effects_are_configured_not_inferred() -> None:
+    config = load_production_configuration().values
+    effects = generator_effects(config, GeneratorName.PURE_CONTINUOUS_TRIPLE)
+    assert effects == config.generators.pure_polynomial.theta.order_three
+    assert generator_effects(config, GeneratorName.XOR_PARITY_TRIPLE) == config.generators.xor.strengths

@@ -3,6 +3,7 @@ from math import isfinite, isnan, sqrt
 
 import numpy as np
 
+from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -16,6 +17,21 @@ from fedcampaign_emhi.domain.types import (
 )
 from fedcampaign_emhi.emhi.basis import shifted_legendre_phi_one
 from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
+
+
+def generator_effects(
+    config: ScientificConfig, generator: GeneratorName
+) -> tuple[EffectCoefficient, ...]:
+    theta = config.generators.pure_polynomial.theta
+    if generator is GeneratorName.PURE_ORDER_ONE:
+        return theta.order_one
+    if generator is GeneratorName.PURE_ORDER_TWO:
+        return theta.order_two
+    if generator is GeneratorName.PURE_CONTINUOUS_TRIPLE:
+        return theta.order_three
+    if generator is GeneratorName.XOR_PARITY_TRIPLE:
+        return config.generators.xor.strengths
+    return (config.generators.mixed_order.term_coefficient,)
 
 
 def polynomial_scale(order: CoalitionOrder) -> FiniteFloat:
