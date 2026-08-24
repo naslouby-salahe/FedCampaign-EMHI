@@ -1,3 +1,6 @@
+import random
+from statistics import NormalDist
+
 from fedcampaign_emhi.domain.enums import ExperimentalUnitKind
 from fedcampaign_emhi.domain.types import (
     ClientId,
@@ -91,6 +94,15 @@ def flipped_mean(
     return sum(signed) / len(signed)
 
 
+def exact_sign_flip_means(differences: tuple[FiniteFloat, ...]) -> tuple[FiniteFloat, ...]:
+    if not differences:
+        raise ValueError("exact sign-flip inference requires paired differences")
+    return tuple(
+        flipped_mean(differences, exact_sign_pattern(index, len(differences)))
+        for index in range(sign_flip_assignment_count(len(differences)))
+    )
+
+
 def hodges_lehmann_shift(differences: tuple[FiniteFloat, ...]) -> FiniteFloat:
     if not differences:
         raise ValueError("Hodges-Lehmann shift requires at least one paired difference")
@@ -121,6 +133,87 @@ def degenerate_bootstrap_interval(observed: FiniteFloat) -> tuple[FiniteFloat, F
 
 def bootstrap_is_degenerate(observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]) -> bool:
     return bool(replicates) and all(statistic == observed for statistic in replicates)
+
+
+def _linear_quantile(values: tuple[FiniteFloat, ...], probability: Probability) -> FiniteFloat:
+    if not values:
+        raise ValueError("quantile requires observations")
+    if probability < 0.0 or probability > 1.0:
+        raise ValueError("quantile probability must lie in [0, 1]")
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = probability * (len(ordered) - 1)
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(ordered) - 1)
+    fraction = position - lower_index
+    return ordered[lower_index] + fraction * (ordered[upper_index] - ordered[lower_index])
+
+
+def _jackknife_acceleration(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+    if len(values) < 2:
+        return 0.0
+    jackknife = tuple(
+        sum(value for index, value in enumerate(values) if index != omitted) / (len(values) - 1)
+        for omitted in range(len(values))
+    )
+    jackknife_mean = sum(jackknife) / len(jackknife)
+    deviations = tuple(jackknife_mean - value for value in jackknife)
+    squared_sum = sum(value * value for value in deviations)
+    if squared_sum == 0.0:
+        return 0.0
+    numerator = sum(value**3 for value in deviations)
+    return numerator / (6 * (squared_sum ** (3 / 2)))
+
+
+def _bca_adjusted_probability(
+    nominal_probability: Probability,
+    bias_correction: FiniteFloat,
+    acceleration: FiniteFloat,
+) -> Probability:
+    normal = NormalDist()
+    nominal_z = normal.inv_cdf(nominal_probability)
+    numerator = bias_correction + nominal_z
+    denominator = 1.0 - acceleration * numerator
+    if denominator == 0.0:
+        return 0.0 if numerator < 0.0 else 1.0
+    adjusted = normal.cdf(bias_correction + numerator / denominator)
+    return min(max(adjusted, 0.0), 1.0)
+
+
+def paired_mean_bca_interval(
+    paired_values: tuple[FiniteFloat, ...],
+    confidence_level: Probability,
+    replicate_count: RecordCount,
+    seed: SeedValue,
+) -> tuple[FiniteFloat, FiniteFloat]:
+    if not paired_values:
+        raise ValueError("BCa interval requires independent paired seed values")
+    if confidence_level <= 0.0 or confidence_level >= 1.0:
+        raise ValueError("confidence level must lie strictly between zero and one")
+    if replicate_count <= 0:
+        raise ValueError("BCa interval requires positive bootstrap replicate count")
+    observed = sum(paired_values) / len(paired_values)
+    generator = random.Random(seed)
+    replicates = tuple(
+        sum(generator.choice(paired_values) for _index in paired_values) / len(paired_values)
+        for _replicate in range(replicate_count)
+    )
+    if bootstrap_is_degenerate(observed, replicates):
+        return degenerate_bootstrap_interval(observed)
+    less = sum(1 for value in replicates if value < observed)
+    ties = sum(1 for value in replicates if value == observed)
+    proportion = (less + 0.5 * ties) / replicate_count
+    boundary = 0.5 / replicate_count
+    bounded = min(max(proportion, boundary), 1.0 - boundary)
+    bias_correction = NormalDist().inv_cdf(bounded)
+    acceleration = _jackknife_acceleration(paired_values)
+    tail = (1.0 - confidence_level) / 2.0
+    lower_probability = _bca_adjusted_probability(tail, bias_correction, acceleration)
+    upper_probability = _bca_adjusted_probability(1.0 - tail, bias_correction, acceleration)
+    lower = _linear_quantile(replicates, lower_probability)
+    upper = _linear_quantile(replicates, upper_probability)
+    return (lower, upper)
 
 
 def exact_sign_pattern(

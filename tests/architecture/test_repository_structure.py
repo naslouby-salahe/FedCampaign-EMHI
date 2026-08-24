@@ -78,29 +78,24 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/synthetic/pure_order.py",
     "src/fedcampaign_emhi/synthetic/robustness.py",
     "src/fedcampaign_emhi/synthetic/context_boundaries.py",
-    "src/fedcampaign_emhi/evaluation/smoke_gate.py",
+    "src/fedcampaign_emhi/synthetic/validation.py",
     "src/fedcampaign_emhi/experiments/__init__.py",
     "src/fedcampaign_emhi/experiments/definitions.py",
     "src/fedcampaign_emhi/experiments/coordinates.py",
     "src/fedcampaign_emhi/experiments/validation.py",
-    "src/fedcampaign_emhi/experiments/sequential_evidence.py",
-    "src/fedcampaign_emhi/experiments/ablations.py",
-    "src/fedcampaign_emhi/experiments/sensitivity.py",
-    "src/fedcampaign_emhi/experiments/benign_robustness.py",
-    "src/fedcampaign_emhi/experiments/strong_local.py",
-    "src/fedcampaign_emhi/experiments/secondary_generalization.py",
-    "src/fedcampaign_emhi/experiments/boundaries.py",
-    "src/fedcampaign_emhi/experiments/scalability.py",
-    "src/fedcampaign_emhi/experiments/downscope.py",
-    "src/fedcampaign_emhi/experiments/primary_odi.py",
     "src/fedcampaign_emhi/evaluation/__init__.py",
     "src/fedcampaign_emhi/evaluation/records.py",
     "src/fedcampaign_emhi/evaluation/campaign_replay.py",
     "src/fedcampaign_emhi/evaluation/benign_horizons.py",
     "src/fedcampaign_emhi/evaluation/metrics.py",
+    "src/fedcampaign_emhi/evaluation/scalability.py",
+    "src/fedcampaign_emhi/evaluation/validation.py",
+    "src/fedcampaign_emhi/evaluation/smoke_gate.py",
     "src/fedcampaign_emhi/analysis/__init__.py",
+    "src/fedcampaign_emhi/analysis/summaries.py",
     "src/fedcampaign_emhi/analysis/statistics.py",
     "src/fedcampaign_emhi/analysis/multiplicity.py",
+    "src/fedcampaign_emhi/analysis/claims.py",
     "src/fedcampaign_emhi/artifacts/__init__.py",
     "src/fedcampaign_emhi/artifacts/paths.py",
     "src/fedcampaign_emhi/artifacts/records.py",
@@ -117,7 +112,12 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/runtime/__init__.py",
     "src/fedcampaign_emhi/runtime/determinism.py",
     "src/fedcampaign_emhi/runtime/monitoring.py",
+    "src/fedcampaign_emhi/runtime/logging.py",
     "src/fedcampaign_emhi/reporting/__init__.py",
+    "src/fedcampaign_emhi/reporting/evidence.py",
+    "src/fedcampaign_emhi/reporting/tables.py",
+    "src/fedcampaign_emhi/reporting/figures.py",
+    "src/fedcampaign_emhi/reporting/reproducibility.py",
     "src/fedcampaign_emhi/cli/__init__.py",
     "src/fedcampaign_emhi/cli/main.py",
     "src/fedcampaign_emhi/cli/commands/__init__.py",
@@ -191,6 +191,13 @@ REQUIRED_TEST_DIRECTORIES = (
     "tests/unit/cli",
 )
 
+EXPECTED_EXPERIMENT_MODULES = {
+    "__init__.py",
+    "coordinates.py",
+    "definitions.py",
+    "validation.py",
+}
+
 
 def test_canonical_repository_files_exist(repo_root: Path) -> None:
     missing = [
@@ -215,16 +222,20 @@ def test_data_raw_is_external_symlink(repo_root: Path) -> None:
     assert checksums.is_dir()
 
 
+def test_experiment_layer_matches_authoritative_tree(repo_root: Path) -> None:
+    experiment_root = repo_root / "src" / "fedcampaign_emhi" / "experiments"
+    discovered = {path.name for path in experiment_root.glob("*.py")}
+    assert discovered == EXPECTED_EXPERIMENT_MODULES
+
+
 def test_source_tree_contains_no_undeclared_python_modules(repo_root: Path) -> None:
-    declared = {relative for relative in REQUIRED_SOURCE_FILES}
+    declared = set(REQUIRED_SOURCE_FILES)
     discovered = {
         path.relative_to(repo_root).as_posix()
         for path in (repo_root / "src" / "fedcampaign_emhi").rglob("*.py")
     }
-    extra = sorted(discovered - declared)
-    missing = sorted(declared - discovered)
-    assert extra == []
-    assert missing == []
+    assert sorted(discovered - declared) == []
+    assert sorted(declared - discovered) == []
 
 
 def test_required_architecture_tests_are_discoverable(repo_root: Path) -> None:
