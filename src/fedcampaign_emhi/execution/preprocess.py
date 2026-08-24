@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+import duckdb
+
 from fedcampaign_emhi.artifacts.dependencies import descendant_ids
 from fedcampaign_emhi.artifacts.paths import ArtifactLayout, build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
@@ -63,11 +65,10 @@ from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     event_type_hash_bucket as ton_event_type_hash_bucket,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.loading import iter_ton_iot_network_csv_entries
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_clients
+from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_clients_from_tallies
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
@@ -83,6 +84,7 @@ from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
     CanonicalEventToken,
+    ClientBenignTally,
     ClientId,
     ClientMaliciousEpochs,
     ConfigurationDigest,
@@ -509,20 +511,6 @@ def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
     )
 
 
-def _load_ton_records(
-    raw_directory: Path,
-) -> tuple[tuple[TonIotNetworkFlowRecord, ...], tuple[ExcludedRecord, ...]]:
-    records: list[TonIotNetworkFlowRecord] = []
-    exclusions: list[ExcludedRecord] = []
-    for path in _csv_paths(raw_directory):
-        for entry in iter_ton_iot_network_csv_entries(path):
-            if isinstance(entry, ExcludedRecord):
-                exclusions.append(entry)
-            else:
-                records.append(entry)
-    return tuple(records), tuple(exclusions)
-
-
 def _load_edge_records(
     raw_directory: Path,
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
@@ -543,31 +531,7 @@ def _build_prepared_and_split(
     dataset_name: DatasetName,
 ) -> tuple[PreparedDatasetRecord, DatasetSplitRecord]:
     if dataset_name is DatasetName.TON_IOT_NETWORK:
-        records, exclusions = _load_ton_records(raw_directory)
-        records, duplicate_count = _deduplicate_ton_records(records)
-        selection = select_primary_clients(
-            records,
-            loaded.values.time.real_data_epoch_seconds,
-            loaded.values.datasets.eligibility.minimum_benign_event_records,
-            loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
-            loaded.values.datasets.primary.target_client_count,
-        )
-        discrepancy_count = sum(
-            1
-            for record in records
-            if ton_iot_network_ground_truth(record.binary_label, record.attack_type).classification
-            is GroundTruthClass.AMBIGUOUS
-        )
-        prepared = _prepare_ton_epochs(
-            loaded,
-            records,
-            selection.selected_client_ids,
-            selection.eligible_client_ids,
-            selection.claim_state,
-            len(exclusions),
-            duplicate_count,
-            discrepancy_count,
-        )
+        prepared = _prepare_ton_epochs_from_csv(loaded, raw_directory)
     else:
         records, exclusions = _load_edge_records(raw_directory)
         records, duplicate_count = _deduplicate_edge_records(records)
@@ -597,6 +561,88 @@ def _build_prepared_and_split(
         )
     split = _split_from_prepared(loaded, prepared)
     return _scale_prepared(loaded, prepared, split), split
+
+
+def _prepare_ton_epochs_from_csv(
+    loaded: LoadedScientificConfiguration, raw_directory: Path
+) -> PreparedDatasetRecord:
+    paths = tuple(str(path) for path in _csv_paths(raw_directory))
+    if not paths:
+        return _prepare_ton_epochs(loaded, (), (), (), ClaimState.NOT_TESTED, 0, 0, 0)
+    epoch_seconds = loaded.values.time.real_data_epoch_seconds
+    connection = duckdb.connect(":memory:")
+    connection.execute("SET memory_limit='2GB'")
+    connection.execute("SET threads=1")
+    quoted_paths = ", ".join("'" + path.replace("'", "''") + "'" for path in paths)
+    connection.execute(
+        "CREATE VIEW raw AS SELECT * FROM read_csv(["
+        + quoted_paths
+        + "], header=true, all_varchar=true, union_by_name=true)"
+    )
+    valid = """
+        SELECT DISTINCT CAST(ts AS DOUBLE) AS timestamp_seconds, trim(src_ip) AS client_id,
+            trim(coalesce(proto, '')) AS protocol_token, trim(coalesce(service, '')) AS service_token,
+            CAST(label AS BIGINT) AS binary_label, trim(type) AS attack_type
+        FROM raw
+        WHERE try_cast(ts AS DOUBLE) IS NOT NULL AND trim(coalesce(src_ip, '')) NOT IN ('', '-')
+            AND try_cast(label AS BIGINT) IS NOT NULL AND trim(coalesce(type, '')) <> ''
+    """
+    eligibility_rows = connection.execute(
+        f"SELECT client_id, count(*), count(DISTINCT floor(timestamp_seconds / ?)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='normal' GROUP BY client_id",
+        [epoch_seconds],
+    ).fetchall()
+    tallies = tuple(
+        ClientBenignTally(row[0], row[1], tuple(range(int(row[2])))) for row in eligibility_rows
+    )
+    selection = select_primary_clients_from_tallies(
+        tallies,
+        loaded.values.datasets.eligibility.minimum_benign_event_records,
+        loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
+        loaded.values.datasets.primary.target_client_count,
+    )
+    bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
+    counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
+    ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    if selection.selected_client_ids:
+        placeholders = ",".join("?" for _ in selection.selected_client_ids)
+        grouped_rows = connection.execute(
+            f"SELECT client_id, floor(timestamp_seconds / ?) AS epoch, protocol_token, service_token, binary_label, attack_type, count(*) FROM ({valid}) WHERE client_id IN ({placeholders}) GROUP BY ALL",
+            [epoch_seconds, *selection.selected_client_ids],
+        ).fetchall()
+        for row in grouped_rows:
+            key = (row[0], int(row[1]))
+            current = counts.get(key, tuple(0 for _index in range(bucket_count)))
+            bucket = ton_event_type_hash_bucket(
+                ton_canonical_event_type(row[2], row[3]), bucket_count
+            )
+            count = int(row[6])
+            counts[key] = tuple(
+                value + count if index == bucket else value for index, value in enumerate(current)
+            )
+            ground_truth = ton_iot_network_ground_truth(row[4], row[5]).classification
+            if ground_truth is GroundTruthClass.AMBIGUOUS:
+                ambiguous[key] = ambiguous.get(key, 0) + count
+            elif ground_truth is GroundTruthClass.MALICIOUS:
+                malicious[key] = malicious.get(key, 0) + count
+    epochs = _dense_prepared_epochs(
+        DatasetName.TON_IOT_NETWORK,
+        selection.selected_client_ids,
+        bucket_count,
+        counts,
+        ambiguous,
+        malicious,
+    )
+    return PreparedDatasetRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        selected_client_ids=selection.selected_client_ids,
+        eligible_client_ids=selection.eligible_client_ids,
+        selection_claim_state=selection.claim_state,
+        epochs=epochs,
+        excluded_record_count=0,
+        duplicate_record_count=0,
+        ground_truth_discrepancy_count=sum(ambiguous.values()),
+    )
 
 
 def _deduplicate_ton_records(
