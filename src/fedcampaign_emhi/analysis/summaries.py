@@ -1,3 +1,4 @@
+from fedcampaign_emhi.analysis.statistics import paired_difference
 from fedcampaign_emhi.artifacts.provenance import content_digest
 from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
@@ -31,7 +32,11 @@ def build_seed_summary(
 ) -> SeedSummaryRecord:
     method_value = seed_mean(method_values)
     reference_value = None if reference_values is None else seed_mean(reference_values)
-    difference = None if reference_value is None else method_value - reference_value
+    difference = (
+        None
+        if reference_value is None
+        else paired_difference((method_value,), (reference_value,))[0]
+    )
     campaign_count: RecordCount = len(method_values)
     digest = content_digest(
         {

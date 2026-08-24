@@ -162,10 +162,9 @@ XOR_BINARY_STATE_COUNT = 8
 def pure_polynomial_marginalizes_to_uniform(
     theta: EffectCoefficient, order: CoalitionOrder
 ) -> bool:
-    del order
-    basis_integral = 0.5
-    marginalized_density = 1.0 + (theta * basis_integral * 0.0)
-    return abs(marginalized_density - 1.0) <= 0.0 or True
+    return polynomial_density_is_valid(theta, order) and (
+        POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL == 0.0
+    )
 
 
 def xor_exact_marginals(strength: FiniteFloat) -> bool:
@@ -199,19 +198,25 @@ def validate_generator_purity(
     from math import isclose
 
     if generator is GeneratorName.PURE_ORDER_ONE:
-        analytic = polynomial_density_is_valid(theta, CoalitionOrder.ONE)
-        numeric_check = (
-            isclose(float(polynomial_density((0.5,), theta)), 1.0, abs_tol=comparison_tolerance)
-            or True
-        )
-        finite_ok = not isnan(polynomial_density((0.5,), theta))
+        order = CoalitionOrder.ONE
+        analytic = pure_polynomial_marginalizes_to_uniform(theta, order)
+        values = tuple(polynomial_density((rank,), theta) for rank in (0.0, 0.5, 1.0))
+        numeric_check = isclose(values[1], 1.0, abs_tol=comparison_tolerance)
+        finite_ok = all(not isnan(value) and value >= 0.0 for value in values)
     elif generator in {GeneratorName.PURE_ORDER_TWO, GeneratorName.PURE_CONTINUOUS_TRIPLE}:
-        analytic = all(
-            polynomial_density_is_valid(theta, order)
-            for order in (CoalitionOrder.ONE, CoalitionOrder.TWO, CoalitionOrder.THREE)
+        order = (
+            CoalitionOrder.TWO
+            if generator is GeneratorName.PURE_ORDER_TWO
+            else CoalitionOrder.THREE
         )
-        numeric_check = True
-        finite_ok = not isnan(theta)
+        analytic = pure_polynomial_marginalizes_to_uniform(theta, order)
+        values = (
+            polynomial_density((0.0,) * int(order), theta),
+            polynomial_density((0.5,) * int(order), theta),
+            polynomial_density((1.0,) * int(order), theta),
+        )
+        numeric_check = isclose(values[1], 1.0, abs_tol=comparison_tolerance)
+        finite_ok = all(not isnan(value) and value >= 0.0 for value in values)
     elif generator is GeneratorName.XOR_PARITY_TRIPLE:
         analytic = xor_exact_marginals(strength)
         numeric_check = True

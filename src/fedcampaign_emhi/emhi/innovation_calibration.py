@@ -232,7 +232,9 @@ def _context_members(
         return tuple(sorted(coalition_client_ids))
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return ()
-    raise ValueError(f"context method {context_method.value} requires a specialized execution route")
+    raise ValueError(
+        f"context method {context_method.value} requires a specialized execution route"
+    )
 
 
 def _context_seed(
@@ -644,9 +646,7 @@ def _fit_projection_cell(
     purification_enabled: bool,
     forced_no_abstention: bool,
     ridge_candidates: tuple[RidgePenalty, ...],
-    cross_fitted_statistics: tuple[
-        tuple[FiniteFloat, ...], tuple[FiniteFloat, ...], FiniteFloat
-    ]
+    cross_fitted_statistics: tuple[tuple[FiniteFloat, ...], tuple[FiniteFloat, ...], FiniteFloat]
     | None,
 ) -> ProjectionCellFitRecord:
     references = _conditional_rank_references(ranks, coalition, context_cell, epochs)
@@ -724,7 +724,9 @@ def build_emhi_fit_artifact(
         ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT,
     }:
         raise ValueError(f"{context_method.value} requires its specialized validation route")
-    candidates = config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
+    candidates = (
+        config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
+    )
     coalitions = enumerate_coalitions(split.selected_client_ids, maximum_order)
     order_contexts = tuple(
         _fit_order_context(

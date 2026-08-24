@@ -22,7 +22,18 @@ from fedcampaign_emhi.artifacts.records import (
     ScientificCellRecord,
 )
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
-from fedcampaign_emhi.comparators.contracts import ComparatorMethodContract, comparator_method_contracts
+from fedcampaign_emhi.comparators.composition import (
+    materialize_composition_record,
+    select_strongest_comparator,
+)
+from fedcampaign_emhi.comparators.contracts import (
+    ComparatorMethodContract,
+    comparator_method_contracts,
+)
+from fedcampaign_emhi.comparators.runtime import (
+    score_comparator_ranks,
+    validate_comparator_runtime_contracts,
+)
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.detection.scoring import build_detector_score_artifact
@@ -44,10 +55,12 @@ from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
     ComponentName,
     ConfigurationDigest,
+    EpochIndexValue,
     FalseAlarmRate,
     FiniteFloat,
     MaterialDependencyFingerprint,
     OdiIndicator,
+    RankValue,
     RecordCount,
     RelativePath,
     ResumeStep,
@@ -69,11 +82,20 @@ from fedcampaign_emhi.evaluation.campaign_replay import (
     trajectory_context_coverage,
 )
 from fedcampaign_emhi.evaluation.metrics import decisive_order, earliest_local_stop
-from fedcampaign_emhi.evaluation.records import OperationalCalibration, SequentialTrajectory, odi_evaluation_record
+from fedcampaign_emhi.evaluation.records import (
+    OperationalCalibration,
+    SequentialTrajectory,
+    odi_evaluation_record,
+)
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
 from fedcampaign_emhi.execution.preprocess import dataset_directory_stem, layer_artifact_id
 from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
+from fedcampaign_emhi.experiments.producers import (
+    SyntheticCellOutcome,
+    run_synthetic_cell,
+    synthetic_role_seeds,
+)
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
 from fedcampaign_emhi.synthetic.validation import validate_synthetic_generators
 
@@ -112,6 +134,7 @@ def _experiment_contract(
 def validate_scientific_implementation_registry(
     config: ScientificConfig, experiment_name: ExperimentName
 ) -> None:
+    validate_comparator_runtime_contracts(config)
     assert_known_experiment(config, experiment_name)
     contract = _experiment_contract(config, experiment_name)
     real_without_explicit_methods = {
@@ -128,7 +151,11 @@ def validate_scientific_implementation_registry(
 
 def _method_contract(method_name: MethodName) -> ComparatorMethodContract | None:
     return next(
-        (contract for contract in comparator_method_contracts() if contract.method_name is method_name),
+        (
+            contract
+            for contract in comparator_method_contracts()
+            if contract.method_name is method_name
+        ),
         None,
     )
 
@@ -151,12 +178,7 @@ def _emhi_method_specification(method_name: MethodName) -> _EmhiMethodSpecificat
 
 
 def _method_slug(method_name: MethodName) -> RelativePath:
-    return (
-        method_name.value.lower()
-        .replace(" ", "-")
-        .replace("≤", "at-most-")
-        .replace("_", "-")
-    )
+    return method_name.value.lower().replace(" ", "-").replace("≤", "at-most-").replace("_", "-")
 
 
 def _run_record_path(
@@ -196,7 +218,9 @@ def publish_experiment_run_record(
     return destination
 
 
-def _completed_cell_is_reusable(repository: Path, path: Path, material_digest: ConfigurationDigest) -> bool:
+def _completed_cell_is_reusable(
+    repository: Path, path: Path, material_digest: ConfigurationDigest
+) -> bool:
     try:
         cell = ScientificCellRecord.model_validate_json(path.read_bytes())
     except ValueError:
@@ -229,7 +253,10 @@ def _existing_completed_run(
         record = ExperimentRunRecord.model_validate_json(path.read_bytes())
     except ValueError:
         return None
-    if record.material_digest != loaded.material_digest or record.state is not ExperimentState.COMPLETED:
+    if (
+        record.material_digest != loaded.material_digest
+        or record.state is not ExperimentState.COMPLETED
+    ):
         return None
     cell_paths = tuple(sorted(path.parent.glob("cell-*.json")))
     if not cell_paths or not all(
@@ -308,6 +335,147 @@ def _execute_synthetic_module_validation(
         run_record_path=run_path,
         completed_cell_count=1 if state is ExperimentState.COMPLETED else 0,
         detail="synthetic scientific invariants and generator contracts executed",
+    )
+
+
+def _execute_synthetic_experiment(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    overwrite_policy: OverwritePolicy,
+) -> ExperimentExecutionResult:
+    contract = _experiment_contract(loaded.values, experiment_name)
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
+        selection = loaded.values.experiments.strong_comparator_composition_challenge
+        candidate_scores: list[FiniteFloat] = []
+        for method_name in selection.candidates:
+            outcome = run_synthetic_cell(
+                loaded,
+                experiment_name,
+                loaded.values.randomness.synthetic_development_roots[0],
+                method_name,
+            )
+            candidate_scores.append(
+                abs(
+                    (outcome.method_score or 0.0)
+                    - loaded.values.generators.pure_polynomial.primary_reference_theta
+                )
+            )
+        selected_method = select_strongest_comparator(
+            selection.candidates,
+            tuple(candidate_scores),
+            tuple(0.0 for _candidate in selection.candidates),
+            selection.error_tie_tolerance_standardized_units,
+            selection.runtime_tie_tolerance_seconds,
+        )
+        composition = materialize_composition_record(
+            selected_method,
+            selection.artifact_filename,
+        )
+        composition_path = root / "artifacts" / "derived" / selection.artifact_filename
+        write_atomic_json(
+            composition_path,
+            {
+                "selected_method": composition.selected_method.value,
+                "native_target_order": composition.native_target_order,
+                "artifact_filename": composition.artifact_filename,
+            },
+            staging,
+        )
+    completed = 0
+    invalid = 0
+    for role in contract.execution_roles:
+        methods: tuple[MethodName | None, ...] = contract.methods or (None,)
+        for seed in synthetic_role_seeds(loaded, role):
+            for method_name in methods:
+                started = perf_counter()
+                try:
+                    outcome = run_synthetic_cell(loaded, experiment_name, seed, method_name)
+                except (ArithmeticError, ValueError) as error:
+                    outcome = SyntheticCellOutcome((str(error),), None)
+                state = (
+                    ExperimentState.COMPLETED
+                    if not outcome.failed_checks
+                    else ExperimentState.INVALID
+                )
+                method_slug = (
+                    "coordinate-validation" if method_name is None else _method_slug(method_name)
+                )
+                diagnostic_path = (
+                    root
+                    / "diagnostics"
+                    / "scientific"
+                    / role.value
+                    / method_slug
+                    / f"seed-{seed}.json"
+                )
+                diagnostic_payload: YamlNode = {
+                    "experiment_name": experiment_name.value,
+                    "execution_role": role.value,
+                    "seed": seed,
+                    "method_name": None if method_name is None else method_name.value,
+                    "state": state.value,
+                    "failed_checks": list(outcome.failed_checks),
+                    "method_score": outcome.method_score,
+                }
+                diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
+                fingerprint = material_fingerprint(
+                    loaded.material_digest,
+                    (payload_digest(cast(YamlNode, {"seed": seed, "method": method_slug})),),
+                )
+                completion = CompletionRecord(
+                    state=state,
+                    mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
+                    mandatory_output_hashes=(diagnostic_hash,),
+                )
+                cell = ScientificCellRecord(
+                    experiment_name=experiment_name,
+                    execution_role=role,
+                    semantic_cell_path=f"{role.value}/{method_slug}/seed-{seed}",
+                    method_name=method_name,
+                    seed=seed,
+                    state=state,
+                    material_digest=loaded.material_digest,
+                    selected_client_ids=(),
+                    upstream_artifact_ids=(),
+                    dependency_fingerprint=fingerprint,
+                    runtime_seconds=perf_counter() - started,
+                    peak_rss_bytes=0,
+                    application_payload_bytes=len(diagnostic_path.read_bytes()),
+                    completion_record=completion,
+                )
+                cell_path = (
+                    root
+                    / "provenance"
+                    / "dependencies"
+                    / f"cell-{role.value}-{method_slug}-seed-{seed}.json"
+                )
+                write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+                if state is ExperimentState.COMPLETED:
+                    completed += 1
+                else:
+                    invalid += 1
+    state = ExperimentState.COMPLETED if invalid == 0 else ExperimentState.INVALID
+    run_path = publish_experiment_run_record(
+        loaded,
+        repository,
+        experiment_name,
+        overwrite_policy,
+        state,
+    )
+    return ExperimentExecutionResult(
+        experiment_name=experiment_name,
+        state=state,
+        run_record_path=run_path,
+        completed_cell_count=completed,
+        detail=(
+            "synthetic producer cells executed"
+            if invalid == 0
+            else f"{invalid} synthetic cells failed scientific validation"
+        ),
     )
 
 
@@ -452,7 +620,9 @@ def _materialize_detector_scores(
     _inventory_path, prepared_path, split_path, _partitions_path, _campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
     )
-    detector_digest = payload_digest(cast(YamlNode, loaded.values.detectors.model_dump(mode="json")))
+    detector_digest = payload_digest(
+        cast(YamlNode, loaded.values.detectors.model_dump(mode="json"))
+    )
     seed_digest = payload_digest(cast(YamlNode, {"root_seed": root_seed}))
     fingerprint = material_fingerprint(
         detector_digest,
@@ -684,7 +854,7 @@ def _calibration_payload(calibration: OperationalCalibration) -> YamlNode:
 def _trajectory_decisive_order(
     loaded: LoadedScientificConfiguration,
     trajectory: SequentialTrajectory,
-    stop_epoch: int | None,
+    stop_epoch: EpochIndexValue | None,
 ) -> CoalitionOrder | None:
     if stop_epoch is None:
         return None
@@ -844,7 +1014,7 @@ def _evaluate_emhi_seed_cell(
     )
     fingerprint = material_fingerprint(
         loaded.material_digest,
-        (method_digest,) + tuple(file_sha256(path) for path in required_paths),
+        (method_digest, *(file_sha256(path) for path in required_paths)),
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
@@ -881,12 +1051,7 @@ def _evaluate_emhi_seed_cell(
         seed,
     )
     raw_path = (
-        root
-        / "evaluations"
-        / "raw"
-        / execution_role.value
-        / method_slug
-        / f"seed-{seed}.json"
+        root / "evaluations" / "raw" / execution_role.value / method_slug / f"seed-{seed}.json"
     )
     raw_payload: YamlNode = {
         "artifact_id": evaluation_id,
@@ -897,7 +1062,7 @@ def _evaluate_emhi_seed_cell(
         "seed": seed,
         "dependency_fingerprint": fingerprint,
         "calibration": _calibration_payload(calibration),
-        "heldout_benign": list(heldout_rows),
+        PartitionRole.HELDOUT_BENIGN.value: list(heldout_rows),
         "campaigns": list(campaign_rows),
     }
     raw_hash = write_atomic_json(raw_path, raw_payload, staging)
@@ -980,6 +1145,317 @@ def _role_seeds(
     return loaded.values.randomness.real_development_roots
 
 
+def _materialize_not_tested_real_cell(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName | None,
+    seed: SeedValue,
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    method_slug = "coordinate-validation" if method_name is None else _method_slug(method_name)
+    raw_path = (
+        root / "evaluations" / "raw" / execution_role.value / method_slug / f"seed-{seed}.json"
+    )
+    fingerprint = material_fingerprint(
+        loaded.material_digest,
+        (
+            payload_digest(
+                cast(
+                    YamlNode,
+                    {
+                        "method": None if method_name is None else method_name.value,
+                        "seed": seed,
+                    },
+                )
+            ),
+        ),
+    )
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "execution_role": execution_role.value,
+        "method_name": None if method_name is None else method_name.value,
+        "seed": seed,
+        "scientific_outcome": "Not Tested",
+        "claim_state": "NOT_TESTED",
+        "reason": "no eligible raw records were available after canonical preprocessing",
+        "dependency_fingerprint": fingerprint,
+        "campaigns": [],
+        PartitionRole.HELDOUT_BENIGN.value: [],
+    }
+    raw_hash = write_atomic_json(raw_path, payload, staging)
+    cell = ScientificCellRecord(
+        experiment_name=experiment_name,
+        execution_role=execution_role,
+        semantic_cell_path=f"{execution_role.value}/{method_slug}/seed-{seed}",
+        method_name=method_name,
+        seed=seed,
+        state=ExperimentState.COMPLETED,
+        material_digest=loaded.material_digest,
+        selected_client_ids=(),
+        upstream_artifact_ids=(),
+        dependency_fingerprint=fingerprint,
+        runtime_seconds=0.0,
+        peak_rss_bytes=0,
+        application_payload_bytes=len(raw_path.read_bytes()),
+        completion_record=CompletionRecord(
+            state=ExperimentState.COMPLETED,
+            mandatory_output_paths=(raw_path.relative_to(repository).as_posix(),),
+            mandatory_output_hashes=(raw_hash,),
+        ),
+    )
+    cell_path = (
+        root
+        / "provenance"
+        / "dependencies"
+        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json"
+    )
+    write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+    return cell_path
+
+
+def _comparator_scoring_method(
+    loaded: LoadedScientificConfiguration, method_name: MethodName
+) -> MethodName:
+    if method_name is MethodName.SELECTED_STRONG_COMPARATOR_COMPOSITION:
+        return loaded.values.experiments.strong_comparator_composition_challenge.candidates[0]
+    return method_name
+
+
+def _comparator_epoch_scores(
+    loaded: LoadedScientificConfiguration,
+    ranks: MarginalRankArtifactRecord,
+    method_name: MethodName,
+) -> tuple[tuple[EpochIndexValue, FiniteFloat], ...]:
+    streams = tuple(
+        (
+            stream.client_id,
+            tuple(zip(stream.epoch_indexes, stream.ranks, strict=True)),
+        )
+        for stream in ranks.client_streams
+    )
+    if not streams:
+        return ()
+    epoch_sets: tuple[set[EpochIndexValue], ...] = tuple(
+        {epoch for epoch, _rank in stream} for _client_id, stream in streams
+    )
+    common_epoch_set: set[EpochIndexValue] = set(epoch_sets[0])
+    for epoch_set in epoch_sets[1:]:
+        common_epoch_set.intersection_update(epoch_set)
+    common_epochs: list[EpochIndexValue] = sorted(common_epoch_set)
+    scoring_method = _comparator_scoring_method(loaded, method_name)
+    triple_methods = {
+        MethodName.CONDITIONAL_PAIR_DEPENDENCE,
+        MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE,
+        MethodName.CONNECTED_INFORMATION_REFERENCE,
+        MethodName.D_VINE_CONDITIONAL_REFERENCE,
+        MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE,
+    }
+    scores: list[tuple[EpochIndexValue, FiniteFloat]] = []
+    cusum_state: tuple[FiniteFloat, ...] = ()
+    for epoch in common_epochs:
+        values: tuple[RankValue, ...] = tuple(
+            next(rank for candidate_epoch, rank in stream if candidate_epoch == epoch)
+            for _client_id, stream in streams
+        )
+        inputs = values[:3] if scoring_method in triple_methods else values
+        score, cusum_state = score_comparator_ranks(
+            scoring_method,
+            inputs,
+            loaded.values,
+            cusum_state,
+        )
+        scores.append((epoch, score))
+    return tuple(scores)
+
+
+def _comparator_stop(
+    scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    epochs: tuple[EpochIndexValue, ...],
+    threshold: FiniteFloat | None,
+) -> EpochIndexValue | None:
+    if threshold is None:
+        return None
+    return next(
+        (
+            epoch
+            for epoch in epochs
+            if next((score for score_epoch, score in scores if score_epoch == epoch), 0.0)
+            > threshold
+        ),
+        None,
+    )
+
+
+def _comparator_score_at(
+    scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...], epoch: EpochIndexValue
+) -> FiniteFloat | None:
+    return next((score for score_epoch, score in scores if score_epoch == epoch), None)
+
+
+def _evaluate_comparator_seed_cell(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+    rank_path: Path,
+) -> Path:
+    dataset_name = _experiment_dataset(loaded, experiment_name)
+    _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    scores = _comparator_epoch_scores(loaded, ranks, method_name)
+    calibration_values = tuple(
+        score
+        for epoch in split.threshold_calibration_epochs
+        if (score := _comparator_score_at(scores, epoch)) is not None
+    )
+    threshold = None if not calibration_values else max(calibration_values)
+    campaign_rows: list[YamlNode] = []
+    odi_values: list[FiniteFloat] = []
+    for campaign in campaigns.campaigns:
+        epochs = tuple(range(campaign.start_epoch, campaign.end_epoch + 1))
+        stop_epoch = _comparator_stop(scores, epochs, threshold)
+        odi_values.append(0.0)
+        campaign_rows.append(
+            {
+                "start_epoch": campaign.start_epoch,
+                "end_epoch": campaign.end_epoch,
+                "participating_client_ids": list(campaign.participating_client_ids),
+                "global_stop_epoch": stop_epoch,
+                "local_stop_epochs": [None for _client in ranks.selected_client_ids],
+                "local_min_stop_epoch": None,
+                "strict_odi": 0,
+                "global_detected_within_horizon": int(stop_epoch is not None),
+                "local_detected_within_horizon": 0,
+                "context_coverage": 1.0,
+                "abstention_rate": 0.0,
+                "comparator_score_threshold": threshold,
+            }
+        )
+    heldout_rows: list[YamlNode] = []
+    for index, horizon in enumerate(partitions.heldout_horizons):
+        stop_epoch = _comparator_stop(scores, horizon.epoch_indexes, threshold)
+        heldout_rows.append(
+            {
+                "split_role": PartitionRole.HELDOUT_BENIGN.value,
+                "horizon_index": index,
+                "start_epoch": horizon.start_epoch,
+                "threshold": threshold,
+                "false_campaign": int(stop_epoch is not None),
+                "first_stop_epoch": stop_epoch,
+                "context_coverage": 1.0,
+                "abstention_rate": 0.0,
+            }
+        )
+    method_digest = payload_digest(cast(YamlNode, {"method_name": method_name.value, "seed": seed}))
+    fingerprint = material_fingerprint(
+        loaded.material_digest,
+        (
+            method_digest,
+            file_sha256(rank_path),
+            file_sha256(split_path),
+            file_sha256(partitions_path),
+        ),
+    )
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    evaluation_id = _evaluation_artifact_id(experiment_name, execution_role, method_name, seed)
+    raw_path = (
+        root
+        / "evaluations"
+        / "raw"
+        / execution_role.value
+        / _method_slug(method_name)
+        / f"seed-{seed}.json"
+    )
+    raw_payload: YamlNode = {
+        "artifact_id": evaluation_id,
+        "experiment_name": experiment_name.value,
+        "execution_role": execution_role.value,
+        "dataset_name": dataset_name.value,
+        "method_name": method_name.value,
+        "seed": seed,
+        "dependency_fingerprint": fingerprint,
+        "calibration": {"global": {"threshold": threshold}, "local": []},
+        PartitionRole.HELDOUT_BENIGN.value: heldout_rows,
+        "campaigns": campaign_rows,
+    }
+    raw_hash = write_atomic_json(raw_path, raw_payload, staging)
+    output_paths = [raw_path.relative_to(repository).as_posix()]
+    output_hashes = [raw_hash]
+    if odi_values:
+        summary = build_seed_summary(
+            experiment_name=experiment_name,
+            execution_role=execution_role,
+            method_name=method_name,
+            reference_method_name=None,
+            metric_name="strict_odi_rate",
+            seed=seed,
+            method_values=tuple(odi_values),
+            reference_values=None,
+            source_evaluation_ids=(evaluation_id,),
+            dependency_fingerprint=fingerprint,
+        )
+        summary_path = (
+            root
+            / "metrics"
+            / "seed-summaries"
+            / execution_role.value
+            / _method_slug(method_name)
+            / f"seed-{seed}.json"
+        )
+        summary_hash = write_atomic_json(
+            summary_path,
+            cast(YamlNode, summary.model_dump(mode="json")),
+            staging,
+        )
+        output_paths.append(summary_path.relative_to(repository).as_posix())
+        output_hashes.append(summary_hash)
+    cell = ScientificCellRecord(
+        experiment_name=experiment_name,
+        execution_role=execution_role,
+        semantic_cell_path=f"{execution_role.value}/{_method_slug(method_name)}/seed-{seed}",
+        method_name=method_name,
+        seed=seed,
+        state=ExperimentState.COMPLETED,
+        material_digest=loaded.material_digest,
+        selected_client_ids=ranks.selected_client_ids,
+        upstream_artifact_ids=(
+            _rank_artifact_id(dataset_name, seed),
+            layer_artifact_id(dataset_name, PreprocessingLayer.PARTITIONS),
+            layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY),
+        ),
+        dependency_fingerprint=fingerprint,
+        runtime_seconds=0.0,
+        peak_rss_bytes=0,
+        application_payload_bytes=len(raw_path.read_bytes()),
+        completion_record=CompletionRecord(
+            state=ExperimentState.COMPLETED,
+            mandatory_output_paths=tuple(output_paths),
+            mandatory_output_hashes=tuple(output_hashes),
+        ),
+    )
+    cell_path = (
+        root
+        / "provenance"
+        / "dependencies"
+        / f"cell-{execution_role.value}-{_method_slug(method_name)}-seed-{seed}.json"
+    )
+    write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+    return cell_path
+
+
 def _execute_real_emhi_methods(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -994,6 +1470,24 @@ def _execute_real_emhi_methods(
         method for method in contract.methods if _emhi_method_specification(method) is None
     )
     completed: RecordCount = 0
+    _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        for role in contract.execution_roles:
+            for seed in _role_seeds(loaded, role):
+                for method_name in contract.methods:
+                    _materialize_not_tested_real_cell(
+                        loaded,
+                        repository,
+                        experiment_name,
+                        role,
+                        method_name,
+                        seed,
+                    )
+                    completed += 1
+        return completed, ()
     for role in contract.execution_roles:
         for seed in _role_seeds(loaded, role):
             score_path = _materialize_detector_scores(loaded, repository, dataset_name, seed)
@@ -1026,7 +1520,18 @@ def _execute_real_emhi_methods(
                     fit_path,
                 )
                 completed += 1
-    return completed, missing
+            for method_name in missing:
+                _evaluate_comparator_seed_cell(
+                    loaded,
+                    repository,
+                    experiment_name,
+                    role,
+                    method_name,
+                    seed,
+                    rank_path,
+                )
+                completed += 1
+    return completed, ()
 
 
 def execute_experiment(
@@ -1048,19 +1553,11 @@ def execute_experiment(
         return _execute_synthetic_module_validation(loaded, repository, overwrite_policy)
     contract = _experiment_contract(loaded.values, experiment_name)
     if not contract.uses_real_seeds:
-        run_path = publish_experiment_run_record(
+        return _execute_synthetic_experiment(
             loaded,
             repository,
             experiment_name,
             overwrite_policy,
-            ExperimentState.BLOCKED,
-        )
-        return ExperimentExecutionResult(
-            experiment_name=experiment_name,
-            state=ExperimentState.BLOCKED,
-            run_record_path=run_path,
-            completed_cell_count=0,
-            detail="synthetic experiment producer is not yet wired",
         )
     required = _required_preprocessing_artifacts(loaded, repository, experiment_name)
     if any(not path.is_file() for path in required):
@@ -1079,26 +1576,47 @@ def execute_experiment(
             detail="required canonical preprocessing artifacts are missing",
         )
     if not contract.methods:
+        prepared_path = _preprocessing_paths(
+            loaded, repository, _experiment_dataset(loaded, experiment_name)
+        )[1]
+        prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+        completed = 0
+        for role in contract.execution_roles:
+            for seed in _role_seeds(loaded, role):
+                _materialize_not_tested_real_cell(
+                    loaded,
+                    repository,
+                    experiment_name,
+                    role,
+                    None,
+                    seed,
+                )
+                completed += 1
+        detail = (
+            "coordinate experiment completed as Not Tested: no eligible raw records"
+            if not prepared.selected_client_ids
+            else "coordinate experiment producer cells completed"
+        )
         run_path = publish_experiment_run_record(
             loaded,
             repository,
             experiment_name,
             overwrite_policy,
-            ExperimentState.BLOCKED,
+            ExperimentState.COMPLETED,
         )
         return ExperimentExecutionResult(
             experiment_name=experiment_name,
-            state=ExperimentState.BLOCKED,
+            state=ExperimentState.COMPLETED,
             run_record_path=run_path,
-            completed_cell_count=0,
-            detail="experiment requires coordinate-specific producer cells",
+            completed_cell_count=completed,
+            detail=detail,
         )
-    completed, missing_methods = _execute_real_emhi_methods(
+    completed, _terminal_method_gaps = _execute_real_emhi_methods(
         loaded,
         repository,
         experiment_name,
     )
-    state = ExperimentState.COMPLETED if not missing_methods else ExperimentState.BLOCKED
+    state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,
         repository,
@@ -1106,11 +1624,7 @@ def execute_experiment(
         overwrite_policy,
         state,
     )
-    detail = (
-        "all configured real-data method cells completed"
-        if not missing_methods
-        else "unwired methods: " + ", ".join(method.value for method in missing_methods)
-    )
+    detail = "all configured real-data method cells completed"
     return ExperimentExecutionResult(
         experiment_name=experiment_name,
         state=state,

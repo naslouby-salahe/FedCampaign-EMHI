@@ -71,6 +71,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/comparators/composition.py",
     "src/fedcampaign_emhi/comparators/contracts.py",
     "src/fedcampaign_emhi/comparators/hofd_equivalence.py",
+    "src/fedcampaign_emhi/comparators/runtime.py",
     "src/fedcampaign_emhi/synthetic/__init__.py",
     "src/fedcampaign_emhi/synthetic/common_mode.py",
     "src/fedcampaign_emhi/synthetic/controlled_campaigns.py",
@@ -82,6 +83,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/experiments/__init__.py",
     "src/fedcampaign_emhi/experiments/definitions.py",
     "src/fedcampaign_emhi/experiments/coordinates.py",
+    "src/fedcampaign_emhi/experiments/producers.py",
     "src/fedcampaign_emhi/experiments/validation.py",
     "src/fedcampaign_emhi/evaluation/__init__.py",
     "src/fedcampaign_emhi/evaluation/records.py",
@@ -195,6 +197,7 @@ EXPECTED_EXPERIMENT_MODULES = {
     "__init__.py",
     "coordinates.py",
     "definitions.py",
+    "producers.py",
     "validation.py",
 }
 

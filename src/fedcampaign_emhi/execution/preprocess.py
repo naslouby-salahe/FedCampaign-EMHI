@@ -27,6 +27,8 @@ from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.datasets.campaigns import build_campaign_registry
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     canonical_event_type as edge_canonical_event_type,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     record_enters_epoch_event_count,
 )
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
@@ -53,7 +55,11 @@ from fedcampaign_emhi.datasets.preprocessing import (
 )
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_client_id,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     canonical_event_type as ton_canonical_event_type,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     event_type_hash_bucket as ton_event_type_hash_bucket,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
@@ -225,9 +231,13 @@ def _execute_dataset(
         )
     )
     expected_fingerprints = _expected_fingerprints(loaded, dataset_name, inventory_digest)
-    reusable = tuple(
-        _layer_is_reusable(layout, dataset_name, layer, expected_fingerprints[index])
-        for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
+    reusable = (
+        tuple(
+            _layer_is_reusable(layout, dataset_name, layer, expected_fingerprints[index])
+            for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
+        )
+        if raw_inventory
+        else (False,) * len(PREPROCESSING_LAYER_ORDER)
     )
     previous_fingerprints = tuple(
         _stored_fingerprint(layout, dataset_name, layer) for layer in PREPROCESSING_LAYER_ORDER
