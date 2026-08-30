@@ -78,7 +78,7 @@ OdiIndicator = Annotated[int, Field(ge=0, le=1)]
 GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
 BinIndex = NonNegativeInt
 ScientificChoiceCount = NonNegativeInt
-CanonicalUtf8Bytes = Annotated[bytes, Field()]
+DeterministicUtf8Bytes = Annotated[bytes, Field()]
 ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
 ScoreShift = FiniteFloat
@@ -511,7 +511,9 @@ class MaybeDefinedMetric:
         return cls(metric_value=None, is_not_defined=True)
 
 
-def canonical_registry_payload(registry_entry: "CampaignRegistryEntry") -> CanonicalUtf8Bytes:
+def deterministic_registry_payload(
+    registry_entry: "CampaignRegistryEntry",
+) -> DeterministicUtf8Bytes:
     fields = (
         registry_entry.dataset.value,
         str(registry_entry.start_epoch),
@@ -524,7 +526,7 @@ def canonical_registry_payload(registry_entry: "CampaignRegistryEntry") -> Canon
 def registry_entry_integrity_checksum(
     registry_entry: "CampaignRegistryEntry",
 ) -> Sha256Hex:
-    return hashlib.sha256(canonical_registry_payload(registry_entry)).hexdigest()
+    return hashlib.sha256(deterministic_registry_payload(registry_entry)).hexdigest()
 
 
 @dataclass(frozen=True)

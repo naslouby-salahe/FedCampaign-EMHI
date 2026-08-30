@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
-from fedcampaign_emhi.domain.types import CanonicalUtf8Bytes, FiniteFloat
+from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, FiniteFloat
 
 
 def _scaled_y(metric_value: FiniteFloat, minimum: FiniteFloat, maximum: FiniteFloat) -> FiniteFloat:
@@ -10,7 +10,7 @@ def _scaled_y(metric_value: FiniteFloat, minimum: FiniteFloat, maximum: FiniteFl
     return 90 - (80 * (metric_value - minimum) / (maximum - minimum))
 
 
-def paired_difference_svg(records: tuple[SeedSummaryRecord, ...]) -> CanonicalUtf8Bytes:
+def paired_difference_svg(records: tuple[SeedSummaryRecord, ...]) -> DeterministicUtf8Bytes:
     paired_differences = tuple(
         record.paired_difference for record in records if record.paired_difference is not None
     )

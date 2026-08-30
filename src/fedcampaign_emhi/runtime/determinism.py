@@ -4,7 +4,7 @@ import rfc8785
 
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.types import (
-    CanonicalUtf8Bytes,
+    DeterministicUtf8Bytes,
     ConfigurationDigest,
     SeedDerivationIdentity,
     SeedValue,
@@ -15,7 +15,7 @@ THIRTY_TWO_BIT_MODULUS = 1 << 32
 RFC8785_SAFE_INTEGER_MODULUS = 1 << 53
 
 
-def deterministic_utf8_bytes(payload: YamlNode) -> CanonicalUtf8Bytes:
+def deterministic_utf8_bytes(payload: YamlNode) -> DeterministicUtf8Bytes:
     return rfc8785.dumps(payload)
 
 

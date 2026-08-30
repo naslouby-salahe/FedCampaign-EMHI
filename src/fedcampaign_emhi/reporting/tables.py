@@ -3,14 +3,14 @@ from io import StringIO
 from pathlib import Path
 
 from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
-from fedcampaign_emhi.domain.types import CanonicalUtf8Bytes
+from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes
 
 
 def load_seed_summaries(paths: tuple[Path, ...]) -> tuple[SeedSummaryRecord, ...]:
     return tuple(SeedSummaryRecord.model_validate_json(path.read_bytes()) for path in paths)
 
 
-def seed_summary_csv(records: tuple[SeedSummaryRecord, ...]) -> CanonicalUtf8Bytes:
+def seed_summary_csv(records: tuple[SeedSummaryRecord, ...]) -> DeterministicUtf8Bytes:
     output = StringIO(newline="")
     writer = csv.writer(output, lineterminator="\n")
     writer.writerow(

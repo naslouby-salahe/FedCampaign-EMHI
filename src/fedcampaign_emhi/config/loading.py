@@ -21,7 +21,7 @@ from fedcampaign_emhi.config.validation import (
 from fedcampaign_emhi.domain.enums import ConfigurationProfile
 from fedcampaign_emhi.domain.types import (
     BinCount,
-    CanonicalUtf8Bytes,
+    DeterministicUtf8Bytes,
     ConfidenceLevel,
     ConfigurationDigest,
     FalseAlarmRate,
@@ -52,7 +52,7 @@ def _load_mapping(path: Path) -> YamlNode:
     return cast(YamlNode, loaded)
 
 
-def deterministic_utf8(payload: YamlNode) -> CanonicalUtf8Bytes:
+def deterministic_utf8(payload: YamlNode) -> DeterministicUtf8Bytes:
     return rfc8785.dumps(payload)
 
 
