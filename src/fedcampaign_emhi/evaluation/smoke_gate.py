@@ -98,7 +98,7 @@ class SemanticIdempotencyRecord:
     seed: SeedValue
     role: PartitionRole
 
-    def canonical_payload(self) -> YamlNode:
+    def semantic_payload(self) -> YamlNode:
         return {
             "dataset": self.dataset.value,
             "seed": self.seed,
@@ -251,8 +251,8 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     semantic_record = SemanticIdempotencyRecord(
         dataset=DatasetName.TON_IOT_NETWORK, seed=smoke_root, role=PartitionRole.NUISANCE_FIT
     )
-    digest_a: ConfigurationDigest = content_digest(semantic_record.canonical_payload())
-    digest_b: ConfigurationDigest = content_digest(semantic_record.canonical_payload())
+    digest_a: ConfigurationDigest = content_digest(semantic_record.semantic_payload())
+    digest_b: ConfigurationDigest = content_digest(semantic_record.semantic_payload())
     _check(SEMANTIC_IDEMPOTENCY, digest_a == digest_b and len(digest_a) == 64, failures)
 
     merged = merge_malicious_runs((1, 2, 4, 20), 2)

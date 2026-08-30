@@ -1824,7 +1824,7 @@ def _materialize_not_tested_real_cell(
         "seed": seed,
         "scientific_outcome": "Not Tested",
         "claim_state": "NOT_TESTED",
-        "reason": "no eligible raw records were available after canonical preprocessing",
+        "reason": "no eligible raw records were available after deterministic preprocessing",
         "dependency_fingerprint": fingerprint,
         "campaigns": [],
         PartitionRole.HELDOUT_BENIGN.value: [],
@@ -2490,7 +2490,7 @@ def execute_experiment(
             state=ExperimentState.BLOCKED,
             run_record_path=run_path,
             completed_cell_count=0,
-            detail="required canonical preprocessing artifacts are missing",
+            detail="required deterministic preprocessing artifacts are missing",
         )
     if not contract.methods:
         prepared_path = _preprocessing_paths(
