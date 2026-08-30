@@ -9,6 +9,7 @@ from fedcampaign_emhi.datasets.campaigns import campaign_duration_epochs, merge_
 from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch
 from fedcampaign_emhi.domain.enums import CoalitionOrder, DatasetName, PartitionRole
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ConfigurationDigest,
     EpochIndexValue,
     FiniteFloat,
@@ -50,12 +51,12 @@ class SmokeFixtureName:
 
 @dataclass(frozen=True)
 class SmokeGateResult:
-    passed: bool
+    passed: Boolean
     failures: tuple[SmokeFixtureName, ...]
 
 
 def _check(
-    fixture_name: SmokeFixtureName, condition: bool, failures: deque[SmokeFixtureName]
+    fixture_name: SmokeFixtureName, condition: Boolean, failures: deque[SmokeFixtureName]
 ) -> None:
     if not condition:
         failures.append(fixture_name)

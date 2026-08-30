@@ -9,6 +9,7 @@ from fedcampaign_emhi.domain.enums import (
     PartitionRole,
 )
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientId,
     EpochIndexValue,
     EvidenceFactor,
@@ -85,7 +86,7 @@ class EpochOperationalEvidence:
 @dataclass(frozen=True)
 class SequentialTrajectory:
     epochs: tuple[EpochOperationalEvidence, ...]
-    support_predicates: tuple[bool, ...]
+    support_predicates: tuple[Boolean, ...]
 
 
 @dataclass(frozen=True)
@@ -121,5 +122,5 @@ def odi_evaluation_record(
     return strict_odi_outcome(global_stop_epoch, local_stop_epochs)
 
 
-def global_detection_without_odi(outcome: StrictOdiOutcome) -> bool:
+def global_detection_without_odi(outcome: StrictOdiOutcome) -> Boolean:
     return outcome.global_detection_indicator == 1 and outcome.indicator == 0

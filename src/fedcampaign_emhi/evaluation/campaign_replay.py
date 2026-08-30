@@ -14,6 +14,7 @@ from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, scor
 from fedcampaign_emhi.domain.enums import ClaimState, CoalitionOrder, ContextMethodName
 from fedcampaign_emhi.domain.types import (
     BinIndex,
+    Boolean,
     ClientId,
     CoalitionMembers,
     EpochIndexValue,
@@ -60,8 +61,8 @@ from fedcampaign_emhi.evaluation.records import (
 class CampaignReplayPlan:
     warmup_epochs: tuple[EpochIndexValue, ...]
     campaign_epochs: tuple[EpochIndexValue, ...]
-    global_state_reset: bool
-    local_persistence_reset: bool
+    global_state_reset: Boolean
+    local_persistence_reset: Boolean
 
 
 def campaign_replay_plan(

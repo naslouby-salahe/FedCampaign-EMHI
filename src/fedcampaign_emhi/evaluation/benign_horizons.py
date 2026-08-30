@@ -17,6 +17,7 @@ from fedcampaign_emhi.detection.local_policy import (
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
+    Boolean,
     ClientId,
     EpochIndexValue,
     FalseAlarmRate,
@@ -58,7 +59,7 @@ def sequential_stop_reset_epochs(
     return tuple(horizon.start_epoch for horizon in horizons)
 
 
-def horizons_are_nonoverlapping(horizons: tuple[BenignHorizon, ...]) -> bool:
+def horizons_are_nonoverlapping(horizons: tuple[BenignHorizon, ...]) -> Boolean:
     seen: list[EpochIndexValue] = []
     for horizon in horizons:
         for epoch in horizon.epoch_indexes:
@@ -93,7 +94,7 @@ def horizon_trajectory(
 def _trajectory_stops(
     trajectory: SequentialTrajectory,
     threshold: ThresholdValue,
-) -> bool:
+) -> Boolean:
     return global_stop_epoch(trajectory, threshold) is not None
 
 
@@ -174,7 +175,7 @@ def _horizon_exceedances(
     client_id: ClientId,
     horizon: BenignHorizonRecord,
     threshold: ThresholdValue,
-) -> tuple[bool, ...]:
+) -> tuple[Boolean, ...]:
     return tuple(
         score_exceeds_threshold(score, threshold)
         for score in scores_for_epochs(scores, client_id, horizon.epoch_indexes)

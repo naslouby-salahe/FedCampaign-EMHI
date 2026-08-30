@@ -4,6 +4,7 @@ from typing import cast
 from sklearn import metrics as sklearn_metrics
 
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     CensoredPlotEpoch,
     ClientCount,
     CoalitionCount,
@@ -218,7 +219,7 @@ def paired_stopping_time_difference(
 
 
 def paired_detection_indicator_difference(
-    emhi_detected: bool, comparison_detected: bool
+    emhi_detected: Boolean, comparison_detected: Boolean
 ) -> OdiIndicator:
     return int(emhi_detected) - int(comparison_detected)
 
@@ -308,7 +309,7 @@ def outside_conditioning_power_loss(
     return no_outside_context_detection_rate - emhi_detection_rate
 
 
-def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDefinedMetric:
+def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUROC requires aligned scores and labels")
     positives = sum(1 for label in labels if label)
@@ -319,7 +320,7 @@ def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDef
     return MaybeDefinedMetric.defined(float(raw_value))
 
 
-def auprc(scores: tuple[FiniteFloat, ...], labels: tuple[bool, ...]) -> MaybeDefinedMetric:
+def auprc(scores: tuple[FiniteFloat, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUPRC requires aligned scores and labels")
     positives = sum(1 for label in labels if label)
