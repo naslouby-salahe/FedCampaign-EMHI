@@ -15,6 +15,8 @@ from fedcampaign_emhi.domain.enums import (
     MethodName,
 )
 from fedcampaign_emhi.domain.types import (
+    ClientCount,
+    ClientId,
     ComponentName,
     FiniteFloat,
     SeedValue,
@@ -33,6 +35,13 @@ from fedcampaign_emhi.synthetic.pure_order import (
     fitted_method_pure_order_metrics,
     sample_independent_uniform_ranks,
     validate_generator_purity,
+)
+from fedcampaign_emhi.synthetic.robustness import (
+    availability_mask,
+    contaminate_rank,
+    contaminated_outside_clients,
+    dropout_coalition_is_active,
+    outside_contamination_targets,
 )
 from fedcampaign_emhi.synthetic.self_explanation import (
     evaluate_self_explanation_seed,
@@ -76,8 +85,6 @@ class SyntheticCellOutcome:
 _MISSING_CONTRACT_SPECIFIC_PRODUCERS = frozenset(
     {
         ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE,
-        ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY,
-        ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY,
     }
 )
 
@@ -183,6 +190,70 @@ def _evaluate_hofd_equivalence_seed(
     )
 
 
+def _synthetic_robustness_client_ids(client_count: ClientCount) -> tuple[ClientId, ...]:
+    return tuple(f"synthetic-robustness-{index}" for index in range(client_count))
+
+
+def _evaluate_outside_contamination_seed(
+    loaded: LoadedScientificConfiguration, seed: SeedValue
+) -> SyntheticCellOutcome:
+    config = loaded.values
+    specification = config.generators.outside_contamination
+    client_ids = _synthetic_robustness_client_ids(specification.client_count)
+    target = outside_contamination_targets(client_ids)
+    outside = tuple(client_id for client_id in client_ids if client_id not in target)
+    records: list[YamlNode] = []
+    for fraction in specification.correlated_campaign_fractions:
+        contaminated = contaminated_outside_clients(outside, fraction)
+        transformed = tuple(
+            contaminate_rank(
+                sample_independent_uniform_ranks(specification.client_count, seed + index)[0],
+                specification.outside_rank_shift,
+                config.context.rank_clip_epsilon,
+            )
+            for index, _client_id in enumerate(contaminated)
+        )
+        records.append(
+            {
+                "correlated_campaign_fraction": fraction,
+                "contaminated_outside_client_ids": contaminated,
+                "transformed_rank_count": len(transformed),
+            }
+        )
+    return SyntheticCellOutcome(
+        (),
+        None,
+        {"target_client_ids": target, "contamination_conditions": records},
+    )
+
+
+def _evaluate_dropout_sparsity_seed(
+    loaded: LoadedScientificConfiguration, seed: SeedValue
+) -> SyntheticCellOutcome:
+    config = loaded.values
+    client_ids = _synthetic_robustness_client_ids(
+        config.generators.outside_contamination.client_count
+    )
+    target = outside_contamination_targets(client_ids)
+    records: list[YamlNode] = []
+    for fraction in config.generators.client_dropout.unavailable_fractions:
+        available = availability_mask(client_ids, fraction, seed)
+        records.append(
+            {
+                "unavailable_fraction": fraction,
+                "available_client_ids": available,
+                "target_coalition_active": dropout_coalition_is_active(
+                    target,
+                    available,
+                    client_ids,
+                    config.context.minimum_available_outside_clients,
+                    config.context.minimum_available_outside_fraction,
+                ),
+            }
+        )
+    return SyntheticCellOutcome((), None, {"dropout_conditions": records})
+
+
 def synthetic_role_seeds(
     loaded: LoadedScientificConfiguration, role: ExecutionRole
 ) -> tuple[SeedValue, ...]:
@@ -199,6 +270,10 @@ def run_synthetic_cell(
     execution_role: ExecutionRole = ExecutionRole.CONFIRMATORY,
 ) -> SyntheticCellOutcome:
     config = loaded.values
+    if experiment_name is ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY:
+        return _evaluate_outside_contamination_seed(loaded, seed)
+    if experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
+        return _evaluate_dropout_sparsity_seed(loaded, seed)
     if experiment_name is ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE:
         if method_name not in {
             MethodName.FULL_FEDCAMPAIGN_EMHI,
