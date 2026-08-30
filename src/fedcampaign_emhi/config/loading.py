@@ -21,9 +21,9 @@ from fedcampaign_emhi.config.validation import (
 from fedcampaign_emhi.domain.enums import ConfigurationProfile
 from fedcampaign_emhi.domain.types import (
     BinCount,
-    DeterministicUtf8Bytes,
     ConfidenceLevel,
     ConfigurationDigest,
+    DeterministicUtf8Bytes,
     FalseAlarmRate,
     PositiveInt,
     RankValue,

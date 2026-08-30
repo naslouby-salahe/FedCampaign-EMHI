@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, ConfigurationDigest
+from fedcampaign_emhi.domain.types import ConfigurationDigest, DeterministicUtf8Bytes
 from fedcampaign_emhi.runtime.determinism import deterministic_digest, deterministic_utf8_bytes
 
 

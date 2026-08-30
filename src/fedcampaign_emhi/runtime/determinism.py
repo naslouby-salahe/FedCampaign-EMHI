@@ -4,8 +4,8 @@ import rfc8785
 
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.types import (
-    DeterministicUtf8Bytes,
     ConfigurationDigest,
+    DeterministicUtf8Bytes,
     SeedDerivationIdentity,
     SeedValue,
     ThirtyTwoBitSeed,
