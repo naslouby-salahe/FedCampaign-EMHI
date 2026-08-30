@@ -67,6 +67,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    Boolean,
     ComponentName,
     ConfigurationDigest,
     EpochIndexValue,
@@ -144,7 +145,7 @@ class _EmhiMethodSpecification:
     method_name: MethodName
     context_method: ContextMethodName
     maximum_order: CoalitionOrder
-    purification_enabled: bool
+    purification_enabled: Boolean
 
 
 @dataclass(frozen=True)
@@ -300,7 +301,7 @@ def publish_experiment_run_record(
 
 def _completed_cell_is_reusable(
     repository: Path, path: Path, material_digest: ConfigurationDigest
-) -> bool:
+) -> Boolean:
     try:
         cell = ScientificCellRecord.model_validate_json(path.read_bytes())
     except ValueError:

@@ -83,6 +83,7 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
+    Boolean,
     ClientBenignTally,
     ClientId,
     ClientMaliciousEpochs,
@@ -176,7 +177,7 @@ def preprocessing_dependency_graph(dataset_name: DatasetName) -> tuple[ArtifactD
 
 
 def nearest_reconstruction_layer(
-    reusable: tuple[bool, ...], overwrite_policy: OverwritePolicy
+    reusable: tuple[Boolean, ...], overwrite_policy: OverwritePolicy
 ) -> PreprocessingLayer | None:
     if overwrite_policy is OverwritePolicy.OVERWRITE:
         return PREPROCESSING_LAYER_ORDER[0]
@@ -417,7 +418,7 @@ def _layer_is_reusable(
     dataset_name: DatasetName,
     layer: PreprocessingLayer,
     expected_fingerprint: MaterialDependencyFingerprint,
-) -> bool:
+) -> Boolean:
     manifest = _read_manifest(layout, dataset_name, layer)
     if manifest is None or manifest.lifecycle_state is not ArtifactLifecycleState.VALID:
         return False
@@ -1180,7 +1181,7 @@ def _downstream_invalidation(
     layer: PreprocessingLayer,
     previous: MaterialDependencyFingerprint | None,
     current: MaterialDependencyFingerprint,
-    reconstructed_and_changed: bool,
+    reconstructed_and_changed: Boolean,
 ) -> tuple[ArtifactIdentity, ...]:
     if not reconstructed_and_changed or previous is None or previous == current:
         return ()
@@ -1198,7 +1199,9 @@ def _structural_fingerprint(artifact_id: ArtifactIdentity) -> MaterialDependency
     return hashlib.sha256(artifact_id.encode("utf-8")).hexdigest()
 
 
-def _is_protected_downstream(dataset_name: DatasetName, artifact_id: ArtifactIdentity) -> bool:
+def _is_protected_downstream(
+    dataset_name: DatasetName, artifact_id: ArtifactIdentity
+) -> Boolean:
     return any(
         artifact_id == downstream_artifact_id(dataset_name, kind)
         for kind in preprocess_must_not_regenerate()

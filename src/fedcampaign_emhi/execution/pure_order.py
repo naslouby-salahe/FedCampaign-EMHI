@@ -18,7 +18,7 @@ from fedcampaign_emhi.domain.enums import (
     DetectorFamily,
     MethodName,
 )
-from fedcampaign_emhi.domain.types import ClientId, FiniteFloat, SeedValue
+from fedcampaign_emhi.domain.types import Boolean, ClientId, FiniteFloat, SeedValue
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.campaign_replay import coalition_evidence_at_epoch
@@ -34,7 +34,7 @@ from fedcampaign_emhi.synthetic.pure_order import (
 @dataclass(frozen=True)
 class FittedPureOrderResult:
     metrics: PureOrderDriftMetrics
-    artifact_path_complete: bool
+    artifact_path_complete: Boolean
 
 
 def evaluate_comparator_pure_order_cell(
@@ -77,7 +77,7 @@ def evaluate_comparator_pure_order_cell(
 
 def emhi_method_settings(
     method: MethodName,
-) -> tuple[ContextMethodName, CoalitionOrder, bool] | None:
+) -> tuple[ContextMethodName, CoalitionOrder, Boolean] | None:
     if method is MethodName.FULL_FEDCAMPAIGN_EMHI:
         return ContextMethodName.EXACT_COALITION_EXCLUSION, CoalitionOrder.THREE, True
     if method is MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI:

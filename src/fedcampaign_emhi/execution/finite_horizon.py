@@ -17,6 +17,7 @@ from fedcampaign_emhi.domain.enums import (
     MethodName,
 )
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     ComponentName,
@@ -50,7 +51,7 @@ class FiniteHorizonSeedMetrics:
 @dataclass(frozen=True)
 class FiniteHorizonSeedResult:
     metrics: FiniteHorizonSeedMetrics
-    assumptions_hold: bool
+    assumptions_hold: Boolean
 
 
 def _seed(seed: SeedValue, component: ComponentName, horizon: SeedValue) -> SeedValue:
