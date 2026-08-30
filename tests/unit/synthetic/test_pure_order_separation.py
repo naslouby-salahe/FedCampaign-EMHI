@@ -311,19 +311,10 @@ def test_every_declared_emhi_variant_has_fitted_artifact_settings() -> None:
     assert missing == ()
 
 
-def test_incomplete_synthetic_contracts_fail_closed_instead_of_generating_smoke_evidence() -> None:
-    loaded = load_production_configuration()
+def test_hofd_equivalence_is_not_registered_as_an_unimplemented_synthetic_stub() -> None:
+    from fedcampaign_emhi.experiments.producers import _MISSING_CONTRACT_SPECIFIC_PRODUCERS
 
-    outcome = run_synthetic_cell(
-        loaded,
-        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
-        loaded.values.randomness.synthetic_confirmatory_roots[0],
-        MethodName.FULL_FEDCAMPAIGN_EMHI,
+    assert (
+        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE
+        not in _MISSING_CONTRACT_SPECIFIC_PRODUCERS
     )
-
-    assert outcome.failed_checks == ("missing contract-specific synthetic producer",)
-    assert outcome.method_score is None
-    assert outcome.evidence == {
-        "implementation_state": "missing_contract_specific_producer",
-        "required_experiment": ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE.value,
-    }

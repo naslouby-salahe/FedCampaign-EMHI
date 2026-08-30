@@ -1,5 +1,10 @@
 from dataclasses import dataclass
 
+from fedcampaign_emhi.comparators.hofd_equivalence import (
+    cosine_equivalence_gate,
+    nrmse_equivalence_gate,
+    paired_atom_metrics,
+)
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -14,6 +19,10 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     SeedValue,
 )
+from fedcampaign_emhi.emhi.basis import tensor_representation
+from fedcampaign_emhi.emhi.innovation_calibration import calibrate_innovations_on_nuisance_fit
+from fedcampaign_emhi.emhi.innovations import projection_residual
+from fedcampaign_emhi.emhi.projection import proper_subset_design_row, ridge_coefficient_matrix
 from fedcampaign_emhi.synthetic.context_boundaries import primary_feasibility_context_support
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
@@ -22,6 +31,7 @@ from fedcampaign_emhi.synthetic.feasibility import (
 from fedcampaign_emhi.synthetic.pure_order import (
     enumerate_pure_order_grid,
     fitted_method_pure_order_metrics,
+    sample_independent_uniform_ranks,
     validate_generator_purity,
 )
 from fedcampaign_emhi.synthetic.self_explanation import (
@@ -65,12 +75,112 @@ class SyntheticCellOutcome:
 
 _MISSING_CONTRACT_SPECIFIC_PRODUCERS = frozenset(
     {
-        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
         ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE,
         ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY,
         ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY,
     }
 )
+
+
+def _evaluate_hofd_equivalence_seed(
+    loaded: LoadedScientificConfiguration,
+    seed: SeedValue,
+) -> SyntheticCellOutcome:
+    """Compare the fitted EMHI residual with the exclusion-matched HOFD residual.
+
+    Each configured support level is an independent held-out condition.  EMHI
+    uses its configured cross-fitted calibration route; HOFD uses its declared
+    ridge/SVD route on the identical rank rows.  This keeps the comparison
+    paired without silently substituting a proxy scorer.
+    """
+    config = loaded.values
+    experiment = config.experiments.exclusion_matched_hofd_equivalence
+    materiality = config.claim_materiality.hofd_equivalence
+    client_count = config.experiments.pure_order_separation_validation.primary_client_count
+    condition_records: list[YamlNode] = []
+    failures: list[ComponentName] = []
+    for support in experiment.primary_support_levels:
+        calibration_rows = tuple(
+            sample_independent_uniform_ranks(client_count, seed + index)[:3]
+            for index in range(support)
+        )
+        heldout_count = (
+            config.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
+        )
+        heldout_rows = tuple(
+            sample_independent_uniform_ranks(client_count, seed + support + index)[:3]
+            for index in range(heldout_count)
+        )
+        calibration_design_rows = tuple(
+            proper_subset_design_row(row, config.basis.primary_size) for row in calibration_rows
+        )
+        calibration_tensors = tuple(
+            tensor_representation(row, config.basis.primary_size) for row in calibration_rows
+        )
+        calibration = calibrate_innovations_on_nuisance_fit(
+            calibration_design_rows,
+            calibration_tensors,
+            config.projection.ridge_candidates,
+            config.projection.cross_validation.fold_count,
+            config.projection.selection_tie_tolerance_mse,
+            config.projection.zero_ridge_svd_relative_cutoff,
+            config.projection.atom_scale_floor,
+        )
+        if calibration is None:
+            failures.append(f"HOFD equivalence calibration support {support}")
+            continue
+        heldout_design_rows = tuple(
+            proper_subset_design_row(row, config.basis.primary_size) for row in heldout_rows
+        )
+        heldout_tensors = tuple(
+            tensor_representation(row, config.basis.primary_size) for row in heldout_rows
+        )
+        emhi_atoms = tuple(
+            projection_residual(tensor, calibration.complete_nuisance_coefficients, design)
+            for tensor, design in zip(heldout_tensors, heldout_design_rows, strict=True)
+        )
+        hofd_coefficients = ridge_coefficient_matrix(
+            calibration_design_rows,
+            calibration_tensors,
+            config.comparators.exclusion_matched_conditional_hofd.ridge_penalty,
+            config.comparators.exclusion_matched_conditional_hofd.relative_singular_cutoff,
+        )
+        hofd_atoms = tuple(
+            projection_residual(tensor, hofd_coefficients, design)
+            for tensor, design in zip(heldout_tensors, heldout_design_rows, strict=True)
+        )
+        metrics = paired_atom_metrics(
+            emhi_atoms,
+            hofd_atoms,
+            config.numerics.metric_denominator_floor,
+        )
+        nrmse_passes = nrmse_equivalence_gate(metrics.nrmse, materiality.atom_nrmse_upper_margin)
+        cosine_passes = cosine_equivalence_gate(
+            metrics.cosine_similarity, materiality.minimum_cosine_similarity
+        )
+        if not nrmse_passes:
+            failures.append(f"HOFD atom NRMSE support {support}")
+        if not cosine_passes:
+            failures.append(f"HOFD atom cosine support {support}")
+        condition_records.append(
+            {
+                "support_per_context": support,
+                "heldout_samples": heldout_count,
+                "atom_nrmse": metrics.nrmse,
+                "atom_cosine_similarity": metrics.cosine_similarity,
+                "nrmse_equivalence_passes": nrmse_passes,
+                "cosine_equivalence_passes": cosine_passes,
+            }
+        )
+    return SyntheticCellOutcome(
+        tuple(failures),
+        None,
+        {
+            "comparison": "paired exclusion-matched EMHI and HOFD atom residuals",
+            "context_cell_count": experiment.context_cell_count,
+            "conditions": condition_records,
+        },
+    )
 
 
 def synthetic_role_seeds(
@@ -89,6 +199,13 @@ def run_synthetic_cell(
     execution_role: ExecutionRole = ExecutionRole.CONFIRMATORY,
 ) -> SyntheticCellOutcome:
     config = loaded.values
+    if experiment_name is ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE:
+        if method_name not in {
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD,
+        }:
+            raise ValueError("HOFD equivalence requires a declared paired method")
+        return _evaluate_hofd_equivalence_seed(loaded, seed)
     if experiment_name is ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY:
         sequence = primary_feasibility_context_support(config, seed)
         evaluations = evaluate_estimator_feasibility_seed(config, seed, execution_role)
