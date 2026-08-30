@@ -7,7 +7,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "fedcampaign_emhi"
-PRIMITIVE_NAMES = frozenset({"str", "int", "float", "object", "Any", "bytes"})
+PRIMITIVE_NAMES = frozenset({"str", "int", "float", "bool", "object", "Any", "bytes"})
 LEAK_CONTAINER_NAMES = frozenset({"dict", "list", "set", "Dict", "List", "Set"})
 LOCAL_LEAK_CONTAINER_NAMES = frozenset({"dict", "Dict"})
 LAYERS = (

@@ -415,7 +415,7 @@ def sequential_trajectory(
         for epoch_index in epoch_indexes
     )
     active_history: list[tuple[ClientId, ...]] = []
-    support: list[bool] = []
+    support: list[Boolean] = []
     for record in records:
         active_history.append(record.materially_active_client_ids)
         support.append(
