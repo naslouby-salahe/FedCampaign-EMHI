@@ -1199,9 +1199,7 @@ def _structural_fingerprint(artifact_id: ArtifactIdentity) -> MaterialDependency
     return hashlib.sha256(artifact_id.encode("utf-8")).hexdigest()
 
 
-def _is_protected_downstream(
-    dataset_name: DatasetName, artifact_id: ArtifactIdentity
-) -> Boolean:
+def _is_protected_downstream(dataset_name: DatasetName, artifact_id: ArtifactIdentity) -> Boolean:
     return any(
         artifact_id == downstream_artifact_id(dataset_name, kind)
         for kind in preprocess_must_not_regenerate()

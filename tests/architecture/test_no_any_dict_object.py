@@ -20,9 +20,7 @@ def _file_violations(path: Path) -> list[str]:
     return violations
 
 
-@pytest.mark.parametrize(
-    "path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix()
-)
+@pytest.mark.parametrize("path", source_files(), ids=lambda p: p.relative_to(SRC_ROOT).as_posix())
 def test_no_any_dict_object(path: Path) -> None:
     assert _file_violations(path) == []
 

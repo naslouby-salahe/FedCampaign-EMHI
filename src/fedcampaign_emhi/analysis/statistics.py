@@ -156,9 +156,7 @@ def degenerate_bootstrap_interval(observed: FiniteFloat) -> tuple[FiniteFloat, F
     return (observed, observed)
 
 
-def bootstrap_is_degenerate(
-    observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]
-) -> Boolean:
+def bootstrap_is_degenerate(observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]) -> Boolean:
     return bool(replicates) and all(statistic == observed for statistic in replicates)
 
 

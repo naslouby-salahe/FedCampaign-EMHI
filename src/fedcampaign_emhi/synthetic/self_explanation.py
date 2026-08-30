@@ -167,9 +167,7 @@ def material_attenuation_gate(
     return attenuation_contrast >= minimum_attenuation_difference
 
 
-def primary_directional_test_passes(
-    adjusted_p_value: Probability, alpha: Probability
-) -> Boolean:
+def primary_directional_test_passes(adjusted_p_value: Probability, alpha: Probability) -> Boolean:
     return adjusted_p_value < alpha
 
 
