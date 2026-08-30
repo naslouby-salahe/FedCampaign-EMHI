@@ -1,4 +1,5 @@
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     EpochCount,
@@ -18,13 +19,13 @@ def next_global_state(previous_state: FiniteFloat, evidence_factor: EvidenceFact
     return (previous_state + 1.0) * evidence_factor
 
 
-def threshold_predicate(global_state: FiniteFloat, threshold: ThresholdValue) -> bool:
+def threshold_predicate(global_state: FiniteFloat, threshold: ThresholdValue) -> Boolean:
     return global_state >= threshold
 
 
 def distributed_support_predicate(
     window_client_ids: tuple[ClientId, ...], minimum_clients: ClientCount
-) -> bool:
+) -> Boolean:
     return len(set(window_client_ids)) >= minimum_clients
 
 
@@ -33,7 +34,7 @@ def statistical_stop(
     threshold: ThresholdValue,
     window_client_ids: tuple[ClientId, ...],
     minimum_clients: ClientCount,
-) -> bool:
+) -> Boolean:
     return threshold_predicate(global_state, threshold) and distributed_support_predicate(
         window_client_ids, minimum_clients
     )
@@ -47,7 +48,7 @@ def trailing_window_length(window_epochs: EpochCount, elapsed_epochs: EpochCount
 
 def coalition_materially_active(
     operational_factor: EvidenceFactor, material_threshold: EvidenceFactor
-) -> bool:
+) -> Boolean:
     return operational_factor >= material_threshold
 
 
@@ -71,7 +72,7 @@ def trailing_window_support_predicate(
     active_client_ids_per_epoch: tuple[tuple[ClientId, ...], ...],
     window_epochs: PositiveEpochCount,
     minimum_clients: ClientCount,
-) -> bool:
+) -> Boolean:
     return distributed_support_predicate(
         trailing_support_window_client_ids(active_client_ids_per_epoch, window_epochs),
         minimum_clients,
@@ -80,7 +81,7 @@ def trailing_window_support_predicate(
 
 def first_global_stop_epoch(
     evidence_factors: tuple[EvidenceFactor, ...],
-    support_predicates: tuple[bool, ...],
+    support_predicates: tuple[Boolean, ...],
     threshold: ThresholdValue,
 ) -> EpochIndexValue | None:
     if len(evidence_factors) != len(support_predicates):

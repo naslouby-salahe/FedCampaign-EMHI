@@ -1,6 +1,6 @@
 import statistics
 
-from fedcampaign_emhi.domain.types import FiniteFloat, NumericalFloor, RecordCount
+from fedcampaign_emhi.domain.types import Boolean, FiniteFloat, NumericalFloor, RecordCount
 
 
 def sample_mean(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
@@ -56,7 +56,7 @@ def projection_residual(
     return tuple(left - right for left, right in zip(tensor, predicted, strict=True))
 
 
-def unsupported_context_observation_count(observation_count: RecordCount) -> bool:
+def unsupported_context_observation_count(observation_count: RecordCount) -> Boolean:
     return observation_count < 2
 
 

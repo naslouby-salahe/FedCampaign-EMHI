@@ -4,6 +4,7 @@ import numpy as np
 
 from fedcampaign_emhi.domain.enums import EvidencePath
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     EvidenceFactor,
     FiniteFloat,
     NumericalFloor,
@@ -72,7 +73,7 @@ def operational_evidence_factor(
     return exp(bet_lambda * statistic - OPERATIONAL_EVIDENCE_COMPENSATOR)
 
 
-def signed_direction_is_fixed_before_evaluation(direction: tuple[FiniteFloat, ...]) -> bool:
+def signed_direction_is_fixed_before_evaluation(direction: tuple[FiniteFloat, ...]) -> Boolean:
     return any(coordinate > 0.0 or coordinate < 0.0 for coordinate in direction)
 
 
@@ -101,7 +102,7 @@ def signed_statistic(
     return clip_statistic(projected, clip_bound)
 
 
-def signed_conditional_null_holds(expected_statistic: FiniteFloat) -> bool:
+def signed_conditional_null_holds(expected_statistic: FiniteFloat) -> Boolean:
     return expected_statistic <= SIGNED_NULL_EXPECTATION_UPPER_BOUND
 
 

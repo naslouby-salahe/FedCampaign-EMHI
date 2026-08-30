@@ -3,6 +3,7 @@ import numpy as np
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
     BasisSize,
+    Boolean,
     DesignColumnCount,
     EpochIndexValue,
     FiniteFloat,
@@ -53,7 +54,7 @@ def proper_subset_design_row(
     return intercept + tuple(singletons) + tuple(pair_coordinates)
 
 
-def blocked_fit_is_supported(observation_count: RecordCount, fold_count: FoldCount) -> bool:
+def blocked_fit_is_supported(observation_count: RecordCount, fold_count: FoldCount) -> Boolean:
     return observation_count >= fold_count
 
 
