@@ -5,6 +5,7 @@ import numpy as np
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ESrThreshold,
     EvidenceFactor,
     FiniteFloat,
@@ -36,7 +37,7 @@ class SignedTheoremSeedMetrics:
 @dataclass(frozen=True)
 class SignedTheoremSeedResult:
     metrics: SignedTheoremSeedMetrics
-    assumptions_hold: bool
+    assumptions_hold: Boolean
 
 
 def signed_theorem_coordinate(ranks: tuple[FiniteFloat, FiniteFloat, FiniteFloat]) -> FiniteFloat:
@@ -52,7 +53,7 @@ def _trajectory_restricted_stop(
     clip_bound: FiniteFloat,
     bet_lambda: FiniteFloat,
     threshold: ESrThreshold,
-) -> tuple[RecordCount, bool, bool]:
+) -> tuple[RecordCount, Boolean, Boolean]:
     state = 0.0
     assumptions_hold = True
     for epoch in range(maximum_epochs):

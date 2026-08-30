@@ -3,6 +3,7 @@ from statistics import NormalDist
 
 from fedcampaign_emhi.domain.enums import ExperimentalUnitKind
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientId,
     FiniteFloat,
     PairingKey,
@@ -20,7 +21,7 @@ def sign_flip_assignment_count(confirmatory_seed_count: RecordCount) -> RecordCo
 
 
 def sign_flip_p_value(
-    observed: FiniteFloat, flipped: tuple[FiniteFloat, ...], alternative_greater: bool
+    observed: FiniteFloat, flipped: tuple[FiniteFloat, ...], alternative_greater: Boolean
 ) -> Probability:
     if not flipped:
         raise ValueError("flipped statistics must be non-empty")
@@ -93,7 +94,7 @@ def one_sided_synthetic_sign_flip_p_value(
 
 def enumerate_exact_when_family_fits(
     unit_count: RecordCount, maximum_replicates: RecordCount
-) -> bool:
+) -> Boolean:
     return sign_flip_assignment_count(unit_count) <= maximum_replicates
 
 
@@ -147,7 +148,7 @@ def interval_establishes_equivalence(
     upper: FiniteFloat,
     region_lower: FiniteFloat,
     region_upper: FiniteFloat,
-) -> bool:
+) -> Boolean:
     return lower >= region_lower and upper <= region_upper
 
 
@@ -155,7 +156,9 @@ def degenerate_bootstrap_interval(observed: FiniteFloat) -> tuple[FiniteFloat, F
     return (observed, observed)
 
 
-def bootstrap_is_degenerate(observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]) -> bool:
+def bootstrap_is_degenerate(
+    observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]
+) -> Boolean:
     return bool(replicates) and all(statistic == observed for statistic in replicates)
 
 

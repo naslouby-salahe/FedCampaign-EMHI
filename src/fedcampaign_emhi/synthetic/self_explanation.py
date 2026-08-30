@@ -8,6 +8,7 @@ from fedcampaign_emhi.domain.enums import (
     NuisanceTransformName,
 )
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     ClientIndex,
@@ -155,18 +156,20 @@ def enumerate_self_exclusion_grid(config: ScientificConfig) -> SelfExclusionPlan
 
 def exact_nuisance_derivative_within_margin(
     exact_derivative: FiniteFloat, margin_fraction_of_direct: Probability
-) -> bool:
+) -> Boolean:
     direct = analytic_direct_derivative()
     return abs(exact_derivative) <= margin_fraction_of_direct * abs(direct)
 
 
 def material_attenuation_gate(
     attenuation_contrast: FiniteFloat, minimum_attenuation_difference: FiniteFloat
-) -> bool:
+) -> Boolean:
     return attenuation_contrast >= minimum_attenuation_difference
 
 
-def primary_directional_test_passes(adjusted_p_value: Probability, alpha: Probability) -> bool:
+def primary_directional_test_passes(
+    adjusted_p_value: Probability, alpha: Probability
+) -> Boolean:
     return adjusted_p_value < alpha
 
 

@@ -3,6 +3,7 @@ from math import floor
 import numpy as np
 
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     FiniteFloat,
@@ -63,7 +64,7 @@ def dropout_coalition_is_active(
     selected_client_ids: tuple[ClientId, ...],
     minimum_available_outside_clients: ClientCount,
     minimum_available_outside_fraction: Probability,
-) -> bool:
+) -> Boolean:
     available = set(available_client_ids)
     if any(member not in available for member in coalition_client_ids):
         return False
