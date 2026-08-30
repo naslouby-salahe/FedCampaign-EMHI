@@ -15,6 +15,7 @@ from fedcampaign_emhi.comparators.composition import (
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, MethodName
+from fedcampaign_emhi.domain.types import Boolean
 from fedcampaign_emhi.execution.runner import resolve_comparator_scoring_method
 from fedcampaign_emhi.experiments.definitions import (
     experiment_registry,
@@ -23,16 +24,18 @@ from fedcampaign_emhi.experiments.definitions import (
 
 
 def test_native_target_order_mapping_is_locked() -> None:
-    assert native_target_order_is(MethodName.CONDITIONAL_PAIR_DEPENDENCE, 2)
-    assert native_target_order_is(MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE, 3)
-    assert native_target_order_is(MethodName.CONNECTED_INFORMATION_REFERENCE, 3)
-    assert native_target_order_is(MethodName.D_VINE_CONDITIONAL_REFERENCE, 3)
-    assert native_target_order_is(MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE, 3)
+    assert native_target_order_is(MethodName.CONDITIONAL_PAIR_DEPENDENCE, CoalitionOrder.TWO)
+    assert native_target_order_is(
+        MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE, CoalitionOrder.THREE
+    )
+    assert native_target_order_is(MethodName.CONNECTED_INFORMATION_REFERENCE, CoalitionOrder.THREE)
+    assert native_target_order_is(MethodName.D_VINE_CONDITIONAL_REFERENCE, CoalitionOrder.THREE)
+    assert native_target_order_is(MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE, CoalitionOrder.THREE)
 
 
-def native_target_order_is(method: MethodName, order_value: int) -> bool:
+def native_target_order_is(method: MethodName, order_value: CoalitionOrder) -> Boolean:
     order = native_target_order(method)
-    return order is not None and int(order) == order_value
+    return order is order_value
 
 
 def test_eligibility_requires_all_three_conditions() -> None:
