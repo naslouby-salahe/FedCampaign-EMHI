@@ -1,3 +1,5 @@
+from collections import UserDict
+
 from fedcampaign_emhi.artifacts.records import (
     BenignHorizonRecord,
     BenignPartitionRecord,
@@ -19,6 +21,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndexValue,
     FalseAlarmRate,
     LocalPolicyArtifact,
+    MaterialDependencyFingerprint,
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.thresholds import (
@@ -36,6 +39,17 @@ from fedcampaign_emhi.evaluation.records import (
     OperationalCalibration,
     SequentialTrajectory,
 )
+
+type TrajectoryCacheKey = tuple[
+    MaterialDependencyFingerprint,
+    MaterialDependencyFingerprint,
+    tuple[EpochIndexValue, ...],
+    CoalitionOrder | None,
+]
+
+
+class TrajectoryCache(UserDict[TrajectoryCacheKey, SequentialTrajectory]):
+    __slots__ = ()
 
 
 def sequential_stop_reset_epochs(
@@ -60,8 +74,20 @@ def horizon_trajectory(
     fit: EMHIFitArtifactRecord,
     horizon: BenignHorizonRecord,
     maximum_order: CoalitionOrder | None = None,
+    trajectory_cache: TrajectoryCache | None = None,
 ) -> SequentialTrajectory:
-    return sequential_trajectory(config, ranks, fit, horizon.epoch_indexes, maximum_order)
+    key = (
+        ranks.dependency_fingerprint,
+        fit.dependency_fingerprint,
+        horizon.epoch_indexes,
+        maximum_order,
+    )
+    if trajectory_cache is not None and key in trajectory_cache:
+        return trajectory_cache[key]
+    trajectory = sequential_trajectory(config, ranks, fit, horizon.epoch_indexes, maximum_order)
+    if trajectory_cache is not None:
+        trajectory_cache[key] = trajectory
+    return trajectory
 
 
 def _trajectory_stops(
@@ -77,6 +103,7 @@ def calibrate_global_operating_point(
     fit: EMHIFitArtifactRecord,
     partitions: BenignPartitionRecord,
     maximum_order: CoalitionOrder | None = None,
+    trajectory_cache: TrajectoryCache | None = None,
 ) -> CalibratedGlobalOperatingPoint:
     calibration_horizons = partitions.calibration_horizons
     heldout_horizons = partitions.heldout_horizons
@@ -91,7 +118,7 @@ def calibrate_global_operating_point(
         )
     candidates = config.evidence.calibrated_finite_horizon.threshold_candidates
     calibration_trajectories = tuple(
-        horizon_trajectory(config, ranks, fit, horizon, maximum_order)
+        horizon_trajectory(config, ranks, fit, horizon, maximum_order, trajectory_cache)
         for horizon in calibration_horizons
     )
     calibration_counts = tuple(
@@ -117,7 +144,7 @@ def calibrate_global_operating_point(
             heldout_upper_pfa=None,
         )
     heldout_trajectories = tuple(
-        horizon_trajectory(config, ranks, fit, horizon, maximum_order)
+        horizon_trajectory(config, ranks, fit, horizon, maximum_order, trajectory_cache)
         for horizon in heldout_horizons
     )
     heldout_false_stops = sum(
@@ -258,6 +285,7 @@ def calibrate_operating_points(
     partitions: BenignPartitionRecord,
     target_pfa: FalseAlarmRate,
     maximum_order: CoalitionOrder | None = None,
+    trajectory_cache: TrajectoryCache | None = None,
 ) -> OperationalCalibration:
     return OperationalCalibration(
         global_operating_point=calibrate_global_operating_point(
@@ -266,6 +294,7 @@ def calibrate_operating_points(
             fit,
             partitions,
             maximum_order,
+            trajectory_cache,
         ),
         local_operating_points=tuple(
             calibrate_client_local_operating_point(
@@ -288,6 +317,7 @@ def heldout_benign_false_stop_records(
     partitions: BenignPartitionRecord,
     threshold: ThresholdValue,
     maximum_order: CoalitionOrder | None = None,
+    trajectory_cache: TrajectoryCache | None = None,
 ) -> tuple[tuple[BenignHorizonRecord, SequentialTrajectory, EpochIndexValue | None], ...]:
     return tuple(
         (
@@ -296,5 +326,7 @@ def heldout_benign_false_stop_records(
             global_stop_epoch(trajectory, threshold),
         )
         for horizon in partitions.heldout_horizons
-        for trajectory in (horizon_trajectory(config, ranks, fit, horizon, maximum_order),)
+        for trajectory in (
+            horizon_trajectory(config, ranks, fit, horizon, maximum_order, trajectory_cache),
+        )
     )

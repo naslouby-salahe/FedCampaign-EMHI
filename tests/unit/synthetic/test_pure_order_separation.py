@@ -1,17 +1,28 @@
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
+    ContextMethodName,
     ExperimentName,
     GeneratorName,
+    MethodName,
+)
+from fedcampaign_emhi.execution.pure_order import (
+    emhi_method_settings,
+    evaluate_fitted_pure_order_cell,
 )
 from fedcampaign_emhi.experiments.definitions import experiment_registry
+from fedcampaign_emhi.experiments.producers import run_synthetic_cell
 from fedcampaign_emhi.synthetic.pure_order import (
     GeneratorPurityReport,
     context_dependent_pure_triple_marginals,
     enumerate_pure_order_grid,
     generator_effects,
+    generator_enabled_orders,
     mixed_order_absent_terms_integrate_to_zero,
     polynomial_density,
+    pure_order_drift_metrics,
+    sample_context_dependent_pure_triple_ranks,
+    sample_mixed_order_ranks,
     validate_generator_purity,
     xor_exact_marginals,
 )
@@ -59,7 +70,9 @@ def test_purity_validator_rejects_out_of_envelope_theta() -> None:
 def test_xor_exact_marginals_hold_for_configured_strengths() -> None:
     loaded = load_production_configuration()
     for strength in loaded.values.generators.xor.strengths:
-        assert xor_exact_marginals(strength)
+        assert xor_exact_marginals(
+            strength, loaded.values.numerics.deterministic_comparison_tolerance
+        )
 
 
 def test_context_dependent_triple_marginal_check() -> None:
@@ -101,6 +114,40 @@ def test_generator_effects_are_configured_not_inferred() -> None:
         generator_effects(config, GeneratorName.XOR_PARITY_TRIPLE)
         == config.generators.xor.strengths
     )
+    assert generator_effects(config, GeneratorName.CONTEXT_DEPENDENT_PURE_TRIPLE) == (
+        config.generators.context_dependent_triple.primary_theta,
+    )
+
+
+def test_mixed_order_grid_cells_preserve_declared_enabled_orders() -> None:
+    cell_orders = {
+        cell.generator: cell.enabled_orders
+        for cell in enumerate_pure_order_grid(load_production_configuration().values)
+    }
+
+    assert cell_orders[GeneratorName.MIXED_ORDER_ONE_PLUS_TWO] == frozenset(
+        (CoalitionOrder.ONE, CoalitionOrder.TWO)
+    )
+    assert cell_orders[GeneratorName.MIXED_ORDER_TWO_PLUS_THREE] == frozenset(
+        (CoalitionOrder.TWO, CoalitionOrder.THREE)
+    )
+    assert generator_enabled_orders(GeneratorName.MIXED_ORDER_ONE_PLUS_TWO_PLUS_THREE) == frozenset(
+        (CoalitionOrder.ONE, CoalitionOrder.TWO, CoalitionOrder.THREE)
+    )
+
+
+def test_context_dependent_and_mixed_order_samplers_emit_declared_population_rows() -> None:
+    context_dependent = sample_context_dependent_pure_triple_ranks(0.1, 1, 9, 11)
+    mixed = sample_mixed_order_ranks(
+        frozenset((CoalitionOrder.ONE, CoalitionOrder.THREE)),
+        0.05,
+        9,
+        12,
+    )
+
+    assert len(context_dependent) == 12
+    assert len(mixed) == 12
+    assert all(0.0 <= rank <= 1.0 for rank in (*context_dependent, *mixed))
 
 
 def test_complete_generator_effect_method_grid_is_enumerated() -> None:
@@ -114,3 +161,169 @@ def test_complete_generator_effect_method_grid_is_enumerated() -> None:
     assert {cell.method for cell in grid} == set(
         config.experiments.pure_order_separation_validation.methods
     )
+
+
+def test_pure_order_drift_uses_only_proper_subset_and_target_coordinates() -> None:
+    alternative = (
+        (0.25, 0.25, 0.75),
+        (0.25, 0.75, 0.25),
+        (0.75, 0.25, 0.25),
+        (0.75, 0.75, 0.75),
+    ) * 2
+    null = tuple(
+        (first, second, third)
+        for first in (0.25, 0.75)
+        for second in (0.25, 0.75)
+        for third in (0.25, 0.75)
+    )
+
+    metrics = pure_order_drift_metrics(alternative, null, CoalitionOrder.THREE, 1.0e-12)
+
+    assert metrics.maximum_proper_subset_standardized_drift == 0.0
+    assert metrics.target_order_standardized_drift > 0.0
+
+
+def test_pure_order_cell_uses_fitted_method_scoring() -> None:
+    loaded = load_production_configuration()
+    primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
+    sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
+        update={
+            "generic_nuisance_fit_epochs": 100,
+            "pure_order_independent_evaluation_samples_per_condition_seed": 5,
+        }
+    )
+    pure_order = loaded.values.experiments.pure_order_separation_validation.model_copy(
+        update={
+            "primary_client_count": 4,
+            "generators": (primary.generator,),
+            "methods": (primary.method,),
+        }
+    )
+    experiments = loaded.values.experiments.model_copy(
+        update={"pure_order_separation_validation": pure_order}
+    )
+    small_loaded = loaded.model_copy(
+        update={
+            "values": loaded.values.model_copy(
+                update={
+                    "synthetic": loaded.values.synthetic.model_copy(
+                        update={"sample_sizes": sample_sizes}
+                    ),
+                    "experiments": experiments,
+                }
+            )
+        }
+    )
+
+    outcome = run_synthetic_cell(
+        small_loaded,
+        ExperimentName.PURE_ORDER_SEPARATION_VALIDATION,
+        small_loaded.values.randomness.synthetic_confirmatory_roots[0],
+        primary.method,
+    )
+
+    assert outcome.pure_order_metrics is not None
+    assert outcome.failed_checks == (
+        "missing exact-exclusion fitted pure-order artifact grid",
+        "missing exact-exclusion fitted pure-order artifact scorer",
+    )
+    assert outcome.evidence is not None
+    assert isinstance(outcome.evidence, dict)
+    assert (
+        outcome.evidence["implementation_state"] == "partial_projection_scorer_not_claim_eligible"
+    )
+
+
+def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
+    loaded = load_production_configuration()
+    primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
+    sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
+        update={
+            "generic_nuisance_fit_epochs": 100,
+            "pure_order_independent_evaluation_samples_per_condition_seed": 5,
+        }
+    )
+    support = loaded.values.context.minimum_support_epochs.model_copy(
+        update={"order_one": 1, "order_two": 1, "order_three": 1}
+    )
+    pure_order = loaded.values.experiments.pure_order_separation_validation.model_copy(
+        update={
+            "primary_client_count": 5,
+            "generators": (primary.generator,),
+            "methods": (primary.method,),
+        }
+    )
+    config = loaded.values.model_copy(
+        update={
+            "synthetic": loaded.values.synthetic.model_copy(update={"sample_sizes": sample_sizes}),
+            "context": loaded.values.context.model_copy(
+                update={"primary_cell_count": 1, "minimum_support_epochs": support}
+            ),
+            "experiments": loaded.values.experiments.model_copy(
+                update={"pure_order_separation_validation": pure_order}
+            ),
+        }
+    )
+    cell = next(
+        cell
+        for cell in enumerate_pure_order_grid(config)
+        if cell.method is primary.method and cell.generator is primary.generator
+    )
+
+    result = evaluate_fitted_pure_order_cell(config, cell, 17)
+
+    assert result is not None
+    assert result.artifact_path_complete
+
+
+def test_emhi_variant_settings_preserve_declared_context_and_purification() -> None:
+    assert emhi_method_settings(MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY) == (
+        ContextMethodName.INCLUSIVE_CONTEXT,
+        CoalitionOrder.THREE,
+        True,
+    )
+    assert emhi_method_settings(MethodName.NO_PROPER_SUBSET_PURIFICATION) == (
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        CoalitionOrder.THREE,
+        False,
+    )
+
+
+def test_every_declared_emhi_variant_has_fitted_artifact_settings() -> None:
+    loaded = load_production_configuration()
+    methods = frozenset(loaded.values.experiments.pure_order_separation_validation.methods)
+    expected = frozenset(
+        {
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
+            MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
+            MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
+            MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
+            MethodName.PARTIAL_COALITION_EXCLUSION,
+            MethodName.NO_PROPER_SUBSET_PURIFICATION,
+            MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
+        }
+    )
+
+    missing = tuple(method for method in expected if emhi_method_settings(method) is None)
+
+    assert expected <= methods
+    assert missing == ()
+
+
+def test_incomplete_synthetic_contracts_fail_closed_instead_of_generating_smoke_evidence() -> None:
+    loaded = load_production_configuration()
+
+    outcome = run_synthetic_cell(
+        loaded,
+        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
+        loaded.values.randomness.synthetic_confirmatory_roots[0],
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+    )
+
+    assert outcome.failed_checks == ("missing contract-specific synthetic producer",)
+    assert outcome.method_score is None
+    assert outcome.evidence == {
+        "implementation_state": "missing_contract_specific_producer",
+        "required_experiment": ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE.value,
+    }

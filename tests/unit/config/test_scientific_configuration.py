@@ -193,7 +193,7 @@ def test_locked_core_scientific_configuration(
         values.datasets.primary.raw_directory
         == "data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset"
     )
-    assert values.datasets.primary.target_client_count == 12
+    assert values.datasets.primary.target_client_count == 4
     assert values.datasets.secondary.name is DatasetName.EDGE_IIOTSET
     assert (
         values.datasets.secondary.raw_directory

@@ -67,6 +67,30 @@ def two_sided_sign_flip_p_value(
     return extreme / len(flipped_means)
 
 
+def one_sided_synthetic_sign_flip_p_value(
+    differences: tuple[FiniteFloat, ...],
+    maximum_exact_replicates: RecordCount,
+    monte_carlo_replicates: RecordCount,
+    seed: SeedValue,
+) -> Probability:
+    if not differences:
+        raise ValueError("one-sided sign-flip inference requires paired differences")
+    observed = sum(differences) / len(differences)
+    if enumerate_exact_when_family_fits(len(differences), maximum_exact_replicates):
+        return sign_flip_p_value(observed, exact_sign_flip_means(differences), True)
+    if monte_carlo_replicates <= 0:
+        raise ValueError("Monte Carlo sign-flip inference requires positive replicate count")
+    generator = random.Random(seed)
+    extreme_count = 0
+    for _replicate in range(monte_carlo_replicates):
+        pattern = tuple(generator.choice((-1, 1)) for _value in differences)
+        while all(sign == 1 for sign in pattern):
+            pattern = tuple(generator.choice((-1, 1)) for _value in differences)
+        if flipped_mean(differences, pattern) >= observed:
+            extreme_count += 1
+    return monte_carlo_sign_flip_p_value(extreme_count, monte_carlo_replicates)
+
+
 def enumerate_exact_when_family_fits(
     unit_count: RecordCount, maximum_replicates: RecordCount
 ) -> bool:
@@ -214,6 +238,40 @@ def paired_mean_bca_interval(
     lower = _linear_quantile(replicates, lower_probability)
     upper = _linear_quantile(replicates, upper_probability)
     return (lower, upper)
+
+
+def mean_bca_one_sided_lower_bound(
+    values: tuple[FiniteFloat, ...],
+    confidence_level: Probability,
+    replicate_count: RecordCount,
+    seed: SeedValue,
+) -> FiniteFloat:
+    if not values:
+        raise ValueError("one-sided BCa bound requires independent seed values")
+    if confidence_level <= 0.0 or confidence_level >= 1.0:
+        raise ValueError("confidence level must lie strictly between zero and one")
+    if replicate_count <= 0:
+        raise ValueError("one-sided BCa bound requires positive bootstrap replicate count")
+    observed = sum(values) / len(values)
+    generator = random.Random(seed)
+    replicates = tuple(
+        sum(generator.choice(values) for _index in values) / len(values)
+        for _replicate in range(replicate_count)
+    )
+    if bootstrap_is_degenerate(observed, replicates):
+        return observed
+    less = sum(1 for value in replicates if value < observed)
+    ties = sum(1 for value in replicates if value == observed)
+    proportion = (less + 0.5 * ties) / replicate_count
+    boundary = 0.5 / replicate_count
+    bounded = min(max(proportion, boundary), 1.0 - boundary)
+    bias_correction = NormalDist().inv_cdf(bounded)
+    probability = _bca_adjusted_probability(
+        1.0 - confidence_level,
+        bias_correction,
+        _jackknife_acceleration(values),
+    )
+    return _linear_quantile(replicates, probability)
 
 
 def exact_sign_pattern(

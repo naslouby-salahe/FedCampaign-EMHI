@@ -11,6 +11,7 @@ def quality(session: nox.Session) -> None:
     session.run("ruff", "format", "--check", "src", "tests")
     session.run("ruff", "check", "src", "tests")
     session.run("pyright")
+    session.run("semgrep", "--config", ".semgrep.yml", "src")
     session.run("lint-imports")
     session.run("deptry", "src")
     session.run("vulture", "src")

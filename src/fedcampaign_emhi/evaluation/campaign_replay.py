@@ -252,13 +252,13 @@ def _conditioned_member_ranks(
     return tuple(conditioned)
 
 
-def coalition_evidence_at_epoch(
+def _coalition_standardized_atom_and_norm_at_epoch(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     fit: EMHIFitArtifactRecord,
     coalition_fit: CoalitionFitRecord,
     epoch_index: EpochIndexValue,
-) -> EvidenceFactor | None:
+) -> tuple[tuple[FiniteFloat, ...], FiniteFloat] | None:
     if coalition_fit.state is not ClaimState.SUPPORTED:
         return None
     order_context = _order_context(fit, coalition_fit.coalition_order)
@@ -297,15 +297,46 @@ def coalition_evidence_at_epoch(
         raw_atom = projection_residual(tensor, cell.complete_nuisance_coefficients, design_row)
     else:
         raw_atom = tensor
-    standardized = center_and_scale_atom(
-        raw_atom,
-        cell.coordinate_means,
-        cell.coordinate_deviations,
-        config.projection.atom_scale_floor,
+    return (
+        center_and_scale_atom(
+            raw_atom,
+            cell.coordinate_means,
+            cell.coordinate_deviations,
+            config.projection.atom_scale_floor,
+        ),
+        cell.operational_norm_reference,
     )
+
+
+def coalition_standardized_atom_at_epoch(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    coalition_fit: CoalitionFitRecord,
+    epoch_index: EpochIndexValue,
+) -> tuple[FiniteFloat, ...] | None:
+    resolved = _coalition_standardized_atom_and_norm_at_epoch(
+        config, ranks, fit, coalition_fit, epoch_index
+    )
+    return None if resolved is None else resolved[0]
+
+
+def coalition_evidence_at_epoch(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    coalition_fit: CoalitionFitRecord,
+    epoch_index: EpochIndexValue,
+) -> EvidenceFactor | None:
+    resolved = _coalition_standardized_atom_and_norm_at_epoch(
+        config, ranks, fit, coalition_fit, epoch_index
+    )
+    if resolved is None:
+        return None
+    standardized, norm_reference = resolved
     return operational_evidence_factor(
         standardized,
-        cell.operational_norm_reference,
+        norm_reference,
         config.projection.norm_reference_floor,
         config.evidence.clip_bound,
         config.evidence.bet_lambda,

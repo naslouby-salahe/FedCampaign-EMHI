@@ -390,6 +390,11 @@ experiments:
     - Exclusion-Matched Order-One EMHI
     - Exclusion-Matched Order-at-Most-Two EMHI
     - Full FedCampaign-EMHI
+    - Inclusive-Context Full Hierarchy
+    - Leave-One-Out Insufficient Exclusion
+    - Partial Coalition Exclusion
+    - No Proper-Subset Purification
+    - No-Outside-Context Full Hierarchy
     - Exclusion-Matched Conditional HOFD
     - Conditional Pair Dependence
     - Exclusion-Matched Lancaster Triple

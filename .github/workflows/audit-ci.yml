@@ -28,6 +28,9 @@ jobs:
       - run: uv run pyright
         id: pyright
         continue-on-error: true
+      - run: uv run semgrep --config .semgrep.yml src
+        id: semgrep
+        continue-on-error: true
       - run: uv run lint-imports
         id: imports
         continue-on-error: true
@@ -48,6 +51,7 @@ jobs:
         run: |
           test "${{ steps.pytest.outcome }}" = success
           test "${{ steps.pyright.outcome }}" = success
+          test "${{ steps.semgrep.outcome }}" = success
           test "${{ steps.imports.outcome }}" = success
           test "${{ steps.format.outcome }}" = success
           test "${{ steps.lint.outcome }}" = success

@@ -1,3 +1,5 @@
+from collections import UserDict
+
 from fedcampaign_emhi.artifacts.records import (
     CoalitionFitRecord,
     ConditionalRankReferenceRecord,
@@ -69,6 +71,11 @@ from fedcampaign_emhi.emhi.ranks import (
     rank_at_epoch,
 )
 from fedcampaign_emhi.runtime.determinism import derive_component_seed
+
+type FoldRankCache = UserDict[tuple[RecordCount, RecordCount], MarginalRankArtifactRecord]
+type OrderContextCache = UserDict[
+    tuple[RecordCount, RecordCount, CoalitionOrder], OrderContextFitRecord
+]
 
 
 def fold_observation_indexes(
@@ -503,6 +510,8 @@ def _cross_fitted_cell_statistics(
     purification_enabled: bool,
     forced_no_abstention: bool,
     ridge_candidates: tuple[RidgePenalty, ...],
+    fold_rank_cache: FoldRankCache,
+    order_context_cache: OrderContextCache,
 ) -> tuple[tuple[FiniteFloat, ...], tuple[FiniteFloat, ...], FiniteFloat] | None:
     nuisance_epochs = split.nuisance_fit_epochs
     fold_count = config.context.nuisance_crossfit.fold_count
@@ -512,22 +521,30 @@ def _cross_fitted_cell_statistics(
     for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
         held_epochs = nuisance_epochs[start:end]
         training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
-        fold_ranks = build_marginal_rank_artifact(
-            scores,
-            training_epochs,
-            config.context.rank_clip_epsilon,
-            scores.dependency_fingerprint,
-        )
-        order_context = _fit_order_context(
-            config,
-            fold_ranks,
-            coalitions,
-            training_epochs,
-            coalition.order,
-            context_method,
-            cell_count,
-            training_epochs,
-        )
+        fold_key = (start, end)
+        fold_ranks = fold_rank_cache.get(fold_key)
+        if fold_ranks is None:
+            fold_ranks = build_marginal_rank_artifact(
+                scores,
+                training_epochs,
+                config.context.rank_clip_epsilon,
+                scores.dependency_fingerprint,
+            )
+            fold_rank_cache[fold_key] = fold_ranks
+        order_context_key = (start, end, coalition.order)
+        order_context = order_context_cache.get(order_context_key)
+        if order_context is None:
+            order_context = _fit_order_context(
+                config,
+                fold_ranks,
+                coalitions,
+                training_epochs,
+                coalition.order,
+                context_method,
+                cell_count,
+                training_epochs,
+            )
+            order_context_cache[order_context_key] = order_context
         if order_context.state is not ClaimState.SUPPORTED:
             continue
         if context_cell >= len(order_context.centroids):
@@ -743,6 +760,12 @@ def build_emhi_fit_artifact(
         if coalition_order <= maximum_order
     )
     coalition_fits: list[CoalitionFitRecord] = []
+    fold_rank_cache: FoldRankCache = UserDict[
+        tuple[RecordCount, RecordCount], MarginalRankArtifactRecord
+    ]()
+    order_context_cache: OrderContextCache = UserDict[
+        tuple[RecordCount, RecordCount, CoalitionOrder], OrderContextFitRecord
+    ]()
     for coalition in coalitions:
         order_context = next(
             context for context in order_contexts if context.coalition_order is coalition.order
@@ -784,6 +807,8 @@ def build_emhi_fit_artifact(
                 purification_enabled,
                 forced_no_abstention,
                 candidates,
+                fold_rank_cache,
+                order_context_cache,
             )
             cells.append(
                 _fit_projection_cell(

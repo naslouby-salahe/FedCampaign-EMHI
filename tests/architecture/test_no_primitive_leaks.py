@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass
 from pathlib import Path
 
 from tests.architecture.ast_scans import (
@@ -16,38 +15,6 @@ from tests.architecture.ast_scans import (
     module_ast,
     parametrize_source_files,
     type_alias_annotations,
-)
-
-
-@dataclass(frozen=True, slots=True)
-class AllowlistEntry:
-    relative_path: str
-    lineno: int
-    symbol: str
-    primitive: str
-
-
-ALLOWLIST: frozenset[AllowlistEntry] = frozenset(
-    {
-        AllowlistEntry(
-            "src/fedcampaign_emhi/cli/commands/preprocess.py",
-            43,
-            "_parse_dataset_name",
-            "str",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/evaluation/smoke_gate.py",
-            57,
-            "_check",
-            "list",
-        ),
-        AllowlistEntry(
-            "src/fedcampaign_emhi/datasets/edge_iiotset/loading.py",
-            29,
-            "_parse_row_fields",
-            "str",
-        ),
-    }
 )
 
 
@@ -110,20 +77,7 @@ def _report(findings: list[tuple[str, int, str, str, str]]) -> str:
 @parametrize_source_files
 def test_no_primitive_leaks(path: Path) -> None:
     findings = _scan_file(path)
-    allowed = {
-        (entry.relative_path, entry.lineno, entry.symbol, entry.primitive) for entry in ALLOWLIST
-    }
-    unjustified: list[tuple[str, int, str, str, str]] = []
-    for finding in findings:
-        rel, lineno, symbol, primitive, _context = finding
-        if rel == "src/fedcampaign_emhi/config/validation.py":
-            continue
-        if rel.startswith("src/fedcampaign_emhi/cli/") and primitive == "str":
-            continue
-        if (rel, lineno, symbol, primitive) in allowed:
-            continue
-        unjustified.append(finding)
-    assert not unjustified, _report(unjustified)
+    assert not findings, _report(findings)
 
 
 def test_no_primitive_leaks_fails_on_fixture() -> None:

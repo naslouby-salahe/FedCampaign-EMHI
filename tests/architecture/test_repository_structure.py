@@ -79,6 +79,8 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/synthetic/pure_order.py",
     "src/fedcampaign_emhi/synthetic/robustness.py",
     "src/fedcampaign_emhi/synthetic/context_boundaries.py",
+    "src/fedcampaign_emhi/synthetic/sequential.py",
+    "src/fedcampaign_emhi/synthetic/feasibility.py",
     "src/fedcampaign_emhi/synthetic/validation.py",
     "src/fedcampaign_emhi/experiments/__init__.py",
     "src/fedcampaign_emhi/experiments/definitions.py",
@@ -97,7 +99,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/analysis/summaries.py",
     "src/fedcampaign_emhi/analysis/statistics.py",
     "src/fedcampaign_emhi/analysis/multiplicity.py",
-    "src/fedcampaign_emhi/analysis/claims.py",
+    "src/fedcampaign_emhi/analysis/project.py",
     "src/fedcampaign_emhi/artifacts/__init__.py",
     "src/fedcampaign_emhi/artifacts/paths.py",
     "src/fedcampaign_emhi/artifacts/records.py",
@@ -108,6 +110,8 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/execution/__init__.py",
     "src/fedcampaign_emhi/execution/planning.py",
     "src/fedcampaign_emhi/execution/preprocess.py",
+    "src/fedcampaign_emhi/execution/finite_horizon.py",
+    "src/fedcampaign_emhi/execution/pure_order.py",
     "src/fedcampaign_emhi/execution/runner.py",
     "src/fedcampaign_emhi/execution/recovery.py",
     "src/fedcampaign_emhi/execution/status.py",
@@ -130,6 +134,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/cli/commands/run.py",
     "src/fedcampaign_emhi/cli/commands/status.py",
     "src/fedcampaign_emhi/cli/commands/report.py",
+    "src/fedcampaign_emhi/cli/commands/analyze.py",
 )
 
 REQUIRED_TEST_FILES = (
@@ -140,6 +145,7 @@ REQUIRED_TEST_FILES = (
     "tests/architecture/test_no_primitive_leaks.py",
     "tests/architecture/test_no_hardcoded_values.py",
     "tests/architecture/test_configuration_ownership.py",
+    "tests/architecture/test_configuration_value_provenance.py",
     "tests/architecture/test_no_duplicate_constants.py",
     "tests/architecture/test_dead_code.py",
     "tests/architecture/test_enum_integrity.py",

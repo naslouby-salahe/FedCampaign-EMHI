@@ -13,45 +13,69 @@ from tests.architecture.ast_scans import (
     source_files,
 )
 
-ALLOWED_DEPENDENCIES: dict[str, set[str]] = {
-    "domain": set(),
-    "config": {"domain"},
-    "runtime": {"domain", "config"},
-    "artifacts": {"domain", "config", "runtime"},
-    "datasets": {"domain", "config", "artifacts", "runtime"},
-    "models": {"domain", "config", "artifacts", "runtime"},
-    "emhi": {"domain", "config", "artifacts", "runtime"},
-    "detection": {"domain", "config", "models", "emhi", "artifacts", "runtime"},
-    "comparators": {"domain", "config", "emhi", "artifacts", "runtime", "models"},
-    "synthetic": {"domain", "config", "emhi", "runtime"},
-    "experiments": {"domain", "config", "emhi", "comparators", "synthetic"},
-    "evaluation": {"domain", "config", "emhi", "comparators", "artifacts", "datasets", "detection"},
-    "analysis": {"domain", "config", "evaluation", "artifacts"},
-    "execution": {
-        "domain",
-        "config",
-        "experiments",
-        "artifacts",
-        "runtime",
-        "evaluation",
-        "analysis",
-        "datasets",
-        "emhi",
-        "detection",
-        "synthetic",
-        "comparators",
-        "models",
-    },
-    "reporting": {
-        "domain",
-        "config",
-        "artifacts",
-        "analysis",
-        "evaluation",
-        "experiments",
-        "runtime",
-    },
-    "cli": set(),
+PACKAGE_DEPENDENCIES: dict[str, frozenset[str]] = {
+    "domain": frozenset(),
+    "config": frozenset({"domain"}),
+    "runtime": frozenset({"domain", "config"}),
+    "artifacts": frozenset({"domain", "config", "runtime"}),
+    "datasets": frozenset({"domain", "config", "artifacts", "runtime"}),
+    "models": frozenset({"domain", "config", "artifacts", "runtime"}),
+    "emhi": frozenset({"domain", "config", "artifacts", "runtime"}),
+    "detection": frozenset({"domain", "config", "models", "emhi", "artifacts", "runtime"}),
+    "comparators": frozenset({"domain", "config", "emhi", "artifacts", "runtime", "models"}),
+    "synthetic": frozenset({"domain", "config", "emhi", "runtime"}),
+    "experiments": frozenset({"domain", "config", "emhi", "comparators", "synthetic"}),
+    "evaluation": frozenset(
+        {"domain", "config", "emhi", "comparators", "artifacts", "datasets", "detection"}
+    ),
+    "analysis": frozenset({"domain", "config", "evaluation", "artifacts"}),
+    "execution": frozenset(
+        {
+            "domain",
+            "config",
+            "experiments",
+            "artifacts",
+            "runtime",
+            "evaluation",
+            "analysis",
+            "datasets",
+            "emhi",
+            "detection",
+            "synthetic",
+            "comparators",
+            "models",
+        }
+    ),
+    "reporting": frozenset(
+        {
+            "domain",
+            "config",
+            "artifacts",
+            "analysis",
+            "evaluation",
+            "experiments",
+            "runtime",
+        }
+    ),
+    "cli": frozenset(
+        {
+            "domain",
+            "config",
+            "runtime",
+            "artifacts",
+            "datasets",
+            "models",
+            "emhi",
+            "detection",
+            "comparators",
+            "synthetic",
+            "experiments",
+            "evaluation",
+            "analysis",
+            "execution",
+            "reporting",
+        }
+    ),
 }
 
 
@@ -82,9 +106,10 @@ def _package_of(rel: str) -> str:
 def test_dependency_boundaries(path: Path) -> None:
     rel = path.relative_to(SRC_ROOT).as_posix()
     package = _package_of(rel)
-    if package in {"cli", "__init__"}:
+    if package == "__init__":
         return
-    allowed = ALLOWED_DEPENDENCIES[package]
+    assert package in PACKAGE_DEPENDENCIES, f"{rel} has no declared architectural owner"
+    allowed = PACKAGE_DEPENDENCIES[package]
     imported = _imported_packages(module_ast(path))
     violations = sorted(imported - allowed - {package})
     assert not violations, f"{rel} imports outside its layer set: {violations}"

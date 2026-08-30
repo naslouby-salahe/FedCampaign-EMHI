@@ -39,7 +39,7 @@ def test_preprocess_cli_selects_dataset_and_states_ownership(
         "production_configuration_context",
         lambda: (tmp_path, loaded),
     )
-    selected = cli_runner.invoke(application, ["preprocess", "edge-iiotset"])
+    selected = cli_runner.invoke(application, ["preprocess", "Edge-IIoTset"])
     assert selected.exit_code == 0
     assert DatasetName.EDGE_IIOTSET.value in selected.stdout
     assert (
@@ -50,7 +50,7 @@ def test_preprocess_cli_selects_dataset_and_states_ownership(
     assert both.exit_code == 0
     assert DatasetName.TON_IOT_NETWORK.value in both.stdout
     assert DatasetName.EDGE_IIOTSET.value in both.stdout
-    overwritten = cli_runner.invoke(application, ["preprocess", "edge-iiotset", "--overwrite"])
+    overwritten = cli_runner.invoke(application, ["preprocess", "Edge-IIoTset", "--overwrite"])
     assert overwritten.exit_code == 0
     assert "overwrite=True" in overwritten.stdout
     assert PreprocessingLayer.INVENTORY.value in overwritten.stdout

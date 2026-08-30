@@ -1,0 +1,15 @@
+rules:
+  - id: no-dynamic-code-execution
+    languages: [python]
+    severity: ERROR
+    message: Dynamic code execution is forbidden in production code.
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)
+          - pattern: compile(...)
+  - id: no-static-analysis-suppressions-or-temporary-markers
+    languages: [python]
+    severity: ERROR
+    message: Static-analysis suppressions and temporary markers are forbidden.
+    pattern-regex: "(?m)#\\s*(?:type:\\s*ignore|noqa|pyright:\\s*ignore|TODO|FIXME|HACK|XXX)\\b"

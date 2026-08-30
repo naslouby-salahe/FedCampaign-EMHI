@@ -5,12 +5,20 @@ from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import content_digest, material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ExperimentRunRecord,
+    PrimaryHolmFamilyRecord,
     ReportSourceRecord,
     ScientificCellRecord,
+    StatisticalRecord,
 )
-from fedcampaign_emhi.artifacts.storage import file_sha256, write_atomic_json
+from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
+from fedcampaign_emhi.config.validation import YamlNode
+from fedcampaign_emhi.domain.enums import (
+    ExperimentName,
+    ExperimentState,
+    OverwritePolicy,
+    PrimaryHolmHypothesis,
+)
 from fedcampaign_emhi.domain.types import ConfigurationDigest
 from fedcampaign_emhi.reporting.figures import write_paired_difference_figure
 from fedcampaign_emhi.reporting.reproducibility import export_reproducibility
@@ -30,6 +38,30 @@ class VerifiedExperimentEvidence:
 class ReportMaterialization:
     experiment_name: ExperimentName
     output_paths: tuple[Path, ...]
+
+
+PRIMARY_HOLM_STATISTICS = (
+    (
+        ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION,
+        PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION,
+    ),
+    (
+        ExperimentName.PURE_ORDER_SEPARATION_VALIDATION,
+        PrimaryHolmHypothesis.PURE_ORDER_TARGET_DRIFT,
+    ),
+    (
+        ExperimentName.PRIMARY_STRICT_ODI_EVALUATION,
+        PrimaryHolmHypothesis.PRIMARY_ODI_ADVANTAGE_OVER_ORDER_AT_MOST_TWO_EMHI,
+    ),
+    (
+        ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS,
+        PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION,
+    ),
+    (
+        ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE,
+        PrimaryHolmHypothesis.STRONG_LOCAL_ODI_ABOVE_MINIMUM,
+    ),
+)
 
 
 def _json_files(root: Path) -> tuple[Path, ...]:
@@ -64,6 +96,81 @@ def _completed_experiments(
     return tuple(completed)
 
 
+def _validate_statistical_records(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    statistical_paths: tuple[Path, ...],
+) -> None:
+    for statistical_path in statistical_paths:
+        record = StatisticalRecord.model_validate_json(statistical_path.read_bytes())
+        source_paths = tuple(repository / source_id for source_id in record.source_result_ids)
+        if not source_paths:
+            raise ValueError(f"statistical record {statistical_path} has no source results")
+        if any(not source_path.is_file() for source_path in source_paths):
+            raise ValueError(f"statistical record {statistical_path} has missing source results")
+        source_digests = tuple(file_sha256(source_path) for source_path in source_paths)
+        expected_fingerprint = material_fingerprint(loaded.material_digest, source_digests)
+        if record.dependency_fingerprint != expected_fingerprint:
+            raise ValueError(f"statistical record {statistical_path} has stale source lineage")
+
+
+def required_primary_holm_statistics(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for experiment_name, hypothesis in PRIMARY_HOLM_STATISTICS:
+        evidence = select_verified_evidence(loaded, repository, experiment_name)
+        matching = tuple(
+            path
+            for path in evidence.statistical_record_paths
+            if StatisticalRecord.model_validate_json(path.read_bytes()).hypothesis_identifier
+            == hypothesis.value
+        )
+        if len(matching) != 1:
+            raise FileNotFoundError(
+                "project summary is missing the required primary Holm statistical artifact "
+                f"{hypothesis.value!r} from {experiment_name.value}"
+            )
+        paths.append(matching[0])
+    return tuple(paths)
+
+
+def _verified_primary_holm_family(
+    loaded: LoadedScientificConfiguration, repository: Path, paths: tuple[Path, ...]
+) -> PrimaryHolmFamilyRecord:
+    layout = build_artifact_layout(loaded, repository)
+    path = (
+        layout.roots.results_root
+        / "project_summary"
+        / "statistics"
+        / "multiplicity"
+        / "primary-holm.json"
+    )
+    if not path.is_file():
+        raise FileNotFoundError(
+            "project summary requires the verified primary Holm analysis artifact"
+        )
+    record = PrimaryHolmFamilyRecord.model_validate_json(path.read_bytes())
+    if record.material_digest != loaded.material_digest:
+        raise ValueError("primary Holm analysis artifact is stale")
+    expected_paths = tuple(source.relative_to(repository).as_posix() for source in paths)
+    expected_hashes = tuple(file_sha256(source) for source in paths)
+    if (
+        record.source_statistical_paths != expected_paths
+        or record.source_artifact_hashes != expected_hashes
+    ):
+        raise ValueError("primary Holm analysis artifact has stale source lineage")
+    payload: YamlNode = {
+        "material_digest": record.material_digest,
+        "results": [result.model_dump(mode="json") for result in record.results],
+        "source_statistical_paths": list(record.source_statistical_paths),
+        "source_artifact_hashes": list(record.source_artifact_hashes),
+    }
+    if record.content_digest != payload_digest(payload):
+        raise ValueError("primary Holm analysis artifact has an invalid content digest")
+    return record
+
+
 def select_verified_evidence(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -90,6 +197,7 @@ def select_verified_evidence(
         )
     )
     statistical_paths = _json_files(root / "statistics")
+    _validate_statistical_records(loaded, repository, statistical_paths)
     cell_paths = tuple(
         path
         for path in _json_files(root / "provenance" / "dependencies")
@@ -177,6 +285,8 @@ def materialize_report_scope(
                 loaded, repository, experiment_name, overwrite_policy
             ),
         )
+    primary_paths = required_primary_holm_statistics(loaded, repository)
+    _verified_primary_holm_family(loaded, repository, primary_paths)
     completed = _completed_experiments(loaded, repository)
     reports = tuple(
         materialize_verified_experiment_report(

@@ -3,58 +3,72 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from tests.architecture.ast_scans import SRC_ROOT, module_ast, parametrize_source_files
+import pytest
+from tests.architecture.ast_scans import SRC_ROOT, module_ast, source_files
 
-TYPED_PRIMITIVES_ALLOWED_IN_CLI = {"str", "str | None"}
 
-
-def _is_untyped_public_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
-    if node.name.startswith("_"):
-        return None
-    for arg in [*node.args.args, *node.args.kwonlyargs]:
-        if arg.arg in {"self", "cls"}:
+def _public_annotation_violations(module_name: str, tree: ast.Module) -> list[str]:
+    violations: list[str] = []
+    candidates: list[tuple[str, ast.FunctionDef | ast.AsyncFunctionDef]] = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            candidates.append((module_name, node))
+        elif isinstance(node, ast.ClassDef):
+            candidates.extend(
+                (f"{module_name}.{node.name}", method)
+                for method in node.body
+                if isinstance(method, ast.FunctionDef | ast.AsyncFunctionDef)
+            )
+    for owner, function in candidates:
+        if function.name.startswith("_"):
             continue
-        if arg.annotation is None:
-            return f"untyped parameter '{arg.arg}'"
-    if node.args.vararg is not None and node.args.vararg.annotation is None:
-        return f"untyped vararg '{node.args.vararg.arg}'"
-    if node.args.kwarg is not None and node.args.kwarg.annotation is None:
-        return f"untyped kwarg '{node.args.kwarg.arg}'"
-    if node.returns is None and node.name != "main":
-        return "missing return annotation"
-    return None
+        positional = [*function.args.posonlyargs, *function.args.args]
+        if positional and positional[0].arg in {"self", "cls"}:
+            positional = positional[1:]
+        arguments = [*positional, *function.args.kwonlyargs]
+        if function.args.vararg is not None:
+            arguments.append(function.args.vararg)
+        if function.args.kwarg is not None:
+            arguments.append(function.args.kwarg)
+        symbol = f"{owner}.{function.name}"
+        for argument in arguments:
+            if argument.annotation is None:
+                violations.append(f"{symbol}:{argument.lineno}: unannotated {argument.arg}")
+        if function.returns is None:
+            violations.append(f"{symbol}:{function.lineno}: missing return annotation")
+    return violations
 
 
-def _scan(path: Path) -> list[str]:
-    tree = module_ast(path)
-    try:
-        rel = path.relative_to(SRC_ROOT).as_posix()
-    except ValueError:
-        rel = path.name
-    findings: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
-        problem = _is_untyped_public_function(node)
-        if problem is None:
-            continue
-        findings.append(f"{rel}:{node.lineno}:{node.name}: {problem}")
-    return findings
+def _file_violations(path: Path) -> list[str]:
+    module = path.relative_to(SRC_ROOT).with_suffix("").as_posix().replace("/", ".")
+    return _public_annotation_violations(module, module_ast(path))
 
 
-@parametrize_source_files
-def test_no_untyped_public_boundaries(path: Path) -> None:
-    assert _scan(path) == []
+def test_every_public_callable_boundary_is_fully_annotated() -> None:
+    violations = [violation for path in source_files() for violation in _file_violations(path)]
+    assert violations == []
 
 
-def test_untyped_boundary_scan_detects_fixture(tmp_path: Path) -> None:
-    bad = tmp_path / "bad.py"
-    bad.write_text("def public_api(value):\n    return value\n", encoding="utf-8")
-    assert _scan(bad) != []
-    good = tmp_path / "good.py"
-    good.write_text(
-        "def public_api(value: int) -> int:\n    return value\n"
-        "\n\ndef _private(value):\n    return value\n",
-        encoding="utf-8",
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "def expose(value) -> None:\n    return None\n",
+        "def expose(value: int):\n    return value\n",
+        "class Port:\n    def load(self, value) -> None:\n        return None\n",
+        "def expose(*values, **options) -> None:\n    return None\n",
+    ],
+)
+def test_public_annotation_rule_rejects_missing_annotations(snippet: str) -> None:
+    assert _public_annotation_violations("example", ast.parse(snippet))
+
+
+def test_public_annotation_rule_accepts_complete_annotations() -> None:
+    tree = ast.parse(
+        "class Port:\n"
+        "    def load(self, value: int) -> int:\n"
+        "        return value\n"
+        "\n"
+        "def expose(value: str, /, *, enabled: bool) -> str:\n"
+        "    return value\n"
     )
-    assert _scan(good) == []
+    assert _public_annotation_violations("example", tree) == []

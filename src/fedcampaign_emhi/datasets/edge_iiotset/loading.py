@@ -1,4 +1,5 @@
 import csv
+import re
 from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,7 +27,7 @@ def load_edge_iiotset_csv(path: Path) -> tuple[EdgeIiotsetFlowRecord, ...]:
 
 
 def _parse_row_fields(
-    row: Mapping[str, str | None],
+    row: Mapping[CanonicalEventToken, CanonicalEventToken | None],
 ) -> tuple[FiniteFloat, ClientId, FiniteFloat, CanonicalEventToken] | ExcludedRecord:
     source_host = (row.get("ip.src_host") or "").strip()
     if not source_host:
@@ -34,11 +35,14 @@ def _parse_row_fields(
     if not record_identity_is_usable(source_host):
         return ExcludedRecord(reason=RecordExclusionReason.UNUSABLE_HOST_IDENTITY)
     try:
-        timestamp_seconds = _parse_frame_time(row.get("frame.time") or "")
+        timestamp_seconds = parse_frame_time(row.get("frame.time") or "")
     except (TypeError, ValueError):
         return ExcludedRecord(reason=RecordExclusionReason.UNPARSEABLE_TIMESTAMP)
+    raw_label = row.get("Attack_label")
+    if raw_label is None:
+        return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
     try:
-        binary_label = int(row["Attack_label"])  # type: ignore[reportArgumentType]
+        binary_label = int(raw_label)
     except (TypeError, ValueError):
         return ExcludedRecord(reason=RecordExclusionReason.STRUCTURALLY_INVALID_EVENT)
     attack_type = (row.get("Attack_type") or "").strip()
@@ -88,11 +92,25 @@ def iter_edge_iiotset_csv_entries(
             )
 
 
-def _parse_frame_time(raw_timestamp: CanonicalEventToken) -> UnixTimestampSeconds:
+def parse_frame_time(raw_timestamp: CanonicalEventToken) -> UnixTimestampSeconds:
     stripped = raw_timestamp.strip()
     try:
         return float(stripped)
     except ValueError:
+        match = re.fullmatch(r"(\d{4}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?", stripped)
+        if match is not None:
+            year, hour, minute, second, fraction = match.groups()
+            microseconds = int((fraction or "0")[:6].ljust(6, "0"))
+            return datetime(
+                int(year),
+                1,
+                1,
+                int(hour),
+                int(minute),
+                int(second),
+                microseconds,
+                tzinfo=UTC,
+            ).timestamp()
         parsed = datetime.fromisoformat(stripped)
         if parsed.tzinfo is None:
             raise ValueError(

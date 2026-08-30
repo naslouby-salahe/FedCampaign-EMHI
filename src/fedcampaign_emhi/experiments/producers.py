@@ -1,43 +1,55 @@
 from dataclasses import dataclass
 
-from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
     ExecutionRole,
     ExperimentName,
+    GeneratorName,
     MethodName,
 )
 from fedcampaign_emhi.domain.types import (
-    ClientCount,
-    ClientId,
     ComponentName,
     FiniteFloat,
     SeedValue,
 )
-from fedcampaign_emhi.synthetic.common_mode import (
-    equally_spaced_loadings,
-    generate_common_mode_scores,
-    generate_unit_variance_autoregressive_latent,
-)
-from fedcampaign_emhi.synthetic.controlled_campaigns import (
-    apply_marginal_score_shift,
-    gaussian_copula_pair,
+from fedcampaign_emhi.synthetic.context_boundaries import primary_feasibility_context_support
+from fedcampaign_emhi.synthetic.feasibility import (
+    EstimatorFeasibilityMetrics,
+    evaluate_estimator_feasibility_seed,
 )
 from fedcampaign_emhi.synthetic.pure_order import (
     enumerate_pure_order_grid,
-    sample_independent_uniform_ranks,
+    fitted_method_pure_order_metrics,
     validate_generator_purity,
-)
-from fedcampaign_emhi.synthetic.robustness import (
-    contaminated_outside_clients,
-    dropout_coalition_is_active,
 )
 from fedcampaign_emhi.synthetic.self_explanation import (
     evaluate_self_explanation_seed,
     exact_nuisance_derivative_within_margin,
     material_attenuation_gate,
 )
+from fedcampaign_emhi.synthetic.sequential import (
+    SignedTheoremSeedMetrics,
+    evaluate_signed_theorem_seed,
+)
+
+
+@dataclass(frozen=True)
+class SelfExplanationSeedMetrics:
+    primary_exact_nuisance_derivative: FiniteFloat
+    primary_attenuation_contrast: FiniteFloat
+
+
+@dataclass(frozen=True)
+class PureOrderSeedMetrics:
+    maximum_proper_subset_standardized_drift: FiniteFloat
+    target_order_standardized_drift: FiniteFloat
+
+
+@dataclass(frozen=True)
+class EstimatorFeasibilitySeedMetrics:
+    primary: EstimatorFeasibilityMetrics
 
 
 @dataclass(frozen=True)
@@ -45,6 +57,20 @@ class SyntheticCellOutcome:
     failed_checks: tuple[ComponentName, ...]
     method_score: FiniteFloat | None
     evidence: YamlNode = None
+    self_explanation_metrics: SelfExplanationSeedMetrics | None = None
+    pure_order_metrics: PureOrderSeedMetrics | None = None
+    signed_theorem_metrics: SignedTheoremSeedMetrics | None = None
+    estimator_feasibility_metrics: EstimatorFeasibilitySeedMetrics | None = None
+
+
+_MISSING_CONTRACT_SPECIFIC_PRODUCERS = frozenset(
+    {
+        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
+        ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE,
+        ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY,
+        ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY,
+    }
+)
 
 
 def synthetic_role_seeds(
@@ -55,17 +81,93 @@ def synthetic_role_seeds(
     return loaded.values.randomness.synthetic_development_roots
 
 
-def _client_ids(count: ClientCount) -> tuple[ClientId, ...]:
-    return tuple(f"synthetic-client-{index}" for index in range(count))
-
-
 def run_synthetic_cell(
     loaded: LoadedScientificConfiguration,
     experiment_name: ExperimentName,
     seed: SeedValue,
     method_name: MethodName | None,
+    execution_role: ExecutionRole = ExecutionRole.CONFIRMATORY,
 ) -> SyntheticCellOutcome:
     config = loaded.values
+    if experiment_name is ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY:
+        sequence = primary_feasibility_context_support(config, seed)
+        evaluations = evaluate_estimator_feasibility_seed(config, seed, execution_role)
+        primary = next(
+            evaluation
+            for evaluation in evaluations
+            if evaluation.condition.identifier == "primary-order-three"
+        )
+        metrics = primary.metrics
+        return SyntheticCellOutcome(
+            (),
+            None,
+            {
+                "primary_support_substrate_rows": len(sequence.ranks),
+                "primary_order_three": {
+                    "conditional_rank_mae": metrics.conditional_rank_mae,
+                    "projection_nrmse": metrics.projection_nrmse,
+                    "standardized_null_bias": metrics.standardized_null_bias,
+                    "context_coverage": metrics.context_coverage,
+                    "abstention_rate": metrics.abstention_rate,
+                    "condition_number": metrics.condition_number,
+                    "numerical_failure": metrics.numerical_failure,
+                },
+                "condition_evaluations": [
+                    {
+                        "identifier": evaluation.condition.identifier,
+                        "order": int(evaluation.condition.order),
+                        "support_per_context": evaluation.condition.support_per_context,
+                        "basis_size": evaluation.condition.basis_size,
+                        "cell_count": evaluation.condition.cell_count,
+                        "forced_no_abstention": evaluation.condition.forced_no_abstention,
+                        "conditional_rank_mae": evaluation.metrics.conditional_rank_mae,
+                        "projection_nrmse": evaluation.metrics.projection_nrmse,
+                        "standardized_null_bias": evaluation.metrics.standardized_null_bias,
+                        "context_coverage": evaluation.metrics.context_coverage,
+                        "abstention_rate": evaluation.metrics.abstention_rate,
+                        "condition_number": evaluation.metrics.condition_number,
+                        "numerical_failure": evaluation.metrics.numerical_failure,
+                    }
+                    for evaluation in evaluations
+                ],
+            },
+            None,
+            None,
+            None,
+            EstimatorFeasibilitySeedMetrics(metrics),
+        )
+    if experiment_name in _MISSING_CONTRACT_SPECIFIC_PRODUCERS:
+        return SyntheticCellOutcome(
+            ("missing contract-specific synthetic producer",),
+            None,
+            {
+                "implementation_state": "missing_contract_specific_producer",
+                "required_experiment": experiment_name.value,
+            },
+        )
+    if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
+        result = evaluate_signed_theorem_seed(config, seed)
+        failed_checks: tuple[ComponentName, ...] = (
+            () if result.assumptions_hold else ("signed-theorem mechanical assumptions",)
+        )
+        return SyntheticCellOutcome(
+            failed_checks,
+            None,
+            {
+                "signed_theorem": {
+                    "restricted_arl": result.metrics.restricted_arl,
+                    "stopped_trajectory_count": result.metrics.stopped_trajectory_count,
+                    "trajectory_count": result.metrics.trajectory_count,
+                    "maximum_trajectory_epochs": result.metrics.maximum_trajectory_epochs,
+                    "e_sr_threshold": result.metrics.threshold,
+                    "compensator": result.metrics.compensator,
+                    "assumptions_hold": result.assumptions_hold,
+                }
+            },
+            None,
+            None,
+            result.metrics,
+        )
     if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
         result = evaluate_self_explanation_seed(config, seed)
         failures: list[ComponentName] = []
@@ -105,88 +207,103 @@ def run_synthetic_cell(
                     for measurement in result.measurements
                 ],
             },
+            SelfExplanationSeedMetrics(
+                primary_exact_nuisance_derivative=result.primary_exact_nuisance_derivative,
+                primary_attenuation_contrast=result.primary_attenuation_contrast,
+            ),
         )
     if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
+        if method_name is None:
+            raise ValueError("pure-order scoring requires a declared method")
         failures: list[ComponentName] = []
         records: list[YamlNode] = []
+        primary_metrics: PureOrderSeedMetrics | None = None
+        primary = config.experiments.pure_order_separation_validation.primary_condition
+        emhi_methods = frozenset(
+            {
+                MethodName.FULL_FEDCAMPAIGN_EMHI,
+                MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
+                MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
+                MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
+                MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
+                MethodName.PARTIAL_COALITION_EXCLUSION,
+                MethodName.NO_PROPER_SUBSET_PURIFICATION,
+                MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
+            }
+        )
+        pure_generators = frozenset(
+            {
+                GeneratorName.PURE_ORDER_ONE,
+                GeneratorName.PURE_ORDER_TWO,
+                GeneratorName.PURE_CONTINUOUS_TRIPLE,
+                GeneratorName.XOR_PARITY_TRIPLE,
+            }
+        )
         for cell in enumerate_pure_order_grid(config):
+            if cell.method is not method_name:
+                continue
             report = validate_generator_purity(
                 cell.generator,
                 cell.effect,
                 cell.effect,
-                frozenset({cell.target_order}),
+                cell.enabled_orders,
                 config.numerics.deterministic_comparison_tolerance,
             )
-            if not report.is_valid:
+            if cell.generator in pure_generators and not report.is_valid:
                 failures.append(f"generator:{cell.generator.value}")
+            if method_name not in emhi_methods:
+                records.append(
+                    {
+                        "generator": cell.generator.value,
+                        "effect": cell.effect,
+                        "method": cell.method.value,
+                        "target_order": int(cell.target_order),
+                        "enabled_orders": [int(order) for order in sorted(cell.enabled_orders)],
+                        "purity_valid": report.is_valid,
+                        "scoring_state": "awaiting_execution_layer_native_comparator_scorer",
+                    }
+                )
+                continue
+            metrics = fitted_method_pure_order_metrics(config, cell, seed)
+            if (
+                method_name is primary.method
+                and cell.generator is primary.generator
+                and cell.target_order == CoalitionOrder(primary.coalition_order)
+                and cell.effect == config.generators.pure_polynomial.primary_reference_theta
+            ):
+                primary_metrics = PureOrderSeedMetrics(
+                    metrics.maximum_proper_subset_standardized_drift,
+                    metrics.target_order_standardized_drift,
+                )
+                if not metrics.proper_subset_scoring_available:
+                    failures.append("missing fitted proper-subset pure-order scores")
             records.append(
                 {
                     "generator": cell.generator.value,
                     "effect": cell.effect,
                     "method": cell.method.value,
                     "target_order": int(cell.target_order),
+                    "enabled_orders": [int(order) for order in sorted(cell.enabled_orders)],
                     "purity_valid": report.is_valid,
+                    "maximum_proper_subset_standardized_drift": metrics.maximum_proper_subset_standardized_drift,
+                    "target_order_standardized_drift": metrics.target_order_standardized_drift,
+                    "proper_subset_scoring_available": metrics.proper_subset_scoring_available,
                 }
             )
+        if method_name is primary.method and primary_metrics is None:
+            failures.append("missing primary fitted pure-order score")
+        failures.append("missing exact-exclusion fitted pure-order artifact scorer")
+        failures.append("missing exact-exclusion fitted pure-order artifact grid")
+        if method_name not in emhi_methods:
+            failures.append("missing native comparator pure-order grid")
         return SyntheticCellOutcome(
             tuple(sorted(set(failures))),
             None,
-            {"condition_count": len(records), "conditions": records},
+            {
+                "condition_count": len(records),
+                "conditions": records,
+                "implementation_state": "partial_projection_scorer_not_claim_eligible",
+            },
+            pure_order_metrics=primary_metrics,
         )
-    failures: list[ComponentName] = []
-    clients = _client_ids(3)
-    ranks = sample_independent_uniform_ranks(len(clients), seed)
-    latent = generate_unit_variance_autoregressive_latent(
-        8, config.generators.common_mode.latent_ar_coefficient, seed
-    )
-    loadings = equally_spaced_loadings(
-        len(clients),
-        config.generators.common_mode.client_loading_minimum,
-        config.generators.common_mode.client_loading_maximum,
-    )
-    scores = generate_common_mode_scores(
-        latent,
-        loadings,
-        config.generators.common_mode.client_noise_standard_deviation,
-        seed,
-    )
-    if len(scores) != len(latent) or any(len(row) != len(clients) for row in scores):
-        failures.append("common-mode shape")
-    shifted = apply_marginal_score_shift(
-        (0.0, 0.0, 0.0), clients, config.generators.controlled_campaigns.marginal.score_shift
-    )
-    if len(shifted) != len(clients):
-        failures.append("controlled marginal campaign")
-    pair = gaussian_copula_pair(
-        config.generators.controlled_campaigns.pair_relation.campaign_correlation, seed
-    )
-    if any(rank < 0.0 or rank > 1.0 for rank in pair):
-        failures.append("copula rank range")
-    if experiment_name is ExperimentName.OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY:
-        contaminated_outside_clients(
-            clients, config.generators.outside_contamination.correlated_campaign_fractions[0]
-        )
-    if experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
-        dropout_coalition_is_active(
-            clients[:1],
-            clients,
-            clients,
-            config.context.minimum_available_outside_clients,
-            config.context.minimum_available_outside_fraction,
-        )
-    method_score: FiniteFloat | None = None
-    if method_name is not None and method_name not in {
-        MethodName.FULL_FEDCAMPAIGN_EMHI,
-        MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
-        MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
-        MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
-        MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
-        MethodName.PARTIAL_COALITION_EXCLUSION,
-        MethodName.NO_PROPER_SUBSET_PURIFICATION,
-        MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
-    }:
-        try:
-            method_score = score_comparator_ranks(method_name, ranks, config)[0]
-        except ValueError as error:
-            failures.append(f"method:{method_name.value}:{error}")
-    return SyntheticCellOutcome(tuple(failures), method_score)
+    raise ValueError(f"unsupported synthetic experiment {experiment_name.value}")

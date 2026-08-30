@@ -98,6 +98,22 @@ class SelfExplanationMeasurement:
 
 
 @dataclass(frozen=True)
+class PerturbationResponse:
+    perturbation: ScoreShift
+    response_mean: FiniteFloat
+    nuisance_mean: FiniteFloat
+    innovation_mean: FiniteFloat
+
+
+def _response_for(
+    perturbation_responses: tuple[PerturbationResponse, ...], perturbation: ScoreShift
+) -> PerturbationResponse:
+    return next(
+        response for response in perturbation_responses if response.perturbation == perturbation
+    )
+
+
+@dataclass(frozen=True)
 class SelfExplanationSeedResult:
     measurements: tuple[SelfExplanationMeasurement, ...]
     primary_exact_nuisance_derivative: FiniteFloat
@@ -229,9 +245,7 @@ def evaluate_self_explanation_seed(
         coalition_ids = selected_ids[: int(cell.coalition_order)]
         coalition_indices = tuple(selected_ids.index(member) for member in coalition_ids)
         context_indices = _context_indices(cell.context_method, selected_ids, coalition_ids)
-        response_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
-        nuisance_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
-        innovation_by_perturbation: dict[ScoreShift, FiniteFloat] = {}
+        perturbation_responses: list[PerturbationResponse] = []
         for perturbation in config.generators.self_explanation.perturbations:
             responses: list[FiniteFloat] = []
             nuisances: list[FiniteFloat] = []
@@ -257,27 +271,33 @@ def evaluate_self_explanation_seed(
                 responses.append(response)
                 nuisances.append(nuisance)
                 innovations.append(response - nuisance)
-            response_by_perturbation[perturbation] = sum(responses) / len(responses)
-            nuisance_by_perturbation[perturbation] = sum(nuisances) / len(nuisances)
-            innovation_by_perturbation[perturbation] = sum(innovations) / len(innovations)
+            perturbation_responses.append(
+                PerturbationResponse(
+                    perturbation=perturbation,
+                    response_mean=sum(responses) / len(responses),
+                    nuisance_mean=sum(nuisances) / len(nuisances),
+                    innovation_mean=sum(innovations) / len(innovations),
+                )
+            )
+        resolved_responses = tuple(perturbation_responses)
         direct_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
             tuple(
-                response_by_perturbation[perturbation]
+                _response_for(resolved_responses, perturbation).response_mean
                 for perturbation in config.generators.self_explanation.derivative_regression_perturbations
             ),
         )
         nuisance_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
             tuple(
-                nuisance_by_perturbation[perturbation]
+                _response_for(resolved_responses, perturbation).nuisance_mean
                 for perturbation in config.generators.self_explanation.derivative_regression_perturbations
             ),
         )
         innovation_derivative = _ols_slope(
             config.generators.self_explanation.derivative_regression_perturbations,
             tuple(
-                innovation_by_perturbation[perturbation]
+                _response_for(resolved_responses, perturbation).innovation_mean
                 for perturbation in config.generators.self_explanation.derivative_regression_perturbations
             ),
         )
@@ -288,9 +308,11 @@ def evaluate_self_explanation_seed(
         measurements.append(
             SelfExplanationMeasurement(
                 cell=cell,
-                response_mean=response_by_perturbation[cell.perturbation],
-                nuisance_mean=nuisance_by_perturbation[cell.perturbation],
-                innovation_mean=innovation_by_perturbation[cell.perturbation],
+                response_mean=_response_for(resolved_responses, cell.perturbation).response_mean,
+                nuisance_mean=_response_for(resolved_responses, cell.perturbation).nuisance_mean,
+                innovation_mean=_response_for(
+                    resolved_responses, cell.perturbation
+                ).innovation_mean,
                 direct_derivative=direct_derivative,
                 nuisance_derivative=nuisance_derivative,
                 innovation_derivative=innovation_derivative,

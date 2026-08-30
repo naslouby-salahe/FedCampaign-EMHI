@@ -1,5 +1,6 @@
 import hashlib
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -7,6 +8,8 @@ from typing import cast
 from fedcampaign_emhi.analysis.multiplicity import holm_adjusted_p_values
 from fedcampaign_emhi.analysis.statistics import (
     exact_sign_flip_means,
+    mean_bca_one_sided_lower_bound,
+    one_sided_synthetic_sign_flip_p_value,
     paired_mean_bca_interval,
     two_sided_sign_flip_p_value,
 )
@@ -21,7 +24,9 @@ from fedcampaign_emhi.artifacts.records import (
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
+    EstimatorFeasibilityAggregationRecord,
     ExperimentRunRecord,
+    FiniteHorizonAggregationRecord,
     MarginalRankArtifactRecord,
     PlanArtifactRecord,
     PlannedExperimentRecord,
@@ -29,15 +34,13 @@ from fedcampaign_emhi.artifacts.records import (
     ScientificCellRecord,
     SeedSummaryRecord,
     StatisticalRecord,
+    StrongComparatorCompositionRecord,
 )
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
-from fedcampaign_emhi.comparators.composition import (
-    materialize_composition_record,
-    select_strongest_comparator,
-)
 from fedcampaign_emhi.comparators.contracts import (
     ComparatorMethodContract,
     comparator_method_contracts,
+    native_target_order,
 )
 from fedcampaign_emhi.comparators.runtime import (
     score_comparator_ranks,
@@ -60,6 +63,7 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
     PartitionRole,
     PreprocessingLayer,
+    PrimaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -80,6 +84,8 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.benign_horizons import (
+    TrajectoryCache,
+    calibrate_client_local_operating_point,
     calibrate_operating_points,
     heldout_benign_false_stop_records,
 )
@@ -98,15 +104,29 @@ from fedcampaign_emhi.evaluation.records import (
     odi_evaluation_record,
 )
 from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
+from fedcampaign_emhi.execution.finite_horizon import (
+    FiniteHorizonSeedMetrics,
+    evaluate_finite_horizon_common_mode_seed,
+)
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
 from fedcampaign_emhi.execution.preprocess import dataset_directory_stem, layer_artifact_id
+from fedcampaign_emhi.execution.pure_order import (
+    emhi_method_settings,
+    evaluate_comparator_pure_order_cell,
+    evaluate_fitted_pure_order_cell,
+)
 from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
 from fedcampaign_emhi.experiments.producers import (
+    EstimatorFeasibilitySeedMetrics,
+    PureOrderSeedMetrics,
+    SelfExplanationSeedMetrics,
     SyntheticCellOutcome,
     run_synthetic_cell,
     synthetic_role_seeds,
 )
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
+from fedcampaign_emhi.synthetic.pure_order import enumerate_pure_order_grid
+from fedcampaign_emhi.synthetic.sequential import SignedTheoremSeedMetrics
 from fedcampaign_emhi.synthetic.validation import validate_synthetic_generators
 
 
@@ -125,6 +145,46 @@ class _EmhiMethodSpecification:
     context_method: ContextMethodName
     maximum_order: CoalitionOrder
     purification_enabled: bool
+
+
+@dataclass(frozen=True)
+class SelfExplanationObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: SelfExplanationSeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
+class PureOrderObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: PureOrderSeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
+class SignedTheoremObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: SignedTheoremSeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
+class FiniteHorizonObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: FiniteHorizonSeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
+class EstimatorFeasibilityObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: EstimatorFeasibilitySeedMetrics
+    diagnostic_path: Path
 
 
 def resume_sequence() -> tuple[ResumeStep, ...]:
@@ -369,52 +429,171 @@ def _execute_synthetic_experiment(
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
-        selection = loaded.values.experiments.strong_comparator_composition_challenge
-        candidate_scores: list[FiniteFloat] = []
-        for method_name in selection.candidates:
-            outcome = run_synthetic_cell(
-                loaded,
-                experiment_name,
-                loaded.values.randomness.synthetic_development_roots[0],
-                method_name,
-            )
-            candidate_scores.append(
-                abs(
-                    (outcome.method_score or 0.0)
-                    - loaded.values.generators.pure_polynomial.primary_reference_theta
-                )
-            )
-        selected_method = select_strongest_comparator(
-            selection.candidates,
-            tuple(candidate_scores),
-            tuple(0.0 for _candidate in selection.candidates),
-            selection.error_tie_tolerance_standardized_units,
-            selection.runtime_tie_tolerance_seconds,
-        )
-        composition = materialize_composition_record(
-            selected_method,
-            selection.artifact_filename,
-        )
-        composition_path = root / "artifacts" / "derived" / selection.artifact_filename
-        write_atomic_json(
-            composition_path,
-            {
-                "selected_method": composition.selected_method.value,
-                "native_target_order": composition.native_target_order,
-                "artifact_filename": composition.artifact_filename,
-            },
-            staging,
-        )
     completed = 0
     invalid = 0
+    self_explanation_observations: list[SelfExplanationObservation] = []
+    pure_order_observations: list[PureOrderObservation] = []
+    signed_theorem_observations: list[SignedTheoremObservation] = []
+    finite_horizon_observations: list[FiniteHorizonObservation] = []
+    estimator_feasibility_observations: list[EstimatorFeasibilityObservation] = []
     for role in contract.execution_roles:
         methods: tuple[MethodName | None, ...] = contract.methods or (None,)
         for seed in synthetic_role_seeds(loaded, role):
             for method_name in methods:
                 started = perf_counter()
+                finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
                 try:
-                    outcome = run_synthetic_cell(loaded, experiment_name, seed, method_name)
+                    outcome = run_synthetic_cell(loaded, experiment_name, seed, method_name, role)
+                    if (
+                        experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
+                        and method_name is not None
+                        and emhi_method_settings(method_name) is not None
+                    ):
+                        primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
+                        fitted_grid = tuple(
+                            (cell, evaluate_fitted_pure_order_cell(loaded.values, cell, seed))
+                            for cell in enumerate_pure_order_grid(loaded.values)
+                            if cell.method is method_name
+                        )
+                        primary_fitted = (
+                            next(
+                                (
+                                    fitted
+                                    for cell, fitted in fitted_grid
+                                    if cell.generator is primary.generator
+                                    and cell.target_order == CoalitionOrder(primary.coalition_order)
+                                    and cell.effect
+                                    == loaded.values.generators.pure_polynomial.primary_reference_theta
+                                ),
+                                None,
+                            )
+                            if method_name is primary.method
+                            else None
+                        )
+                        grid_complete = all(
+                            fitted is not None and fitted.artifact_path_complete
+                            for _cell, fitted in fitted_grid
+                        )
+                        if grid_complete:
+                            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                            evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
+                            if primary_fitted is not None and primary_fitted.artifact_path_complete:
+                                evidence["primary_exact_exclusion_artifact_score"] = {
+                                    "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
+                                    "target_order_standardized_drift": primary_fitted.metrics.target_order_standardized_drift,
+                                }
+                            outcome = replace(
+                                outcome,
+                                evidence=evidence,
+                                pure_order_metrics=(
+                                    PureOrderSeedMetrics(
+                                        primary_fitted.metrics.maximum_proper_subset_standardized_drift,
+                                        primary_fitted.metrics.target_order_standardized_drift,
+                                    )
+                                    if primary_fitted is not None
+                                    and primary_fitted.artifact_path_complete
+                                    else outcome.pure_order_metrics
+                                ),
+                                failed_checks=tuple(
+                                    failure
+                                    for failure in outcome.failed_checks
+                                    if failure
+                                    not in {
+                                        "missing exact-exclusion fitted pure-order artifact scorer",
+                                        "missing exact-exclusion fitted pure-order artifact grid",
+                                        *(
+                                            ("missing fitted proper-subset pure-order scores",)
+                                            if primary_fitted is not None
+                                            and primary_fitted.artifact_path_complete
+                                            else ()
+                                        ),
+                                    }
+                                ),
+                            )
+                    if (
+                        experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
+                        and method_name is not None
+                        and emhi_method_settings(method_name) is None
+                        and method_name
+                        is not loaded.values.experiments.pure_order_separation_validation.primary_condition.method
+                    ):
+                        comparator_grid = tuple(
+                            (cell, evaluate_comparator_pure_order_cell(loaded.values, cell, seed))
+                            for cell in enumerate_pure_order_grid(loaded.values)
+                            if cell.method is method_name
+                        )
+                        native_order = native_target_order(method_name)
+                        expected_comparator_cells = tuple(
+                            cell
+                            for cell, _metrics in comparator_grid
+                            if native_order is not None and cell.target_order is native_order
+                        )
+                        comparator_completed = tuple(
+                            (cell, metrics)
+                            for cell, metrics in comparator_grid
+                            if metrics is not None
+                        )
+                        comparator_grid_complete = bool(expected_comparator_cells) and all(
+                            metrics is not None
+                            for cell, metrics in comparator_grid
+                            if cell in expected_comparator_cells
+                        )
+                        if comparator_completed:
+                            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                            evidence["native_comparator_scores"] = [
+                                {
+                                    "generator": cell.generator.value,
+                                    "effect": cell.effect,
+                                    "target_order": int(cell.target_order),
+                                    "target_order_standardized_drift": metrics.target_order_standardized_drift,
+                                }
+                                for cell, metrics in comparator_completed
+                            ]
+                            evidence["native_comparator_grid"] = {
+                                "native_target_order": int(native_order)
+                                if native_order is not None
+                                else None,
+                                "expected_cell_count": len(expected_comparator_cells),
+                                "completed_cell_count": len(comparator_completed),
+                                "complete": comparator_grid_complete,
+                            }
+                            outcome = replace(
+                                outcome,
+                                evidence=evidence,
+                                failed_checks=tuple(
+                                    failure
+                                    for failure in outcome.failed_checks
+                                    if failure != "missing native comparator pure-order grid"
+                                    or not comparator_grid_complete
+                                ),
+                            )
+                    if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
+                        finite_horizon = evaluate_finite_horizon_common_mode_seed(
+                            loaded.values, seed
+                        )
+                        finite_horizon_metrics = finite_horizon.metrics
+                        evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                        evidence["calibrated_finite_horizon"] = {
+                            "calibrated_threshold": finite_horizon.metrics.calibrated_threshold,
+                            "calibration_horizon_count": finite_horizon.metrics.calibration_horizon_count,
+                            "heldout_horizon_count": finite_horizon.metrics.heldout_horizon_count,
+                            "heldout_false_stop_count": finite_horizon.metrics.heldout_false_stop_count,
+                            "heldout_upper_pfa": finite_horizon.metrics.heldout_upper_pfa,
+                            "operating_point_available": finite_horizon.metrics.calibrated_threshold
+                            is not None,
+                        }
+                        outcome = replace(
+                            outcome,
+                            evidence=evidence,
+                            failed_checks=(
+                                outcome.failed_checks
+                                if finite_horizon.assumptions_hold
+                                else (
+                                    *outcome.failed_checks,
+                                    "finite-horizon operational-route assumptions",
+                                )
+                            ),
+                        )
                 except (ArithmeticError, ValueError) as error:
                     outcome = SyntheticCellOutcome((str(error),), None)
                 state = (
@@ -444,6 +623,60 @@ def _execute_synthetic_experiment(
                     "evidence": outcome.evidence,
                 }
                 diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
+                if (
+                    state is ExperimentState.COMPLETED
+                    and outcome.self_explanation_metrics is not None
+                ):
+                    self_explanation_observations.append(
+                        SelfExplanationObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=outcome.self_explanation_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
+                if state is ExperimentState.COMPLETED and outcome.pure_order_metrics is not None:
+                    pure_order_observations.append(
+                        PureOrderObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=outcome.pure_order_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
+                if (
+                    state is ExperimentState.COMPLETED
+                    and outcome.signed_theorem_metrics is not None
+                ):
+                    signed_theorem_observations.append(
+                        SignedTheoremObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=outcome.signed_theorem_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
+                if state is ExperimentState.COMPLETED and finite_horizon_metrics is not None:
+                    finite_horizon_observations.append(
+                        FiniteHorizonObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=finite_horizon_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
+                if (
+                    state is ExperimentState.COMPLETED
+                    and outcome.estimator_feasibility_metrics is not None
+                ):
+                    estimator_feasibility_observations.append(
+                        EstimatorFeasibilityObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=outcome.estimator_feasibility_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
                 fingerprint = material_fingerprint(
                     loaded.material_digest,
                     (payload_digest(cast(YamlNode, {"seed": seed, "method": method_slug})),),
@@ -480,6 +713,31 @@ def _execute_synthetic_experiment(
                     completed += 1
                 else:
                     invalid += 1
+    if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
+        materialize_self_explanation_statistics(
+            loaded,
+            repository,
+            tuple(self_explanation_observations),
+        )
+    if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
+        materialize_pure_order_statistics(loaded, repository, tuple(pure_order_observations))
+    if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
+        materialize_signed_theorem_statistics(
+            loaded,
+            repository,
+            tuple(signed_theorem_observations),
+        )
+        materialize_finite_horizon_statistics(
+            loaded,
+            repository,
+            tuple(finite_horizon_observations),
+        )
+    if experiment_name is ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY:
+        materialize_estimator_feasibility_statistics(
+            loaded,
+            repository,
+            tuple(estimator_feasibility_observations),
+        )
     state = ExperimentState.COMPLETED if invalid == 0 else ExperimentState.INVALID
     run_path = publish_experiment_run_record(
         loaded,
@@ -499,6 +757,365 @@ def _execute_synthetic_experiment(
             else f"{invalid} synthetic cells failed scientific validation"
         ),
     )
+
+
+def materialize_self_explanation_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[SelfExplanationObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    if tuple(observation.seed for observation in confirmatory) != expected:
+        return None
+    values = tuple(observation.metric.primary_attenuation_contrast for observation in confirmatory)
+    raw_p_value = one_sided_synthetic_sign_flip_p_value(
+        values,
+        loaded.values.statistics.synthetic_sign_flip_replicates_when_not_exact,
+        loaded.values.statistics.synthetic_sign_flip_replicates_when_not_exact,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    interval = paired_mean_bca_interval(
+        values,
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION.value,
+        "hypothesis_identifier": "Self-Explanation Material Attenuation",
+        "metric_name": "primary_attenuation_contrast",
+        "method_name": "Exact Complement Exclusion",
+        "independent_unit_count": len(values),
+        "estimate": sum(values) / len(values),
+        "raw_p_value": raw_p_value,
+        "confidence_level": loaded.values.statistics.confidence_level,
+        "confidence_lower": interval[0],
+        "confidence_upper": interval[1],
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier="Self-Explanation Material Attenuation",
+        metric_name="primary_attenuation_contrast",
+        method_name="Exact Complement Exclusion",
+        independent_unit_count=len(values),
+        estimate=sum(values) / len(values),
+        raw_p_value=raw_p_value,
+        adjusted_p_value=None,
+        confidence_level=loaded.values.statistics.confidence_level,
+        confidence_lower=interval[0],
+        confidence_upper=interval[1],
+        decision=(
+            ClaimState.SUPPORTED
+            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
+            else ClaimState.NULL_RESULT
+        ),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION)
+        / "statistics"
+        / "tests"
+        / "self-explanation-material-attenuation.json"
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_pure_order_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[PureOrderObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    if tuple(observation.seed for observation in confirmatory) != expected:
+        return None
+    values = tuple(
+        observation.metric.target_order_standardized_drift for observation in confirmatory
+    )
+    raw_p_value = one_sided_synthetic_sign_flip_p_value(
+        values,
+        loaded.values.statistics.synthetic_sign_flip_replicates_when_not_exact,
+        loaded.values.statistics.synthetic_sign_flip_replicates_when_not_exact,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    interval = paired_mean_bca_interval(
+        values,
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.PURE_ORDER_SEPARATION_VALIDATION.value,
+        "hypothesis_identifier": "Pure-Order Target Drift",
+        "metric_name": "target_order_standardized_drift",
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": len(values),
+        "estimate": sum(values) / len(values),
+        "raw_p_value": raw_p_value,
+        "confidence_level": loaded.values.statistics.confidence_level,
+        "confidence_lower": interval[0],
+        "confidence_upper": interval[1],
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier="Pure-Order Target Drift",
+        metric_name="target_order_standardized_drift",
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=len(values),
+        estimate=sum(values) / len(values),
+        raw_p_value=raw_p_value,
+        adjusted_p_value=None,
+        confidence_level=loaded.values.statistics.confidence_level,
+        confidence_lower=interval[0],
+        confidence_upper=interval[1],
+        decision=(
+            ClaimState.SUPPORTED
+            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
+            else ClaimState.NULL_RESULT
+        ),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.PURE_ORDER_SEPARATION_VALIDATION)
+        / "statistics"
+        / "tests"
+        / "pure-order-target-drift.json"
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_estimator_feasibility_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[EstimatorFeasibilityObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    if tuple(observation.seed for observation in confirmatory) != expected:
+        return None
+    metrics = tuple(observation.metric.primary for observation in confirmatory)
+    failure_count = sum(metric.numerical_failure for metric in metrics)
+    failure_rate = failure_count / len(metrics)
+    materiality = loaded.values.claim_materiality
+    decision = (
+        ClaimState.SUPPORTED
+        if (
+            sum(metric.context_coverage for metric in metrics) / len(metrics)
+            >= materiality.order_three_estimator.minimum_mean_context_coverage
+            and sum(metric.projection_nrmse for metric in metrics) / len(metrics)
+            <= materiality.order_three_estimator.maximum_mean_projection_nrmse
+            and sum(metric.standardized_null_bias for metric in metrics) / len(metrics)
+            <= materiality.order_three_estimator.maximum_mean_standardized_null_bias
+            and failure_rate <= materiality.maximum_pooled_numerical_failure_rate
+        )
+        else ClaimState.NULL_RESULT
+    )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY.value,
+        "independent_unit_count": len(metrics),
+        "mean_context_coverage": sum(metric.context_coverage for metric in metrics) / len(metrics),
+        "mean_projection_nrmse": sum(metric.projection_nrmse for metric in metrics) / len(metrics),
+        "mean_standardized_null_bias": sum(metric.standardized_null_bias for metric in metrics)
+        / len(metrics),
+        "numerical_failure_count": failure_count,
+        "attempted_condition_count": len(metrics),
+        "pooled_numerical_failure_rate": failure_rate,
+        "decision": decision.value,
+        "source_result_ids": list(source_ids),
+    }
+    record = EstimatorFeasibilityAggregationRecord(
+        experiment_name=ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY,
+        independent_unit_count=len(metrics),
+        mean_context_coverage=sum(metric.context_coverage for metric in metrics) / len(metrics),
+        mean_projection_nrmse=sum(metric.projection_nrmse for metric in metrics) / len(metrics),
+        mean_standardized_null_bias=sum(metric.standardized_null_bias for metric in metrics)
+        / len(metrics),
+        numerical_failure_count=failure_count,
+        attempted_condition_count=len(metrics),
+        pooled_numerical_failure_rate=failure_rate,
+        decision=decision,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY)
+        / "statistics"
+        / "tests"
+        / "estimator-order-three-feasibility.json"
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_signed_theorem_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[SignedTheoremObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    if tuple(observation.seed for observation in confirmatory) != expected:
+        return None
+    values = tuple(observation.metric.restricted_arl for observation in confirmatory)
+    confidence_level = loaded.values.statistics.confidence_level
+    lower = mean_bca_one_sided_lower_bound(
+        values,
+        confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    threshold = loaded.values.experiments.sequential_evidence_validation.signed_theorem.restricted_arl_bootstrap_lower_bound_minimum_epochs
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION.value,
+        "hypothesis_identifier": "Signed-Theorem Restricted ARL",
+        "metric_name": "restricted_arl",
+        "method_name": "Signed-Theorem Sequential Route",
+        "independent_unit_count": len(values),
+        "estimate": sum(values) / len(values),
+        "raw_p_value": None,
+        "confidence_level": confidence_level,
+        "confidence_lower": lower,
+        "confidence_upper": None,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier="Signed-Theorem Restricted ARL",
+        metric_name="restricted_arl",
+        method_name="Signed-Theorem Sequential Route",
+        independent_unit_count=len(values),
+        estimate=sum(values) / len(values),
+        raw_p_value=None,
+        adjusted_p_value=None,
+        confidence_level=confidence_level,
+        confidence_lower=lower,
+        confidence_upper=None,
+        decision=(ClaimState.SUPPORTED if lower >= threshold else ClaimState.NULL_RESULT),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION)
+        / "statistics"
+        / "tests"
+        / "signed-theorem-restricted-arl.json"
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_finite_horizon_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[FiniteHorizonObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    if tuple(observation.seed for observation in confirmatory) != expected:
+        return None
+    unavailable_count = sum(
+        observation.metric.calibrated_threshold is None for observation in confirmatory
+    )
+    upper_bounds = tuple(
+        observation.metric.heldout_upper_pfa
+        for observation in confirmatory
+        if observation.metric.heldout_upper_pfa is not None
+    )
+    maximum_upper = max(upper_bounds, default=None)
+    target = loaded.values.evidence.calibrated_finite_horizon.target_pfa
+    decision = (
+        ClaimState.NOT_SUPPORTED
+        if unavailable_count > 0
+        else (
+            ClaimState.SUPPORTED
+            if maximum_upper is not None and maximum_upper <= target
+            else ClaimState.NULL_RESULT
+        )
+    )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION.value,
+        "independent_unit_count": len(confirmatory),
+        "operating_point_unavailable_count": unavailable_count,
+        "target_pfa": target,
+        "maximum_heldout_upper_pfa": maximum_upper,
+        "decision": decision.value,
+        "source_result_ids": list(source_ids),
+    }
+    record = FiniteHorizonAggregationRecord(
+        experiment_name=ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION,
+        independent_unit_count=len(confirmatory),
+        operating_point_unavailable_count=unavailable_count,
+        target_pfa=target,
+        maximum_heldout_upper_pfa=maximum_upper,
+        decision=decision,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION)
+        / "statistics"
+        / "tests"
+        / "calibrated-finite-horizon-pfa.json"
+    )
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
 
 
 def _experiment_dataset(
@@ -961,6 +1578,7 @@ def _heldout_rows(
     fit: EMHIFitArtifactRecord,
     partitions: BenignPartitionRecord,
     calibration: OperationalCalibration,
+    trajectory_cache: TrajectoryCache,
 ) -> tuple[YamlNode, ...]:
     threshold = calibration.global_operating_point.threshold
     if threshold is None:
@@ -971,6 +1589,7 @@ def _heldout_rows(
         fit,
         partitions,
         threshold,
+        trajectory_cache=trajectory_cache,
     )
     return tuple(
         {
@@ -1044,6 +1663,7 @@ def _evaluate_emhi_seed_cell(
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    trajectory_cache = TrajectoryCache()
     calibration = calibrate_operating_points(
         loaded.values,
         scores,
@@ -1052,6 +1672,7 @@ def _evaluate_emhi_seed_cell(
         split.nuisance_fit_epochs,
         partitions,
         target_local_pfa,
+        trajectory_cache=trajectory_cache,
     )
     campaign_rows, odi_values = _campaign_rows(
         loaded,
@@ -1061,7 +1682,7 @@ def _evaluate_emhi_seed_cell(
         campaigns,
         calibration,
     )
-    heldout_rows = _heldout_rows(loaded, ranks, fit, partitions, calibration)
+    heldout_rows = _heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
@@ -1239,16 +1860,39 @@ def _materialize_not_tested_real_cell(
     return cell_path
 
 
-def _comparator_scoring_method(
-    loaded: LoadedScientificConfiguration, method_name: MethodName
+def resolve_comparator_scoring_method(
+    loaded: LoadedScientificConfiguration, repository: Path, method_name: MethodName
 ) -> MethodName:
-    if method_name is MethodName.SELECTED_STRONG_COMPARATOR_COMPOSITION:
-        return loaded.values.experiments.strong_comparator_composition_challenge.candidates[0]
-    return method_name
+    if method_name is not MethodName.SELECTED_STRONG_COMPARATOR_COMPOSITION:
+        return method_name
+    layout = build_artifact_layout(loaded, repository)
+    filename = loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
+    path = (
+        layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
+        / "artifacts"
+        / "derived"
+        / filename
+    )
+    if not path.is_file():
+        raise ValueError("selected strong comparator requires a validated composition artifact")
+    record = StrongComparatorCompositionRecord.model_validate_json(path.read_bytes())
+    payload = record.model_dump(mode="json", exclude={"dependency_fingerprint", "content_digest"})
+    if payload_digest(cast(YamlNode, payload)) != record.content_digest:
+        raise ValueError("selected strong comparator artifact content digest is invalid")
+    if record.dependency_fingerprint != material_fingerprint(
+        loaded.material_digest, record.source_artifact_hashes
+    ):
+        raise ValueError("selected strong comparator artifact dependency fingerprint is stale")
+    if record.selected_method not in record.eligible_candidates:
+        raise ValueError("selected strong comparator artifact selected an ineligible candidate")
+    if native_target_order(record.selected_method) is not record.selected_native_order:
+        raise ValueError("selected strong comparator artifact native-order mapping is invalid")
+    return record.selected_method
 
 
 def _comparator_epoch_scores(
     loaded: LoadedScientificConfiguration,
+    repository: Path,
     ranks: MarginalRankArtifactRecord,
     method_name: MethodName,
 ) -> tuple[tuple[EpochIndexValue, FiniteFloat], ...]:
@@ -1268,7 +1912,7 @@ def _comparator_epoch_scores(
     for epoch_set in epoch_sets[1:]:
         common_epoch_set.intersection_update(epoch_set)
     common_epochs: list[EpochIndexValue] = sorted(common_epoch_set)
-    scoring_method = _comparator_scoring_method(loaded, method_name)
+    scoring_method = resolve_comparator_scoring_method(loaded, repository, method_name)
     triple_methods = {
         MethodName.CONDITIONAL_PAIR_DEPENDENCE,
         MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE,
@@ -1426,6 +2070,92 @@ def _materialize_seed_statistics(
     return tuple(paths)
 
 
+def _materialize_not_tested_primary_holm_statistic(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+) -> Path | None:
+    hypotheses = {
+        ExperimentName.PRIMARY_STRICT_ODI_EVALUATION: (
+            PrimaryHolmHypothesis.PRIMARY_ODI_ADVANTAGE_OVER_ORDER_AT_MOST_TWO_EMHI,
+            "paired_strict_odi_rate_advantage",
+        ),
+        ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS: (
+            PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION,
+            "false_campaign_reduction",
+        ),
+        ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE: (
+            PrimaryHolmHypothesis.STRONG_LOCAL_ODI_ABOVE_MINIMUM,
+            "strong_local_strict_odi_rate",
+        ),
+    }
+    specification = hypotheses.get(experiment_name)
+    if specification is None:
+        return None
+    dataset_name = _experiment_dataset(loaded, experiment_name)
+    prepared_path = _preprocessing_paths(loaded, repository, dataset_name)[1]
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if prepared.selection_claim_state is not ClaimState.NOT_TESTED or prepared.selected_client_ids:
+        return None
+    hypothesis, metric_name = specification
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    source_paths = tuple(
+        sorted(
+            (
+                root
+                / "evaluations"
+                / "raw"
+                / ExecutionRole.CONFIRMATORY.value
+                / _method_slug(MethodName.FULL_FEDCAMPAIGN_EMHI)
+            ).glob("*.json")
+        )
+    )
+    expected_seeds = loaded.values.randomness.real_confirmatory_roots
+    if len(source_paths) != len(expected_seeds):
+        raise FileNotFoundError(
+            f"missing confirmatory Not Tested sources for {experiment_name.value}"
+        )
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "hypothesis_identifier": hypothesis.value,
+        "metric_name": metric_name,
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": len(source_paths),
+        "estimate": 0.0,
+        "raw_p_value": None,
+        "confidence_level": None,
+        "confidence_lower": None,
+        "confidence_upper": None,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier=hypothesis.value,
+        metric_name=metric_name,
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=len(source_paths),
+        estimate=0.0,
+        raw_p_value=None,
+        adjusted_p_value=None,
+        confidence_level=None,
+        confidence_lower=None,
+        confidence_upper=None,
+        decision=ClaimState.NOT_TESTED,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        content_digest=payload_digest(payload),
+    )
+    path = root / "statistics" / "tests" / "primary-holm-not-tested.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
+
+
 def _evaluate_comparator_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -1433,6 +2163,7 @@ def _evaluate_comparator_seed_cell(
     execution_role: ExecutionRole,
     method_name: MethodName,
     seed: SeedValue,
+    score_path: Path,
     rank_path: Path,
 ) -> Path:
     dataset_name = _experiment_dataset(loaded, experiment_name)
@@ -1440,33 +2171,68 @@ def _evaluate_comparator_seed_cell(
         _preprocessing_paths(loaded, repository, dataset_name)
     )
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    detector_scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
-    scores = _comparator_epoch_scores(loaded, ranks, method_name)
+    scores = _comparator_epoch_scores(loaded, repository, ranks, method_name)
     calibration_values = tuple(
         score
         for epoch in split.threshold_calibration_epochs
         if (score := _comparator_score_at(scores, epoch)) is not None
     )
     threshold = None if not calibration_values else max(calibration_values)
+    local_operating_points = tuple(
+        calibrate_client_local_operating_point(
+            loaded.values,
+            detector_scores,
+            client_id,
+            split.nuisance_fit_epochs,
+            partitions,
+            _local_pfa_target(loaded, experiment_name),
+        )
+        for client_id in detector_scores.selected_client_ids
+    )
     campaign_rows: list[YamlNode] = []
     odi_values: list[FiniteFloat] = []
     for campaign in campaigns.campaigns:
+        started = perf_counter()
         epochs = tuple(range(campaign.start_epoch, campaign.end_epoch + 1))
         stop_epoch = _comparator_stop(scores, epochs, threshold)
-        odi_values.append(0.0)
+        elapsed: RuntimeSeconds = perf_counter() - started
+        local_stops = local_stop_epochs(detector_scores, local_operating_points, epochs)
+        odi = odi_evaluation_record(stop_epoch, local_stops)
+        earliest_local = earliest_local_stop(local_stops)
+        statistical = (
+            None
+            if stop_epoch is None or earliest_local is None
+            else statistical_lead(earliest_local, stop_epoch)
+        )
+        operational = (
+            None
+            if stop_epoch is None or earliest_local is None
+            else operational_lead(
+                earliest_local,
+                stop_epoch,
+                elapsed,
+                loaded.values.time.real_data_epoch_seconds,
+            )
+        )
+        indicator: OdiIndicator = odi.indicator
+        odi_values.append(float(indicator))
         campaign_rows.append(
             {
                 "start_epoch": campaign.start_epoch,
                 "end_epoch": campaign.end_epoch,
                 "participating_client_ids": list(campaign.participating_client_ids),
                 "global_stop_epoch": stop_epoch,
-                "local_stop_epochs": [None for _client in ranks.selected_client_ids],
-                "local_min_stop_epoch": None,
-                "strict_odi": 0,
-                "global_detected_within_horizon": int(stop_epoch is not None),
-                "local_detected_within_horizon": 0,
+                "local_stop_epochs": list(local_stops),
+                "local_min_stop_epoch": earliest_local,
+                "strict_odi": indicator,
+                "statistical_lead_epochs": statistical,
+                "operational_lead_epochs": operational,
+                "global_detected_within_horizon": odi.global_detection_indicator,
+                "local_detected_within_horizon": 0 if earliest_local is None else 1,
                 "context_coverage": 1.0,
                 "abstention_rate": 0.0,
                 "comparator_score_threshold": threshold,
@@ -1492,6 +2258,7 @@ def _evaluate_comparator_seed_cell(
         loaded.material_digest,
         (
             method_digest,
+            file_sha256(score_path),
             file_sha256(rank_path),
             file_sha256(split_path),
             file_sha256(partitions_path),
@@ -1517,7 +2284,26 @@ def _evaluate_comparator_seed_cell(
         "method_name": method_name.value,
         "seed": seed,
         "dependency_fingerprint": fingerprint,
-        "calibration": {"global": {"threshold": threshold}, "local": []},
+        "calibration": {
+            "global": {"threshold": threshold},
+            "local": [
+                {
+                    "client_id": point.client_id,
+                    "policy": None
+                    if point.policy is None
+                    else {
+                        "threshold": point.policy.threshold,
+                        "required_exceedances": point.policy.required_exceedances,
+                        "window_epochs": point.policy.window_epochs,
+                    },
+                    "calibration_false_stop_count": point.calibration_false_stop_count,
+                    "heldout_false_stop_count": point.heldout_false_stop_count,
+                    "heldout_horizon_count": point.heldout_horizon_count,
+                    "heldout_upper_pfa": point.heldout_upper_pfa,
+                }
+                for point in local_operating_points
+            ],
+        },
         PartitionRole.HELDOUT_BENIGN.value: heldout_rows,
         "campaigns": campaign_rows,
     }
@@ -1658,6 +2444,7 @@ def _execute_real_emhi_methods(
                     role,
                     method_name,
                     seed,
+                    score_path,
                     rank_path,
                 )
                 completed += 1
@@ -1747,6 +2534,7 @@ def execute_experiment(
         experiment_name,
     )
     _materialize_seed_statistics(loaded, repository, experiment_name)
+    _materialize_not_tested_primary_holm_statistic(loaded, repository, experiment_name)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,

@@ -2,19 +2,22 @@ import typer
 
 from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import DatasetName, OverwritePolicy, PreprocessingLayer
+from fedcampaign_emhi.domain.types import ArtifactIdentity
 from fedcampaign_emhi.execution.preprocess import (
     execute_preprocess,
     preprocess_must_not_regenerate,
     requested_datasets,
 )
 
+_DATASET_ARGUMENT: DatasetName | None = typer.Argument(default=None)
+
 
 def preprocess_command(
-    dataset_name: str | None = typer.Argument(default=None),
+    dataset_name: DatasetName | None = _DATASET_ARGUMENT,
     overwrite: bool = typer.Option(False, "--overwrite"),
 ) -> None:
     repository, loaded = production_configuration_context()
-    selected = None if dataset_name is None else _parse_dataset_name(dataset_name)
+    selected = dataset_name
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
     record = execute_preprocess(loaded, repository, selected, policy)
     typer.echo(f"material_digest={loaded.material_digest}")
@@ -32,22 +35,12 @@ def preprocess_command(
         for decision in record.decisions
         for artifact_id in decision.invalidated_descendant_ids
     )
-    typer.echo("invalidated_descendants=" + ",".join(invalidated))
+    unique_invalidated: list[ArtifactIdentity] = []
+    for artifact_id in invalidated:
+        if artifact_id not in unique_invalidated:
+            unique_invalidated.append(artifact_id)
+    typer.echo("invalidated_descendants=" + ",".join(unique_invalidated))
     typer.echo("ownership=" + ",".join(layer.value for layer in PreprocessingLayer))
     typer.echo(
         "must_not_regenerate=" + ",".join(kind.value for kind in preprocess_must_not_regenerate())
     )
-
-
-def _parse_dataset_name(dataset_argument: str) -> DatasetName:
-    aliases = {
-        "ton-iot-network": DatasetName.TON_IOT_NETWORK,
-        "ton_iot network": DatasetName.TON_IOT_NETWORK,
-        DatasetName.TON_IOT_NETWORK.value.lower(): DatasetName.TON_IOT_NETWORK,
-        "edge-iiotset": DatasetName.EDGE_IIOTSET,
-        DatasetName.EDGE_IIOTSET.value.lower(): DatasetName.EDGE_IIOTSET,
-    }
-    resolved = aliases.get(dataset_argument.lower())
-    if resolved is None:
-        raise typer.BadParameter(f"unknown dataset name {dataset_argument}")
-    return resolved

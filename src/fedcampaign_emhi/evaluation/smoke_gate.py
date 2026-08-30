@@ -1,3 +1,4 @@
+from collections import deque
 from dataclasses import dataclass
 from math import exp
 
@@ -54,7 +55,7 @@ class SmokeGateResult:
 
 
 def _check(
-    fixture_name: SmokeFixtureName, condition: bool, failures: list[SmokeFixtureName]
+    fixture_name: SmokeFixtureName, condition: bool, failures: deque[SmokeFixtureName]
 ) -> None:
     if not condition:
         failures.append(fixture_name)
@@ -111,7 +112,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     evidence = loaded.values.evidence
     distributed_support = loaded.values.distributed_support
     basis_size = loaded.values.basis.primary_size
-    failures: list[SmokeFixtureName] = []
+    failures: deque[SmokeFixtureName] = deque()
 
     tie_rank = midrank(0.5, RankReference(scores=(0.0, 0.5, 0.5, 1.0)))
     _check(MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, failures)
@@ -170,12 +171,17 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
 
     _check(BASIS_WIDTH, len(bounded_basis(0.5, basis_size)) == basis_size, failures)
 
+    ridge_candidates = projection.ridge_candidates
     ridge_selected = select_ridge_penalty(
-        (0.01, 0.1),
-        (0.05, 0.05 + projection.selection_tie_tolerance_mse / 2),
+        ridge_candidates,
+        tuple(0.05 + projection.selection_tie_tolerance_mse / 2 for _ in ridge_candidates),
         projection.selection_tie_tolerance_mse,
     )
-    _check(RIDGE_TIE, abs(ridge_selected - 0.1) <= projection.selection_tie_tolerance_mse, failures)
+    _check(
+        RIDGE_TIE,
+        abs(ridge_selected - max(ridge_candidates)) <= projection.selection_tie_tolerance_mse,
+        failures,
+    )
 
     order_three_minimum = context.minimum_support_epochs.order_three
     _check(

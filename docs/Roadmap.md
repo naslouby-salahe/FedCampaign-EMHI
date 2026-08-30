@@ -8,6 +8,40 @@
 
 This roadmap is the scientific and execution specification for the study. Implementation may mirror it in typed code, but no external plan, user-editable configuration, undocumented default, or post-hoc implementation choice may alter its scientific contract.
 
+## Protocol amendment 1 — primary cohort support correction
+
+**Status:** adopted before inspection of any method, detection, false-alarm, effect, or
+claim result.  **Scope:** TON_IoT Network primary real-data cohort only.
+
+The originally specified 12-client primary cohort was found, during raw-input and
+preprocessing validation, to have no common benign interval from which the required
+detector-fit, nuisance-fit, calibration, and held-out partitions could all be formed.
+That is a data-availability failure, not an unfavorable method outcome.  The primary
+cohort size is therefore revised to four clients, selected by the unchanged benign-only
+eligibility ranking in Section 6.2.  This is the largest leading ranked cohort in the
+observed release with adequate common benign support for all required partitions.
+
+This amendment changes only `datasets.primary.target_client_count` from 12 to 4.
+It does not change the client-eligibility minima, client ordering, campaign definition,
+held-out partition proportions, methods, operating-point calibration, inferential
+thresholds, multiplicity families, effect directions, or seeds.  Artifacts produced
+under the previous 12-client material digest are not evidence for this amended primary
+protocol; the amended digest and selection record are the authoritative provenance.
+
+## Protocol amendment 2 — secondary trace availability finding
+
+**Status:** observed during raw-input and preprocessing validation. **Scope:**
+Edge-IIoTset secondary trace only.
+
+The configured release contains two eligible source-host identities under the unchanged
+benign-event and nonempty-epoch rules: `192.168.0.128` and `192.168.0.101`. This is
+below the predeclared minimum eligible-client count of six. Secondary controlled-trace
+generalization therefore remains `Not Tested`; the implementation must not fabricate
+clients, relax the eligibility rule, or represent this release as a 12-client trace.
+
+This finding changes no scientific threshold, method, seed, or eligibility policy. It
+records the measured release limitation and the required unavailable-evidence outcome.
+
 ---
 
 # 1. Conceptual execution lifecycle
@@ -827,7 +861,7 @@ datasets:
   primary:
     name: TON_IoT Network
     raw_directory: data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset
-    target_client_count: 12
+    target_client_count: 4
   secondary:
     name: Edge-IIoTset
     raw_directory: data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv
@@ -1442,7 +1476,7 @@ Component substream seeds are computed from the exact JSON object:
 
 ```json
 {
-  "base_seed": <integer>,
+  "base_seed": <decimal-string>,
   "component_name": <string>,
   "dataset": <string-or-null>,
   "client_ids": [<canonical client IDs in lexicographic order>],
@@ -1459,7 +1493,12 @@ The seed is
 SHA256(canonical_utf8(the_exact_object_above))
 ```
 
-The first 64 digest bits, in network byte order (most-significant byte first), are interpreted as an unsigned integer.
+The first 64 digest bits, in network byte order (most-significant byte first), are
+interpreted as an unsigned integer and reduced modulo $2^{53}$ before being retained
+as a reusable component seed.  This keeps every subsequently serialized seed within
+the RFC 8785/I-JSON exact-integer domain.  Base seeds are always encoded as their
+decimal-string identities before hashing, avoiding a representation change when a
+derived seed becomes the base seed of a nested component.
 
 Libraries restricted to 32-bit seeds receive the value modulo $2^{32}$.
 
@@ -4700,6 +4739,7 @@ fedcampaign smoke --overwrite
 
 fedcampaign run <experiment-name>
 fedcampaign run <experiment-name> --overwrite
+fedcampaign run <experiment-name> --dry-run
 
 fedcampaign status
 fedcampaign status <experiment-name>
@@ -4776,6 +4816,11 @@ Executes Synthetic Module Validation. A valid completed smoke result is reused; 
 9. applies multiplicity, equivalence, and materiality rules;
 10. validates scientific invariants and provenance; and
 11. atomically publishes completion state.
+
+`--dry-run` is read-only. It validates the requested experiment identity against the
+authoritative configuration and reports its material digest and fixed resume sequence,
+but never executes cells, creates artifacts, or mutates lifecycle state. It exists for
+safe operator and CI validation and cannot alter a scientific setting.
 
 A valid unfavorable scientific result completes successfully. When an experiment has both development and confirmatory cells, the command executes missing development cells first and then executes its missing confirmatory cells as soon as all roadmap-defined prerequisites for those cells are complete. Development outputs may not alter any roadmap-defined scientific value consumed by confirmatory cells. There is no public execution-role selector and no separate second-phase command contract; an interrupted invocation simply resumes its remaining dependency subgraph on the next identical command.
 

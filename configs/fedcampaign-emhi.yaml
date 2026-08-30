@@ -67,7 +67,7 @@ datasets:
   primary:
     name: TON_IoT Network
     raw_directory: data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset
-    target_client_count: 12
+    target_client_count: 4
   secondary:
     name: Edge-IIoTset
     raw_directory: data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv
@@ -301,6 +301,11 @@ experiments:
       - Exclusion-Matched Order-One EMHI
       - Exclusion-Matched Order-at-Most-Two EMHI
       - Full FedCampaign-EMHI
+      - Inclusive-Context Full Hierarchy
+      - Leave-One-Out Insufficient Exclusion
+      - Partial Coalition Exclusion
+      - No Proper-Subset Purification
+      - No-Outside-Context Full Hierarchy
       - Exclusion-Matched Conditional HOFD
       - Conditional Pair Dependence
       - Exclusion-Matched Lancaster Triple

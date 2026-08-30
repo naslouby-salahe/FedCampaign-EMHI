@@ -1,15 +1,17 @@
 import hashlib
+from collections import UserDict
 from math import floor, isfinite, log, log1p
 
 import numpy as np
 from numpy.typing import NDArray
 
-from fedcampaign_emhi.domain.enums import ClaimState, DuplicateResolution, ExperimentState
+from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     CanonicalEventToken,
     ChronologicalBenignPartitions,
     ChronologicalPartitionLengths,
+    ClientId,
     DeduplicationOutcome,
     EpochCount,
     EpochFeatureVector,
@@ -22,6 +24,7 @@ from fedcampaign_emhi.domain.types import (
     RetainedEvent,
     RobustScaler,
     SignedInt,
+    UnixTimestampSeconds,
 )
 
 
@@ -62,49 +65,47 @@ def retain_first_chronological(
         sorted(events, key=lambda event: (event.timestamp_seconds, event.original_order))
     )
     retained: list[RetainedEvent] = []
+    identified: UserDict[CanonicalEventToken, RetainedEvent] = UserDict()
+    anonymous: set[
+        tuple[DatasetName, ClientId, UnixTimestampSeconds, CanonicalEventToken, CanonicalEventToken]
+    ] = set()
     duplicate_count = 0
     for event in ordered:
-        conflict = _duplicate_conflict(tuple(retained), event)
-        if conflict is ExperimentState.INVALID:
-            return DeduplicationOutcome(
-                retained_events=(),
-                duplicate_count=duplicate_count,
-                experiment_state=ExperimentState.INVALID,
-            )
-        if conflict is DuplicateResolution.RETAIN_FIRST_CHRONOLOGICAL:
+        if event.unique_identifier is not None:
+            existing = identified.get(event.unique_identifier)
+            if existing is not None:
+                if (
+                    existing.payload != event.payload
+                    or existing.client_id != event.client_id
+                    or existing.event_type != event.event_type
+                ):
+                    return DeduplicationOutcome(
+                        retained_events=(),
+                        duplicate_count=duplicate_count,
+                        experiment_state=ExperimentState.INVALID,
+                    )
+                duplicate_count += 1
+                continue
+            identified[event.unique_identifier] = event
+            retained.append(event)
+            continue
+        identity = (
+            event.dataset_name,
+            event.client_id,
+            event.timestamp_seconds,
+            event.event_type,
+            event.payload,
+        )
+        if identity in anonymous:
             duplicate_count += 1
             continue
+        anonymous.add(identity)
         retained.append(event)
     return DeduplicationOutcome(
         retained_events=tuple(retained),
         duplicate_count=duplicate_count,
         experiment_state=ExperimentState.READY,
     )
-
-
-def _duplicate_conflict(
-    retained: tuple[RetainedEvent, ...], candidate: RetainedEvent
-) -> DuplicateResolution | ExperimentState | None:
-    for existing in retained:
-        if candidate.unique_identifier is not None and existing.unique_identifier is not None:
-            if candidate.unique_identifier != existing.unique_identifier:
-                continue
-            if (
-                existing.payload != candidate.payload
-                or existing.client_id != candidate.client_id
-                or existing.event_type != candidate.event_type
-            ):
-                return ExperimentState.INVALID
-            return DuplicateResolution.RETAIN_FIRST_CHRONOLOGICAL
-        if (
-            existing.dataset_name is candidate.dataset_name
-            and existing.client_id == candidate.client_id
-            and existing.timestamp_seconds == candidate.timestamp_seconds
-            and existing.event_type == candidate.event_type
-            and existing.payload == candidate.payload
-        ):
-            return DuplicateResolution.RETAIN_FIRST_CHRONOLOGICAL
-    return None
 
 
 def shannon_entropy(bucket_counts: tuple[RecordCount, ...]) -> FiniteFloat:

@@ -1,5 +1,6 @@
 import typer
 
+from fedcampaign_emhi.cli.commands.analyze import analyze_command
 from fedcampaign_emhi.cli.commands.doctor import doctor_command
 from fedcampaign_emhi.cli.commands.plan import plan_command
 from fedcampaign_emhi.cli.commands.preprocess import preprocess_command
@@ -16,6 +17,7 @@ application = typer.Typer(
     context_settings={"max_content_width": 120},
 )
 application.command("doctor")(doctor_command)
+application.command("analyze")(analyze_command)
 application.command("preprocess")(preprocess_command)
 application.command("plan")(plan_command)
 application.command("smoke")(smoke_command)

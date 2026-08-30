@@ -14,6 +14,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_gro
 from fedcampaign_emhi.datasets.edge_iiotset.loading import (
     load_edge_iiotset_csv,
     load_edge_iiotset_csv_with_exclusions,
+    parse_frame_time,
 )
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     attach_epoch_ground_truth,
@@ -34,6 +35,10 @@ from fedcampaign_emhi.datasets.inventory import (
 )
 from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
 from fedcampaign_emhi.domain.types import EdgeIiotsetFlowRecord
+
+
+def test_release_timestamp_format_is_parsed_deterministically() -> None:
+    assert parse_frame_time("2021 11:44:10.081753000") == 1609501450.081753
 
 
 def _flow(

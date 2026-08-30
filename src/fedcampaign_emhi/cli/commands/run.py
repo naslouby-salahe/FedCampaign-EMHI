@@ -12,10 +12,18 @@ _REQUESTED_EXPERIMENT_ARGUMENT: ExperimentName = typer.Argument()
 def run_command(
     requested: ExperimentName = _REQUESTED_EXPERIMENT_ARGUMENT,
     overwrite: bool = typer.Option(False, "--overwrite"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     repository, loaded = production_configuration_context()
     resolved = resolve_requested_experiment(requested.value)
     assert_known_experiment(loaded.values, resolved)
+    if dry_run:
+        typer.echo(f"experiment={resolved.value}")
+        typer.echo(f"material_digest={loaded.material_digest}")
+        typer.echo("scientific_configuration_overrides=rejected")
+        typer.echo("dry_run=true")
+        typer.echo("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+        return
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
     result = execute_experiment(loaded, repository, resolved, policy)
     typer.echo(f"experiment={resolved.value}")

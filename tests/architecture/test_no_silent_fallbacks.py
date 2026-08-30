@@ -36,7 +36,7 @@ def test_no_silent_fallbacks(path: Path) -> None:
     assert _scan(path) == []
 
 
-def test_no_silent_fallbacks_detects_fixture(tmp_path: Path) -> None:
+def test_no_silent_fallbacks_detects_and_accepts_fixtures(tmp_path: Path) -> None:
     bad = tmp_path / "bad.py"
     bad.write_text(
         "try:\n    value = 1\nexcept:\n    value = 0\n",

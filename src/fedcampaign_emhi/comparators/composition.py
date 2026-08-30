@@ -1,7 +1,14 @@
 import statistics
 from dataclasses import dataclass
 
-from fedcampaign_emhi.artifacts.provenance import content_digest
+from fedcampaign_emhi.artifacts.provenance import content_digest, material_fingerprint
+from fedcampaign_emhi.artifacts.records import (
+    ComparatorNullPfaRecord,
+    ComparatorRuntimeTiebreakRecord,
+    ComparatorTargetErrorRecord,
+    StrongComparatorCompositionRecord,
+)
+from fedcampaign_emhi.artifacts.storage import payload_digest
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.domain.types import (
@@ -23,7 +30,7 @@ class CompositionCandidateResult:
     invariants_pass: bool
     calibration_succeeded: bool
     heldout_false_stops: RecordCount
-    calibration_horizons: RecordCount
+    heldout_horizons: RecordCount
     mean_standardized_error: FiniteFloat
     median_runtime_seconds: RuntimeSeconds
 
@@ -44,7 +51,7 @@ def candidate_is_eligible(
         return False
     upper = clopper_pearson_one_sided_upper_bound(
         candidate_result.heldout_false_stops,
-        candidate_result.calibration_horizons,
+        candidate_result.heldout_horizons,
         confidence,
     )
     return upper <= target_pfa
@@ -144,3 +151,95 @@ def selection_rule_identity(inputs: CompositionSelectionInputs) -> Configuration
         "timed_scoring_rows": inputs.timed_scoring_rows,
     }
     return content_digest(payload)
+
+
+def _target_error_record(candidate: CompositionCandidateResult) -> ComparatorTargetErrorRecord:
+    native_order = native_target_order(candidate.method_name)
+    if native_order is None:
+        raise ValueError("target error requires a native-order candidate")
+    return ComparatorTargetErrorRecord(
+        method_name=candidate.method_name,
+        native_target_order=native_order,
+        mean_standardized_error=candidate.mean_standardized_error,
+    )
+
+
+def build_composition_selection_record(
+    candidate_results: tuple[CompositionCandidateResult, ...],
+    inputs: CompositionSelectionInputs,
+    confidence: FiniteFloat,
+    target_pfa: FiniteFloat,
+    material_digest: ConfigurationDigest,
+    source_artifact_hashes: tuple[ConfigurationDigest, ...],
+) -> StrongComparatorCompositionRecord:
+    if not candidate_results:
+        raise ValueError("composition selection requires candidate results")
+    eligible = tuple(
+        result
+        for result in candidate_results
+        if candidate_is_eligible(result, confidence, target_pfa)
+        and native_target_order(result.method_name) is not None
+    )
+    if not eligible:
+        raise ValueError("composition selection has no eligible native-order candidate")
+    selected_method = select_strongest_comparator(
+        tuple(result.method_name for result in eligible),
+        tuple(result.mean_standardized_error for result in eligible),
+        tuple(result.median_runtime_seconds for result in eligible),
+        inputs.error_tie_tolerance,
+        inputs.runtime_tie_tolerance,
+    )
+    selected_order = native_target_order(selected_method)
+    if selected_order is None:
+        raise ValueError("selected composition candidate has no native target order")
+    rule_hash = selection_rule_identity(inputs)
+    null_pfa = tuple(
+        ComparatorNullPfaRecord(
+            method_name=result.method_name,
+            heldout_false_stops=result.heldout_false_stops,
+            heldout_horizons=result.heldout_horizons,
+            heldout_upper_pfa=clopper_pearson_one_sided_upper_bound(
+                result.heldout_false_stops, result.heldout_horizons, confidence
+            )
+            if result.heldout_horizons
+            else None,
+            eligible=result in eligible,
+        )
+        for result in candidate_results
+    )
+    target_errors = tuple(
+        _target_error_record(result)
+        for result in candidate_results
+        if native_target_order(result.method_name) is not None
+    )
+    runtimes = tuple(
+        ComparatorRuntimeTiebreakRecord(
+            method_name=result.method_name,
+            median_runtime_seconds=result.median_runtime_seconds,
+        )
+        for result in candidate_results
+    )
+    payload = {
+        "selected_method": selected_method.value,
+        "selected_native_order": int(selected_order),
+        "eligible_candidates": [result.method_name.value for result in eligible],
+        "candidate_native_orders": [record.model_dump(mode="json") for record in target_errors],
+        "null_pfa_results": [record.model_dump(mode="json") for record in null_pfa],
+        "target_error_results": [record.model_dump(mode="json") for record in target_errors],
+        "runtime_tiebreak_results": [record.model_dump(mode="json") for record in runtimes],
+        "selection_rule_hash": rule_hash,
+        "source_artifact_hashes": list(source_artifact_hashes),
+    }
+    return StrongComparatorCompositionRecord(
+        selected_method=selected_method,
+        selected_native_order=selected_order,
+        eligible_candidates=tuple(result.method_name for result in eligible),
+        candidate_native_orders=target_errors,
+        null_pfa_results=null_pfa,
+        target_error_results=target_errors,
+        runtime_tiebreak_results=runtimes,
+        selection_rule_hash=rule_hash,
+        source_artifact_hashes=source_artifact_hashes,
+        dependency_fingerprint=material_fingerprint(material_digest, source_artifact_hashes),
+        content_digest=payload_digest(payload),
+    )

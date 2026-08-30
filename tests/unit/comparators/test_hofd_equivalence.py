@@ -5,6 +5,7 @@ from fedcampaign_emhi.comparators.hofd_equivalence import (
     enumerate_hofd_equivalence_plan,
     hofd_equivalence_support_levels,
     nrmse_equivalence_gate,
+    paired_atom_metrics,
     pfa_prerequisite_gate,
     stopping_time_equivalence_gate,
     target_coalition_for_order,
@@ -97,3 +98,10 @@ def test_all_coalition_orders_covered_by_target_rule() -> None:
         if int(order) <= maximum
     }
     assert sizes == {1, 2, 3}
+
+
+def test_paired_atom_metrics_use_aligned_vector_geometry() -> None:
+    metrics = paired_atom_metrics(((1.0, 0.0), (0.0, 1.0)), ((1.0, 0.0), (0.0, 1.0)), 1e-12)
+
+    assert metrics.nrmse == 0.0
+    assert metrics.cosine_similarity == pytest.approx(1.0)

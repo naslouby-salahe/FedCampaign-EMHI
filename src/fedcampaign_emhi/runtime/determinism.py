@@ -12,6 +12,7 @@ from fedcampaign_emhi.domain.types import (
 )
 
 THIRTY_TWO_BIT_MODULUS = 1 << 32
+RFC8785_SAFE_INTEGER_MODULUS = 1 << 53
 
 
 def canonical_utf8_bytes(payload: YamlNode) -> CanonicalUtf8Bytes:
@@ -28,7 +29,7 @@ def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
     }
     dataset_name = None if identity.dataset is None else identity.dataset.value
     return {
-        "base_seed": identity.base_seed,
+        "base_seed": str(identity.base_seed),
         "component_name": identity.component_name,
         "dataset": dataset_name,
         "client_ids": sorted(identity.client_ids),
@@ -39,7 +40,7 @@ def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
 
 def derive_component_seed(identity: SeedDerivationIdentity) -> SeedValue:
     digest = hashlib.sha256(canonical_utf8_bytes(seed_derivation_payload(identity))).digest()
-    return int.from_bytes(digest[:8], "big")
+    return int.from_bytes(digest[:8], "big") % RFC8785_SAFE_INTEGER_MODULUS
 
 
 def thirty_two_bit_seed(seed: SeedValue) -> ThirtyTwoBitSeed:

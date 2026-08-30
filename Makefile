@@ -18,6 +18,7 @@ architecture:
 	uv run pytest tests/architecture tests/unit/config tests/integration/cli tests/e2e tests/smoke
 
 quality: lint typecheck architecture
+	uv run semgrep --config .semgrep.yml src
 	uv run lint-imports
 	uv run deptry src
 	uv run vulture src

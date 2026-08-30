@@ -6,7 +6,6 @@ from pathlib import Path
 from tests.architecture.ast_scans import SRC_ROOT, parametrize_source_files, source_files
 
 from fedcampaign_emhi.domain.enums import (
-    ClaimIdentifier,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
@@ -26,7 +25,6 @@ ENUMS = (
     NuisanceTransformName,
     DetectorFamily,
     PartitionRole,
-    ClaimIdentifier,
 )
 VALUE_TO_ENUM: dict[str, str] = {}
 for enum_type in ENUMS:

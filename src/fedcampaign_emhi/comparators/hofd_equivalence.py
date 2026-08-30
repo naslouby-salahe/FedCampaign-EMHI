@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from math import sqrt
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
 from fedcampaign_emhi.domain.types import (
     ClientCount,
     FiniteFloat,
+    NumericalFloor,
     Probability,
     RecordCount,
     SeedCount,
@@ -24,6 +26,39 @@ class HofdEquivalencePlan:
     minimum_cosine_similarity: FiniteFloat
     stopping_time_interval_lower: FiniteFloat
     stopping_time_interval_upper: FiniteFloat
+
+
+@dataclass(frozen=True)
+class PairedAtomMetrics:
+    nrmse: FiniteFloat
+    cosine_similarity: FiniteFloat
+
+
+def paired_atom_metrics(
+    emhi_atoms: tuple[tuple[FiniteFloat, ...], ...],
+    hofd_atoms: tuple[tuple[FiniteFloat, ...], ...],
+    denominator_floor: NumericalFloor,
+) -> PairedAtomMetrics:
+    if not emhi_atoms or len(emhi_atoms) != len(hofd_atoms):
+        raise ValueError("paired atom metrics require aligned nonempty rows")
+    if any(len(emhi) != len(hofd) for emhi, hofd in zip(emhi_atoms, hofd_atoms, strict=True)):
+        raise ValueError("paired atom vectors must have equal dimensions")
+    squared_error = sum(
+        sum((emhi - hofd) ** 2 for emhi, hofd in zip(left, right, strict=True))
+        for left, right in zip(emhi_atoms, hofd_atoms, strict=True)
+    )
+    squared_reference = sum(sum(value * value for value in row) for row in emhi_atoms)
+    inner_product = sum(
+        sum(emhi * hofd for emhi, hofd in zip(left, right, strict=True))
+        for left, right in zip(emhi_atoms, hofd_atoms, strict=True)
+    )
+    squared_hofd = sum(sum(value * value for value in row) for row in hofd_atoms)
+    return PairedAtomMetrics(
+        nrmse=sqrt(squared_error / len(emhi_atoms))
+        / max(sqrt(squared_reference / len(emhi_atoms)), denominator_floor),
+        cosine_similarity=inner_product
+        / max(sqrt(squared_reference) * sqrt(squared_hofd), denominator_floor),
+    )
 
 
 def enumerate_hofd_equivalence_plan(config: ScientificConfig) -> HofdEquivalencePlan:

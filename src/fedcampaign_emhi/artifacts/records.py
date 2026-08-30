@@ -2,7 +2,6 @@ from fedcampaign_emhi.config.schema import FrozenConfigModel
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimIdentifier,
     ClaimState,
     CoalitionOrder,
     ContextMethodName,
@@ -297,22 +296,80 @@ class StatisticalRecord(FrozenConfigModel):
     content_digest: ConfigurationDigest
 
 
-class ClaimRegistryEntry(FrozenConfigModel):
-    claim_identifier: ClaimIdentifier
-    exact_claim: ComponentName
-    supporting_experiments: tuple[ExperimentName, ...]
-    primary_metric: ComponentName
-    secondary_metrics: tuple[ComponentName, ...]
-    statistical_rule: ComponentName
-    materiality_gate: ComponentName
-    failure_condition: ComponentName
-    valid_scope: ComponentName
-    forbidden_extrapolation: ComponentName
-    supporting_table: RelativePath | None
-    supporting_figure: RelativePath | None
-    state: ClaimState
-    state_reason: ComponentName
+class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
+    experiment_name: ExperimentName
+    independent_unit_count: RecordCount
+    mean_context_coverage: Probability
+    mean_projection_nrmse: FiniteFloat
+    mean_standardized_null_bias: FiniteFloat
+    numerical_failure_count: RecordCount
+    attempted_condition_count: RecordCount
+    pooled_numerical_failure_rate: Probability
+    decision: ClaimState
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class FiniteHorizonAggregationRecord(FrozenConfigModel):
+    experiment_name: ExperimentName
+    independent_unit_count: RecordCount
+    operating_point_unavailable_count: RecordCount
+    target_pfa: Probability
+    maximum_heldout_upper_pfa: FiniteFloat | None
+    decision: ClaimState
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class ComparatorNullPfaRecord(FrozenConfigModel):
+    method_name: MethodName
+    heldout_false_stops: RecordCount
+    heldout_horizons: RecordCount
+    heldout_upper_pfa: FiniteFloat | None
+    eligible: bool
+
+
+class ComparatorTargetErrorRecord(FrozenConfigModel):
+    method_name: MethodName
+    native_target_order: CoalitionOrder
+    mean_standardized_error: FiniteFloat
+
+
+class ComparatorRuntimeTiebreakRecord(FrozenConfigModel):
+    method_name: MethodName
+    median_runtime_seconds: RuntimeSeconds
+
+
+class StrongComparatorCompositionRecord(FrozenConfigModel):
+    selected_method: MethodName
+    selected_native_order: CoalitionOrder
+    eligible_candidates: tuple[MethodName, ...]
+    candidate_native_orders: tuple[ComparatorTargetErrorRecord, ...]
+    null_pfa_results: tuple[ComparatorNullPfaRecord, ...]
+    target_error_results: tuple[ComparatorTargetErrorRecord, ...]
+    runtime_tiebreak_results: tuple[ComparatorRuntimeTiebreakRecord, ...]
+    selection_rule_hash: ConfigurationDigest
     source_artifact_hashes: tuple[ConfigurationDigest, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class HolmFamilyResultRecord(FrozenConfigModel):
+    hypothesis_identifier: ComponentName
+    raw_p_value: Probability | None
+    holm_input_p_value: Probability
+    adjusted_p_value: Probability | None
+    decision: ClaimState
+
+
+class PrimaryHolmFamilyRecord(FrozenConfigModel):
+    material_digest: ConfigurationDigest
+    results: tuple[HolmFamilyResultRecord, ...]
+    source_statistical_paths: tuple[RelativePath, ...]
+    source_artifact_hashes: tuple[ConfigurationDigest, ...]
+    content_digest: ConfigurationDigest
 
 
 class ReportSourceRecord(FrozenConfigModel):
