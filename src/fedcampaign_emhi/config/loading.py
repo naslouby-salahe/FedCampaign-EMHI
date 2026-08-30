@@ -52,13 +52,13 @@ def _load_mapping(path: Path) -> YamlNode:
     return cast(YamlNode, loaded)
 
 
-def canonical_utf8(payload: YamlNode) -> CanonicalUtf8Bytes:
+def deterministic_utf8(payload: YamlNode) -> CanonicalUtf8Bytes:
     return rfc8785.dumps(payload)
 
 
 def configuration_digest(config: ScientificConfig) -> ConfigurationDigest:
     record: YamlNode = cast(YamlNode, config.model_dump(mode="json"))
-    digest = hashlib.sha256(canonical_utf8(record)).hexdigest()
+    digest = hashlib.sha256(deterministic_utf8(record)).hexdigest()
     return digest
 
 
