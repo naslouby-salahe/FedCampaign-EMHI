@@ -12,6 +12,7 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     BasisSize,
     BinIndex,
+    Boolean,
     CellCount,
     ComponentName,
     FiniteFloat,
@@ -53,7 +54,7 @@ class EstimatorFeasibilityMetrics:
     context_coverage: FiniteFloat
     abstention_rate: FiniteFloat
     condition_number: FiniteFloat | None
-    numerical_failure: bool
+    numerical_failure: Boolean
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,7 @@ class EstimatorFeasibilityCondition:
     basis_size: BasisSize
     cell_count: CellCount
     ridge_candidates: tuple[RidgePenalty, ...] | None
-    forced_no_abstention: bool
+    forced_no_abstention: Boolean
 
 
 @dataclass(frozen=True)
@@ -348,7 +349,7 @@ def evaluate_estimator_feasibility_condition(
     basis_size: BasisSize,
     cell_count: CellCount,
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
-    forced_no_abstention: bool = False,
+    forced_no_abstention: Boolean = False,
 ) -> EstimatorFeasibilityMetrics:
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
     clients = tuple(f"synthetic-client-{index:02d}" for index in range(client_count))

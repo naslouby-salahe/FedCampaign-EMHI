@@ -7,6 +7,7 @@ import numpy as np
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName, MethodName
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     ClientIndex,
@@ -38,7 +39,7 @@ class PureOrderCell:
 class PureOrderDriftMetrics:
     maximum_proper_subset_standardized_drift: FiniteFloat
     target_order_standardized_drift: FiniteFloat
-    proper_subset_scoring_available: bool
+    proper_subset_scoring_available: Boolean
 
 
 def sample_generator_row(
@@ -243,7 +244,7 @@ def polynomial_scale(order: CoalitionOrder) -> FiniteFloat:
     return sqrt(3) ** int(order)
 
 
-def polynomial_density_is_valid(theta: EffectCoefficient, order: CoalitionOrder) -> bool:
+def polynomial_density_is_valid(theta: EffectCoefficient, order: CoalitionOrder) -> Boolean:
     return abs(theta) <= (1.0 / polynomial_scale(order))
 
 
@@ -523,10 +524,10 @@ def sample_mixed_order_ranks(
 @dataclass(frozen=True)
 class GeneratorPurityReport:
     generator: GeneratorName
-    analytic_identity_holds: bool
-    density_is_finite_nonnegative: bool
-    numerical_check_within_tolerance: bool
-    is_valid: bool
+    analytic_identity_holds: Boolean
+    density_is_finite_nonnegative: Boolean
+    numerical_check_within_tolerance: Boolean
+    is_valid: Boolean
 
 
 POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL = 0.0
@@ -535,13 +536,13 @@ XOR_BINARY_STATE_COUNT = 8
 
 def pure_polynomial_marginalizes_to_uniform(
     theta: EffectCoefficient, order: CoalitionOrder
-) -> bool:
+) -> Boolean:
     return polynomial_density_is_valid(theta, order) and (
         POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL == 0.0
     )
 
 
-def xor_exact_marginals(strength: FiniteFloat, tolerance: NumericalTolerance) -> bool:
+def xor_exact_marginals(strength: FiniteFloat, tolerance: NumericalTolerance) -> Boolean:
     if not isfinite(strength) or strength < 0.0 or strength > 1.0:
         return False
     probabilities: list[FiniteFloat] = []
@@ -571,13 +572,13 @@ def xor_exact_marginals(strength: FiniteFloat, tolerance: NumericalTolerance) ->
     return True
 
 
-def context_dependent_pure_triple_marginals(theta: EffectCoefficient) -> bool:
+def context_dependent_pure_triple_marginals(theta: EffectCoefficient) -> Boolean:
     return polynomial_density_is_valid(theta, CoalitionOrder.THREE)
 
 
 def mixed_order_absent_terms_integrate_to_zero(
     enabled_orders: frozenset[CoalitionOrder], declared_absent_order: CoalitionOrder
-) -> bool:
+) -> Boolean:
     return declared_absent_order not in enabled_orders
 
 
