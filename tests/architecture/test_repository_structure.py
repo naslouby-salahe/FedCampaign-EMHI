@@ -28,12 +28,12 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/datasets/campaigns.py",
     "src/fedcampaign_emhi/datasets/ton_iot_network/__init__.py",
     "src/fedcampaign_emhi/datasets/ton_iot_network/loading.py",
-    "src/fedcampaign_emhi/datasets/ton_iot_network/canonicalization.py",
+    "src/fedcampaign_emhi/datasets/ton_iot_network/normalization.py",
     "src/fedcampaign_emhi/datasets/ton_iot_network/ground_truth.py",
     "src/fedcampaign_emhi/datasets/ton_iot_network/validation.py",
     "src/fedcampaign_emhi/datasets/edge_iiotset/__init__.py",
     "src/fedcampaign_emhi/datasets/edge_iiotset/loading.py",
-    "src/fedcampaign_emhi/datasets/edge_iiotset/canonicalization.py",
+    "src/fedcampaign_emhi/datasets/edge_iiotset/normalization.py",
     "src/fedcampaign_emhi/datasets/edge_iiotset/ground_truth.py",
     "src/fedcampaign_emhi/datasets/edge_iiotset/validation.py",
     "src/fedcampaign_emhi/models/__init__.py",
@@ -152,7 +152,7 @@ REQUIRED_TEST_FILES = (
     "tests/architecture/test_no_test_only_production_code.py",
     "tests/architecture/test_no_redirects_shims_reexports.py",
     "tests/architecture/test_naming_policy.py",
-    "tests/architecture/test_canonical_vocabulary.py",
+    "tests/architecture/test_forbidden_vocabulary.py",
     "tests/architecture/test_no_comments_or_docstrings.py",
     "tests/architecture/test_no_todos_or_temporary_code.py",
     "tests/architecture/test_no_untyped_boundaries.py",
@@ -208,7 +208,7 @@ EXPECTED_EXPERIMENT_MODULES = {
 }
 
 
-def test_canonical_repository_files_exist(repo_root: Path) -> None:
+def test_required_repository_files_exist(repo_root: Path) -> None:
     missing = [
         relative
         for relative in (*REQUIRED_ROOT_FILES, *REQUIRED_SOURCE_FILES, *REQUIRED_TEST_FILES)
@@ -217,7 +217,7 @@ def test_canonical_repository_files_exist(repo_root: Path) -> None:
     assert missing == []
 
 
-def test_canonical_test_directories_exist(repo_root: Path) -> None:
+def test_required_test_directories_exist(repo_root: Path) -> None:
     missing = [
         relative for relative in REQUIRED_TEST_DIRECTORIES if not (repo_root / relative).is_dir()
     ]

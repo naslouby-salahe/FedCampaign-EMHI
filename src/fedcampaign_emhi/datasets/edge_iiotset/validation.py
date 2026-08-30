@@ -1,14 +1,13 @@
 import hashlib
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
     record_enters_epoch_event_count,
 )
-from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
 from fedcampaign_emhi.domain.types import (
-    CanonicalEventToken,
     ClientBenignTally,
     ClientCount,
     ClientEligibilityRecord,
@@ -21,6 +20,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndex,
     EpochIndexValue,
     EpochSeconds,
+    NormalizedEventToken,
     PositiveEpochCount,
     RecordCount,
     SecondaryClientSelection,
@@ -66,18 +66,18 @@ DOCUMENTED_PROTOCOL_GROUP_PREFIXES = (
 
 
 def missing_required_columns(
-    observed_columns: tuple[CanonicalEventToken, ...],
-) -> tuple[CanonicalEventToken, ...]:
+    observed_columns: tuple[NormalizedEventToken, ...],
+) -> tuple[NormalizedEventToken, ...]:
     observed = {column.strip() for column in observed_columns}
     return tuple(column for column in REQUIRED_EDGE_IIOTSET_COLUMNS if column not in observed)
 
 
-def schema_is_executable(observed_columns: tuple[CanonicalEventToken, ...]) -> bool:
+def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> bool:
     return not missing_required_columns(observed_columns)
 
 
 def observed_schema_preprocessing_state(
-    observed_columns: tuple[CanonicalEventToken, ...],
+    observed_columns: tuple[NormalizedEventToken, ...],
 ) -> ExperimentState:
     if schema_is_executable(observed_columns):
         return ExperimentState.READY
@@ -87,20 +87,20 @@ def observed_schema_preprocessing_state(
 def adapter_material_code_fingerprint() -> ConfigurationDigest:
     digest = hashlib.sha256()
     directory = Path(__file__).resolve().parent
-    for name in ("canonicalization.py", "loading.py", "ground_truth.py", "validation.py"):
+    for name in ("normalization.py", "loading.py", "ground_truth.py", "validation.py"):
         digest.update((directory / name).read_bytes())
     return digest.hexdigest()
 
 
-def documented_attack_type_is_expected(attack_type: CanonicalEventToken) -> bool:
+def documented_attack_type_is_expected(attack_type: NormalizedEventToken) -> bool:
     return attack_type.strip() in DOCUMENTED_ATTACK_TYPE_EXPECTATIONS
 
 
-def documented_identity_columns() -> tuple[CanonicalEventToken, ...]:
+def documented_identity_columns() -> tuple[NormalizedEventToken, ...]:
     return DOCUMENTED_IDENTITY_COLUMNS
 
 
-def documented_protocol_group_prefixes() -> tuple[CanonicalEventToken, ...]:
+def documented_protocol_group_prefixes() -> tuple[NormalizedEventToken, ...]:
     return DOCUMENTED_PROTOCOL_GROUP_PREFIXES
 
 

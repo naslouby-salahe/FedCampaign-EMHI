@@ -119,7 +119,7 @@ MaterialDependencyFingerprint = ConfigurationDigest
 OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-CanonicalEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+NormalizedEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 AttackTypeName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 SeedCoordinateName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -201,9 +201,9 @@ class RetainedEvent:
     dataset_name: DatasetName
     client_id: ClientId
     timestamp_seconds: UnixTimestampSeconds
-    event_type: CanonicalEventToken
-    payload: CanonicalEventToken
-    unique_identifier: CanonicalEventToken | None
+    event_type: NormalizedEventToken
+    payload: NormalizedEventToken
+    unique_identifier: NormalizedEventToken | None
     original_order: RecordCount
 
 
@@ -279,7 +279,7 @@ class PairingKey:
 @dataclass(frozen=True)
 class SeedCoordinate:
     name: SeedCoordinateName
-    scalar: FiniteFloat | SeedValue | CanonicalEventToken | bool | None
+    scalar: FiniteFloat | SeedValue | NormalizedEventToken | bool | None
 
 
 @dataclass(frozen=True)
@@ -321,8 +321,8 @@ class RankReference:
 class TonIotNetworkFlowRecord:
     timestamp_seconds: UnixTimestampSeconds
     source_ip: ClientId
-    protocol_token: CanonicalEventToken
-    service_token: CanonicalEventToken
+    protocol_token: NormalizedEventToken
+    service_token: NormalizedEventToken
     binary_label: SignedInt
     attack_type: AttackTypeName
 
@@ -331,7 +331,7 @@ class TonIotNetworkFlowRecord:
 class EdgeIiotsetFlowRecord:
     timestamp_seconds: UnixTimestampSeconds
     source_host: ClientId
-    protocol_group: CanonicalEventToken
+    protocol_group: NormalizedEventToken
     binary_label: SignedInt
     attack_type: AttackTypeName
 
@@ -373,13 +373,13 @@ class PrimaryClientSelection:
 
 @dataclass(frozen=True)
 class TonIotNetworkReleaseIdentity:
-    release_persistent_identifier: CanonicalEventToken
-    dataset_version_label: CanonicalEventToken
+    release_persistent_identifier: NormalizedEventToken
+    dataset_version_label: NormalizedEventToken
     files: tuple[FileInventoryEntry, ...]
     ground_truth_source_sha256: Sha256Hex | None
     adapter_material_code_fingerprint: ConfigurationDigest
-    adapter_producer_commit: CanonicalEventToken
-    published_external_checksum_cross_checks: tuple[CanonicalEventToken, ...]
+    adapter_producer_commit: NormalizedEventToken
+    published_external_checksum_cross_checks: tuple[NormalizedEventToken, ...]
 
 
 @dataclass(frozen=True)
@@ -412,13 +412,13 @@ class ClientBenignTally:
 
 @dataclass(frozen=True)
 class EdgeIiotsetReleaseIdentity:
-    release_persistent_identifier: CanonicalEventToken
-    dataset_version_label: CanonicalEventToken
+    release_persistent_identifier: NormalizedEventToken
+    dataset_version_label: NormalizedEventToken
     files: tuple[FileInventoryEntry, ...]
     ground_truth_source_sha256: Sha256Hex | None
     adapter_material_code_fingerprint: ConfigurationDigest
-    adapter_producer_commit: CanonicalEventToken
-    published_external_checksum_cross_checks: tuple[CanonicalEventToken, ...]
+    adapter_producer_commit: NormalizedEventToken
+    published_external_checksum_cross_checks: tuple[NormalizedEventToken, ...]
 
 
 @dataclass(frozen=True)

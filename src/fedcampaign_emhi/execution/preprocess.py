@@ -27,14 +27,14 @@ from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, writ
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.datasets.campaigns import build_campaign_registry
-from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
-    canonical_event_type as edge_canonical_event_type,
-)
-from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
-    record_enters_epoch_event_count,
-)
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
+from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
+    normalize_event_type as edge_normalize_event_type,
+)
+from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
+    record_enters_epoch_event_count,
+)
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     adapter_material_code_fingerprint as edge_adapter_material_code_fingerprint,
 )
@@ -55,16 +55,16 @@ from fedcampaign_emhi.datasets.preprocessing import (
     inclusive_epoch_range,
     retain_first_chronological,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    canonical_client_id,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    canonical_event_type as ton_canonical_event_type,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
     event_type_hash_bucket as ton_event_type_hash_bucket,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+    normalize_client_id,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+    normalize_event_type as ton_normalize_event_type,
+)
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )
@@ -83,7 +83,6 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
-    CanonicalEventToken,
     ClientBenignTally,
     ClientId,
     ClientMaliciousEpochs,
@@ -94,6 +93,7 @@ from fedcampaign_emhi.domain.types import (
     FileInventoryEntry,
     HashBucketCount,
     MaterialDependencyFingerprint,
+    NormalizedEventToken,
     PreprocessExecutionRecord,
     PreprocessingLayerDecision,
     RecordCount,
@@ -624,7 +624,7 @@ def _prepare_ton_epochs_from_csv(
             key = (row[0], int(row[1]))
             current = counts.get(key, tuple(0 for _index in range(bucket_count)))
             bucket = ton_event_type_hash_bucket(
-                ton_canonical_event_type(row[2], row[3]), bucket_count
+                ton_normalize_event_type(row[2], row[3]), bucket_count
             )
             count = int(row[6])
             counts[key] = tuple(
@@ -656,7 +656,7 @@ def _prepare_ton_epochs_from_csv(
 
 
 def _duckdb_count(
-    connection: duckdb.DuckDBPyConnection, statement: CanonicalEventToken
+    connection: duckdb.DuckDBPyConnection, statement: NormalizedEventToken
 ) -> RecordCount:
     result = connection.execute(statement).fetchone()
     if result is None:
@@ -670,9 +670,9 @@ def _deduplicate_ton_records(
     events = tuple(
         RetainedEvent(
             dataset_name=DatasetName.TON_IOT_NETWORK,
-            client_id=canonical_client_id(record.source_ip),
+            client_id=normalize_client_id(record.source_ip),
             timestamp_seconds=record.timestamp_seconds,
-            event_type=ton_canonical_event_type(record.protocol_token, record.service_token),
+            event_type=ton_normalize_event_type(record.protocol_token, record.service_token),
             payload=_payload_identity((str(record.binary_label), record.attack_type)),
             unique_identifier=None,
             original_order=index,
@@ -694,7 +694,7 @@ def _deduplicate_edge_records(
             dataset_name=DatasetName.EDGE_IIOTSET,
             client_id=record.source_host.strip(),
             timestamp_seconds=record.timestamp_seconds,
-            event_type=edge_canonical_event_type(record.protocol_group),
+            event_type=edge_normalize_event_type(record.protocol_group),
             payload=_payload_identity((str(record.binary_label), record.attack_type)),
             unique_identifier=None,
             original_order=index,
@@ -708,7 +708,7 @@ def _deduplicate_edge_records(
     return tuple(records[index] for index in retained_indexes), outcome.duplicate_count
 
 
-def _payload_identity(parts: tuple[CanonicalEventToken, ...]) -> CanonicalEventToken:
+def _payload_identity(parts: tuple[NormalizedEventToken, ...]) -> NormalizedEventToken:
     return payload_digest(cast(YamlNode, list(parts)))
 
 
@@ -736,7 +736,7 @@ def _prepare_ton_epochs(
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     for record in records:
-        client_id = canonical_client_id(record.source_ip)
+        client_id = normalize_client_id(record.source_ip)
         if client_id not in selected:
             continue
         epoch = epoch_index(
@@ -744,7 +744,7 @@ def _prepare_ton_epochs(
         ).index
         key = (client_id, epoch)
         current = counts.get(key, tuple(0 for _index in range(bucket_count)))
-        event_type = ton_canonical_event_type(record.protocol_token, record.service_token)
+        event_type = ton_normalize_event_type(record.protocol_token, record.service_token)
         bucket = ton_event_type_hash_bucket(event_type, bucket_count)
         counts[key] = _increment_bucket(current, bucket)
         ground_truth = ton_iot_network_ground_truth(record.binary_label, record.attack_type)
@@ -797,7 +797,7 @@ def _prepare_edge_epochs(
         key = (client_id, epoch)
         current = counts.get(key, tuple(0 for _index in range(bucket_count)))
         if record_enters_epoch_event_count(record.protocol_group):
-            event_type = edge_canonical_event_type(record.protocol_group)
+            event_type = edge_normalize_event_type(record.protocol_group)
             bucket = ton_event_type_hash_bucket(event_type, bucket_count)
             counts[key] = _increment_bucket(current, bucket)
         else:

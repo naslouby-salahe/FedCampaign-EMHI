@@ -129,7 +129,7 @@ def test_local_history_uses_only_lagged_coalition_member_ranks() -> None:
     assert ranks == (0.1, 0.8)
 
 
-def test_identity_preserves_canonical_dataset_and_order_terms() -> None:
+def test_identity_preserves_normalized_dataset_and_order_terms() -> None:
     from fedcampaign_emhi.emhi.contexts import context_cluster_identity
 
     identity = context_cluster_identity(

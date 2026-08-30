@@ -8,7 +8,6 @@ from numpy.typing import NDArray
 from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
-    CanonicalEventToken,
     ChronologicalBenignPartitions,
     ChronologicalPartitionLengths,
     ClientId,
@@ -18,6 +17,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndexValue,
     FiniteFloat,
     HashBucketCount,
+    NormalizedEventToken,
     NumericalFloor,
     Probability,
     RecordCount,
@@ -49,7 +49,7 @@ def chronological_partition_lengths(
 
 
 def event_type_hash_bucket(
-    event_type: CanonicalEventToken, bucket_count: HashBucketCount
+    event_type: NormalizedEventToken, bucket_count: HashBucketCount
 ) -> SignedInt:
     if bucket_count <= 0:
         raise ValueError("bucket_count must be positive")
@@ -65,9 +65,11 @@ def retain_first_chronological(
         sorted(events, key=lambda event: (event.timestamp_seconds, event.original_order))
     )
     retained: list[RetainedEvent] = []
-    identified: UserDict[CanonicalEventToken, RetainedEvent] = UserDict()
+    identified: UserDict[NormalizedEventToken, RetainedEvent] = UserDict()
     anonymous: set[
-        tuple[DatasetName, ClientId, UnixTimestampSeconds, CanonicalEventToken, CanonicalEventToken]
+        tuple[
+            DatasetName, ClientId, UnixTimestampSeconds, NormalizedEventToken, NormalizedEventToken
+        ]
     ] = set()
     duplicate_count = 0
     for event in ordered:

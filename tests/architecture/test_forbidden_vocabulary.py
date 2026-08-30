@@ -16,10 +16,11 @@ FORBIDDEN_TERMS = (
     "ton_iot_network_v2",
     "run_id",
     "uuid",
+    "canonical",
 )
 
 
-def test_canonical_vocabulary() -> None:
+def test_forbidden_vocabulary() -> None:
     findings: list[str] = []
     for path in source_files():
         rel = path.relative_to(SRC_ROOT).as_posix()
@@ -43,9 +44,9 @@ def test_outputs_and_results_remain_distinct() -> None:
     assert "results_root" in text
 
 
-def test_canonical_vocabulary_fails_on_fixture() -> None:
+def test_forbidden_vocabulary_fails_on_fixture() -> None:
     assert "utils" in "helpers/utils.py"
 
 
-def test_canonical_vocabulary_passes_on_compliant_fixture() -> None:
+def test_forbidden_vocabulary_passes_on_compliant_fixture() -> None:
     assert "coalitions.py".find("utils") == -1

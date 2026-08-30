@@ -2,10 +2,10 @@ import csv
 from collections.abc import Iterator
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
     UNKNOWN_PROTOCOL_TOKEN,
     UNKNOWN_SERVICE_TOKEN,
-    canonicalize_token,
+    normalize_token,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     REQUIRED_TON_IOT_NETWORK_COLUMNS,
@@ -70,8 +70,8 @@ def iter_ton_iot_network_csv_entries(
                 TonIotNetworkFlowRecord(
                     timestamp_seconds=timestamp_seconds,
                     source_ip=source_ip,
-                    protocol_token=canonicalize_token(row.get("proto"), UNKNOWN_PROTOCOL_TOKEN),
-                    service_token=canonicalize_token(row.get("service"), UNKNOWN_SERVICE_TOKEN),
+                    protocol_token=normalize_token(row.get("proto"), UNKNOWN_PROTOCOL_TOKEN),
+                    service_token=normalize_token(row.get("service"), UNKNOWN_SERVICE_TOKEN),
                     binary_label=binary_label,
                     attack_type=attack_type,
                 )

@@ -2,9 +2,9 @@ import hashlib
 import unicodedata
 
 from fedcampaign_emhi.domain.types import (
-    CanonicalEventToken,
     ClientId,
     HashBucketCount,
+    NormalizedEventToken,
     SignedInt,
 )
 
@@ -13,9 +13,9 @@ UNKNOWN_SERVICE_TOKEN = "UNKNOWN_SERVICE"
 ZEEK_MISSING_FIELD_TOKEN = "-"
 
 
-def canonicalize_token(
-    raw_token: CanonicalEventToken | None, missing_token: CanonicalEventToken
-) -> CanonicalEventToken:
+def normalize_token(
+    raw_token: NormalizedEventToken | None, missing_token: NormalizedEventToken
+) -> NormalizedEventToken:
     if raw_token is None:
         return missing_token
     stripped = raw_token.strip()
@@ -24,20 +24,20 @@ def canonicalize_token(
     return unicodedata.normalize("NFKC", stripped.upper())
 
 
-def canonical_client_id(source_ip: ClientId) -> ClientId:
+def normalize_client_id(source_ip: ClientId) -> ClientId:
     return unicodedata.normalize("NFKC", source_ip.strip())
 
 
-def canonical_event_type(
-    protocol_token: CanonicalEventToken | None, service_token: CanonicalEventToken | None
-) -> CanonicalEventToken:
-    protocol = canonicalize_token(protocol_token, UNKNOWN_PROTOCOL_TOKEN)
-    service = canonicalize_token(service_token, UNKNOWN_SERVICE_TOKEN)
+def normalize_event_type(
+    protocol_token: NormalizedEventToken | None, service_token: NormalizedEventToken | None
+) -> NormalizedEventToken:
+    protocol = normalize_token(protocol_token, UNKNOWN_PROTOCOL_TOKEN)
+    service = normalize_token(service_token, UNKNOWN_SERVICE_TOKEN)
     return f"{protocol}::{service}"
 
 
 def event_type_hash_bucket(
-    event_type: CanonicalEventToken, bucket_count: HashBucketCount
+    event_type: NormalizedEventToken, bucket_count: HashBucketCount
 ) -> SignedInt:
     if bucket_count <= 0:
         raise ValueError("bucket_count must be positive")

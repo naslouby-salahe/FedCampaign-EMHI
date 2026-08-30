@@ -1,8 +1,8 @@
 import inspect
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import canonical_event_type
 from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
+from fedcampaign_emhi.datasets.edge_iiotset.normalization import normalize_event_type
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     epoch_event_count_records,
     select_secondary_clients,
@@ -38,7 +38,7 @@ def test_secondary_adapter_pipeline(tmp_path: Path) -> None:
     )
     records = load_edge_iiotset_csv(csv_path)
     assert identity.release_persistent_identifier == "10.21227/mbc1-1h68"
-    assert canonical_event_type(records[0].protocol_group) == "PROTOCOL::TCP"
+    assert normalize_event_type(records[0].protocol_group) == "PROTOCOL::TCP"
     separation = separate_benign_and_evaluation(records)
     assert len(separation.benign_records) == 4
     assert separation.discrepancies[0].ground_truth.classification is GroundTruthClass.AMBIGUOUS

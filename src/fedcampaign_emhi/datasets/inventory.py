@@ -15,9 +15,9 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
 )
 from fedcampaign_emhi.domain.enums import DatasetName
 from fedcampaign_emhi.domain.types import (
-    CanonicalEventToken,
     EdgeIiotsetReleaseIdentity,
     FileInventoryEntry,
+    NormalizedEventToken,
     Sha256Hex,
     TonIotNetworkReleaseIdentity,
 )
@@ -49,10 +49,10 @@ def configured_raw_directory(
 
 
 def map_documented_columns(
-    documented: tuple[CanonicalEventToken, ...], observed: tuple[CanonicalEventToken, ...]
-) -> tuple[tuple[CanonicalEventToken, CanonicalEventToken], ...]:
+    documented: tuple[NormalizedEventToken, ...], observed: tuple[NormalizedEventToken, ...]
+) -> tuple[tuple[NormalizedEventToken, NormalizedEventToken], ...]:
     observed_set = {column.strip() for column in observed}
-    mapped: list[tuple[CanonicalEventToken, CanonicalEventToken]] = []
+    mapped: list[tuple[NormalizedEventToken, NormalizedEventToken]] = []
     for column in documented:
         if column not in observed_set:
             raise ValueError(f"documented semantic field {column} is missing from observed schema")
@@ -61,18 +61,18 @@ def map_documented_columns(
 
 
 def ton_iot_network_field_mapping(
-    observed: tuple[CanonicalEventToken, ...],
-) -> tuple[tuple[CanonicalEventToken, CanonicalEventToken], ...]:
+    observed: tuple[NormalizedEventToken, ...],
+) -> tuple[tuple[NormalizedEventToken, NormalizedEventToken], ...]:
     return map_documented_columns(REQUIRED_TON_IOT_NETWORK_COLUMNS, observed)
 
 
 def edge_iiotset_field_mapping(
-    observed: tuple[CanonicalEventToken, ...],
-) -> tuple[tuple[CanonicalEventToken, CanonicalEventToken], ...]:
+    observed: tuple[NormalizedEventToken, ...],
+) -> tuple[tuple[NormalizedEventToken, NormalizedEventToken], ...]:
     return map_documented_columns(REQUIRED_EDGE_IIOTSET_COLUMNS, observed)
 
 
-def adapter_producer_commit(repository: Path) -> CanonicalEventToken:
+def adapter_producer_commit(repository: Path) -> NormalizedEventToken:
     try:
         completed = subprocess.run(
             ("git", "rev-parse", "HEAD"),
@@ -89,7 +89,7 @@ def adapter_producer_commit(repository: Path) -> CanonicalEventToken:
 def build_ton_iot_network_release_identity(
     files: tuple[FileInventoryEntry, ...],
     ground_truth_source_sha256: Sha256Hex | None,
-    adapter_producer_commit_hash: CanonicalEventToken,
+    adapter_producer_commit_hash: NormalizedEventToken,
 ) -> TonIotNetworkReleaseIdentity:
     return TonIotNetworkReleaseIdentity(
         release_persistent_identifier="IEEE DataPort / UNSW Research TON_IoT Datasets",
@@ -105,7 +105,7 @@ def build_ton_iot_network_release_identity(
 def build_edge_iiotset_release_identity(
     files: tuple[FileInventoryEntry, ...],
     ground_truth_source_sha256: Sha256Hex | None,
-    adapter_producer_commit_hash: CanonicalEventToken,
+    adapter_producer_commit_hash: NormalizedEventToken,
 ) -> EdgeIiotsetReleaseIdentity:
     return EdgeIiotsetReleaseIdentity(
         release_persistent_identifier="10.21227/mbc1-1h68",

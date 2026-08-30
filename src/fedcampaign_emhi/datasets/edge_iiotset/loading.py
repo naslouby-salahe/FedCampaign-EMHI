@@ -4,7 +4,7 @@ from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
+from fedcampaign_emhi.datasets.edge_iiotset.normalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     REQUIRED_EDGE_IIOTSET_COLUMNS,
     record_identity_is_usable,
@@ -12,11 +12,11 @@ from fedcampaign_emhi.datasets.edge_iiotset.validation import (
 )
 from fedcampaign_emhi.domain.enums import RecordExclusionReason
 from fedcampaign_emhi.domain.types import (
-    CanonicalEventToken,
     ClientId,
     EdgeIiotsetFlowRecord,
     ExcludedRecord,
     FiniteFloat,
+    NormalizedEventToken,
     UnixTimestampSeconds,
 )
 
@@ -27,8 +27,8 @@ def load_edge_iiotset_csv(path: Path) -> tuple[EdgeIiotsetFlowRecord, ...]:
 
 
 def _parse_row_fields(
-    row: Mapping[CanonicalEventToken, CanonicalEventToken | None],
-) -> tuple[FiniteFloat, ClientId, FiniteFloat, CanonicalEventToken] | ExcludedRecord:
+    row: Mapping[NormalizedEventToken, NormalizedEventToken | None],
+) -> tuple[FiniteFloat, ClientId, FiniteFloat, NormalizedEventToken] | ExcludedRecord:
     source_host = (row.get("ip.src_host") or "").strip()
     if not source_host:
         return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
@@ -92,7 +92,7 @@ def iter_edge_iiotset_csv_entries(
             )
 
 
-def parse_frame_time(raw_timestamp: CanonicalEventToken) -> UnixTimestampSeconds:
+def parse_frame_time(raw_timestamp: NormalizedEventToken) -> UnixTimestampSeconds:
     stripped = raw_timestamp.strip()
     try:
         return float(stripped)

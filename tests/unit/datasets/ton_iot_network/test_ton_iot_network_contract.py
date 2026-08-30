@@ -11,17 +11,17 @@ from fedcampaign_emhi.datasets.inventory import (
     inventory_raw_directory,
     ton_iot_network_field_mapping,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
-    UNKNOWN_PROTOCOL_TOKEN,
-    UNKNOWN_SERVICE_TOKEN,
-    canonical_client_id,
-    canonical_event_type,
-    event_type_hash_bucket,
-)
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
 from fedcampaign_emhi.datasets.ton_iot_network.loading import (
     load_ton_iot_network_csv,
     load_ton_iot_network_csv_with_exclusions,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+    UNKNOWN_PROTOCOL_TOKEN,
+    UNKNOWN_SERVICE_TOKEN,
+    event_type_hash_bucket,
+    normalize_client_id,
+    normalize_event_type,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     attach_epoch_ground_truth,
@@ -92,11 +92,11 @@ def test_documented_zeek_fields_are_expectations_not_execution_constants() -> No
     assert not documented_attack_type_is_expected("undocumented_variant")
 
 
-def test_canonical_event_type_and_hash_are_deterministic() -> None:
-    event_type = canonical_event_type(" tcp ", None)
+def test_normalized_event_type_and_hash_are_deterministic() -> None:
+    event_type = normalize_event_type(" tcp ", None)
     assert event_type == "TCP::UNKNOWN_SERVICE"
-    assert canonical_event_type(None, None) == f"{UNKNOWN_PROTOCOL_TOKEN}::{UNKNOWN_SERVICE_TOKEN}"
-    assert canonical_event_type("-", "-") == f"{UNKNOWN_PROTOCOL_TOKEN}::{UNKNOWN_SERVICE_TOKEN}"
+    assert normalize_event_type(None, None) == f"{UNKNOWN_PROTOCOL_TOKEN}::{UNKNOWN_SERVICE_TOKEN}"
+    assert normalize_event_type("-", "-") == f"{UNKNOWN_PROTOCOL_TOKEN}::{UNKNOWN_SERVICE_TOKEN}"
     first = event_type_hash_bucket(event_type, 64)
     second = event_type_hash_bucket(event_type, 64)
     assert first == second
@@ -220,7 +220,7 @@ def test_primary_client_selection_ranks_ties_and_rejects_undersized_federation()
     assert undersized.selected_client_ids == ()
     assert len(undersized.eligible_client_ids) == 3
     assert client_identity_is_ambiguous("-")
-    assert canonical_client_id(" 10.0.0.1 ") == "10.0.0.1"
+    assert normalize_client_id(" 10.0.0.1 ") == "10.0.0.1"
 
 
 def test_release_identity_uses_local_sha256_and_adapter_fingerprint(tmp_path: Path) -> None:
