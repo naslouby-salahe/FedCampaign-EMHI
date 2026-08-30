@@ -17,6 +17,7 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
+    Boolean,
     CellCount,
     ClientCount,
     ClientId,
@@ -130,7 +131,7 @@ def nuisance_field_is_admissible(
     field_client_ids: tuple[ClientId, ...],
     selected_client_ids: tuple[ClientId, ...],
     coalition: CoalitionMembers,
-) -> bool:
+) -> Boolean:
     outside = set(exact_exclusion_members(selected_client_ids, coalition.client_ids))
     return all(client_id in outside for client_id in field_client_ids)
 
@@ -157,7 +158,7 @@ def outside_availability_is_sufficient(
     complement_client_ids: tuple[ClientId, ...],
     minimum_available_outside_clients: ClientCount,
     minimum_available_outside_fraction: Probability,
-) -> bool:
+) -> Boolean:
     complement = set(complement_client_ids)
     if any(client_id not in complement for client_id in available_client_ids):
         return False
@@ -302,7 +303,7 @@ def minimum_support_epochs_for_order(
 
 def coalition_context_support_is_sufficient(
     observation_count: EpochCount, required_epochs: EpochCount
-) -> bool:
+) -> Boolean:
     return observation_count >= required_epochs
 
 
