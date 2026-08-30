@@ -2,14 +2,16 @@ import typer
 
 from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import ExperimentName, OverwritePolicy
+from fedcampaign_emhi.domain.types import Boolean
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
 
 _OPTIONAL_EXPERIMENT_ARGUMENT: ExperimentName | None = typer.Argument(default=None)
+_OVERWRITE_OPTION: Boolean = typer.Option(False, "--overwrite")
 
 
 def report_command(
     experiment_name: ExperimentName | None = _OPTIONAL_EXPERIMENT_ARGUMENT,
-    overwrite: bool = typer.Option(False, "--overwrite"),
+    overwrite: Boolean = _OVERWRITE_OPTION,
 ) -> None:
     repository, loaded = production_configuration_context()
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE

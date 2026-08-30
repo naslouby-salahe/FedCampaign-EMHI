@@ -2,17 +2,20 @@ import typer
 
 from fedcampaign_emhi.config.loading import production_configuration_context
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
+from fedcampaign_emhi.domain.types import Boolean
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, resolve_requested_experiment
 from fedcampaign_emhi.execution.runner import execute_experiment
 from fedcampaign_emhi.experiments.validation import assert_known_experiment
 
 _REQUESTED_EXPERIMENT_ARGUMENT: ExperimentName = typer.Argument()
+_OVERWRITE_OPTION: Boolean = typer.Option(False, "--overwrite")
+_DRY_RUN_OPTION: Boolean = typer.Option(False, "--dry-run")
 
 
 def run_command(
     requested: ExperimentName = _REQUESTED_EXPERIMENT_ARGUMENT,
-    overwrite: bool = typer.Option(False, "--overwrite"),
-    dry_run: bool = typer.Option(False, "--dry-run"),
+    overwrite: Boolean = _OVERWRITE_OPTION,
+    dry_run: Boolean = _DRY_RUN_OPTION,
 ) -> None:
     repository, loaded = production_configuration_context()
     resolved = resolve_requested_experiment(requested.value)

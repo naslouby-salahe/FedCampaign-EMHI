@@ -2,12 +2,15 @@ import typer
 
 from fedcampaign_emhi.config.loading import load_smoke_configuration, repository_root
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
+from fedcampaign_emhi.domain.types import Boolean
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE
 from fedcampaign_emhi.execution.runner import execute_experiment
 
+_OVERWRITE_OPTION: Boolean = typer.Option(False, "--overwrite")
+
 
 def smoke_command(
-    overwrite: bool = typer.Option(False, "--overwrite"),
+    overwrite: Boolean = _OVERWRITE_OPTION,
 ) -> None:
     repository = repository_root()
     loaded = load_smoke_configuration(repository)
