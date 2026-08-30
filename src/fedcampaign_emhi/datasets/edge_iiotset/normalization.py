@@ -1,6 +1,6 @@
 import unicodedata
 
-from fedcampaign_emhi.domain.types import NormalizedEventToken
+from fedcampaign_emhi.domain.types import Boolean, NormalizedEventToken
 
 UNKNOWN_PROTOCOL_GROUP = "UNKNOWN_PROTOCOL"
 PROTOCOL_GROUP_PREFIXES = ("arp.", "http.", "tcp.", "udp.", "icmp.", "mqtt.", "mbtcp.")
@@ -8,7 +8,7 @@ UNRESOLVED_PROTOCOL_PAYLOADS = ("", "-", "0", "0.0", "0.0.0.0")
 UNKNOWN_NORMALIZED_EVENT_TYPE = f"PROTOCOL::{UNKNOWN_PROTOCOL_GROUP}"
 
 
-def protocol_payload_is_resolvable(payload: NormalizedEventToken | None) -> bool:
+def protocol_payload_is_resolvable(payload: NormalizedEventToken | None) -> Boolean:
     if payload is None:
         return False
     return payload.strip() not in UNRESOLVED_PROTOCOL_PAYLOADS
@@ -41,5 +41,5 @@ def normalize_event_type(protocol_group: NormalizedEventToken) -> NormalizedEven
     return f"PROTOCOL::{normalized}"
 
 
-def record_enters_epoch_event_count(protocol_group: NormalizedEventToken) -> bool:
+def record_enters_epoch_event_count(protocol_group: NormalizedEventToken) -> Boolean:
     return protocol_group.strip() != UNKNOWN_PROTOCOL_GROUP and bool(protocol_group.strip())

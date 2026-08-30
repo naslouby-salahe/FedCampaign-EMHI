@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
+    Boolean,
     ChronologicalBenignPartitions,
     ChronologicalPartitionLengths,
     ClientId,
@@ -136,7 +137,7 @@ def epoch_feature_vector(bucket_counts: tuple[RecordCount, ...]) -> EpochFeature
     return vector
 
 
-def epoch_features_are_finite(vector: EpochFeatureVector) -> bool:
+def epoch_features_are_finite(vector: EpochFeatureVector) -> Boolean:
     if not isfinite(vector.shannon_entropy):
         return False
     return all(isfinite(count) for count in vector.log1p_bucket_counts)
@@ -259,5 +260,5 @@ def horizon_eligibility_state(
     return ClaimState.SUPPORTED
 
 
-def detector_fit_sample_requirement_is_met(detector_fit_epoch_count: EpochCount) -> bool:
+def detector_fit_sample_requirement_is_met(detector_fit_epoch_count: EpochCount) -> Boolean:
     return detector_fit_epoch_count > 0

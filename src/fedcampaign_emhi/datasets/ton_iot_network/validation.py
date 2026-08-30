@@ -10,6 +10,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
 from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
 from fedcampaign_emhi.domain.types import (
     BenignEvaluationSeparation,
+    Boolean,
     ClientBenignTally,
     ClientCount,
     ClientEligibilityRecord,
@@ -80,7 +81,7 @@ def missing_required_columns(
     return tuple(column for column in REQUIRED_TON_IOT_NETWORK_COLUMNS if column not in observed)
 
 
-def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> bool:
+def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
     return not missing_required_columns(observed_columns)
 
 
@@ -96,7 +97,7 @@ def epoch_of_record(record: TonIotNetworkFlowRecord, epoch_seconds: EpochSeconds
     return epoch_index(record.timestamp_seconds, epoch_seconds)
 
 
-def documented_attack_type_is_expected(attack_type: NormalizedEventToken) -> bool:
+def documented_attack_type_is_expected(attack_type: NormalizedEventToken) -> Boolean:
     return attack_type.strip().lower() in DOCUMENTED_ATTACK_TYPE_EXPECTATIONS
 
 
@@ -106,23 +107,23 @@ def documented_zeek_core_columns() -> tuple[NormalizedEventToken, ...]:
 
 def observed_column_matches_documented_protocol_extension(
     column: NormalizedEventToken,
-) -> bool:
+) -> Boolean:
     stripped = column.strip()
     return any(stripped.startswith(prefix) for prefix in DOCUMENTED_PROTOCOL_EXTENSION_PREFIXES)
 
 
-def record_is_benign(record: TonIotNetworkFlowRecord) -> bool:
+def record_is_benign(record: TonIotNetworkFlowRecord) -> Boolean:
     return (
         ton_iot_network_ground_truth(record.binary_label, record.attack_type).classification
         is GroundTruthClass.BENIGN
     )
 
 
-def record_identity_is_usable(source_ip: ClientId) -> bool:
+def record_identity_is_usable(source_ip: ClientId) -> Boolean:
     return bool(source_ip.strip()) and not client_identity_is_ambiguous(source_ip)
 
 
-def client_identity_is_ambiguous(source_ip: ClientId) -> bool:
+def client_identity_is_ambiguous(source_ip: ClientId) -> Boolean:
     normalized = normalize_client_id(source_ip)
     return (not normalized) or normalized == ZEEK_MISSING_FIELD_TOKEN
 

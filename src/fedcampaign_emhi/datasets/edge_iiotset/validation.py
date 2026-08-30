@@ -8,6 +8,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientBenignTally,
     ClientCount,
     ClientEligibilityRecord,
@@ -72,7 +73,7 @@ def missing_required_columns(
     return tuple(column for column in REQUIRED_EDGE_IIOTSET_COLUMNS if column not in observed)
 
 
-def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> bool:
+def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
     return not missing_required_columns(observed_columns)
 
 
@@ -92,7 +93,7 @@ def adapter_material_code_fingerprint() -> ConfigurationDigest:
     return digest.hexdigest()
 
 
-def documented_attack_type_is_expected(attack_type: NormalizedEventToken) -> bool:
+def documented_attack_type_is_expected(attack_type: NormalizedEventToken) -> Boolean:
     return attack_type.strip() in DOCUMENTED_ATTACK_TYPE_EXPECTATIONS
 
 
@@ -108,14 +109,14 @@ def epoch_of_record(record: EdgeIiotsetFlowRecord, epoch_seconds: EpochSeconds) 
     return epoch_index(record.timestamp_seconds, epoch_seconds)
 
 
-def record_is_benign(record: EdgeIiotsetFlowRecord) -> bool:
+def record_is_benign(record: EdgeIiotsetFlowRecord) -> Boolean:
     return (
         edge_iiotset_ground_truth(record.binary_label, record.attack_type).classification
         is GroundTruthClass.BENIGN
     )
 
 
-def record_identity_is_usable(source_host: ClientId) -> bool:
+def record_identity_is_usable(source_host: ClientId) -> Boolean:
     return bool(source_host.strip())
 
 
