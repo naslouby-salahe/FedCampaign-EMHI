@@ -2,7 +2,13 @@ from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, MethodName
-from fedcampaign_emhi.domain.types import CellCount, PositiveEpochCount, Probability, ThresholdValue
+from fedcampaign_emhi.domain.types import (
+    Boolean,
+    CellCount,
+    PositiveEpochCount,
+    Probability,
+    ThresholdValue,
+)
 from fedcampaign_emhi.emhi.contexts import NO_OUTSIDE_CONTEXT_CELL_COUNT
 
 
@@ -11,10 +17,10 @@ class ComparatorMethodContract:
     method_name: MethodName
     context_method: ContextMethodName | None
     enabled_order_set: tuple[CoalitionOrder, ...] | None
-    proper_subset_purification_enabled: bool | None
+    proper_subset_purification_enabled: Boolean | None
     native_maximum_interaction_order: PositiveEpochCount | None
-    is_equivalence_comparator: bool
-    determines_primary_causal_claim: bool
+    is_equivalence_comparator: Boolean
+    determines_primary_causal_claim: Boolean
 
 
 def native_target_order(method_name: MethodName) -> CoalitionOrder | None:

@@ -13,6 +13,7 @@ from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.domain.types import (
     ArtifactFilename,
+    Boolean,
     ConfigurationDigest,
     FiniteFloat,
     NumericalTolerance,
@@ -27,8 +28,8 @@ from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bou
 @dataclass(frozen=True)
 class CompositionCandidateResult:
     method_name: MethodName
-    invariants_pass: bool
-    calibration_succeeded: bool
+    invariants_pass: Boolean
+    calibration_succeeded: Boolean
     heldout_false_stops: RecordCount
     heldout_horizons: RecordCount
     mean_standardized_error: FiniteFloat
@@ -46,7 +47,7 @@ def candidate_is_eligible(
     candidate_result: CompositionCandidateResult,
     confidence: FiniteFloat,
     target_pfa: FiniteFloat,
-) -> bool:
+) -> Boolean:
     if not candidate_result.invariants_pass or not candidate_result.calibration_succeeded:
         return False
     upper = clopper_pearson_one_sided_upper_bound(
@@ -135,7 +136,7 @@ def standardized_estimation_error(
 
 def null_standard_deviation_is_usable(
     null_deviation: FiniteFloat, metric_denominator_floor: FiniteFloat
-) -> bool:
+) -> Boolean:
     from math import isfinite
 
     return isfinite(null_deviation) and null_deviation > metric_denominator_floor

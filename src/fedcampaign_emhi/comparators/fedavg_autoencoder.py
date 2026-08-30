@@ -1,7 +1,13 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from fedcampaign_emhi.domain.types import FeatureDimension, FiniteFloat, LayerWidth, RecordCount
+from fedcampaign_emhi.domain.types import (
+    Boolean,
+    FeatureDimension,
+    FiniteFloat,
+    LayerWidth,
+    RecordCount,
+)
 from fedcampaign_emhi.models.autoencoder import autoencoder_layer_widths
 
 
@@ -26,7 +32,7 @@ def store_parameters_float32(parameters: tuple[FiniteFloat, ...]) -> tuple[Finit
     return tuple(float(coordinate) for coordinate in stored.tolist())
 
 
-def optimizer_state_resets_each_round() -> bool:
+def optimizer_state_resets_each_round() -> Boolean:
     return True
 
 

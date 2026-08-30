@@ -1,4 +1,10 @@
-from fedcampaign_emhi.domain.types import BinCount, FiniteFloat, NumericalTolerance, PositiveInt
+from fedcampaign_emhi.domain.types import (
+    BinCount,
+    Boolean,
+    FiniteFloat,
+    NumericalTolerance,
+    PositiveInt,
+)
 
 
 def uniform_probability_table(
@@ -50,7 +56,7 @@ def ipf_converged(
     table: tuple[tuple[tuple[FiniteFloat, ...], ...], ...],
     target_pair_ij: tuple[tuple[FiniteFloat, ...], ...],
     maximum_marginal_absolute_error: NumericalTolerance,
-) -> bool:
+) -> Boolean:
     bin_count = len(table)
     for i_index in range(bin_count):
         for j_index in range(bin_count):

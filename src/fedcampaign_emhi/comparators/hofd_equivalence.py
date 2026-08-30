@@ -4,6 +4,7 @@ from math import sqrt
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     FiniteFloat,
     NumericalFloor,
@@ -94,11 +95,11 @@ def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount)
     return target
 
 
-def nrmse_equivalence_gate(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> bool:
+def nrmse_equivalence_gate(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> Boolean:
     return nrmse_upper < margin
 
 
-def cosine_equivalence_gate(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> bool:
+def cosine_equivalence_gate(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> Boolean:
     return mean_cosine >= minimum
 
 
@@ -107,9 +108,9 @@ def stopping_time_equivalence_gate(
     ci_upper: FiniteFloat,
     interval_lower: FiniteFloat,
     interval_upper: FiniteFloat,
-) -> bool:
+) -> Boolean:
     return ci_lower >= interval_lower and ci_upper <= interval_upper
 
 
-def pfa_prerequisite_gate(null_pfa_upper: Probability, target_pfa: Probability) -> bool:
+def pfa_prerequisite_gate(null_pfa_upper: Probability, target_pfa: Probability) -> Boolean:
     return null_pfa_upper <= target_pfa
