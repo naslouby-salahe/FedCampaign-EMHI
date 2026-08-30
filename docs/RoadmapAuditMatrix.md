@@ -32,7 +32,6 @@ of scientific completion.
 | 18 evidence | Raw, derived, statistical, and manuscript inputs linked to cell records | In progress | Self-explanation cell now includes measurement evidence; broad evidence graph audit pending. |
 | 19 completion gates | All requirements, no placeholders, full quality suite, real reruns | Unverified | No completion claim is permitted while any matrix row is open. |
 | 20 reports | Evidence tables, explicit states, reproducible sources | In progress | Reports generate; content must be checked after all execution repairs. |
-| 21 claims wording | No claim beyond tested scope or Not Tested state | In progress | Requires final claim-registry audit. |
 
 ## Repair log
 
