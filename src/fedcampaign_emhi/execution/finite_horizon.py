@@ -30,7 +30,7 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.benign_horizons import calibrate_global_operating_point
-from fedcampaign_emhi.runtime.determinism import canonical_digest, derive_component_seed
+from fedcampaign_emhi.runtime.determinism import deterministic_digest, derive_component_seed
 from fedcampaign_emhi.synthetic.common_mode import (
     equally_spaced_loadings,
     generate_common_mode_scores,
@@ -116,7 +116,7 @@ def evaluate_finite_horizon_common_mode_seed(
     )
     rows = tuple(row for block in blocks for row in block)
     indexes = tuple(range(len(rows)))
-    fingerprint = canonical_digest(
+    fingerprint = deterministic_digest(
         {"producer": "finite-horizon-common-mode", "seed": seed, "client_count": client_count}
     )
     scores = DetectorScoreArtifactRecord(

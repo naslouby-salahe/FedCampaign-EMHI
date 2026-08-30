@@ -22,7 +22,7 @@ from fedcampaign_emhi.domain.types import ClientId, FiniteFloat, SeedValue
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.campaign_replay import coalition_evidence_at_epoch
-from fedcampaign_emhi.runtime.determinism import canonical_digest
+from fedcampaign_emhi.runtime.determinism import deterministic_digest
 from fedcampaign_emhi.synthetic.pure_order import (
     PureOrderCell,
     PureOrderDriftMetrics,
@@ -131,7 +131,7 @@ def evaluate_fitted_pure_order_cell(
         f"synthetic-pure-order-{index}" for index in range(client_count)
     )
     epochs = tuple(range(len(rows)))
-    fingerprint = canonical_digest(
+    fingerprint = deterministic_digest(
         {"producer": "pure-order-artifact", "seed": seed, "method": cell.method.value}
     )
     scores = DetectorScoreArtifactRecord(

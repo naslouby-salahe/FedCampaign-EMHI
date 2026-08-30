@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ComponentName, RelativePath, RuntimeSeconds, SeedValue
-from fedcampaign_emhi.runtime.determinism import canonical_utf8_bytes
+from fedcampaign_emhi.runtime.determinism import deterministic_utf8_bytes
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ def write_runtime_log(destination: Path, event: RuntimeLogEvent) -> None:
         "elapsed_seconds": event.elapsed_seconds,
         "detail": event.detail,
     }
-    encoded = canonical_utf8_bytes(payload)
+    encoded = deterministic_utf8_bytes(payload)
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_suffix(destination.suffix + ".partial")
     staging.write_bytes(encoded)

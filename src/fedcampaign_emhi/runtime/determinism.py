@@ -15,12 +15,12 @@ THIRTY_TWO_BIT_MODULUS = 1 << 32
 RFC8785_SAFE_INTEGER_MODULUS = 1 << 53
 
 
-def canonical_utf8_bytes(payload: YamlNode) -> CanonicalUtf8Bytes:
+def deterministic_utf8_bytes(payload: YamlNode) -> CanonicalUtf8Bytes:
     return rfc8785.dumps(payload)
 
 
-def canonical_digest(payload: YamlNode) -> ConfigurationDigest:
-    return hashlib.sha256(canonical_utf8_bytes(payload)).hexdigest()
+def deterministic_digest(payload: YamlNode) -> ConfigurationDigest:
+    return hashlib.sha256(deterministic_utf8_bytes(payload)).hexdigest()
 
 
 def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
@@ -39,7 +39,7 @@ def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
 
 
 def derive_component_seed(identity: SeedDerivationIdentity) -> SeedValue:
-    digest = hashlib.sha256(canonical_utf8_bytes(seed_derivation_payload(identity))).digest()
+    digest = hashlib.sha256(deterministic_utf8_bytes(seed_derivation_payload(identity))).digest()
     return int.from_bytes(digest[:8], "big") % RFC8785_SAFE_INTEGER_MODULUS
 
 

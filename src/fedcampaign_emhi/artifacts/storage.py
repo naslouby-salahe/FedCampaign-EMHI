@@ -3,15 +3,15 @@ from pathlib import Path
 
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.types import CanonicalUtf8Bytes, ConfigurationDigest
-from fedcampaign_emhi.runtime.determinism import canonical_digest, canonical_utf8_bytes
+from fedcampaign_emhi.runtime.determinism import deterministic_digest, deterministic_utf8_bytes
 
 
 def encode_canonical_payload(payload: YamlNode) -> CanonicalUtf8Bytes:
-    return canonical_utf8_bytes(payload)
+    return deterministic_utf8_bytes(payload)
 
 
 def payload_digest(payload: YamlNode) -> ConfigurationDigest:
-    return canonical_digest(payload)
+    return deterministic_digest(payload)
 
 
 def file_sha256(path: Path) -> ConfigurationDigest:

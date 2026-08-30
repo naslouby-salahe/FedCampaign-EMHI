@@ -38,7 +38,7 @@ from fedcampaign_emhi.domain.types import (
     SolverIterationLimit,
 )
 from fedcampaign_emhi.emhi.coalitions import complement_members, required_outside_client_count
-from fedcampaign_emhi.runtime.determinism import canonical_utf8_bytes, thirty_two_bit_seed
+from fedcampaign_emhi.runtime.determinism import deterministic_utf8_bytes, thirty_two_bit_seed
 
 STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 
@@ -104,7 +104,7 @@ def shuffled_context_permutation(
         raise ValueError("shuffled context requires lagged outside rows")
     payload_rows = [{"split": split_role.value, "row_key": key} for key in row_keys]
     digest = hashlib.sha256(
-        canonical_utf8_bytes({"context_seed": context_seed, "rows": payload_rows})
+        deterministic_utf8_bytes({"context_seed": context_seed, "rows": payload_rows})
     ).digest()
     generator = np.random.default_rng(int.from_bytes(digest[:8], "big"))
     permutation = generator.permutation(len(row_keys))
@@ -224,7 +224,7 @@ def context_row_ranking_value(row: ContextTrainingRow, context_seed: SeedValue) 
         "coalition_client_ids": list(row.coalition_client_ids),
         "epoch_index": row.epoch_index,
     }
-    digest = hashlib.sha256(canonical_utf8_bytes(payload)).digest()
+    digest = hashlib.sha256(deterministic_utf8_bytes(payload)).digest()
     return int.from_bytes(digest[:8], "big")
 
 
