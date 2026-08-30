@@ -21,15 +21,20 @@ from fedcampaign_emhi.datasets.preprocessing import (
     shannon_entropy,
 )
 from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
-from fedcampaign_emhi.domain.types import RetainedEvent
+from fedcampaign_emhi.domain.types import (
+    NormalizedEventToken,
+    RecordCount,
+    RetainedEvent,
+    UnixTimestampSeconds,
+)
 
 
 def _event(
-    timestamp_seconds: float,
-    payload: str,
-    unique_identifier: str | None = None,
-    original_order: int = 0,
-    event_type: str = "TCP::HTTP",
+    timestamp_seconds: UnixTimestampSeconds,
+    payload: NormalizedEventToken,
+    unique_identifier: NormalizedEventToken | None = None,
+    original_order: RecordCount = 0,
+    event_type: NormalizedEventToken = "TCP::HTTP",
 ) -> RetainedEvent:
     return RetainedEvent(
         dataset_name=DatasetName.TON_IOT_NETWORK,
