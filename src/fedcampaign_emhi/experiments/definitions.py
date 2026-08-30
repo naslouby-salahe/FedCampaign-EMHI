@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
-from fedcampaign_emhi.domain.types import ArtifactFilename
+from fedcampaign_emhi.domain.types import ArtifactFilename, Boolean
 
 
 @dataclass(frozen=True)
@@ -10,8 +10,8 @@ class ExperimentContract:
     experiment_name: ExperimentName
     execution_roles: tuple[ExecutionRole, ...]
     methods: tuple[MethodName, ...]
-    uses_real_seeds: bool
-    uses_synthetic_seeds: bool
+    uses_real_seeds: Boolean
+    uses_synthetic_seeds: Boolean
 
 
 def experiment_registry(config: ScientificConfig) -> tuple[ExperimentContract, ...]:

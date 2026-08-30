@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import DatasetName, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ClientCount,
     ClientId,
     ComponentName,
@@ -41,21 +42,21 @@ class FullMethodSupportInputs:
     minimum_median_lead: FiniteFloat
     directional_adjusted_p_value: Probability
     nominal_alpha: Probability
-    full_operating_point_available: bool
-    comparator_operating_point_available: bool
+    full_operating_point_available: Boolean
+    comparator_operating_point_available: Boolean
 
 
 @dataclass(frozen=True)
 class FullMethodSupportResult:
-    pfa_gate_passes: bool
-    odi_rate_gate_passes: bool
-    advantage_gate_passes: bool
-    lead_gate_passes: bool
-    directional_gate_passes: bool
-    matched_operating_point_gate_passes: bool
+    pfa_gate_passes: Boolean
+    odi_rate_gate_passes: Boolean
+    advantage_gate_passes: Boolean
+    lead_gate_passes: Boolean
+    directional_gate_passes: Boolean
+    matched_operating_point_gate_passes: Boolean
 
     @property
-    def all_criteria_pass(self) -> bool:
+    def all_criteria_pass(self) -> Boolean:
         return (
             self.pfa_gate_passes
             and self.odi_rate_gate_passes
@@ -98,7 +99,7 @@ def enumerate_primary_strict_odi_plan(config: ScientificConfig) -> PrimaryStrict
     )
 
 
-def strict_odi_rate_gate(mean_odi_rate: Probability, minimum_rate: Probability) -> bool:
+def strict_odi_rate_gate(mean_odi_rate: Probability, minimum_rate: Probability) -> Boolean:
     return mean_odi_rate >= minimum_rate
 
 
@@ -106,14 +107,14 @@ def paired_odi_advantage_gate(
     full_odi_rate: Probability,
     comparator_odi_rate: Probability,
     minimum_advantage: Probability,
-) -> bool:
+) -> Boolean:
     return (full_odi_rate - comparator_odi_rate) >= minimum_advantage
 
 
 def median_operational_lead_gate(
     median_lead_epochs: FiniteFloat,
     minimum_lead_epochs: FiniteFloat,
-) -> bool:
+) -> Boolean:
     return median_lead_epochs >= minimum_lead_epochs
 
 
@@ -124,9 +125,9 @@ def median_of(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
 
 
 def matched_operating_point_requirement(
-    full_method_available: bool,
-    comparator_available: bool,
-) -> bool:
+    full_method_available: Boolean,
+    comparator_available: Boolean,
+) -> Boolean:
     return full_method_available and comparator_available
 
 
