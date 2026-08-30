@@ -1,6 +1,7 @@
 from fedcampaign_emhi.domain.enums import DetectorFamily, PartitionRole
 from fedcampaign_emhi.domain.types import (
     BatchSize,
+    Boolean,
     ClientId,
     FeatureFraction,
     FiniteFloat,
@@ -93,7 +94,7 @@ def score_autoencoder(
     )
 
 
-def family_uses_detector_fit_only(family: DetectorFamily) -> bool:
+def family_uses_detector_fit_only(family: DetectorFamily) -> Boolean:
     return family in {
         DetectorFamily.ISOLATION_FOREST,
         DetectorFamily.ONE_CLASS_SVM,

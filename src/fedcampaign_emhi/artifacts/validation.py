@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fedcampaign_emhi.artifacts.records import ArtifactManifest
 from fedcampaign_emhi.domain.enums import ArtifactLifecycleState
-from fedcampaign_emhi.domain.types import ArtifactInspection, ConfigurationDigest
+from fedcampaign_emhi.domain.types import ArtifactInspection, Boolean, ConfigurationDigest
 
 
 def inspect_artifact(
@@ -47,5 +47,5 @@ def inspect_artifact(
     )
 
 
-def may_reuse(inspection: ArtifactInspection) -> bool:
+def may_reuse(inspection: ArtifactInspection) -> Boolean:
     return inspection.lifecycle_state is ArtifactLifecycleState.VALID

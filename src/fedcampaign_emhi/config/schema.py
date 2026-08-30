@@ -15,6 +15,7 @@ from fedcampaign_emhi.domain.types import (
     BasisSize,
     BatchSize,
     BinCount,
+    Boolean,
     BootstrapReplicateCount,
     CellCount,
     ClientCount,
@@ -573,7 +574,7 @@ class ExperimentsStrongComparatorCompositionChallengeConfig(FrozenConfigModel):
 
 class ExperimentsEstimatorSupportAndContextFeasibilitySensitivityConfig(FrozenConfigModel):
     forced_ridge: RidgePenalty
-    forced_no_abstention: bool
+    forced_no_abstention: Boolean
 
 
 class ExperimentsEstimatorSupportAndContextFeasibilityConfig(FrozenConfigModel):
@@ -708,7 +709,7 @@ class ScientificConfig(FrozenConfigModel):
 
 class DerivedScientificValues(FrozenConfigModel):
     model_input_dimension: FeatureDimension
-    heldout_benign_is_remainder: bool
+    heldout_benign_is_remainder: Boolean
     local_horizon_epochs: PositiveEpochCount
     synthetic_campaign_horizon_epochs: PositiveEpochCount
     synthetic_campaign_warmup_epochs: PositiveEpochCount

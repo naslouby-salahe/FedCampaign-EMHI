@@ -79,6 +79,7 @@ GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
 BinIndex = NonNegativeInt
 ScientificChoiceCount = NonNegativeInt
 DeterministicUtf8Bytes = Annotated[bytes, Field()]
+Boolean = Annotated[bool, Field()]
 ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
 ScoreShift = FiniteFloat
@@ -155,7 +156,7 @@ class ScientificOutcome:
     kind: ScientificOutcomeKind
     operating_point_state: OperatingPointState
     experiment_state: ExperimentState
-    is_implementation_error: bool
+    is_implementation_error: Boolean
 
 
 @dataclass(frozen=True)
@@ -253,8 +254,8 @@ class LocalPolicyArtifact:
 class PreprocessingLayerDecision:
     dataset_name: DatasetName
     layer: PreprocessingLayer
-    reused: bool
-    reconstructed: bool
+    reused: Boolean
+    reconstructed: Boolean
     previous_fingerprint: MaterialDependencyFingerprint | None
     current_fingerprint: MaterialDependencyFingerprint
     invalidated_descendant_ids: tuple[ArtifactIdentity, ...]
@@ -279,7 +280,7 @@ class PairingKey:
 @dataclass(frozen=True)
 class SeedCoordinate:
     name: SeedCoordinateName
-    scalar: FiniteFloat | SeedValue | NormalizedEventToken | bool | None
+    scalar: FiniteFloat | SeedValue | NormalizedEventToken | Boolean | None
 
 
 @dataclass(frozen=True)
@@ -340,7 +341,7 @@ class EdgeIiotsetFlowRecord:
 class GroundTruthLabel:
     classification: GroundTruthClass
     attack_type: AttackTypeName | None
-    is_ambiguous: bool
+    is_ambiguous: Boolean
 
 
 @dataclass(frozen=True)
@@ -360,7 +361,7 @@ class ClientEligibilityRecord:
     client_id: ClientId
     benign_event_count: RecordCount
     benign_nonempty_epoch_count: EpochCount
-    is_eligible: bool
+    is_eligible: Boolean
 
 
 @dataclass(frozen=True)
@@ -470,7 +471,7 @@ class ContextTrainingRow:
 class OutsideContextHistogram:
     bin_mass: tuple[FiniteFloat, ...]
     available_client_ids: tuple[ClientId, ...]
-    abstained: bool
+    abstained: Boolean
 
 
 @dataclass(frozen=True)
@@ -500,7 +501,7 @@ CensoredPlotEpoch = PositiveEpochCount
 @dataclass(frozen=True)
 class MaybeDefinedMetric:
     metric_value: MetricValue | None
-    is_not_defined: bool
+    is_not_defined: Boolean
 
     @classmethod
     def defined(cls, metric_value: MetricValue) -> "MaybeDefinedMetric":

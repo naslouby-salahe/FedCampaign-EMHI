@@ -2,6 +2,7 @@ import numpy as np
 
 from fedcampaign_emhi.domain.enums import OperatingPointState
 from fedcampaign_emhi.domain.types import (
+    Boolean,
     ConfidenceLevel,
     EpochCount,
     EpochIndexValue,
@@ -17,10 +18,10 @@ from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bou
 
 
 def persistence_is_triggered(
-    exceedances: tuple[bool, ...],
+    exceedances: tuple[Boolean, ...],
     required_exceedances: PositiveInt,
     window_epochs: EpochCount,
-) -> bool:
+) -> Boolean:
     if window_epochs <= 0:
         raise ValueError("window_epochs must be positive")
     examined = exceedances[-window_epochs:]
@@ -29,12 +30,12 @@ def persistence_is_triggered(
     return sum(1 for exceeded in examined if exceeded) >= required_exceedances
 
 
-def score_exceeds_threshold(score: FiniteFloat, threshold: FiniteFloat) -> bool:
+def score_exceeds_threshold(score: FiniteFloat, threshold: FiniteFloat) -> Boolean:
     return score >= threshold
 
 
 def first_local_stop_epoch(
-    exceedances: tuple[bool, ...],
+    exceedances: tuple[Boolean, ...],
     required_exceedances: PositiveInt,
     window_epochs: EpochCount,
 ) -> EpochIndexValue | None:
@@ -75,7 +76,7 @@ def select_immutable_local_policy(
 
 
 def heldout_false_stop_count(
-    heldout_exceedance_horizons: tuple[tuple[bool, ...], ...],
+    heldout_exceedance_horizons: tuple[tuple[Boolean, ...], ...],
     required_exceedances: PositiveInt,
     window_epochs: EpochCount,
 ) -> RecordCount:

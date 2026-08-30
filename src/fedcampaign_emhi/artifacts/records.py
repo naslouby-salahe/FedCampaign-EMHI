@@ -18,6 +18,7 @@ from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
     BasisSize,
     BinIndex,
+    Boolean,
     ByteCount,
     ClientId,
     ComponentName,
@@ -256,8 +257,8 @@ class EMHIFitArtifactRecord(FrozenConfigModel):
     method_name: MethodName
     selected_client_ids: tuple[ClientId, ...]
     basis_size: BasisSize
-    proper_subset_purification_enabled: bool
-    forced_no_abstention: bool
+    proper_subset_purification_enabled: Boolean
+    forced_no_abstention: Boolean
     order_contexts: tuple[OrderContextFitRecord, ...]
     coalition_fits: tuple[CoalitionFitRecord, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -328,7 +329,7 @@ class ComparatorNullPfaRecord(FrozenConfigModel):
     heldout_false_stops: RecordCount
     heldout_horizons: RecordCount
     heldout_upper_pfa: FiniteFloat | None
-    eligible: bool
+    eligible: Boolean
 
 
 class ComparatorTargetErrorRecord(FrozenConfigModel):

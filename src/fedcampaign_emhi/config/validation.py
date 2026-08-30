@@ -1,8 +1,8 @@
 from collections.abc import Mapping, Sequence
 
-from fedcampaign_emhi.domain.types import YamlKeyPath
+from fedcampaign_emhi.domain.types import Boolean, YamlKeyPath
 
-type YamlNode = str | int | float | bool | Sequence[YamlNode] | Mapping[str, YamlNode] | None
+type YamlNode = str | int | float | Boolean | Sequence[YamlNode] | Mapping[str, YamlNode] | None
 
 FORBIDDEN_DERIVED_KEYS = frozenset(
     {

@@ -3,12 +3,12 @@ from pathlib import Path
 
 from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.domain.types import ConfigurationDigest, ScientificChoiceCount
+from fedcampaign_emhi.domain.types import Boolean, ConfigurationDigest, ScientificChoiceCount
 
 
 @dataclass(frozen=True)
 class ImplementationReadiness:
-    production_configuration_valid: bool
+    production_configuration_valid: Boolean
     material_digest: ConfigurationDigest
     unspecified_scientific_choice_count: ScientificChoiceCount
 

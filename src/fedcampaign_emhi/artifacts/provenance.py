@@ -1,7 +1,11 @@
 from fedcampaign_emhi.artifacts.records import ArtifactManifest
 from fedcampaign_emhi.artifacts.storage import payload_digest
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.types import ConfigurationDigest, MaterialDependencyFingerprint
+from fedcampaign_emhi.domain.types import (
+    Boolean,
+    ConfigurationDigest,
+    MaterialDependencyFingerprint,
+)
 
 
 def content_digest(payload: YamlNode) -> ConfigurationDigest:
@@ -19,7 +23,7 @@ def material_fingerprint(
     return payload_digest(payload)
 
 
-def manifests_are_compatible(current: ArtifactManifest, observed: ArtifactManifest) -> bool:
+def manifests_are_compatible(current: ArtifactManifest, observed: ArtifactManifest) -> Boolean:
     return (
         current.artifact_id == observed.artifact_id
         and current.material_fingerprint == observed.material_fingerprint
