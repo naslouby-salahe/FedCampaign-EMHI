@@ -1,3 +1,5 @@
+import pytest
+
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
@@ -121,3 +123,25 @@ def test_seed_evaluation_materializes_every_configured_condition() -> None:
     low = next(measurement for measurement in reference if measurement.cell.perturbation == -0.2)
     high = next(measurement for measurement in reference if measurement.cell.perturbation == 0.2)
     assert abs((high.response_mean - low.response_mean) - 0.4) < 1.0e-12
+
+
+def test_primary_condition_comparison_must_match_the_attenuation_hypothesis_pair() -> None:
+    loaded = load_production_configuration()
+    validation = loaded.values.experiments.self_explanation_exclusion_validation
+    mismatched_primary = validation.primary_condition.model_copy(
+        update={
+            "comparison": (
+                ContextMethodName.EXACT_COALITION_EXCLUSION,
+                ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT,
+            )
+        }
+    )
+    mismatched_validation = validation.model_copy(update={"primary_condition": mismatched_primary})
+    experiments = loaded.values.experiments.model_copy(
+        update={"self_explanation_exclusion_validation": mismatched_validation}
+    )
+    config = loaded.values.model_copy(update={"experiments": experiments})
+    with pytest.raises(ValueError, match=r"primary_condition\.comparison"):
+        evaluate_self_explanation_seed(
+            config, loaded.values.randomness.synthetic_confirmatory_roots[0]
+        )

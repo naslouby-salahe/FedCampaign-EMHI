@@ -328,6 +328,14 @@ def evaluate_self_explanation_seed(
         and measurement.cell.nuisance_transform is primary.nuisance_transform
         and measurement.cell.perturbation == 0.0
     ]
+    if set(primary.comparison) != {
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        ContextMethodName.INCLUSIVE_CONTEXT,
+    }:
+        raise ValueError(
+            "primary_condition.comparison must declare exactly the exact-exclusion and "
+            "inclusive-context methods compared by the self-explanation attenuation hypothesis"
+        )
     exact = next(
         measurement
         for measurement in matching
