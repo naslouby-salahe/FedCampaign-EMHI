@@ -458,6 +458,25 @@ def _execute_synthetic_module_validation(
     )
 
 
+def run_synthetic_cell_with_technical_retry(
+    loaded: LoadedScientificConfiguration,
+    experiment_name: ExperimentName,
+    seed: SeedValue,
+    method_name: MethodName | None,
+    execution_role: ExecutionRole,
+) -> SyntheticCellOutcome:
+    retries = loaded.values.runtime.automatic_technical_retries_after_initial_failure
+    last_error: OSError | MemoryError | None = None
+    for _attempt in range(retries + 1):
+        try:
+            return run_synthetic_cell(loaded, experiment_name, seed, method_name, execution_role)
+        except (OSError, MemoryError) as error:
+            last_error = error
+    if last_error is None:
+        raise RuntimeError("technical retry loop exited without an attempt")
+    raise last_error
+
+
 def _execute_synthetic_experiment(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -483,8 +502,11 @@ def _execute_synthetic_experiment(
                 started = perf_counter()
                 finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
                 composition_metrics: CompositionCandidateSeedMetrics | None = None
+                technical_failure = False
                 try:
-                    outcome = run_synthetic_cell(loaded, experiment_name, seed, method_name, role)
+                    outcome = run_synthetic_cell_with_technical_retry(
+                        loaded, experiment_name, seed, method_name, role
+                    )
                     if (
                         experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
                         and method_name is not None
@@ -667,8 +689,13 @@ def _execute_synthetic_experiment(
                         outcome = replace(outcome, evidence=evidence)
                 except (ArithmeticError, ValueError) as error:
                     outcome = SyntheticCellOutcome((str(error),), None)
+                except (OSError, MemoryError) as error:
+                    outcome = SyntheticCellOutcome((str(error),), None)
+                    technical_failure = True
                 state = (
-                    ExperimentState.COMPLETED
+                    ExperimentState.FAILED
+                    if technical_failure
+                    else ExperimentState.COMPLETED
                     if not outcome.failed_checks
                     else ExperimentState.INVALID
                 )
@@ -853,6 +880,17 @@ def _execute_synthetic_experiment(
     )
 
 
+def confirmatory_completeness_within_tolerance(
+    loaded: LoadedScientificConfiguration,
+    expected: tuple[SeedValue, ...],
+    observed_seeds: tuple[SeedValue, ...],
+) -> Boolean:
+    if any(seed not in expected for seed in observed_seeds):
+        return False
+    missing_count = sum(1 for seed in expected if seed not in observed_seeds)
+    return missing_count <= loaded.values.runtime.required_confirmatory_missing_cell_tolerance
+
+
 def materialize_self_explanation_statistics(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -864,7 +902,8 @@ def materialize_self_explanation_statistics(
         if observation.execution_role is ExecutionRole.CONFIRMATORY
     )
     expected = loaded.values.randomness.synthetic_confirmatory_roots
-    if tuple(observation.seed for observation in confirmatory) != expected:
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
         return None
     values = tuple(observation.metric.primary_attenuation_contrast for observation in confirmatory)
     raw_p_value = one_sided_synthetic_sign_flip_p_value(
@@ -940,7 +979,8 @@ def materialize_pure_order_statistics(
         if observation.execution_role is ExecutionRole.CONFIRMATORY
     )
     expected = loaded.values.randomness.synthetic_confirmatory_roots
-    if tuple(observation.seed for observation in confirmatory) != expected:
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
         return None
     values = tuple(
         observation.metric.target_order_standardized_drift for observation in confirmatory
@@ -1104,7 +1144,8 @@ def materialize_estimator_feasibility_statistics(
         if observation.execution_role is ExecutionRole.CONFIRMATORY
     )
     expected = loaded.values.randomness.synthetic_confirmatory_roots
-    if tuple(observation.seed for observation in confirmatory) != expected:
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
         return None
     metrics = tuple(observation.metric.primary for observation in confirmatory)
     failure_count = sum(metric.numerical_failure for metric in metrics)
@@ -1179,7 +1220,8 @@ def materialize_signed_theorem_statistics(
         if observation.execution_role is ExecutionRole.CONFIRMATORY
     )
     expected = loaded.values.randomness.synthetic_confirmatory_roots
-    if tuple(observation.seed for observation in confirmatory) != expected:
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
         return None
     values = tuple(observation.metric.restricted_arl for observation in confirmatory)
     confidence_level = loaded.values.statistics.confidence_level
@@ -1247,7 +1289,8 @@ def materialize_finite_horizon_statistics(
         if observation.execution_role is ExecutionRole.CONFIRMATORY
     )
     expected = loaded.values.randomness.synthetic_confirmatory_roots
-    if tuple(observation.seed for observation in confirmatory) != expected:
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
         return None
     unavailable_count = sum(
         observation.metric.calibrated_threshold is None for observation in confirmatory
