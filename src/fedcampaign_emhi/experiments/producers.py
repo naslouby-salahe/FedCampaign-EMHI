@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
+from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.hofd_equivalence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
     paired_atom_metrics,
 )
+from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -31,8 +33,10 @@ from fedcampaign_emhi.synthetic.feasibility import (
     evaluate_estimator_feasibility_seed,
 )
 from fedcampaign_emhi.synthetic.pure_order import (
+    PureOrderCell,
     enumerate_pure_order_grid,
     fitted_method_pure_order_metrics,
+    sample_generator_row,
     sample_independent_uniform_ranks,
     validate_generator_purity,
 )
@@ -283,6 +287,62 @@ def run_synthetic_cell(
             evaluation
             for evaluation in evaluations
             if evaluation.condition.identifier == "primary-order-three"
+        )
+    if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
+        if method_name is None:
+            raise ValueError("strong comparator selection requires a declared candidate")
+        order = native_target_order(method_name)
+        if order is None:
+            raise ValueError("strong comparator candidate has no native target order")
+        client_count = config.experiments.pure_order_separation_validation.primary_client_count
+        sample_count = config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
+        generator = (
+            GeneratorName.PURE_ORDER_TWO
+            if order is CoalitionOrder.TWO
+            else GeneratorName.PURE_CONTINUOUS_TRIPLE
+        )
+        cell = PureOrderCell(
+            generator=generator,
+            effect=config.generators.pure_polynomial.primary_reference_theta,
+            method=method_name,
+            target_order=order,
+            enabled_orders=frozenset((order,)),
+        )
+        nuisance = tuple(
+            sample_independent_uniform_ranks(client_count, seed + index)
+            for index in range(sample_count)
+        )
+        alternatives = tuple(
+            sample_generator_row(cell, client_count, seed + sample_count + index)
+            for index in range(sample_count)
+        )
+        null_scores = tuple(
+            score_comparator_ranks(method_name, row[: int(order)], config)[0] for row in nuisance
+        )
+        alternative_scores = tuple(
+            score_comparator_ranks(method_name, row[: int(order)], config)[0]
+            for row in alternatives
+        )
+        mean = sum(null_scores) / len(null_scores)
+        deviation = (sum((value - mean) ** 2 for value in null_scores) / len(null_scores)) ** 0.5
+        if deviation <= config.numerics.metric_denominator_floor:
+            return SyntheticCellOutcome(
+                ("strong comparator nuisance variation is not usable",),
+                None,
+                {"implementation_state": "unusable_nuisance_standardization"},
+            )
+        standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
+        return SyntheticCellOutcome(
+            ("missing calibrated composition PFA and selection artifact",),
+            standardized_score,
+            {
+                "implementation_state": "native_order_score_complete",
+                "native_target_order": int(order),
+                "standardized_target_order_score": standardized_score,
+                "standardized_target_order_error": abs(
+                    standardized_score - config.generators.pure_polynomial.primary_reference_theta
+                ),
+            },
         )
         metrics = primary.metrics
         return SyntheticCellOutcome(
