@@ -101,7 +101,6 @@ from fedcampaign_emhi.domain.types import (
     RankValue,
     RecordCount,
     RelativePath,
-    ResumeStep,
     RidgePenalty,
     RuntimeSeconds,
     SeedValue,
@@ -243,10 +242,6 @@ class CompositionCandidateObservation:
     standardized_target_order_error: FiniteFloat
     metric: CompositionCandidateSeedMetrics
     diagnostic_path: Path
-
-
-def resume_sequence() -> tuple[ResumeStep, ...]:
-    return RESUME_SEQUENCE
 
 
 def _experiment_contract(

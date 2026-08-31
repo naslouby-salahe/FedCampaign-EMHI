@@ -7,7 +7,6 @@ from typing import Annotated
 from pydantic import Field, StringConstraints
 
 from fedcampaign_emhi.domain.enums import (
-    ArtifactLifecycleState,
     ArtifactNamespace,
     CoalitionOrder,
     ContextMethodName,
@@ -298,13 +297,6 @@ class ArtifactDependencyNode:
     artifact_id: ArtifactIdentity
     material_fingerprint: MaterialDependencyFingerprint
     upstream_ids: tuple[ArtifactIdentity, ...]
-
-
-@dataclass(frozen=True)
-class ArtifactInspection:
-    artifact_id: ArtifactIdentity
-    lifecycle_state: ArtifactLifecycleState
-    material_fingerprint: MaterialDependencyFingerprint | None
 
 
 @dataclass(frozen=True)

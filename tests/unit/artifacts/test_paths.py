@@ -3,7 +3,6 @@ from pathlib import Path
 from fedcampaign_emhi.artifacts.dependencies import descendant_ids
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.storage import payload_digest, write_atomic_json
-from fedcampaign_emhi.artifacts.validation import inspect_artifact, may_reuse
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.types import ArtifactDependencyNode
 
@@ -36,8 +35,3 @@ def test_descendant_invalidation_is_selective() -> None:
     )
     assert descendant_ids(graph, ("prepared",)) == ("scores",)
     assert "sibling" not in descendant_ids(graph, ("prepared",))
-
-
-def test_missing_artifact_cannot_be_reused(tmp_path: Path) -> None:
-    inspection = inspect_artifact(tmp_path / "absent.json", None, None)
-    assert may_reuse(inspection) is False
