@@ -1,6 +1,7 @@
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -458,6 +459,22 @@ def _execute_synthetic_module_validation(
     )
 
 
+def with_technical_retry[TechnicalRetryResult](
+    loaded: LoadedScientificConfiguration,
+    operation: Callable[[], TechnicalRetryResult],
+) -> TechnicalRetryResult:
+    retries = loaded.values.runtime.automatic_technical_retries_after_initial_failure
+    last_error: OSError | MemoryError | None = None
+    for _attempt in range(retries + 1):
+        try:
+            return operation()
+        except (OSError, MemoryError) as error:
+            last_error = error
+    if last_error is None:
+        raise RuntimeError("technical retry loop exited without an attempt")
+    raise last_error
+
+
 def run_synthetic_cell_with_technical_retry(
     loaded: LoadedScientificConfiguration,
     experiment_name: ExperimentName,
@@ -465,16 +482,10 @@ def run_synthetic_cell_with_technical_retry(
     method_name: MethodName | None,
     execution_role: ExecutionRole,
 ) -> SyntheticCellOutcome:
-    retries = loaded.values.runtime.automatic_technical_retries_after_initial_failure
-    last_error: OSError | MemoryError | None = None
-    for _attempt in range(retries + 1):
-        try:
-            return run_synthetic_cell(loaded, experiment_name, seed, method_name, execution_role)
-        except (OSError, MemoryError) as error:
-            last_error = error
-    if last_error is None:
-        raise RuntimeError("technical retry loop exited without an attempt")
-    raise last_error
+    return with_technical_retry(
+        loaded,
+        lambda: run_synthetic_cell(loaded, experiment_name, seed, method_name, execution_role),
+    )
 
 
 def _execute_synthetic_experiment(
@@ -2736,46 +2747,65 @@ def _execute_real_emhi_methods(
         return completed, ()
     for role in contract.execution_roles:
         for seed in _role_seeds(loaded, role):
-            score_path = _materialize_detector_scores(loaded, repository, dataset_name, seed)
-            rank_path = _materialize_marginal_ranks(
+            score_path = with_technical_retry(
                 loaded,
-                repository,
-                dataset_name,
-                seed,
-                score_path,
+                partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
             )
-            for method_name in supported:
-                fit_path = _materialize_emhi_fit(
+            rank_path = with_technical_retry(
+                loaded,
+                partial(
+                    _materialize_marginal_ranks,
                     loaded,
                     repository,
                     dataset_name,
                     seed,
-                    method_name,
                     score_path,
-                    rank_path,
-                )
-                _evaluate_emhi_seed_cell(
+                ),
+            )
+            for method_name in supported:
+                fit_path = with_technical_retry(
                     loaded,
-                    repository,
-                    experiment_name,
-                    role,
-                    method_name,
-                    seed,
-                    score_path,
-                    rank_path,
-                    fit_path,
+                    partial(
+                        _materialize_emhi_fit,
+                        loaded,
+                        repository,
+                        dataset_name,
+                        seed,
+                        method_name,
+                        score_path,
+                        rank_path,
+                    ),
+                )
+                with_technical_retry(
+                    loaded,
+                    partial(
+                        _evaluate_emhi_seed_cell,
+                        loaded,
+                        repository,
+                        experiment_name,
+                        role,
+                        method_name,
+                        seed,
+                        score_path,
+                        rank_path,
+                        fit_path,
+                    ),
                 )
                 completed += 1
             for method_name in missing:
-                _evaluate_comparator_seed_cell(
+                with_technical_retry(
                     loaded,
-                    repository,
-                    experiment_name,
-                    role,
-                    method_name,
-                    seed,
-                    score_path,
-                    rank_path,
+                    partial(
+                        _evaluate_comparator_seed_cell,
+                        loaded,
+                        repository,
+                        experiment_name,
+                        role,
+                        method_name,
+                        seed,
+                        score_path,
+                        rank_path,
+                    ),
                 )
                 completed += 1
     return completed, ()
