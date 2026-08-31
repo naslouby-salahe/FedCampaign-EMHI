@@ -242,6 +242,7 @@ class ProjectionCellFitRecord(FrozenConfigModel):
     coordinate_deviations: tuple[FiniteFloat, ...]
     operational_norm_reference: FiniteFloat | None
     state: SupportState
+    numerical_failure: Boolean
 
 
 class CoalitionFitRecord(FrozenConfigModel):

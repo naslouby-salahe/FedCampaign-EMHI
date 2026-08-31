@@ -728,6 +728,7 @@ def _fit_projection_cell(
             coordinate_deviations=(),
             operational_norm_reference=None,
             state=SupportState.NOT_TESTED,
+            numerical_failure=False,
         )
     rows = _conditioned_rows(config, ranks, coalition, epochs, references)
     design_rows, tensors = _design_and_tensors(rows, basis_size)
@@ -752,6 +753,7 @@ def _fit_projection_cell(
             coordinate_deviations=(),
             operational_norm_reference=None,
             state=SupportState.NOT_TESTED,
+            numerical_failure=True,
         )
     means, deviations, norm_reference = cross_fitted_statistics
     return ProjectionCellFitRecord(
@@ -767,6 +769,7 @@ def _fit_projection_cell(
         coordinate_deviations=deviations,
         operational_norm_reference=norm_reference,
         state=SupportState.SUPPORTED,
+        numerical_failure=False,
     )
 
 
