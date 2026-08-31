@@ -2,11 +2,11 @@ import hashlib
 from pathlib import Path
 
 from fedcampaign_emhi.datasets.partitions import epoch_index
-from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     ZEEK_MISSING_FIELD_TOKEN,
     normalize_client_id,
 )
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
 from fedcampaign_emhi.domain.enums import ExperimentState, GroundTruthClass, SupportState
 from fedcampaign_emhi.domain.types import (
     BenignEvaluationSeparation,
@@ -88,7 +88,7 @@ def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> 
 def adapter_material_code_fingerprint() -> ConfigurationDigest:
     digest = hashlib.sha256()
     directory = Path(__file__).resolve().parent
-    for name in ("normalization.py", "loading.py", "ground_truth.py", "validation.py"):
+    for name in ("canonicalization.py", "loading.py", "ground_truth.py", "validation.py"):
         digest.update((directory / name).read_bytes())
     return digest.hexdigest()
 

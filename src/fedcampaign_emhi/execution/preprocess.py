@@ -27,14 +27,14 @@ from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, writ
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.datasets.campaigns import build_campaign_registry
-from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
-from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
-from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     normalize_event_type as edge_normalize_event_type,
 )
-from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     record_enters_epoch_event_count,
 )
+from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     adapter_material_code_fingerprint as edge_adapter_material_code_fingerprint,
 )
@@ -55,16 +55,16 @@ from fedcampaign_emhi.datasets.preprocessing import (
     inclusive_epoch_range,
     retain_first_chronological,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     event_type_hash_bucket as ton_event_type_hash_bucket,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     normalize_client_id,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     normalize_event_type as ton_normalize_event_type,
 )
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )

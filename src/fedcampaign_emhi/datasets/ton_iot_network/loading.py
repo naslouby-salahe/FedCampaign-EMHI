@@ -2,7 +2,7 @@ import csv
 from collections.abc import Iterator
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     UNKNOWN_PROTOCOL_TOKEN,
     UNKNOWN_SERVICE_TOKEN,
     normalize_token,

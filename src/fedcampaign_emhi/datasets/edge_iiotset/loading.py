@@ -4,7 +4,7 @@ from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fedcampaign_emhi.datasets.edge_iiotset.normalization import dominant_protocol_group_for_row
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     REQUIRED_EDGE_IIOTSET_COLUMNS,
     record_identity_is_usable,

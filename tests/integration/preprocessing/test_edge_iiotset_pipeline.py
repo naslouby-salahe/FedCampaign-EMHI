@@ -1,8 +1,8 @@
 import inspect
 from pathlib import Path
 
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import normalize_event_type
 from fedcampaign_emhi.datasets.edge_iiotset.loading import load_edge_iiotset_csv
-from fedcampaign_emhi.datasets.edge_iiotset.normalization import normalize_event_type
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     epoch_event_count_records,
     select_secondary_clients,

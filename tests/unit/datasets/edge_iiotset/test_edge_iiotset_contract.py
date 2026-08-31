@@ -4,17 +4,17 @@ from pathlib import Path
 import pytest
 
 from fedcampaign_emhi.artifacts.storage import file_sha256
+from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
+    UNKNOWN_PROTOCOL_GROUP,
+    dominant_protocol_group_for_row,
+    normalize_event_type,
+    record_enters_epoch_event_count,
+)
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.edge_iiotset.loading import (
     load_edge_iiotset_csv,
     load_edge_iiotset_csv_with_exclusions,
     parse_frame_time,
-)
-from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
-    UNKNOWN_PROTOCOL_GROUP,
-    dominant_protocol_group_for_row,
-    normalize_event_type,
-    record_enters_epoch_event_count,
 )
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     attach_epoch_ground_truth,

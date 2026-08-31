@@ -11,17 +11,17 @@ from fedcampaign_emhi.datasets.inventory import (
     inventory_raw_directory,
     ton_iot_network_field_mapping,
 )
-from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
-from fedcampaign_emhi.datasets.ton_iot_network.loading import (
-    load_ton_iot_network_csv,
-    load_ton_iot_network_csv_with_exclusions,
-)
-from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
+from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     UNKNOWN_PROTOCOL_TOKEN,
     UNKNOWN_SERVICE_TOKEN,
     event_type_hash_bucket,
     normalize_client_id,
     normalize_event_type,
+)
+from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.loading import (
+    load_ton_iot_network_csv,
+    load_ton_iot_network_csv_with_exclusions,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     attach_epoch_ground_truth,
