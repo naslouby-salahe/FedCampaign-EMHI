@@ -13,6 +13,7 @@ from fedcampaign_emhi.emhi.contexts import (
     oracle_outside_latent_cell,
     partial_coalition_context_members,
     shuffled_context_permutation,
+    shuffled_outside_context_lag_lookup,
 )
 
 SELECTED = ("c1", "c2", "c3", "c4", "c5")
@@ -121,6 +122,28 @@ def test_shuffled_permutation_is_deterministic_and_split_dependent() -> None:
     assert sorted(first) == list(range(len(rows)))
     with pytest.raises(ValueError):
         shuffled_context_permutation((), PartitionRole.NUISANCE_FIT, 7)
+
+
+def test_shuffled_lag_lookup_is_a_permutation_of_lagged_epochs() -> None:
+    from fedcampaign_emhi.domain.enums import PartitionRole
+
+    epochs = (100, 101, 102, 103, 104)
+    lookup = shuffled_outside_context_lag_lookup(epochs, PartitionRole.NUISANCE_FIT, 1, 7)
+    assert set(lookup.keys()) == set(epochs)
+    unshuffled = {epoch: epoch - 1 for epoch in epochs}
+    assert dict(lookup) != unshuffled
+    assert sorted(lookup.values()) == sorted(epoch - 1 for epoch in epochs)
+
+
+def test_shuffled_lag_lookup_is_deterministic_and_split_scoped() -> None:
+    from fedcampaign_emhi.domain.enums import PartitionRole
+
+    epochs = (10, 11, 12, 13)
+    first = shuffled_outside_context_lag_lookup(epochs, PartitionRole.NUISANCE_FIT, 2, 3)
+    repeat = shuffled_outside_context_lag_lookup(epochs, PartitionRole.NUISANCE_FIT, 2, 3)
+    other_role = shuffled_outside_context_lag_lookup(epochs, PartitionRole.HELDOUT_BENIGN, 2, 3)
+    assert dict(first) == dict(repeat)
+    assert dict(first) != dict(other_role)
 
 
 def test_local_history_uses_only_lagged_coalition_member_ranks() -> None:

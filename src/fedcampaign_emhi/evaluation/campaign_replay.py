@@ -11,7 +11,12 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, score_exceeds_threshold
-from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, SupportState
+from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
+    ContextMethodName,
+    PartitionRole,
+    SupportState,
+)
 from fedcampaign_emhi.domain.types import (
     BinIndex,
     Boolean,
@@ -29,18 +34,21 @@ from fedcampaign_emhi.domain.types import (
 )
 from fedcampaign_emhi.emhi.basis import tensor_representation
 from fedcampaign_emhi.emhi.contexts import (
+    OrderOutsideContextLagLookup,
     assign_context_cell,
     exact_exclusion_members,
     inclusive_context_members,
     leave_one_out_context_members,
     outside_context_histogram,
     partial_coalition_context_members,
+    shuffled_outside_context_lag_lookup,
 )
 from fedcampaign_emhi.emhi.evidence import (
     across_order_aggregate,
     operational_evidence_factor,
     within_order_aggregate,
 )
+from fedcampaign_emhi.emhi.innovation_calibration import context_seed_for_order
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
 from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank, rank_at_epoch
@@ -155,6 +163,7 @@ def _context_members(
     if context_method in {
         ContextMethodName.EXACT_COALITION_EXCLUSION,
         ContextMethodName.FORCED_NO_ABSTENTION,
+        ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT,
     }:
         return exact_exclusion_members(selected_client_ids, coalition_client_ids)
     if context_method is ContextMethodName.INCLUSIVE_CONTEXT:
@@ -179,11 +188,18 @@ def _coalition_context_cell(
     coalition: CoalitionMembers,
     order_context: OrderContextFitRecord,
     epoch_index: EpochIndexValue,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> BinIndex | None:
     context_method = order_context.context_method
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return 0
-    lagged_epoch = epoch_index - config.context.outside_lag_epochs
+    if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT:
+        if shuffled_lag_epoch is None:
+            raise ValueError("shuffled outside context requires a precomputed lag lookup")
+        lagged_epoch = shuffled_lag_epoch
+    else:
+        lagged_epoch = epoch_index - config.context.outside_lag_epochs
     members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
     lagged_ranks = tuple(
         (client_id, rank)
@@ -260,6 +276,8 @@ def _coalition_standardized_atom_and_norm_at_epoch(
     fit: EMHIFitArtifactRecord,
     coalition_fit: CoalitionFitRecord,
     epoch_index: EpochIndexValue,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> tuple[tuple[FiniteFloat, ...], FiniteFloat] | None:
     if coalition_fit.state is not SupportState.SUPPORTED:
         return None
@@ -277,6 +295,7 @@ def _coalition_standardized_atom_and_norm_at_epoch(
         coalition,
         order_context,
         epoch_index,
+        shuffled_lag_epoch=shuffled_lag_epoch,
     )
     if context_cell is None:
         return None
@@ -316,9 +335,11 @@ def coalition_standardized_atom_at_epoch(
     fit: EMHIFitArtifactRecord,
     coalition_fit: CoalitionFitRecord,
     epoch_index: EpochIndexValue,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> tuple[FiniteFloat, ...] | None:
     resolved = _coalition_standardized_atom_and_norm_at_epoch(
-        config, ranks, fit, coalition_fit, epoch_index
+        config, ranks, fit, coalition_fit, epoch_index, shuffled_lag_epoch=shuffled_lag_epoch
     )
     return None if resolved is None else resolved[0]
 
@@ -329,9 +350,11 @@ def coalition_evidence_at_epoch(
     fit: EMHIFitArtifactRecord,
     coalition_fit: CoalitionFitRecord,
     epoch_index: EpochIndexValue,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> EvidenceFactor | None:
     resolved = _coalition_standardized_atom_and_norm_at_epoch(
-        config, ranks, fit, coalition_fit, epoch_index
+        config, ranks, fit, coalition_fit, epoch_index, shuffled_lag_epoch=shuffled_lag_epoch
     )
     if resolved is None:
         return None
@@ -351,6 +374,8 @@ def operational_evidence_at_epoch(
     fit: EMHIFitArtifactRecord,
     epoch_index: EpochIndexValue,
     maximum_order: CoalitionOrder | None = None,
+    *,
+    order_lag_lookups: OrderOutsideContextLagLookup | None = None,
 ) -> EpochOperationalEvidence:
     enabled_maximum = maximum_order or max(
         (context.coalition_order for context in fit.order_contexts),
@@ -363,7 +388,19 @@ def operational_evidence_at_epoch(
         if coalition_fit.coalition_order > enabled_maximum:
             continue
         eligible += 1
-        factor = coalition_evidence_at_epoch(config, ranks, fit, coalition_fit, epoch_index)
+        order_lookup = (
+            None
+            if order_lag_lookups is None
+            else order_lag_lookups.get(coalition_fit.coalition_order)
+        )
+        factor = coalition_evidence_at_epoch(
+            config,
+            ranks,
+            fit,
+            coalition_fit,
+            epoch_index,
+            shuffled_lag_epoch=None if order_lookup is None else order_lookup.get(epoch_index),
+        )
         if factor is None:
             continue
         coalition_factors.append(
@@ -404,6 +441,32 @@ def operational_evidence_at_epoch(
     )
 
 
+def _order_lag_lookups(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    epoch_indexes: tuple[EpochIndexValue, ...],
+) -> OrderOutsideContextLagLookup | None:
+    shuffled_orders = tuple(
+        context.coalition_order
+        for context in fit.order_contexts
+        if context.context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
+    )
+    if not shuffled_orders or not epoch_indexes:
+        return None
+    lookups = OrderOutsideContextLagLookup()
+    for order in shuffled_orders:
+        lookups[order] = shuffled_outside_context_lag_lookup(
+            epoch_indexes,
+            PartitionRole.HELDOUT_BENIGN,
+            config.context.outside_lag_epochs,
+            context_seed_for_order(
+                config, ranks, order, ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
+            ),
+        )
+    return lookups
+
+
 def sequential_trajectory(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -411,8 +474,16 @@ def sequential_trajectory(
     epoch_indexes: tuple[EpochIndexValue, ...],
     maximum_order: CoalitionOrder | None = None,
 ) -> SequentialTrajectory:
+    order_lag_lookups = _order_lag_lookups(config, ranks, fit, epoch_indexes)
     records = tuple(
-        operational_evidence_at_epoch(config, ranks, fit, epoch_index, maximum_order)
+        operational_evidence_at_epoch(
+            config,
+            ranks,
+            fit,
+            epoch_index,
+            maximum_order,
+            order_lag_lookups=order_lag_lookups,
+        )
         for epoch_index in epoch_indexes
     )
     active_history: list[tuple[ClientId, ...]] = []

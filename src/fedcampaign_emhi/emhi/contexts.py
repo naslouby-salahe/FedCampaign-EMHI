@@ -1,4 +1,5 @@
 import hashlib
+from collections import UserDict
 from math import sqrt
 
 import numpy as np
@@ -26,6 +27,7 @@ from fedcampaign_emhi.domain.types import (
     ContextClusterIdentity,
     ContextTrainingRow,
     EpochCount,
+    EpochIndexValue,
     FiniteFloat,
     MaximalOutsideField,
     NumericalTolerance,
@@ -110,6 +112,28 @@ def shuffled_context_permutation(
     generator = np.random.default_rng(int.from_bytes(digest[:8], "big"))
     permutation = generator.permutation(len(row_keys))
     return tuple(int(index) for index in permutation)
+
+
+class OutsideContextLagLookup(UserDict[EpochIndexValue, EpochIndexValue]):
+    __slots__ = ()
+
+
+class OrderOutsideContextLagLookup(UserDict[CoalitionOrder, OutsideContextLagLookup]):
+    __slots__ = ()
+
+
+def shuffled_outside_context_lag_lookup(
+    split_epochs: tuple[EpochIndexValue, ...],
+    split_role: PartitionRole,
+    outside_lag_epochs: EpochCount,
+    context_seed: SeedValue,
+) -> OutsideContextLagLookup:
+    row_keys = tuple(str(epoch) for epoch in split_epochs)
+    permutation = shuffled_context_permutation(row_keys, split_role, context_seed)
+    lookup = OutsideContextLagLookup()
+    for position, epoch_index in enumerate(split_epochs):
+        lookup[epoch_index] = split_epochs[permutation[position]] - outside_lag_epochs
+    return lookup
 
 
 def local_history_context_member_ranks(

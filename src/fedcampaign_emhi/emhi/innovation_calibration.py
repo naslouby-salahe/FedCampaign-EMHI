@@ -15,6 +15,7 @@ from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
     MethodName,
+    PartitionRole,
     SupportState,
 )
 from fedcampaign_emhi.domain.types import (
@@ -54,6 +55,7 @@ from fedcampaign_emhi.emhi.contexts import (
     minimum_support_epochs_for_order,
     outside_context_histogram,
     partial_coalition_context_members,
+    shuffled_outside_context_lag_lookup,
 )
 from fedcampaign_emhi.emhi.evidence import operational_norm_reference_quantile
 from fedcampaign_emhi.emhi.innovations import (
@@ -231,6 +233,7 @@ def _context_members(
     if context_method in {
         ContextMethodName.EXACT_COALITION_EXCLUSION,
         ContextMethodName.FORCED_NO_ABSTENTION,
+        ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT,
     }:
         return exact_exclusion_members(selected_client_ids, coalition_client_ids)
     if context_method is ContextMethodName.INCLUSIVE_CONTEXT:
@@ -250,7 +253,7 @@ def _context_members(
     )
 
 
-def _context_seed(
+def context_seed_for_order(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     coalition_order: CoalitionOrder,
@@ -275,6 +278,8 @@ def _context_row(
     epoch_index: EpochIndexValue,
     context_method: ContextMethodName,
     permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> ContextTrainingRow | None:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return ContextTrainingRow(
@@ -284,7 +289,12 @@ def _context_row(
             epoch_index=epoch_index,
             histogram=(1.0,),
         )
-    lagged_epoch = epoch_index - config.context.outside_lag_epochs
+    if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT:
+        if shuffled_lag_epoch is None:
+            raise ValueError("shuffled outside context requires a precomputed lag lookup")
+        lagged_epoch = shuffled_lag_epoch
+    else:
+        lagged_epoch = epoch_index - config.context.outside_lag_epochs
     if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
         return None
     members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
@@ -345,6 +355,17 @@ def _fit_order_context(
             centroids=((1.0,),),
             state=SupportState.SUPPORTED,
         )
+    context_seed = context_seed_for_order(config, ranks, coalition_order, context_method)
+    lag_lookup = (
+        shuffled_outside_context_lag_lookup(
+            nuisance_epochs,
+            PartitionRole.NUISANCE_FIT,
+            config.context.outside_lag_epochs,
+            context_seed,
+        )
+        if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
+        else None
+    )
     rows = tuple(
         row
         for coalition in coalitions
@@ -358,11 +379,11 @@ def _fit_order_context(
                 epoch_index,
                 context_method,
                 permitted_lag_epochs,
+                shuffled_lag_epoch=None if lag_lookup is None else lag_lookup[epoch_index],
             ),
         )
         if row is not None
     )
-    context_seed = _context_seed(config, ranks, coalition_order, context_method)
     capped = cap_context_training_rows(rows, context_seed, config.context.kmeans.max_fit_rows)
     identity = context_cluster_identity(
         ranks.dataset_name,
@@ -407,6 +428,16 @@ def _coalition_cell_epochs(
 ) -> tuple[EpochIndexValue, ...]:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return nuisance_epochs
+    lag_lookup = (
+        shuffled_outside_context_lag_lookup(
+            nuisance_epochs,
+            PartitionRole.NUISANCE_FIT,
+            config.context.outside_lag_epochs,
+            context_seed_for_order(config, ranks, coalition.order, context_method),
+        )
+        if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
+        else None
+    )
     selected: list[EpochIndexValue] = []
     for epoch_index in nuisance_epochs:
         row = _context_row(
@@ -416,6 +447,7 @@ def _coalition_cell_epochs(
             epoch_index,
             context_method,
             permitted_lag_epochs,
+            shuffled_lag_epoch=None if lag_lookup is None else lag_lookup[epoch_index],
         )
         if row is None:
             continue
@@ -596,6 +628,16 @@ def _cross_fitted_cell_statistics(
             )
             if calibration is None:
                 continue
+        held_lag_lookup = (
+            shuffled_outside_context_lag_lookup(
+                held_epochs,
+                PartitionRole.NUISANCE_FIT,
+                config.context.outside_lag_epochs,
+                context_seed_for_order(config, fold_ranks, coalition.order, context_method),
+            )
+            if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
+            else None
+        )
         for epoch_index in held_epochs:
             row = _context_row(
                 config,
@@ -604,6 +646,9 @@ def _cross_fitted_cell_statistics(
                 epoch_index,
                 context_method,
                 None,
+                shuffled_lag_epoch=(
+                    None if held_lag_lookup is None else held_lag_lookup[epoch_index]
+                ),
             )
             if row is None:
                 if not forced_no_abstention:
@@ -742,10 +787,7 @@ def build_emhi_fit_artifact(
 ) -> EMHIFitArtifactRecord:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         cell_count = NO_OUTSIDE_CONTEXT_CELL_COUNT
-    if context_method in {
-        ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT,
-        ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT,
-    }:
+    if context_method is ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT:
         raise ValueError(f"{context_method.value} requires its specialized validation route")
     candidates = (
         config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
