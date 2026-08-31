@@ -111,6 +111,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/execution/planning.py",
     "src/fedcampaign_emhi/execution/preprocess.py",
     "src/fedcampaign_emhi/execution/finite_horizon.py",
+    "src/fedcampaign_emhi/execution/composition_calibration.py",
     "src/fedcampaign_emhi/execution/pure_order.py",
     "src/fedcampaign_emhi/execution/runner.py",
     "src/fedcampaign_emhi/execution/recovery.py",

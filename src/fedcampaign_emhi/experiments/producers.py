@@ -7,7 +7,7 @@ from fedcampaign_emhi.comparators.hofd_equivalence import (
     paired_atom_metrics,
 )
 from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
+from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
@@ -21,6 +21,8 @@ from fedcampaign_emhi.domain.types import (
     ClientId,
     ComponentName,
     FiniteFloat,
+    RankValue,
+    RecordCount,
     SeedValue,
 )
 from fedcampaign_emhi.emhi.basis import tensor_representation
@@ -245,6 +247,32 @@ def _evaluate_dropout_sparsity_seed(
     return SyntheticCellOutcome((), None, {"dropout_conditions": records})
 
 
+def composition_reference_cell(
+    method_name: MethodName, order: CoalitionOrder, config: ScientificConfig
+) -> PureOrderCell:
+    generator = (
+        GeneratorName.PURE_ORDER_TWO
+        if order is CoalitionOrder.TWO
+        else GeneratorName.PURE_CONTINUOUS_TRIPLE
+    )
+    return PureOrderCell(
+        generator=generator,
+        effect=config.generators.pure_polynomial.primary_reference_theta,
+        method=method_name,
+        target_order=order,
+        enabled_orders=frozenset((order,)),
+    )
+
+
+def composition_reference_rows(
+    cell: PureOrderCell, client_count: ClientCount, seed: SeedValue, sample_count: RecordCount
+) -> tuple[tuple[RankValue, ...], ...]:
+    return tuple(
+        sample_generator_row(cell, client_count, seed + sample_count + index)
+        for index in range(sample_count)
+    )
+
+
 def synthetic_role_seeds(
     loaded: LoadedScientificConfiguration, role: ExecutionRole
 ) -> tuple[SeedValue, ...]:
@@ -327,26 +355,12 @@ def run_synthetic_cell(
             raise ValueError("strong comparator candidate has no native target order")
         client_count = config.experiments.pure_order_separation_validation.primary_client_count
         sample_count = config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
-        generator = (
-            GeneratorName.PURE_ORDER_TWO
-            if order is CoalitionOrder.TWO
-            else GeneratorName.PURE_CONTINUOUS_TRIPLE
-        )
-        cell = PureOrderCell(
-            generator=generator,
-            effect=config.generators.pure_polynomial.primary_reference_theta,
-            method=method_name,
-            target_order=order,
-            enabled_orders=frozenset((order,)),
-        )
+        cell = composition_reference_cell(method_name, order, config)
         nuisance = tuple(
             sample_independent_uniform_ranks(client_count, seed + index)
             for index in range(sample_count)
         )
-        alternatives = tuple(
-            sample_generator_row(cell, client_count, seed + sample_count + index)
-            for index in range(sample_count)
-        )
+        alternatives = composition_reference_rows(cell, client_count, seed, sample_count)
         null_scores = tuple(
             score_comparator_ranks(method_name, row[: int(order)], config)[0] for row in nuisance
         )
@@ -364,7 +378,7 @@ def run_synthetic_cell(
             )
         standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
         return SyntheticCellOutcome(
-            ("missing calibrated composition PFA and selection artifact",),
+            (),
             standardized_score,
             {
                 "implementation_state": "native_order_score_complete",

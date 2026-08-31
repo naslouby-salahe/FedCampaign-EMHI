@@ -37,6 +37,13 @@ from fedcampaign_emhi.artifacts.records import (
     StrongComparatorCompositionRecord,
 )
 from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
+from fedcampaign_emhi.comparators.composition import (
+    CompositionCandidateResult,
+    CompositionSelectionInputs,
+    build_composition_selection_record,
+    mean_standardized_error,
+    median_runtime_seconds,
+)
 from fedcampaign_emhi.comparators.contracts import (
     ComparatorMethodContract,
     comparator_method_contracts,
@@ -114,6 +121,10 @@ from fedcampaign_emhi.evaluation.records import (
     odi_evaluation_record,
 )
 from fedcampaign_emhi.evaluation.smoke_validation import run_synthetic_module_validation
+from fedcampaign_emhi.execution.composition_calibration import (
+    CompositionCandidateSeedMetrics,
+    evaluate_composition_candidate_seed,
+)
 from fedcampaign_emhi.execution.finite_horizon import (
     FiniteHorizonSeedMetrics,
     evaluate_finite_horizon_common_mode_seed,
@@ -194,6 +205,15 @@ class EstimatorFeasibilityObservation:
     execution_role: ExecutionRole
     seed: SeedValue
     metric: EstimatorFeasibilitySeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
+class CompositionCandidateObservation:
+    method_name: MethodName
+    seed: SeedValue
+    standardized_target_order_error: FiniteFloat
+    metric: CompositionCandidateSeedMetrics
     diagnostic_path: Path
 
 
@@ -446,12 +466,14 @@ def _execute_synthetic_experiment(
     signed_theorem_observations: list[SignedTheoremObservation] = []
     finite_horizon_observations: list[FiniteHorizonObservation] = []
     estimator_feasibility_observations: list[EstimatorFeasibilityObservation] = []
+    composition_observations: list[CompositionCandidateObservation] = []
     for role in contract.execution_roles:
         methods: tuple[MethodName | None, ...] = contract.methods or (None,)
         for seed in synthetic_role_seeds(loaded, role):
             for method_name in methods:
                 started = perf_counter()
                 finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
+                composition_metrics: CompositionCandidateSeedMetrics | None = None
                 try:
                     outcome = run_synthetic_cell(loaded, experiment_name, seed, method_name, role)
                     if (
@@ -614,6 +636,26 @@ def _execute_synthetic_experiment(
                                 )
                             ),
                         )
+                    if (
+                        experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE
+                        and role is ExecutionRole.DEVELOPMENT
+                        and method_name is not None
+                        and not outcome.failed_checks
+                    ):
+                        composition_metrics = evaluate_composition_candidate_seed(
+                            loaded.values, method_name, seed
+                        )
+                        evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                        evidence["composition_calibration"] = {
+                            "calibrated_threshold": composition_metrics.calibrated_threshold,
+                            "calibration_horizon_count": composition_metrics.calibration_horizon_count,
+                            "heldout_horizon_count": composition_metrics.heldout_horizon_count,
+                            "heldout_false_stop_count": composition_metrics.heldout_false_stop_count,
+                            "scoring_runtime_seconds": composition_metrics.scoring_runtime_seconds,
+                            "operating_point_available": composition_metrics.calibrated_threshold
+                            is not None,
+                        }
+                        outcome = replace(outcome, evidence=evidence)
                 except (ArithmeticError, ValueError) as error:
                     outcome = SyntheticCellOutcome((str(error),), None)
                 state = (
@@ -697,6 +739,23 @@ def _execute_synthetic_experiment(
                             diagnostic_path=diagnostic_path,
                         )
                     )
+                if (
+                    state is ExperimentState.COMPLETED
+                    and composition_metrics is not None
+                    and method_name is not None
+                ):
+                    evidence = cast(Mapping[str, YamlNode], outcome.evidence)
+                    composition_observations.append(
+                        CompositionCandidateObservation(
+                            method_name=method_name,
+                            seed=seed,
+                            standardized_target_order_error=cast(
+                                FiniteFloat, evidence["standardized_target_order_error"]
+                            ),
+                            metric=composition_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
                 fingerprint = material_fingerprint(
                     loaded.material_digest,
                     (payload_digest(cast(YamlNode, {"seed": seed, "method": method_slug})),),
@@ -757,6 +816,12 @@ def _execute_synthetic_experiment(
             loaded,
             repository,
             tuple(estimator_feasibility_observations),
+        )
+    if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
+        materialize_strong_comparator_composition_selection(
+            loaded,
+            repository,
+            tuple(composition_observations),
         )
     state = ExperimentState.COMPLETED if invalid == 0 else ExperimentState.INVALID
     run_path = publish_experiment_run_record(
@@ -925,6 +990,92 @@ def materialize_pure_order_statistics(
         / "pure-order-target-drift.json"
     )
     staging = layout.roots.outputs_root / "cache" / "staging"
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_strong_comparator_composition_selection(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[CompositionCandidateObservation, ...],
+) -> Path | None:
+    expected_seeds = loaded.values.randomness.synthetic_development_roots
+    candidates: list[CompositionCandidateResult] = []
+    source_paths: list[Path] = []
+    for method_name in loaded.values.experiments.strong_comparator_composition_challenge.candidates:
+        seed_observations = tuple(
+            observation for observation in observations if observation.method_name is method_name
+        )
+        if tuple(observation.seed for observation in seed_observations) != expected_seeds:
+            continue
+        source_paths.extend(observation.diagnostic_path for observation in seed_observations)
+        candidates.append(
+            CompositionCandidateResult(
+                method_name=method_name,
+                invariants_pass=True,
+                calibration_succeeded=all(
+                    observation.metric.calibrated_threshold is not None
+                    for observation in seed_observations
+                ),
+                heldout_false_stops=sum(
+                    observation.metric.heldout_false_stop_count for observation in seed_observations
+                ),
+                heldout_horizons=sum(
+                    observation.metric.heldout_horizon_count for observation in seed_observations
+                ),
+                mean_standardized_error=mean_standardized_error(
+                    tuple(
+                        observation.standardized_target_order_error
+                        for observation in seed_observations
+                    )
+                ),
+                median_runtime_seconds=median_runtime_seconds(
+                    tuple(
+                        observation.metric.scoring_runtime_seconds
+                        for observation in seed_observations
+                    )
+                ),
+            )
+        )
+    if not candidates:
+        return None
+    selection = loaded.values.experiments.strong_comparator_composition_challenge
+    finite_horizon = loaded.values.evidence.calibrated_finite_horizon
+    inputs = CompositionSelectionInputs(
+        reference_theta=loaded.values.generators.pure_polynomial.primary_reference_theta,
+        error_tie_tolerance=selection.error_tie_tolerance_standardized_units,
+        runtime_tie_tolerance=selection.runtime_tie_tolerance_seconds,
+        calibration_horizons_per_seed=(
+            loaded.values.synthetic.sample_sizes.finite_horizon_calibration_horizons_per_seed
+        ),
+        heldout_null_horizons_per_seed=(
+            loaded.values.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
+        ),
+        timed_scoring_rows=(
+            loaded.values.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
+        ),
+        artifact_filename=selection.artifact_filename,
+    )
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    try:
+        record = build_composition_selection_record(
+            tuple(candidates),
+            inputs,
+            finite_horizon.calibration_confidence,
+            finite_horizon.target_pfa,
+            loaded.material_digest,
+            source_digests,
+        )
+    except ValueError:
+        return None
+    layout = build_artifact_layout(loaded, repository)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    path = (
+        layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
+        / "artifacts"
+        / "derived"
+        / selection.artifact_filename
+    )
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
