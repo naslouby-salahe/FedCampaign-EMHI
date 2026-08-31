@@ -86,13 +86,6 @@ class SyntheticCellOutcome:
     estimator_feasibility_metrics: EstimatorFeasibilitySeedMetrics | None = None
 
 
-_MISSING_CONTRACT_SPECIFIC_PRODUCERS = frozenset(
-    {
-        ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE,
-    }
-)
-
-
 def _evaluate_hofd_equivalence_seed(
     loaded: LoadedScientificConfiguration,
     seed: SeedValue,
@@ -288,6 +281,45 @@ def run_synthetic_cell(
             for evaluation in evaluations
             if evaluation.condition.identifier == "primary-order-three"
         )
+        metrics = primary.metrics
+        return SyntheticCellOutcome(
+            (),
+            None,
+            {
+                "primary_support_substrate_rows": len(sequence.ranks),
+                "primary_order_three": {
+                    "conditional_rank_mae": metrics.conditional_rank_mae,
+                    "projection_nrmse": metrics.projection_nrmse,
+                    "standardized_null_bias": metrics.standardized_null_bias,
+                    "context_coverage": metrics.context_coverage,
+                    "abstention_rate": metrics.abstention_rate,
+                    "condition_number": metrics.condition_number,
+                    "numerical_failure": metrics.numerical_failure,
+                },
+                "condition_evaluations": [
+                    {
+                        "identifier": evaluation.condition.identifier,
+                        "order": int(evaluation.condition.order),
+                        "support_per_context": evaluation.condition.support_per_context,
+                        "basis_size": evaluation.condition.basis_size,
+                        "cell_count": evaluation.condition.cell_count,
+                        "forced_no_abstention": evaluation.condition.forced_no_abstention,
+                        "conditional_rank_mae": evaluation.metrics.conditional_rank_mae,
+                        "projection_nrmse": evaluation.metrics.projection_nrmse,
+                        "standardized_null_bias": evaluation.metrics.standardized_null_bias,
+                        "context_coverage": evaluation.metrics.context_coverage,
+                        "abstention_rate": evaluation.metrics.abstention_rate,
+                        "condition_number": evaluation.metrics.condition_number,
+                        "numerical_failure": evaluation.metrics.numerical_failure,
+                    }
+                    for evaluation in evaluations
+                ],
+            },
+            None,
+            None,
+            None,
+            EstimatorFeasibilitySeedMetrics(metrics),
+        )
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
         if method_name is None:
             raise ValueError("strong comparator selection requires a declared candidate")
@@ -342,54 +374,6 @@ def run_synthetic_cell(
                 "standardized_target_order_error": abs(
                     standardized_score - config.generators.pure_polynomial.primary_reference_theta
                 ),
-            },
-        )
-        metrics = primary.metrics
-        return SyntheticCellOutcome(
-            (),
-            None,
-            {
-                "primary_support_substrate_rows": len(sequence.ranks),
-                "primary_order_three": {
-                    "conditional_rank_mae": metrics.conditional_rank_mae,
-                    "projection_nrmse": metrics.projection_nrmse,
-                    "standardized_null_bias": metrics.standardized_null_bias,
-                    "context_coverage": metrics.context_coverage,
-                    "abstention_rate": metrics.abstention_rate,
-                    "condition_number": metrics.condition_number,
-                    "numerical_failure": metrics.numerical_failure,
-                },
-                "condition_evaluations": [
-                    {
-                        "identifier": evaluation.condition.identifier,
-                        "order": int(evaluation.condition.order),
-                        "support_per_context": evaluation.condition.support_per_context,
-                        "basis_size": evaluation.condition.basis_size,
-                        "cell_count": evaluation.condition.cell_count,
-                        "forced_no_abstention": evaluation.condition.forced_no_abstention,
-                        "conditional_rank_mae": evaluation.metrics.conditional_rank_mae,
-                        "projection_nrmse": evaluation.metrics.projection_nrmse,
-                        "standardized_null_bias": evaluation.metrics.standardized_null_bias,
-                        "context_coverage": evaluation.metrics.context_coverage,
-                        "abstention_rate": evaluation.metrics.abstention_rate,
-                        "condition_number": evaluation.metrics.condition_number,
-                        "numerical_failure": evaluation.metrics.numerical_failure,
-                    }
-                    for evaluation in evaluations
-                ],
-            },
-            None,
-            None,
-            None,
-            EstimatorFeasibilitySeedMetrics(metrics),
-        )
-    if experiment_name in _MISSING_CONTRACT_SPECIFIC_PRODUCERS:
-        return SyntheticCellOutcome(
-            ("missing contract-specific synthetic producer",),
-            None,
-            {
-                "implementation_state": "missing_contract_specific_producer",
-                "required_experiment": experiment_name.value,
             },
         )
     if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
