@@ -13,7 +13,6 @@ from fedcampaign_emhi.analysis.statistics import (
     one_sided_synthetic_sign_flip_p_value,
     paired_mean_bca_interval,
     sign_flip_p_value,
-    two_sided_sign_flip_p_value,
 )
 from fedcampaign_emhi.analysis.summaries import build_seed_summary
 from fedcampaign_emhi.artifacts.boundaries import (
@@ -2369,7 +2368,7 @@ def materialize_seed_statistics(
             intervals.append(None)
             continue
         flipped = exact_sign_flip_means(values)
-        raw_p_values.append(two_sided_sign_flip_p_value(estimate, flipped))
+        raw_p_values.append(sign_flip_p_value(estimate, flipped, True))
         intervals.append(
             paired_mean_bca_interval(
                 values,

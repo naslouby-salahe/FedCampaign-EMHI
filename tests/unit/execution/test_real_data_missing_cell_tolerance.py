@@ -18,6 +18,7 @@ def _write_summary(
     experiment_name: ExperimentName,
     role: ExecutionRole,
     seed: SeedValue,
+    method_value: float = 0.5,
 ) -> None:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
@@ -28,7 +29,7 @@ def _write_summary(
         reference_method_name=None,
         metric_name="strict_odi_rate",
         seed=seed,
-        method_values=(0.5,),
+        method_values=(method_value,),
         reference_values=None,
         source_evaluation_ids=(),
         dependency_fingerprint=material_fingerprint("test-digest", ()),
@@ -68,3 +69,26 @@ def test_missing_confirmatory_seeds_above_tolerance_are_excluded(
         )
     paths = materialize_seed_statistics(production_configuration, tmp_path, experiment_name)
     assert paths == ()
+
+
+def test_seed_statistics_use_one_sided_positive_direction_test(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    from fedcampaign_emhi.artifacts.records import StatisticalRecord
+
+    experiment_name = ExperimentName.PRIMARY_STRICT_ODI_EVALUATION
+    confirmatory = production_configuration.values.randomness.real_confirmatory_roots
+    for seed in confirmatory:
+        _write_summary(
+            production_configuration,
+            tmp_path,
+            experiment_name,
+            ExecutionRole.CONFIRMATORY,
+            seed,
+            method_value=-0.9,
+        )
+    paths = materialize_seed_statistics(production_configuration, tmp_path, experiment_name)
+    assert paths
+    record = StatisticalRecord.model_validate_json(paths[0].read_bytes())
+    assert record.estimate < 0.0
+    assert record.raw_p_value == 1.0
