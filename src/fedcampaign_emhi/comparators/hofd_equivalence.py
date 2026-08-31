@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from math import sqrt
 
-from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
+from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
@@ -10,23 +9,7 @@ from fedcampaign_emhi.domain.types import (
     NumericalFloor,
     Probability,
     RecordCount,
-    SeedCount,
 )
-
-
-@dataclass(frozen=True)
-class HofdEquivalencePlan:
-    primary_client_count: ClientCount
-    methods: tuple[MethodName, ...]
-    context_cell_count: RecordCount
-    support_levels: tuple[RecordCount, ...]
-    heldout_samples_per_context_seed: RecordCount
-    development_seed_count: SeedCount
-    confirmatory_seed_count: SeedCount
-    atom_nrmse_upper_margin: FiniteFloat
-    minimum_cosine_similarity: FiniteFloat
-    stopping_time_interval_lower: FiniteFloat
-    stopping_time_interval_upper: FiniteFloat
 
 
 @dataclass(frozen=True)
@@ -60,31 +43,6 @@ def paired_atom_metrics(
         cosine_similarity=inner_product
         / max(sqrt(squared_reference) * sqrt(squared_hofd), denominator_floor),
     )
-
-
-def enumerate_hofd_equivalence_plan(config: ScientificConfig) -> HofdEquivalencePlan:
-    experiment = config.experiments.exclusion_matched_hofd_equivalence
-    materiality = config.materiality.hofd_equivalence
-    interval = materiality.stopping_time_difference_interval_epochs
-    return HofdEquivalencePlan(
-        primary_client_count=config.experiments.pure_order_separation_validation.primary_client_count,
-        methods=tuple(MethodName(method) for method in experiment.methods),
-        context_cell_count=experiment.context_cell_count,
-        support_levels=tuple(experiment.primary_support_levels),
-        heldout_samples_per_context_seed=(
-            config.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
-        ),
-        development_seed_count=len(config.randomness.synthetic_development_roots),
-        confirmatory_seed_count=len(config.randomness.synthetic_confirmatory_roots),
-        atom_nrmse_upper_margin=materiality.atom_nrmse_upper_margin,
-        minimum_cosine_similarity=materiality.minimum_cosine_similarity,
-        stopping_time_interval_lower=interval[0],
-        stopping_time_interval_upper=interval[1],
-    )
-
-
-def hofd_equivalence_support_levels(config: ScientificConfig) -> tuple[RecordCount, ...]:
-    return config.experiments.exclusion_matched_hofd_equivalence.primary_support_levels
 
 
 def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount) -> RecordCount:

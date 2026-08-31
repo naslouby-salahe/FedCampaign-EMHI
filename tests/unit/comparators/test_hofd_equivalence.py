@@ -2,8 +2,6 @@ import pytest
 
 from fedcampaign_emhi.comparators.hofd_equivalence import (
     cosine_equivalence_criterion,
-    enumerate_hofd_equivalence_plan,
-    hofd_equivalence_support_levels,
     nrmse_equivalence_criterion,
     paired_atom_metrics,
     pfa_prerequisite_criterion,
@@ -12,37 +10,6 @@ from fedcampaign_emhi.comparators.hofd_equivalence import (
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder
-
-
-def test_plan_reads_every_value_from_authoritative_configuration() -> None:
-    loaded = load_production_configuration()
-    plan = enumerate_hofd_equivalence_plan(loaded.values)
-    experiment = loaded.values.experiments.exclusion_matched_hofd_equivalence
-    assert plan.primary_client_count == (
-        loaded.values.experiments.pure_order_separation_validation.primary_client_count
-    )
-    assert plan.methods == tuple(method for method in experiment.methods)
-    assert plan.context_cell_count == experiment.context_cell_count == 1
-    assert plan.support_levels == tuple(experiment.primary_support_levels)
-    assert plan.heldout_samples_per_context_seed == (
-        loaded.values.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
-    )
-
-
-def test_plan_seed_namespaces_are_separate() -> None:
-    loaded = load_production_configuration()
-    plan = enumerate_hofd_equivalence_plan(loaded.values)
-    randomness = loaded.values.randomness
-    assert plan.development_seed_count == len(randomness.synthetic_development_roots)
-    assert plan.confirmatory_seed_count == len(randomness.synthetic_confirmatory_roots)
-
-
-def test_support_levels_match_configured_grid() -> None:
-    loaded = load_production_configuration()
-    levels = hofd_equivalence_support_levels(loaded.values)
-    declared = loaded.values.support_grids.hofd_equivalence_samples_per_context
-    for level in levels:
-        assert level in declared
 
 
 def test_target_coalition_sizes() -> None:
