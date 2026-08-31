@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from fedcampaign_emhi.artifacts.boundaries import (
+    evidence_export_boundary_digest,
+    statistical_analysis_boundary_digest,
+)
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import content_digest, material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
@@ -109,7 +113,9 @@ def _validate_statistical_records(
         if any(not source_path.is_file() for source_path in source_paths):
             raise ValueError(f"statistical record {statistical_path} has missing source results")
         source_digests = tuple(file_sha256(source_path) for source_path in source_paths)
-        expected_fingerprint = material_fingerprint(loaded.material_digest, source_digests)
+        expected_fingerprint = material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        )
         if record.dependency_fingerprint != expected_fingerprint:
             raise ValueError(f"statistical record {statistical_path} has stale source lineage")
 
@@ -257,7 +263,9 @@ def materialize_verified_experiment_report(
                 write_paired_difference_figure(figure_path, paired)
             output_paths.append(figure_path)
     analysis_hash = content_digest({"source_hashes": list(evidence.source_hashes)})
-    dependency_fingerprint = material_fingerprint(loaded.material_digest, evidence.source_hashes)
+    dependency_fingerprint = material_fingerprint(
+        evidence_export_boundary_digest(loaded.values), evidence.source_hashes
+    )
     source_record = ReportSourceRecord(
         source_analysis_hash=analysis_hash,
         report_dependency_fingerprint=dependency_fingerprint,

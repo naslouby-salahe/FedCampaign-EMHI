@@ -14,6 +14,15 @@ from fedcampaign_emhi.analysis.statistics import (
     two_sided_sign_flip_p_value,
 )
 from fedcampaign_emhi.analysis.summaries import build_seed_summary
+from fedcampaign_emhi.artifacts.boundaries import (
+    calibration_threshold_boundary_digest,
+    campaign_evaluation_boundary_digest,
+    evidence_export_boundary_digest,
+    nuisance_context_boundary_digest,
+    statistical_analysis_boundary_digest,
+    synthetic_cell_boundary_digest,
+    synthetic_invariant_boundary_digest,
+)
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
@@ -408,7 +417,7 @@ def _execute_synthetic_module_validation(
         "generator_failures": list(generator_criterion.failed_checks),
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
-    fingerprint = material_fingerprint(loaded.material_digest, ())
+    fingerprint = material_fingerprint(synthetic_invariant_boundary_digest(loaded.values), ())
     completion = CompletionRecord(
         state=state,
         mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
@@ -757,7 +766,7 @@ def _execute_synthetic_experiment(
                         )
                     )
                 fingerprint = material_fingerprint(
-                    loaded.material_digest,
+                    synthetic_cell_boundary_digest(loaded.values),
                     (payload_digest(cast(YamlNode, {"seed": seed, "method": method_slug})),),
                 )
                 completion = CompletionRecord(
@@ -904,7 +913,9 @@ def materialize_self_explanation_statistics(
             else SupportState.NULL_RESULT
         ),
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = (
@@ -980,7 +991,9 @@ def materialize_pure_order_statistics(
             else SupportState.NULL_RESULT
         ),
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = (
@@ -1063,7 +1076,7 @@ def materialize_strong_comparator_composition_selection(
             inputs,
             finite_horizon.calibration_confidence,
             finite_horizon.target_pfa,
-            loaded.material_digest,
+            evidence_export_boundary_digest(loaded.values),
             source_digests,
         )
     except ValueError:
@@ -1139,7 +1152,9 @@ def materialize_estimator_feasibility_statistics(
         pooled_numerical_failure_rate=failure_rate,
         decision=decision,
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = (
@@ -1205,7 +1220,9 @@ def materialize_signed_theorem_statistics(
         confidence_upper=None,
         decision=(SupportState.SUPPORTED if lower >= threshold else SupportState.NULL_RESULT),
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = (
@@ -1272,7 +1289,9 @@ def materialize_finite_horizon_statistics(
         maximum_heldout_upper_pfa=maximum_upper,
         decision=decision,
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = (
@@ -1560,7 +1579,7 @@ def _materialize_emhi_fit(
         )
     )
     fingerprint = material_fingerprint(
-        loaded.material_digest,
+        nuisance_context_boundary_digest(loaded.values),
         (
             method_digest,
             file_sha256(score_path),
@@ -1825,8 +1844,12 @@ def _evaluate_emhi_seed_cell(
         campaigns_path,
     )
     fingerprint = material_fingerprint(
-        loaded.material_digest,
-        (method_digest, *(file_sha256(path) for path in required_paths)),
+        calibration_threshold_boundary_digest(loaded.values),
+        (
+            method_digest,
+            campaign_evaluation_boundary_digest(loaded.values),
+            *(file_sha256(path) for path in required_paths),
+        ),
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
@@ -1975,7 +1998,7 @@ def _materialize_not_tested_real_cell(
         root / "evaluations" / "raw" / execution_role.value / method_slug / f"seed-{seed}.json"
     )
     fingerprint = material_fingerprint(
-        loaded.material_digest,
+        campaign_evaluation_boundary_digest(loaded.values),
         (
             payload_digest(
                 cast(
@@ -2051,7 +2074,7 @@ def resolve_comparator_scoring_method(
     if payload_digest(cast(YamlNode, payload)) != record.content_digest:
         raise ValueError("selected strong comparator artifact content digest is invalid")
     if record.dependency_fingerprint != material_fingerprint(
-        loaded.material_digest, record.source_artifact_hashes
+        evidence_export_boundary_digest(loaded.values), record.source_artifact_hashes
     ):
         raise ValueError("selected strong comparator artifact dependency fingerprint is stale")
     if record.selected_method not in record.eligible_candidates:
@@ -2251,7 +2274,9 @@ def _materialize_seed_statistics(
         )
         sources.append(source_ids)
         hashes = tuple(record.content_digest for record in records)
-        fingerprints.append(material_fingerprint(loaded.material_digest, hashes))
+        fingerprints.append(
+            material_fingerprint(statistical_analysis_boundary_digest(loaded.values), hashes)
+        )
         if len(values) < 2:
             raw_p_values.append(1.0)
             intervals.append(None)
@@ -2394,7 +2419,9 @@ def _materialize_not_tested_primary_holm_statistic(
         confidence_upper=None,
         decision=SupportState.NOT_TESTED,
         source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
         content_digest=payload_digest(payload),
     )
     path = root / "statistics" / "tests" / "primary-holm-not-tested.json"
@@ -2507,9 +2534,10 @@ def _evaluate_comparator_seed_cell(
         )
     method_digest = payload_digest(cast(YamlNode, {"method_name": method_name.value, "seed": seed}))
     fingerprint = material_fingerprint(
-        loaded.material_digest,
+        calibration_threshold_boundary_digest(loaded.values),
         (
             method_digest,
+            campaign_evaluation_boundary_digest(loaded.values),
             file_sha256(score_path),
             file_sha256(rank_path),
             file_sha256(split_path),

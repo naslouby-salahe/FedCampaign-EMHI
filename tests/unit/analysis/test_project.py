@@ -7,6 +7,7 @@ from fedcampaign_emhi.analysis.project import (
     PRIMARY_HOLM_STATISTICS,
     materialize_primary_holm_family,
 )
+from fedcampaign_emhi.artifacts.boundaries import statistical_analysis_boundary_digest
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import PrimaryHolmFamilyRecord, StatisticalRecord
@@ -56,7 +57,9 @@ def _write_statistical_record(
         confidence_upper=None,
         decision=SupportState.SUPPORTED,
         source_result_ids=(source_id,),
-        dependency_fingerprint=material_fingerprint(loaded.material_digest, (source_digest,)),
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), (source_digest,)
+        ),
         content_digest=payload_digest(payload),
     )
     path = experiment_directory / "statistics" / f"{file_stem}.json"

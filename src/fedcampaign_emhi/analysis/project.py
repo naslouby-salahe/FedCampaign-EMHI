@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import cast
 
 from fedcampaign_emhi.analysis.multiplicity import HolmHypothesisInput, primary_holm_family
+from fedcampaign_emhi.artifacts.boundaries import statistical_analysis_boundary_digest
 from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
@@ -47,7 +48,7 @@ def _verified_statistical_record(
         raise ValueError(f"statistical record {path} has missing source results")
     source_digests = tuple(file_sha256(source_path) for source_path in source_paths)
     if record.dependency_fingerprint != material_fingerprint(
-        loaded.material_digest, source_digests
+        statistical_analysis_boundary_digest(loaded.values), source_digests
     ):
         raise ValueError(f"statistical record {path} has stale source lineage")
     return record

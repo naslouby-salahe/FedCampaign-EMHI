@@ -105,6 +105,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/artifacts/records.py",
     "src/fedcampaign_emhi/artifacts/storage.py",
     "src/fedcampaign_emhi/artifacts/provenance.py",
+    "src/fedcampaign_emhi/artifacts/boundaries.py",
     "src/fedcampaign_emhi/artifacts/dependencies.py",
     "src/fedcampaign_emhi/artifacts/validation.py",
     "src/fedcampaign_emhi/execution/__init__.py",
