@@ -488,6 +488,17 @@ def _execute_synthetic_experiment(
                             evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
                             evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
                             evidence["implementation_state"] = "fitted_emhi_artifact_grid"
+                            evidence["fitted_emhi_scores"] = [
+                                {
+                                    "generator": cell.generator.value,
+                                    "effect": cell.effect,
+                                    "target_order": int(cell.target_order),
+                                    "maximum_proper_subset_standardized_drift": fitted.metrics.maximum_proper_subset_standardized_drift,
+                                    "target_order_standardized_drift": fitted.metrics.target_order_standardized_drift,
+                                }
+                                for cell, fitted in fitted_grid
+                                if fitted is not None
+                            ]
                             if primary_fitted is not None and primary_fitted.artifact_path_complete:
                                 evidence["primary_exact_exclusion_artifact_score"] = {
                                     "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
@@ -505,20 +516,14 @@ def _execute_synthetic_experiment(
                                     and primary_fitted.artifact_path_complete
                                     else outcome.pure_order_metrics
                                 ),
-                                failed_checks=tuple(
-                                    failure
-                                    for failure in outcome.failed_checks
-                                    if failure
-                                    not in {
-                                        "missing exact-exclusion fitted pure-order artifact scorer",
-                                        "missing exact-exclusion fitted pure-order artifact grid",
-                                        *(
-                                            ("missing fitted proper-subset pure-order scores",)
-                                            if primary_fitted is not None
-                                            and primary_fitted.artifact_path_complete
-                                            else ()
-                                        ),
-                                    }
+                                failed_checks=outcome.failed_checks,
+                            )
+                        else:
+                            outcome = replace(
+                                outcome,
+                                failed_checks=(
+                                    *outcome.failed_checks,
+                                    "incomplete fitted EMHI pure-order grid",
                                 ),
                             )
                     if (
@@ -573,11 +578,13 @@ def _execute_synthetic_experiment(
                             outcome = replace(
                                 outcome,
                                 evidence=evidence,
-                                failed_checks=tuple(
-                                    failure
-                                    for failure in outcome.failed_checks
-                                    if failure != "missing native comparator pure-order grid"
-                                    or not comparator_grid_complete
+                                failed_checks=(
+                                    outcome.failed_checks
+                                    if comparator_grid_complete
+                                    else (
+                                        *outcome.failed_checks,
+                                        "incomplete native comparator pure-order grid",
+                                    )
                                 ),
                             )
                     if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:

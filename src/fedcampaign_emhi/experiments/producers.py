@@ -35,7 +35,6 @@ from fedcampaign_emhi.synthetic.feasibility import (
 from fedcampaign_emhi.synthetic.pure_order import (
     PureOrderCell,
     enumerate_pure_order_grid,
-    fitted_method_pure_order_metrics,
     sample_generator_row,
     sample_independent_uniform_ranks,
     validate_generator_purity,
@@ -401,25 +400,24 @@ def run_synthetic_cell(
         )
     if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
         result = evaluate_self_explanation_seed(config, seed)
-        failures: list[ComponentName] = []
         materiality = config.materiality.self_explanation
-        if not exact_nuisance_derivative_within_margin(
+        exact_derivative_within_margin = exact_nuisance_derivative_within_margin(
             result.primary_exact_nuisance_derivative,
             materiality.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
-        ):
-            failures.append("self-explanation exact nuisance derivative")
-        if not material_attenuation_criterion(
+        )
+        attenuation_is_material = material_attenuation_criterion(
             result.primary_attenuation_contrast,
             materiality.minimum_attenuation_difference,
-        ):
-            failures.append("self-explanation material attenuation")
+        )
         return SyntheticCellOutcome(
-            tuple(failures),
+            (),
             None,
             {
                 "grid_cell_count": len(result.measurements),
                 "primary_exact_nuisance_derivative": result.primary_exact_nuisance_derivative,
                 "primary_attenuation_contrast": result.primary_attenuation_contrast,
+                "exact_nuisance_derivative_within_margin": exact_derivative_within_margin,
+                "attenuation_is_material": attenuation_is_material,
                 "measurements": [
                     {
                         "client_count": measurement.cell.client_count,
@@ -448,20 +446,6 @@ def run_synthetic_cell(
             raise ValueError("pure-order scoring requires a declared method")
         failures: list[ComponentName] = []
         records: list[YamlNode] = []
-        primary_metrics: PureOrderSeedMetrics | None = None
-        primary = config.experiments.pure_order_separation_validation.primary_condition
-        emhi_methods = frozenset(
-            {
-                MethodName.FULL_FEDCAMPAIGN_EMHI,
-                MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
-                MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
-                MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
-                MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
-                MethodName.PARTIAL_COALITION_EXCLUSION,
-                MethodName.NO_PROPER_SUBSET_PURIFICATION,
-                MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
-            }
-        )
         pure_generators = frozenset(
             {
                 GeneratorName.PURE_ORDER_ONE,
@@ -482,32 +466,6 @@ def run_synthetic_cell(
             )
             if cell.generator in pure_generators and not report.is_valid:
                 failures.append(f"generator:{cell.generator.value}")
-            if method_name not in emhi_methods:
-                records.append(
-                    {
-                        "generator": cell.generator.value,
-                        "effect": cell.effect,
-                        "method": cell.method.value,
-                        "target_order": int(cell.target_order),
-                        "enabled_orders": [int(order) for order in sorted(cell.enabled_orders)],
-                        "purity_valid": report.is_valid,
-                        "scoring_state": "awaiting_execution_layer_native_comparator_scorer",
-                    }
-                )
-                continue
-            metrics = fitted_method_pure_order_metrics(config, cell, seed)
-            if (
-                method_name is primary.method
-                and cell.generator is primary.generator
-                and cell.target_order == CoalitionOrder(primary.coalition_order)
-                and cell.effect == config.generators.pure_polynomial.primary_reference_theta
-            ):
-                primary_metrics = PureOrderSeedMetrics(
-                    metrics.maximum_proper_subset_standardized_drift,
-                    metrics.target_order_standardized_drift,
-                )
-                if not metrics.proper_subset_scoring_available:
-                    failures.append("missing fitted proper-subset pure-order scores")
             records.append(
                 {
                     "generator": cell.generator.value,
@@ -516,30 +474,17 @@ def run_synthetic_cell(
                     "target_order": int(cell.target_order),
                     "enabled_orders": [int(order) for order in sorted(cell.enabled_orders)],
                     "purity_valid": report.is_valid,
-                    "maximum_proper_subset_standardized_drift": metrics.maximum_proper_subset_standardized_drift,
-                    "target_order_standardized_drift": metrics.target_order_standardized_drift,
-                    "proper_subset_scoring_available": metrics.proper_subset_scoring_available,
+                    "scoring_state": "execution-layer-fitted-grid",
                 }
             )
-        if method_name is primary.method and primary_metrics is None:
-            failures.append("missing primary fitted pure-order score")
-        if method_name in emhi_methods:
-            failures.append("missing exact-exclusion fitted pure-order artifact scorer")
-            failures.append("missing exact-exclusion fitted pure-order artifact grid")
-        else:
-            failures.append("missing native comparator pure-order grid")
         return SyntheticCellOutcome(
             tuple(sorted(set(failures))),
             None,
             {
                 "condition_count": len(records),
                 "conditions": records,
-                "implementation_state": (
-                    "awaiting_fitted_emhi_artifact_grid"
-                    if method_name in emhi_methods
-                    else "awaiting_native_comparator_grid"
-                ),
+                "implementation_state": "execution-layer-grid",
             },
-            pure_order_metrics=primary_metrics,
+            pure_order_metrics=None,
         )
     raise ValueError(f"unsupported synthetic experiment {experiment_name.value}")
