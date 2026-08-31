@@ -5,6 +5,7 @@ from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import DatasetName, MethodName
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
+    Boolean,
     ClientId,
     EpochCount,
     EpochIndexValue,
@@ -126,3 +127,31 @@ def synthetic_count_stress_multiplier(
     if not bucket_counts:
         raise ValueError("count stress requires at least one raw event-count bucket")
     return tuple(float(count) * factor for count in bucket_counts)
+
+
+def seed_level_power_loss(
+    no_outside_detection_rate: Probability, emhi_detection_rate: Probability
+) -> FiniteFloat:
+    return no_outside_detection_rate - emhi_detection_rate
+
+
+def common_mode_suppression(
+    emhi_false_campaign_rate: Probability,
+    raw_mean_false_campaign_rate: Probability,
+    metric_denominator_floor: FiniteFloat,
+) -> FiniteFloat:
+    return 1.0 - emhi_false_campaign_rate / (
+        raw_mean_false_campaign_rate + metric_denominator_floor
+    )
+
+
+def false_campaign_suppression_meets_minimum(
+    mean_suppression: Probability, minimum_suppression: Probability
+) -> Boolean:
+    return mean_suppression >= minimum_suppression
+
+
+def detection_rate_loss_within_maximum(
+    mean_loss: FiniteFloat, maximum_loss: Probability
+) -> Boolean:
+    return mean_loss <= maximum_loss

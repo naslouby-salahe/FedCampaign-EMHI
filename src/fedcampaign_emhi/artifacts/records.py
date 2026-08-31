@@ -348,6 +348,17 @@ class CountStressDiagnosticRecord(FrozenConfigModel):
     content_digest: ConfigurationDigest
 
 
+class BenignCommonModePositivePowerMeasurementRecord(FrozenConfigModel):
+    independent_unit_count: RecordCount
+    mean_detection_rate_power_loss: FiniteFloat
+    detection_rate_loss_within_maximum: Boolean
+    mean_common_mode_suppression: FiniteFloat
+    false_campaign_suppression_meets_minimum: Boolean
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
 class FiniteHorizonAggregationRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     independent_unit_count: RecordCount

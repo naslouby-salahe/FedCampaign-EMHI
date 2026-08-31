@@ -29,6 +29,7 @@ from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ArtifactManifest,
+    BenignCommonModePositivePowerMeasurementRecord,
     BenignHorizonRecord,
     BenignPartitionRecord,
     CampaignRegistryRecord,
@@ -167,10 +168,14 @@ from fedcampaign_emhi.execution.pure_order import (
 )
 from fedcampaign_emhi.experiments.benign_robustness import (
     EpochEventVolume,
+    common_mode_suppression,
+    detection_rate_loss_within_maximum,
     enumerate_benign_common_mode_plan,
+    false_campaign_suppression_meets_minimum,
     federation_wide_epoch_event_counts,
     paired_false_campaign_difference,
     rolling_benign_horizons,
+    seed_level_power_loss,
     select_high_volume_windows,
     synthetic_count_stress_multiplier,
     window_event_counts,
@@ -2570,13 +2575,13 @@ def _comparator_stress_window_false_declaration_rate(
     return sum(stops) / len(stops)
 
 
-def _benign_common_mode_seed_difference(
+def _benign_common_mode_seed_fcr(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     dataset_name: DatasetName,
     seed: SeedValue,
     stress_windows: tuple[BenignHorizon, ...],
-) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+) -> tuple[FiniteFloat, FiniteFloat, tuple[Path, ...]] | None:
     _inventory_path, _prepared_path, split_path, partitions_path, _campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
     )
@@ -2627,10 +2632,21 @@ def _benign_common_mode_seed_difference(
     )
     if emhi_fcr is None or raw_mean_fcr is None:
         return None
-    return (
-        paired_false_campaign_difference(raw_mean_fcr, emhi_fcr),
-        (score_path, rank_path, fit_path),
-    )
+    return emhi_fcr, raw_mean_fcr, (score_path, rank_path, fit_path)
+
+
+def _benign_common_mode_seed_difference(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    stress_windows: tuple[BenignHorizon, ...],
+) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+    outcome = _benign_common_mode_seed_fcr(loaded, repository, dataset_name, seed, stress_windows)
+    if outcome is None:
+        return None
+    emhi_fcr, raw_mean_fcr, paths = outcome
+    return paired_false_campaign_difference(raw_mean_fcr, emhi_fcr), paths
 
 
 def materialize_benign_common_mode_statistic(
@@ -2974,6 +2990,176 @@ def materialize_benign_common_mode_count_stress_diagnostics(
             write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
             paths.append(path)
     return tuple(paths)
+
+
+def _campaign_detection_rate_for_method(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    dataset_name: DatasetName,
+    method_name: MethodName,
+    seed: SeedValue,
+) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+    _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    score_path = with_technical_retry(
+        loaded,
+        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+    )
+    rank_path = with_technical_retry(
+        loaded,
+        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
+    )
+    fit_path = with_technical_retry(
+        loaded,
+        partial(
+            _materialize_emhi_fit,
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            method_name,
+            score_path,
+            rank_path,
+        ),
+    )
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+    ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
+    target_local_pfa = _local_pfa_target(loaded, experiment_name)
+    calibration = calibrate_operating_points(
+        loaded.values,
+        scores,
+        ranks,
+        fit,
+        split.nuisance_fit_epochs,
+        partitions,
+        target_local_pfa,
+    )
+    rows, _odi_values = _campaign_rows(loaded, scores, ranks, fit, campaigns, calibration)
+    typed_rows = tuple(cast(Mapping[str, YamlNode], row) for row in rows)
+    if not typed_rows:
+        return None
+    detections = tuple(cast(Boolean, row["global_detected_within_horizon"]) for row in typed_rows)
+    detection_rate = sum(detections) / len(detections)
+    return detection_rate, (score_path, rank_path, fit_path)
+
+
+def materialize_benign_common_mode_positive_power_measurement(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> Path | None:
+    experiment_name = ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS
+    plan = enumerate_benign_common_mode_plan(loaded.values)
+    required_methods = {
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        MethodName.RAW_MEAN_RANK_FUSION,
+        MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
+    }
+    if not required_methods.issubset(plan.methods):
+        return None
+    _inventory_path, prepared_path, split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, plan.dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return None
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    horizon_length = loaded.values.campaign.evaluation_horizon_epochs
+    all_windows = rolling_benign_horizons(
+        split.heldout_benign_epochs, horizon_length, plan.stress_stride_epochs
+    )
+    if not all_windows:
+        return None
+    epoch_volumes = tuple(
+        EpochEventVolume(
+            client_id=epoch.client_id,
+            epoch_index=epoch.epoch_index,
+            raw_event_count=epoch.raw_event_count,
+        )
+        for epoch in prepared.epochs
+    )
+    epoch_totals = federation_wide_epoch_event_counts(epoch_volumes, prepared.selected_client_ids)
+    counts = window_event_counts(all_windows, epoch_totals)
+    stress_windows = select_high_volume_windows(all_windows, counts, plan.top_event_count_fraction)
+    materiality = loaded.values.materiality.benign_common_mode
+    floor = loaded.values.numerics.metric_denominator_floor
+    power_losses: list[FiniteFloat] = []
+    suppressions: list[FiniteFloat] = []
+    source_paths: list[Path] = []
+    covered_seeds: list[SeedValue] = []
+    for seed in loaded.values.randomness.real_confirmatory_roots:
+        emhi_dr_outcome = _campaign_detection_rate_for_method(
+            loaded,
+            repository,
+            experiment_name,
+            plan.dataset_name,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            seed,
+        )
+        no_outside_dr_outcome = _campaign_detection_rate_for_method(
+            loaded,
+            repository,
+            experiment_name,
+            plan.dataset_name,
+            MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
+            seed,
+        )
+        fcr_outcome = _benign_common_mode_seed_fcr(
+            loaded, repository, plan.dataset_name, seed, stress_windows
+        )
+        if emhi_dr_outcome is None or no_outside_dr_outcome is None or fcr_outcome is None:
+            continue
+        emhi_dr, emhi_dr_paths = emhi_dr_outcome
+        no_outside_dr, no_outside_dr_paths = no_outside_dr_outcome
+        emhi_fcr, raw_mean_fcr, fcr_paths = fcr_outcome
+        power_losses.append(seed_level_power_loss(no_outside_dr, emhi_dr))
+        suppressions.append(common_mode_suppression(emhi_fcr, raw_mean_fcr, floor))
+        source_paths.extend((*emhi_dr_paths, *no_outside_dr_paths, *fcr_paths))
+        covered_seeds.append(seed)
+    if not confirmatory_completeness_within_tolerance(
+        loaded, loaded.values.randomness.real_confirmatory_roots, tuple(covered_seeds)
+    ):
+        return None
+    mean_power_loss = sum(power_losses) / len(power_losses)
+    mean_suppression = sum(suppressions) / len(suppressions)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "independent_unit_count": len(covered_seeds),
+        "mean_detection_rate_power_loss": mean_power_loss,
+        "mean_common_mode_suppression": mean_suppression,
+        "source_result_ids": list(source_ids),
+    }
+    record = BenignCommonModePositivePowerMeasurementRecord(
+        independent_unit_count=len(covered_seeds),
+        mean_detection_rate_power_loss=mean_power_loss,
+        detection_rate_loss_within_maximum=detection_rate_loss_within_maximum(
+            mean_power_loss, materiality.maximum_detection_rate_loss
+        ),
+        mean_common_mode_suppression=mean_suppression,
+        false_campaign_suppression_meets_minimum=false_campaign_suppression_meets_minimum(
+            mean_suppression, materiality.minimum_false_campaign_suppression
+        ),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    path = root / "diagnostics" / "positive-power" / "measurement.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
 
 
 def _evaluate_comparator_seed_cell(
@@ -3743,6 +3929,7 @@ def execute_experiment(
     if experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
         materialize_benign_common_mode_statistic(loaded, repository)
         materialize_benign_common_mode_count_stress_diagnostics(loaded, repository)
+        materialize_benign_common_mode_positive_power_measurement(loaded, repository)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,

@@ -4,10 +4,14 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.types import BenignHorizon
 from fedcampaign_emhi.experiments.benign_robustness import (
     EpochEventVolume,
+    common_mode_suppression,
+    detection_rate_loss_within_maximum,
     enumerate_benign_common_mode_plan,
+    false_campaign_suppression_meets_minimum,
     federation_wide_epoch_event_counts,
     paired_false_campaign_difference,
     rolling_benign_horizons,
+    seed_level_power_loss,
     select_high_volume_windows,
     synthetic_count_stress_multiplier,
     window_event_counts,
@@ -114,3 +118,24 @@ def test_synthetic_count_stress_preserves_bucket_proportions() -> None:
         synthetic_count_stress_multiplier(buckets, -1.0)
     with pytest.raises(ValueError):
         synthetic_count_stress_multiplier((), 2.0)
+
+
+def test_seed_level_power_loss_is_no_outside_minus_emhi() -> None:
+    assert seed_level_power_loss(0.8, 0.9) == pytest.approx(-0.1)
+    assert seed_level_power_loss(0.9, 0.8) == pytest.approx(0.1)
+
+
+def test_common_mode_suppression_uses_denominator_floor() -> None:
+    assert common_mode_suppression(0.0, 0.0, 1e-12) == pytest.approx(1.0)
+    assert common_mode_suppression(0.1, 0.2, 1e-12) == pytest.approx(1.0 - 0.1 / 0.2, rel=1e-6)
+
+
+def test_support_conditions_are_inclusive_at_materiality_bounds() -> None:
+    loaded = load_production_configuration()
+    materiality = loaded.values.materiality.benign_common_mode
+    minimum = materiality.minimum_false_campaign_suppression
+    maximum = materiality.maximum_detection_rate_loss
+    assert false_campaign_suppression_meets_minimum(minimum, minimum) is True
+    assert false_campaign_suppression_meets_minimum(minimum - 0.01, minimum) is False
+    assert detection_rate_loss_within_maximum(maximum, maximum) is True
+    assert detection_rate_loss_within_maximum(maximum + 0.01, maximum) is False
