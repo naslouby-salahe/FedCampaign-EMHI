@@ -183,7 +183,7 @@ def test_pure_order_drift_uses_only_proper_subset_and_target_coordinates() -> No
     assert metrics.target_order_standardized_drift > 0.0
 
 
-def test_pure_order_cell_uses_fitted_method_scoring() -> None:
+def test_pure_order_producer_describes_the_execution_layer_grid() -> None:
     loaded = load_production_configuration()
     primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
     sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
@@ -222,14 +222,11 @@ def test_pure_order_cell_uses_fitted_method_scoring() -> None:
         primary.method,
     )
 
-    assert outcome.pure_order_metrics is not None
-    assert outcome.failed_checks == (
-        "missing exact-exclusion fitted pure-order artifact grid",
-        "missing exact-exclusion fitted pure-order artifact scorer",
-    )
+    assert outcome.pure_order_metrics is None
+    assert outcome.failed_checks == ()
     assert outcome.evidence is not None
     assert isinstance(outcome.evidence, dict)
-    assert outcome.evidence["implementation_state"] == "awaiting_fitted_emhi_artifact_grid"
+    assert outcome.evidence["implementation_state"] == "execution-layer-grid"
 
 
 def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
@@ -274,7 +271,7 @@ def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
     assert result.artifact_path_complete
 
 
-def test_native_comparator_waits_only_for_its_own_grid() -> None:
+def test_native_comparator_producer_describes_the_execution_layer_grid() -> None:
     loaded = load_production_configuration()
 
     outcome = run_synthetic_cell(
@@ -286,8 +283,8 @@ def test_native_comparator_waits_only_for_its_own_grid() -> None:
 
     assert outcome.evidence is not None
     assert isinstance(outcome.evidence, dict)
-    assert outcome.evidence["implementation_state"] == "awaiting_native_comparator_grid"
-    assert outcome.failed_checks == ("missing native comparator pure-order grid",)
+    assert outcome.evidence["implementation_state"] == "execution-layer-grid"
+    assert outcome.failed_checks == ()
 
 
 def test_emhi_variant_settings_preserve_declared_context_and_purification() -> None:
