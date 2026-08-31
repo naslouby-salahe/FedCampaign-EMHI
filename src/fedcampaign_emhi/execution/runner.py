@@ -82,8 +82,17 @@ from fedcampaign_emhi.domain.types import (
     RuntimeSeconds,
     SeedValue,
 )
+from fedcampaign_emhi.emhi.evidence import (
+    operational_evidence_factor,
+    operational_norm_reference_quantile,
+)
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.ranks import build_marginal_rank_artifact
+from fedcampaign_emhi.emhi.sequential import next_global_state
+from fedcampaign_emhi.emhi.thresholds import (
+    clopper_pearson_one_sided_upper_bound,
+    select_calibrated_threshold,
+)
 from fedcampaign_emhi.evaluation.benign_horizons import (
     TrajectoryCache,
     calibrate_client_local_operating_point,
@@ -1942,28 +1951,104 @@ def _comparator_epoch_scores(
     return tuple(scores)
 
 
+def _comparator_evidence_scores(
+    loaded: LoadedScientificConfiguration,
+    raw_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    nuisance_epochs: tuple[EpochIndexValue, ...],
+) -> tuple[tuple[EpochIndexValue, FiniteFloat], ...]:
+    nuisance_scores = tuple(score for epoch, score in raw_scores if epoch in nuisance_epochs)
+    if not nuisance_scores:
+        raise ValueError("comparator evidence requires nuisance-fit scores")
+    nuisance_mean = sum(nuisance_scores) / len(nuisance_scores)
+    nuisance_deviation = (
+        sum((score - nuisance_mean) ** 2 for score in nuisance_scores) / len(nuisance_scores)
+    ) ** 0.5
+    floor = loaded.values.numerics.metric_denominator_floor
+    if nuisance_deviation <= floor:
+        raise ValueError("comparator nuisance-fit score deviation is not usable")
+    standardized = tuple(
+        (epoch, abs((score - nuisance_mean) / nuisance_deviation)) for epoch, score in raw_scores
+    )
+    reference = operational_norm_reference_quantile(
+        tuple((score,) for epoch, score in standardized if epoch in nuisance_epochs),
+        loaded.values.comparators.common_calibration.nuisance_reference_quantile,
+    )
+    return tuple(
+        (
+            epoch,
+            operational_evidence_factor(
+                (score,),
+                reference,
+                floor,
+                loaded.values.evidence.clip_bound,
+                loaded.values.evidence.bet_lambda,
+            ),
+        )
+        for epoch, score in standardized
+    )
+
+
 def _comparator_stop(
-    scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
     epochs: tuple[EpochIndexValue, ...],
     threshold: FiniteFloat | None,
 ) -> EpochIndexValue | None:
     if threshold is None:
         return None
-    return next(
-        (
-            epoch
-            for epoch in epochs
-            if next((score for score_epoch, score in scores if score_epoch == epoch), 0.0)
-            > threshold
-        ),
-        None,
+    state = 0.0
+    for epoch in epochs:
+        factor = next(
+            (score for score_epoch, score in evidence_scores if score_epoch == epoch),
+            None,
+        )
+        if factor is None:
+            continue
+        state = next_global_state(state, factor)
+        if state >= threshold:
+            return epoch
+    return None
+
+
+def _calibrate_comparator_operating_point(
+    loaded: LoadedScientificConfiguration,
+    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    partitions: BenignPartitionRecord,
+) -> tuple[
+    FiniteFloat | None, tuple[RecordCount, ...], RecordCount, RecordCount, FiniteFloat | None
+]:
+    calibration_horizons = partitions.calibration_horizons
+    heldout_horizons = partitions.heldout_horizons
+    candidates = loaded.values.evidence.calibrated_finite_horizon.threshold_candidates
+    calibration_counts = tuple(
+        sum(
+            _comparator_stop(evidence_scores, horizon.epoch_indexes, threshold) is not None
+            for horizon in calibration_horizons
+        )
+        for threshold in candidates
     )
-
-
-def _comparator_score_at(
-    scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...], epoch: EpochIndexValue
-) -> FiniteFloat | None:
-    return next((score for score_epoch, score in scores if score_epoch == epoch), None)
+    selected = select_calibrated_threshold(
+        candidates,
+        calibration_counts,
+        len(calibration_horizons),
+        loaded.values.evidence.calibrated_finite_horizon.calibration_confidence,
+        loaded.values.evidence.calibrated_finite_horizon.target_pfa,
+    )
+    if selected is None:
+        return None, calibration_counts, len(calibration_horizons), 0, None
+    heldout_count = sum(
+        _comparator_stop(evidence_scores, horizon.epoch_indexes, selected) is not None
+        for horizon in heldout_horizons
+    )
+    upper = (
+        None
+        if not heldout_horizons
+        else clopper_pearson_one_sided_upper_bound(
+            heldout_count,
+            len(heldout_horizons),
+            loaded.values.evidence.calibrated_finite_horizon.calibration_confidence,
+        )
+    )
+    return selected, calibration_counts, len(calibration_horizons), heldout_count, upper
 
 
 def _materialize_seed_statistics(
@@ -2182,13 +2267,15 @@ def _evaluate_comparator_seed_cell(
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
-    scores = _comparator_epoch_scores(loaded, repository, ranks, method_name)
-    calibration_values = tuple(
-        score
-        for epoch in split.threshold_calibration_epochs
-        if (score := _comparator_score_at(scores, epoch)) is not None
-    )
-    threshold = None if not calibration_values else max(calibration_values)
+    raw_scores = _comparator_epoch_scores(loaded, repository, ranks, method_name)
+    scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
+    (
+        threshold,
+        calibration_false_stop_counts,
+        calibration_horizon_count,
+        heldout_false_stop_count,
+        heldout_upper_pfa,
+    ) = _calibrate_comparator_operating_point(loaded, scores, partitions)
     local_operating_points = tuple(
         calibrate_client_local_operating_point(
             loaded.values,
@@ -2292,7 +2379,14 @@ def _evaluate_comparator_seed_cell(
         "seed": seed,
         "dependency_fingerprint": fingerprint,
         "calibration": {
-            "global": {"threshold": threshold},
+            "global": {
+                "threshold": threshold,
+                "calibration_false_stop_counts": list(calibration_false_stop_counts),
+                "calibration_horizon_count": calibration_horizon_count,
+                "heldout_false_stop_count": heldout_false_stop_count,
+                "heldout_horizon_count": len(partitions.heldout_horizons),
+                "heldout_upper_pfa": heldout_upper_pfa,
+            },
             "local": [
                 {
                     "client_id": point.client_id,
