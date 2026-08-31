@@ -20,7 +20,7 @@ class ComparatorMethodContract:
     proper_subset_purification_enabled: Boolean | None
     native_maximum_interaction_order: PositiveEpochCount | None
     is_equivalence_comparator: Boolean
-    determines_primary_causal_claim: Boolean
+    establishes_primary_effect: Boolean
 
 
 def native_target_order(method_name: MethodName) -> CoalitionOrder | None:
@@ -63,7 +63,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.RAW_MAX_RANK_FUSION,
@@ -72,7 +72,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.FULL_FEDCAMPAIGN_EMHI,
@@ -81,7 +81,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=True,
+            establishes_primary_effect=True,
         ),
         ComparatorMethodContract(
             method_name=MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
@@ -90,7 +90,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
@@ -99,7 +99,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
@@ -108,7 +108,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
@@ -117,7 +117,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.PARTIAL_COALITION_EXCLUSION,
@@ -126,7 +126,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.NO_PROPER_SUBSET_PURIFICATION,
@@ -135,7 +135,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=False,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
@@ -144,7 +144,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=True,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD,
@@ -153,7 +153,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=True,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.CONDITIONAL_PAIR_DEPENDENCE,
@@ -164,7 +164,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
                 MethodName.CONDITIONAL_PAIR_DEPENDENCE
             ),
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE,
@@ -173,7 +173,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=CoalitionOrder.THREE,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.CONNECTED_INFORMATION_REFERENCE,
@@ -182,7 +182,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=CoalitionOrder.THREE,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.D_VINE_CONDITIONAL_REFERENCE,
@@ -191,7 +191,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=CoalitionOrder.THREE,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE,
@@ -200,7 +200,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=CoalitionOrder.THREE,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE,
@@ -209,7 +209,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.MULTISTREAM_CUSUM_REFERENCE,
@@ -218,7 +218,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
         ComparatorMethodContract(
             method_name=MethodName.FEDAVG_AUTOENCODER_REFERENCE,
@@ -227,7 +227,7 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             proper_subset_purification_enabled=None,
             native_maximum_interaction_order=None,
             is_equivalence_comparator=False,
-            determines_primary_causal_claim=False,
+            establishes_primary_effect=False,
         ),
     )
 

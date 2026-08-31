@@ -3,7 +3,7 @@ import statistics
 from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState
+from fedcampaign_emhi.domain.enums import ExperimentState, SupportState
 from fedcampaign_emhi.domain.types import (
     ByteCount,
     ClientCount,
@@ -36,8 +36,8 @@ class ScalabilitySummary:
     peak_rss_bytes: ByteCount
     application_payload_bytes: ByteCount
     numerical_failure_rate: Probability
-    latency_gate_state: ClaimState
-    numerical_gate_state: ClaimState
+    latency_criterion_state: SupportState
+    numerical_criterion_state: SupportState
     state: ExperimentState
 
 
@@ -75,8 +75,12 @@ def summarize_scalability(
         peak_rss_bytes=max(row.peak_rss_bytes for row in selected),
         application_payload_bytes=max(row.application_payload_bytes for row in selected),
         numerical_failure_rate=failure_rate,
-        latency_gate_state=ClaimState.SUPPORTED if latency_passed else ClaimState.NOT_SUPPORTED,
-        numerical_gate_state=ClaimState.SUPPORTED if failure_passed else ClaimState.NOT_SUPPORTED,
+        latency_criterion_state=SupportState.SUPPORTED
+        if latency_passed
+        else SupportState.NOT_SUPPORTED,
+        numerical_criterion_state=SupportState.SUPPORTED
+        if failure_passed
+        else SupportState.NOT_SUPPORTED,
         state=ExperimentState.COMPLETED,
     )
 

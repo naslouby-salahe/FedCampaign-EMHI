@@ -297,7 +297,7 @@ statistics:
   nominal_significance_alpha: 0.05
   bootstrap_replicates: 10000
   synthetic_sign_flip_replicates_when_not_exact: 100000
-claim_materiality:
+materiality:
   self_explanation:
     exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: 0.05
     minimum_attenuation_difference: 0.1

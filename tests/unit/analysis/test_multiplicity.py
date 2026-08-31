@@ -5,7 +5,7 @@ from fedcampaign_emhi.analysis.multiplicity import (
     primary_holm_family,
     primary_holm_family_identifiers,
 )
-from fedcampaign_emhi.domain.enums import ClaimState
+from fedcampaign_emhi.domain.enums import SupportState
 
 
 def primary_inputs() -> tuple[HolmHypothesisInput, ...]:
@@ -13,7 +13,7 @@ def primary_inputs() -> tuple[HolmHypothesisInput, ...]:
         HolmHypothesisInput(
             identifier=identifier,
             raw_p_value=0.01 if index == 0 else None,
-            decision=ClaimState.SUPPORTED if index == 0 else ClaimState.NOT_TESTED,
+            decision=SupportState.SUPPORTED if index == 0 else SupportState.NOT_TESTED,
         )
         for index, identifier in enumerate(primary_holm_family_identifiers())
     )

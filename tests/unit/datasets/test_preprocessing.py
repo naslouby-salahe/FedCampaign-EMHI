@@ -20,7 +20,7 @@ from fedcampaign_emhi.datasets.preprocessing import (
     retain_first_chronological,
     shannon_entropy,
 )
-from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
+from fedcampaign_emhi.domain.enums import DatasetName, ExperimentState, SupportState
 from fedcampaign_emhi.domain.types import (
     NormalizedEventToken,
     RecordCount,
@@ -125,8 +125,8 @@ def test_robust_scaler_uses_detector_fit_only() -> None:
 
 def test_horizon_eligibility_is_not_tested_without_rescue() -> None:
     assert complete_horizon_count(100, 3) == 33
-    assert horizon_eligibility_state(10, 59) is ClaimState.NOT_TESTED
-    assert horizon_eligibility_state(59, 59) is ClaimState.SUPPORTED
+    assert horizon_eligibility_state(10, 59) is SupportState.NOT_TESTED
+    assert horizon_eligibility_state(59, 59) is SupportState.SUPPORTED
     assert not detector_fit_sample_requirement_is_met(0)
     assert detector_fit_sample_requirement_is_met(1)
     assert tuple(inspect.signature(horizon_eligibility_state).parameters) == (

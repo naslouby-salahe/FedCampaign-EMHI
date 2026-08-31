@@ -1,13 +1,13 @@
 import pytest
 
 from fedcampaign_emhi.comparators.hofd_equivalence import (
-    cosine_equivalence_gate,
+    cosine_equivalence_criterion,
     enumerate_hofd_equivalence_plan,
     hofd_equivalence_support_levels,
-    nrmse_equivalence_gate,
+    nrmse_equivalence_criterion,
     paired_atom_metrics,
-    pfa_prerequisite_gate,
-    stopping_time_equivalence_gate,
+    pfa_prerequisite_criterion,
+    stopping_time_equivalence_criterion,
     target_coalition_for_order,
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
@@ -53,39 +53,37 @@ def test_target_coalition_sizes() -> None:
         target_coalition_for_order(CoalitionOrder.THREE, 2)
 
 
-def test_nrmse_gate_requires_complete_ci_below_margin() -> None:
+def test_nrmse_criterion_requires_complete_ci_below_margin() -> None:
     loaded = load_production_configuration()
-    margin = loaded.values.claim_materiality.hofd_equivalence.atom_nrmse_upper_margin
-    assert nrmse_equivalence_gate(margin - 0.01, margin) is True
-    assert nrmse_equivalence_gate(margin, margin) is False
-    assert nrmse_equivalence_gate(margin + 0.01, margin) is False
+    margin = loaded.values.materiality.hofd_equivalence.atom_nrmse_upper_margin
+    assert nrmse_equivalence_criterion(margin - 0.01, margin) is True
+    assert nrmse_equivalence_criterion(margin, margin) is False
+    assert nrmse_equivalence_criterion(margin + 0.01, margin) is False
 
 
-def test_cosine_gate_requires_minimum_similarity() -> None:
+def test_cosine_criterion_requires_minimum_similarity() -> None:
     loaded = load_production_configuration()
-    minimum = loaded.values.claim_materiality.hofd_equivalence.minimum_cosine_similarity
-    assert cosine_equivalence_gate(1.0, minimum) is True
-    assert cosine_equivalence_gate(minimum, minimum) is True
-    assert cosine_equivalence_gate(minimum - 0.001, minimum) is False
+    minimum = loaded.values.materiality.hofd_equivalence.minimum_cosine_similarity
+    assert cosine_equivalence_criterion(1.0, minimum) is True
+    assert cosine_equivalence_criterion(minimum, minimum) is True
+    assert cosine_equivalence_criterion(minimum - 0.001, minimum) is False
 
 
-def test_stopping_time_gate_requires_ci_inside_interval() -> None:
+def test_stopping_time_criterion_requires_ci_inside_interval() -> None:
     loaded = load_production_configuration()
-    interval = (
-        loaded.values.claim_materiality.hofd_equivalence.stopping_time_difference_interval_epochs
-    )
+    interval = loaded.values.materiality.hofd_equivalence.stopping_time_difference_interval_epochs
     lower, upper = interval[0], interval[1]
-    assert stopping_time_equivalence_gate(lower, upper, lower, upper) is True
-    assert stopping_time_equivalence_gate(lower - 0.5, upper, lower, upper) is False
-    assert stopping_time_equivalence_gate(lower, upper + 0.5, lower, upper) is False
+    assert stopping_time_equivalence_criterion(lower, upper, lower, upper) is True
+    assert stopping_time_equivalence_criterion(lower - 0.5, upper, lower, upper) is False
+    assert stopping_time_equivalence_criterion(lower, upper + 0.5, lower, upper) is False
 
 
 def test_null_pfa_prerequisite_before_equivalence() -> None:
     loaded = load_production_configuration()
     target = loaded.values.evidence.calibrated_finite_horizon.target_pfa
-    assert pfa_prerequisite_gate(target, target) is True
-    assert pfa_prerequisite_gate(target - 0.01, target) is True
-    assert pfa_prerequisite_gate(target + 0.01, target) is False
+    assert pfa_prerequisite_criterion(target, target) is True
+    assert pfa_prerequisite_criterion(target - 0.01, target) is True
+    assert pfa_prerequisite_criterion(target + 0.01, target) is False
 
 
 def test_all_coalition_orders_covered_by_target_rule() -> None:

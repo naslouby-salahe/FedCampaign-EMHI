@@ -31,7 +31,7 @@ def test_full_hierarchy_contract_locks_primary_configuration() -> None:
     assert full.enabled_order_set == full_hierarchy_order_set()
     assert full.context_method is ContextMethodName.EXACT_COALITION_EXCLUSION
     assert full.proper_subset_purification_enabled is True
-    assert full.determines_primary_causal_claim is True
+    assert full.establishes_primary_effect is True
 
 
 def test_order_sets_match_roadmap_locked_values() -> None:
@@ -42,7 +42,7 @@ def test_order_sets_match_roadmap_locked_values() -> None:
     at_most_two = contracts[MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI]
     assert at_most_two.enabled_order_set == (CoalitionOrder.ONE, CoalitionOrder.TWO)
     assert order_at_most_two_weights() == (0.5, 0.5)
-    assert at_most_two.determines_primary_causal_claim is False
+    assert at_most_two.establishes_primary_effect is False
 
 
 def test_context_variants_differ_only_in_context() -> None:
@@ -76,7 +76,7 @@ def test_hofd_is_equivalence_not_superiority_comparator() -> None:
     contracts = {c.method_name: c for c in comparator_method_contracts()}
     hofd = contracts[MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD]
     assert hofd.is_equivalence_comparator is True
-    assert hofd.determines_primary_causal_claim is False
+    assert hofd.establishes_primary_effect is False
 
 
 def test_conditional_pair_dependence_maximum_order_is_two() -> None:

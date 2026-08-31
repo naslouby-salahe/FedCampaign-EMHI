@@ -5,7 +5,7 @@ from fedcampaign_emhi.artifacts.records import (
     StatisticalRecord,
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.domain.enums import ClaimState, ExecutionRole
+from fedcampaign_emhi.domain.enums import ExecutionRole, SupportState
 from fedcampaign_emhi.execution.finite_horizon import FiniteHorizonSeedMetrics
 from fedcampaign_emhi.execution.runner import (
     FiniteHorizonObservation,
@@ -51,7 +51,7 @@ def test_signed_theorem_statistics_materialize_one_sided_restricted_arl_bound(
     assert record.estimate == 1000.0
     assert record.confidence_lower == 1000.0
     assert record.confidence_upper is None
-    assert record.decision is ClaimState.SUPPORTED
+    assert record.decision is SupportState.SUPPORTED
 
 
 def test_signed_theorem_statistics_reject_incomplete_confirmatory_evidence(
@@ -92,4 +92,4 @@ def test_finite_horizon_statistics_fail_closed_when_an_operating_point_is_unavai
     assert path is not None
     record = FiniteHorizonAggregationRecord.model_validate_json(path.read_bytes())
     assert record.operating_point_unavailable_count == 1
-    assert record.decision is ClaimState.NOT_SUPPORTED
+    assert record.decision is SupportState.NOT_SUPPORTED

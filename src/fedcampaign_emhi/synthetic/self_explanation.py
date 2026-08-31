@@ -161,7 +161,7 @@ def exact_nuisance_derivative_within_margin(
     return abs(exact_derivative) <= margin_fraction_of_direct * abs(direct)
 
 
-def material_attenuation_gate(
+def material_attenuation_criterion(
     attenuation_contrast: FiniteFloat, minimum_attenuation_difference: FiniteFloat
 ) -> Boolean:
     return attenuation_contrast >= minimum_attenuation_difference

@@ -52,7 +52,6 @@ from fedcampaign_emhi.detection.scoring import build_detector_score_artifact
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -64,6 +63,7 @@ from fedcampaign_emhi.domain.enums import (
     PartitionRole,
     PreprocessingLayer,
     PrimaryHolmHypothesis,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -104,7 +104,7 @@ from fedcampaign_emhi.evaluation.records import (
     SequentialTrajectory,
     odi_evaluation_record,
 )
-from fedcampaign_emhi.evaluation.smoke_gate import run_synthetic_module_validation
+from fedcampaign_emhi.evaluation.smoke_validation import run_synthetic_module_validation
 from fedcampaign_emhi.execution.finite_horizon import (
     FiniteHorizonSeedMetrics,
     evaluate_finite_horizon_common_mode_seed,
@@ -365,18 +365,18 @@ def _execute_synthetic_module_validation(
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
     started = perf_counter()
-    invariant_gate = run_synthetic_module_validation(loaded)
-    generator_gate = validate_synthetic_generators(loaded)
+    invariant_criterion = run_synthetic_module_validation(loaded)
+    generator_criterion = validate_synthetic_generators(loaded)
     state = (
         ExperimentState.COMPLETED
-        if invariant_gate.passed and generator_gate.state is ExperimentState.COMPLETED
+        if invariant_criterion.passed and generator_criterion.state is ExperimentState.COMPLETED
         else ExperimentState.INVALID
     )
     diagnostic_path = root / "diagnostics" / "scientific" / "synthetic-validation.json"
     diagnostic_payload: YamlNode = {
         "state": state.value,
-        "invariant_failures": [failure.label for failure in invariant_gate.failures],
-        "generator_failures": list(generator_gate.failed_checks),
+        "invariant_failures": [failure.label for failure in invariant_criterion.failures],
+        "generator_failures": list(generator_criterion.failed_checks),
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
     fingerprint = material_fingerprint(loaded.material_digest, ())
@@ -815,9 +815,9 @@ def materialize_self_explanation_statistics(
         confidence_lower=interval[0],
         confidence_upper=interval[1],
         decision=(
-            ClaimState.SUPPORTED
+            SupportState.SUPPORTED
             if raw_p_value < loaded.values.statistics.nominal_significance_alpha
-            else ClaimState.NULL_RESULT
+            else SupportState.NULL_RESULT
         ),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
@@ -891,9 +891,9 @@ def materialize_pure_order_statistics(
         confidence_lower=interval[0],
         confidence_upper=interval[1],
         decision=(
-            ClaimState.SUPPORTED
+            SupportState.SUPPORTED
             if raw_p_value < loaded.values.statistics.nominal_significance_alpha
-            else ClaimState.NULL_RESULT
+            else SupportState.NULL_RESULT
         ),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
@@ -926,9 +926,9 @@ def materialize_estimator_feasibility_statistics(
     metrics = tuple(observation.metric.primary for observation in confirmatory)
     failure_count = sum(metric.numerical_failure for metric in metrics)
     failure_rate = failure_count / len(metrics)
-    materiality = loaded.values.claim_materiality
+    materiality = loaded.values.materiality
     decision = (
-        ClaimState.SUPPORTED
+        SupportState.SUPPORTED
         if (
             sum(metric.context_coverage for metric in metrics) / len(metrics)
             >= materiality.order_three_estimator.minimum_mean_context_coverage
@@ -938,7 +938,7 @@ def materialize_estimator_feasibility_statistics(
             <= materiality.order_three_estimator.maximum_mean_standardized_null_bias
             and failure_rate <= materiality.maximum_pooled_numerical_failure_rate
         )
-        else ClaimState.NULL_RESULT
+        else SupportState.NULL_RESULT
     )
     layout = build_artifact_layout(loaded, repository)
     source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
@@ -1033,7 +1033,7 @@ def materialize_signed_theorem_statistics(
         confidence_level=confidence_level,
         confidence_lower=lower,
         confidence_upper=None,
-        decision=(ClaimState.SUPPORTED if lower >= threshold else ClaimState.NULL_RESULT),
+        decision=(SupportState.SUPPORTED if lower >= threshold else SupportState.NULL_RESULT),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
         content_digest=payload_digest(payload),
@@ -1073,12 +1073,12 @@ def materialize_finite_horizon_statistics(
     maximum_upper = max(upper_bounds, default=None)
     target = loaded.values.evidence.calibrated_finite_horizon.target_pfa
     decision = (
-        ClaimState.NOT_SUPPORTED
+        SupportState.NOT_SUPPORTED
         if unavailable_count > 0
         else (
-            ClaimState.SUPPORTED
+            SupportState.SUPPORTED
             if maximum_upper is not None and maximum_upper <= target
-            else ClaimState.NULL_RESULT
+            else SupportState.NULL_RESULT
         )
     )
     layout = build_artifact_layout(loaded, repository)
@@ -1824,7 +1824,7 @@ def _materialize_not_tested_real_cell(
         "method_name": None if method_name is None else method_name.value,
         "seed": seed,
         "scientific_outcome": "Not Tested",
-        "claim_state": "NOT_TESTED",
+        "support_state": "NOT_TESTED",
         "reason": "no eligible raw records were available after deterministic preprocessing",
         "dependency_fingerprint": fingerprint,
         "campaigns": [],
@@ -2029,9 +2029,9 @@ def _materialize_seed_statistics(
     for index, (method_name, records) in enumerate(method_groups):
         interval = intervals[index]
         decision = (
-            ClaimState.SUPPORTED
+            SupportState.SUPPORTED
             if adjusted[index] < loaded.values.statistics.nominal_significance_alpha
-            else ClaimState.NULL_RESULT
+            else SupportState.NULL_RESULT
         )
         payload: YamlNode = {
             "experiment_name": experiment_name.value,
@@ -2096,7 +2096,10 @@ def _materialize_not_tested_primary_holm_statistic(
     dataset_name = _experiment_dataset(loaded, experiment_name)
     prepared_path = _preprocessing_paths(loaded, repository, dataset_name)[1]
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
-    if prepared.selection_claim_state is not ClaimState.NOT_TESTED or prepared.selected_client_ids:
+    if (
+        prepared.selection_support_state is not SupportState.NOT_TESTED
+        or prepared.selected_client_ids
+    ):
         return None
     hypothesis, metric_name = specification
     layout = build_artifact_layout(loaded, repository)
@@ -2143,7 +2146,7 @@ def _materialize_not_tested_primary_holm_statistic(
         confidence_level=None,
         confidence_lower=None,
         confidence_upper=None,
-        decision=ClaimState.NOT_TESTED,
+        decision=SupportState.NOT_TESTED,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(loaded.material_digest, source_digests),
         content_digest=payload_digest(payload),

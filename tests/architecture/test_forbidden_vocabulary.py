@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import ast
+import re
+from pathlib import Path
+
 from tests.architecture.ast_scans import SRC_ROOT, source_files
 
 FORBIDDEN_TERMS = (
@@ -19,6 +23,27 @@ FORBIDDEN_TERMS = (
     "canonical",
 )
 
+MANUSCRIPT_ARCHITECTURE_PATTERN = re.compile(r"(?:^|_)(?:claim|gate)(?:_|$)|(?:Claim|Gate)")
+
+
+def manuscript_architecture_violations(path: Path) -> list[str]:
+    parsed = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    identifiers: list[str] = []
+    for node in ast.walk(parsed):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            identifiers.append(node.name)
+        elif isinstance(node, ast.Name):
+            identifiers.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            identifiers.append(node.attr)
+        elif isinstance(node, ast.arg):
+            identifiers.append(node.arg)
+    return [
+        f"{path.relative_to(SRC_ROOT).as_posix()}:{identifier}"
+        for identifier in identifiers
+        if MANUSCRIPT_ARCHITECTURE_PATTERN.search(identifier) is not None
+    ]
+
 
 def test_forbidden_vocabulary() -> None:
     findings: list[str] = []
@@ -35,6 +60,13 @@ def test_forbidden_vocabulary() -> None:
             and "is_implementation_error=True" in text
         ):
             findings.append(f"{rel}:unavailable-converted-to-error")
+    assert findings == []
+
+
+def test_production_has_no_manuscript_claim_or_gate_architecture() -> None:
+    findings: list[str] = []
+    for path in source_files():
+        findings.extend(manuscript_architecture_violations(path))
     assert findings == []
 
 

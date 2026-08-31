@@ -11,4 +11,4 @@ def test_doctor_plan_and_smoke(cli_runner: CliRunner) -> None:
     assert plan.exit_code == 0
     smoke = cli_runner.invoke(application, ["smoke"])
     assert smoke.exit_code == 0
-    assert "smoke_gate=PASS" in smoke.stdout
+    assert "smoke_validation=PASS" in smoke.stdout

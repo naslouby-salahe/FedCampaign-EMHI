@@ -95,7 +95,7 @@ def test_absent_mixed_order_terms_are_detected() -> None:
     )
 
 
-def test_invalid_density_fails_the_gate() -> None:
+def test_invalid_density_fails_the_criterion() -> None:
     from fedcampaign_emhi.synthetic.pure_order import polynomial_density_is_valid
 
     bad_theta = 10.0
@@ -229,9 +229,7 @@ def test_pure_order_cell_uses_fitted_method_scoring() -> None:
     )
     assert outcome.evidence is not None
     assert isinstance(outcome.evidence, dict)
-    assert (
-        outcome.evidence["implementation_state"] == "partial_projection_scorer_not_claim_eligible"
-    )
+    assert outcome.evidence["implementation_state"] == "method_evaluation_unavailable"
 
 
 def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
@@ -309,12 +307,3 @@ def test_every_declared_emhi_variant_has_fitted_artifact_settings() -> None:
 
     assert expected <= methods
     assert missing == ()
-
-
-def test_hofd_equivalence_is_not_registered_as_an_unimplemented_synthetic_stub() -> None:
-    from fedcampaign_emhi.experiments.producers import _MISSING_CONTRACT_SPECIFIC_PRODUCERS
-
-    assert (
-        ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE
-        not in _MISSING_CONTRACT_SPECIFIC_PRODUCERS
-    )

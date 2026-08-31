@@ -114,7 +114,7 @@ def test_reduced_configs_cannot_replace_production() -> None:
     assert smoke.profile != production.profile
     assert tests.material_digest != production.material_digest
     assert smoke.material_digest != production.material_digest
-    assert production.values.claim_materiality.primary_real.minimum_strict_odi_rate == 0.2
+    assert production.values.materiality.primary_real.minimum_strict_odi_rate == 0.2
 
 
 def test_partition_fractions_leave_heldout_remainder(repo_root: Path) -> None:
@@ -360,35 +360,30 @@ def test_locked_comparator_experiment_statistics_and_runtime(
     assert values.statistics.bootstrap_replicates == 10000
     assert values.statistics.synthetic_sign_flip_replicates_when_not_exact == 100000
     assert (
-        values.claim_materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct
+        values.materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct
         == 0.05
     )
-    assert values.claim_materiality.self_explanation.minimum_attenuation_difference == 0.1
-    assert values.claim_materiality.pure_order.maximum_proper_subset_standardized_drift == 0.1
-    assert values.claim_materiality.pure_order.minimum_target_order_standardized_drift == 0.5
-    assert values.claim_materiality.order_three_estimator.minimum_mean_context_coverage == 0.8
-    assert values.claim_materiality.order_three_estimator.maximum_mean_projection_nrmse == 0.1
-    assert (
-        values.claim_materiality.order_three_estimator.maximum_mean_standardized_null_bias == 0.05
-    )
-    assert values.claim_materiality.maximum_pooled_numerical_failure_rate == 0.01
-    assert values.claim_materiality.hofd_equivalence.atom_nrmse_upper_margin == 0.05
-    assert values.claim_materiality.hofd_equivalence.minimum_cosine_similarity == 0.99
-    assert values.claim_materiality.hofd_equivalence.stopping_time_difference_interval_epochs == (
+    assert values.materiality.self_explanation.minimum_attenuation_difference == 0.1
+    assert values.materiality.pure_order.maximum_proper_subset_standardized_drift == 0.1
+    assert values.materiality.pure_order.minimum_target_order_standardized_drift == 0.5
+    assert values.materiality.order_three_estimator.minimum_mean_context_coverage == 0.8
+    assert values.materiality.order_three_estimator.maximum_mean_projection_nrmse == 0.1
+    assert values.materiality.order_three_estimator.maximum_mean_standardized_null_bias == 0.05
+    assert values.materiality.maximum_pooled_numerical_failure_rate == 0.01
+    assert values.materiality.hofd_equivalence.atom_nrmse_upper_margin == 0.05
+    assert values.materiality.hofd_equivalence.minimum_cosine_similarity == 0.99
+    assert values.materiality.hofd_equivalence.stopping_time_difference_interval_epochs == (
         -1.0,
         1.0,
     )
-    assert values.claim_materiality.primary_real.minimum_strict_odi_rate == 0.2
-    assert (
-        values.claim_materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two
-        == 0.1
-    )
-    assert values.claim_materiality.primary_real.minimum_median_operational_lead_epochs == 2.0
-    assert values.claim_materiality.benign_common_mode.minimum_false_campaign_suppression == 0.5
-    assert values.claim_materiality.benign_common_mode.maximum_detection_rate_loss == 0.1
-    assert values.claim_materiality.strong_local.minimum_strict_odi_rate == 0.2
-    assert values.claim_materiality.order_three_real.minimum_material_odi_contribution == 0.02
-    assert values.claim_materiality.reference_harness.p95_latency_maximum_seconds == 30.0
+    assert values.materiality.primary_real.minimum_strict_odi_rate == 0.2
+    assert values.materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two == 0.1
+    assert values.materiality.primary_real.minimum_median_operational_lead_epochs == 2.0
+    assert values.materiality.benign_common_mode.minimum_false_campaign_suppression == 0.5
+    assert values.materiality.benign_common_mode.maximum_detection_rate_loss == 0.1
+    assert values.materiality.strong_local.minimum_strict_odi_rate == 0.2
+    assert values.materiality.order_three_real.minimum_material_odi_contribution == 0.02
+    assert values.materiality.reference_harness.p95_latency_maximum_seconds == 30.0
     assert values.support_grids.estimator_samples_per_context == (100, 200, 400, 800, 1600, 3200)
     assert values.support_grids.hofd_equivalence_samples_per_context == (
         800,

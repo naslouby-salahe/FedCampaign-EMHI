@@ -72,13 +72,13 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimState,
     DatasetName,
     DownstreamArtifactKind,
     ExperimentState,
     GroundTruthClass,
     OverwritePolicy,
     PreprocessingLayer,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
@@ -557,7 +557,7 @@ def _build_prepared_and_split(
             records,
             selection.selected_client_ids,
             selection.eligible_client_ids,
-            selection.claim_state,
+            selection.support_state,
             len(exclusions),
             duplicate_count,
             discrepancy_count,
@@ -571,7 +571,7 @@ def _prepare_ton_epochs_from_csv(
 ) -> PreparedDatasetRecord:
     paths = tuple(str(path) for path in _csv_paths(raw_directory))
     if not paths:
-        return _prepare_ton_epochs(loaded, (), (), (), ClaimState.NOT_TESTED, 0, 0, 0)
+        return _prepare_ton_epochs(loaded, (), (), (), SupportState.NOT_TESTED, 0, 0, 0)
     epoch_seconds = loaded.values.time.real_data_epoch_seconds
     connection = duckdb.connect(":memory:")
     connection.execute("SET memory_limit='2GB'")
@@ -648,7 +648,7 @@ def _prepare_ton_epochs_from_csv(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=selection.selected_client_ids,
         eligible_client_ids=selection.eligible_client_ids,
-        selection_claim_state=selection.claim_state,
+        selection_support_state=selection.support_state,
         epochs=epochs,
         excluded_record_count=raw_count - valid_count,
         duplicate_record_count=valid_count - distinct_count,
@@ -726,7 +726,7 @@ def _prepare_ton_epochs(
     records: tuple[TonIotNetworkFlowRecord, ...],
     selected_client_ids: tuple[ClientId, ...],
     eligible_client_ids: tuple[ClientId, ...],
-    claim_state: ClaimState,
+    support_state: SupportState,
     excluded_count: RecordCount,
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
@@ -765,7 +765,7 @@ def _prepare_ton_epochs(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=eligible_client_ids,
-        selection_claim_state=claim_state,
+        selection_support_state=support_state,
         epochs=epochs,
         excluded_record_count=excluded_count,
         duplicate_record_count=duplicate_count,
@@ -778,7 +778,7 @@ def _prepare_edge_epochs(
     records: tuple[EdgeIiotsetFlowRecord, ...],
     selected_client_ids: tuple[ClientId, ...],
     eligible_client_ids: tuple[ClientId, ...],
-    claim_state: ClaimState,
+    support_state: SupportState,
     excluded_count: RecordCount,
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
@@ -820,7 +820,7 @@ def _prepare_edge_epochs(
         dataset_name=DatasetName.EDGE_IIOTSET,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=eligible_client_ids,
-        selection_claim_state=claim_state,
+        selection_support_state=support_state,
         epochs=epochs,
         excluded_record_count=excluded_count,
         duplicate_record_count=duplicate_count,
@@ -921,14 +921,14 @@ def _split_from_prepared(
         fractions.threshold_and_policy_calibration,
     )
     partitions = chronological_benign_partitions(common_epochs, lengths)
-    claim_state = prepared.selection_claim_state
+    support_state = prepared.selection_support_state
     if not partitions.detector_fit or not partitions.nuisance_fit:
-        claim_state = ClaimState.NOT_TESTED
+        support_state = SupportState.NOT_TESTED
     return DatasetSplitRecord(
         dataset_name=prepared.dataset_name,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        claim_state=claim_state,
+        support_state=support_state,
         detector_fit_epochs=partitions.detector_fit,
         nuisance_fit_epochs=partitions.nuisance_fit,
         threshold_calibration_epochs=partitions.threshold_and_policy_calibration,
@@ -941,7 +941,7 @@ def _empty_split(prepared: PreparedDatasetRecord) -> DatasetSplitRecord:
         dataset_name=prepared.dataset_name,
         selected_client_ids=prepared.selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        claim_state=ClaimState.NOT_TESTED,
+        support_state=SupportState.NOT_TESTED,
         detector_fit_epochs=(),
         nuisance_fit_epochs=(),
         threshold_calibration_epochs=(),
@@ -1002,7 +1002,7 @@ def _scale_prepared(
         dataset_name=prepared.dataset_name,
         selected_client_ids=prepared.selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        selection_claim_state=prepared.selection_claim_state,
+        selection_support_state=prepared.selection_support_state,
         epochs=tuple(sorted(scaled_rows, key=lambda row: (row.client_id, row.epoch_index))),
         client_scalers=tuple(scaler_records),
         excluded_record_count=prepared.excluded_record_count,

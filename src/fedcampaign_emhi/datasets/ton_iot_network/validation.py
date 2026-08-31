@@ -7,7 +7,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.normalization import (
     ZEEK_MISSING_FIELD_TOKEN,
     normalize_client_id,
 )
-from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
+from fedcampaign_emhi.domain.enums import ExperimentState, GroundTruthClass, SupportState
 from fedcampaign_emhi.domain.types import (
     BenignEvaluationSeparation,
     Boolean,
@@ -258,11 +258,11 @@ def select_primary_clients_from_tallies(
             selected_client_ids=(),
             eligible_client_ids=eligible_ids,
             eligibility=tuple(eligibility),
-            claim_state=ClaimState.NOT_TESTED,
+            support_state=SupportState.NOT_TESTED,
         )
     return PrimaryClientSelection(
         selected_client_ids=eligible_ids[:target_client_count],
         eligible_client_ids=eligible_ids,
         eligibility=tuple(eligibility),
-        claim_state=ClaimState.SUPPORTED,
+        support_state=SupportState.SUPPORTED,
     )

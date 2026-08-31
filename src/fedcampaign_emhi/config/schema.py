@@ -465,62 +465,62 @@ class StatisticsConfig(FrozenConfigModel):
     synthetic_sign_flip_replicates_when_not_exact: BootstrapReplicateCount
 
 
-class ClaimMaterialitySelfExplanationConfig(FrozenConfigModel):
+class MaterialitySelfExplanationConfig(FrozenConfigModel):
     exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: Probability
     minimum_attenuation_difference: FiniteFloat
 
 
-class ClaimMaterialityPureOrderConfig(FrozenConfigModel):
+class MaterialityPureOrderConfig(FrozenConfigModel):
     maximum_proper_subset_standardized_drift: FiniteFloat
     minimum_target_order_standardized_drift: FiniteFloat
 
 
-class ClaimMaterialityOrderThreeEstimatorConfig(FrozenConfigModel):
+class MaterialityOrderThreeEstimatorConfig(FrozenConfigModel):
     minimum_mean_context_coverage: Probability
     maximum_mean_projection_nrmse: FiniteFloat
     maximum_mean_standardized_null_bias: FiniteFloat
 
 
-class ClaimMaterialityHofdEquivalenceConfig(FrozenConfigModel):
+class MaterialityHofdEquivalenceConfig(FrozenConfigModel):
     atom_nrmse_upper_margin: FiniteFloat
     minimum_cosine_similarity: UnitInterval
     stopping_time_difference_interval_epochs: tuple[FiniteFloat, ...]
 
 
-class ClaimMaterialityPrimaryRealConfig(FrozenConfigModel):
+class MaterialityPrimaryRealConfig(FrozenConfigModel):
     minimum_strict_odi_rate: Probability
     minimum_odi_rate_advantage_over_order_at_most_two: FiniteFloat
     minimum_median_operational_lead_epochs: FiniteFloat
 
 
-class ClaimMaterialityBenignCommonModeConfig(FrozenConfigModel):
+class MaterialityBenignCommonModeConfig(FrozenConfigModel):
     minimum_false_campaign_suppression: Probability
     maximum_detection_rate_loss: FiniteFloat
 
 
-class ClaimMaterialityStrongLocalConfig(FrozenConfigModel):
+class MaterialityStrongLocalConfig(FrozenConfigModel):
     minimum_strict_odi_rate: Probability
 
 
-class ClaimMaterialityOrderThreeRealConfig(FrozenConfigModel):
+class MaterialityOrderThreeRealConfig(FrozenConfigModel):
     minimum_material_odi_contribution: FiniteFloat
 
 
-class ClaimMaterialityReferenceHarnessConfig(FrozenConfigModel):
+class MaterialityReferenceHarnessConfig(FrozenConfigModel):
     p95_latency_maximum_seconds: RuntimeSeconds
 
 
-class ClaimMaterialityConfig(FrozenConfigModel):
-    self_explanation: ClaimMaterialitySelfExplanationConfig
-    pure_order: ClaimMaterialityPureOrderConfig
-    order_three_estimator: ClaimMaterialityOrderThreeEstimatorConfig
+class MaterialityConfig(FrozenConfigModel):
+    self_explanation: MaterialitySelfExplanationConfig
+    pure_order: MaterialityPureOrderConfig
+    order_three_estimator: MaterialityOrderThreeEstimatorConfig
     maximum_pooled_numerical_failure_rate: Probability
-    hofd_equivalence: ClaimMaterialityHofdEquivalenceConfig
-    primary_real: ClaimMaterialityPrimaryRealConfig
-    benign_common_mode: ClaimMaterialityBenignCommonModeConfig
-    strong_local: ClaimMaterialityStrongLocalConfig
-    order_three_real: ClaimMaterialityOrderThreeRealConfig
-    reference_harness: ClaimMaterialityReferenceHarnessConfig
+    hofd_equivalence: MaterialityHofdEquivalenceConfig
+    primary_real: MaterialityPrimaryRealConfig
+    benign_common_mode: MaterialityBenignCommonModeConfig
+    strong_local: MaterialityStrongLocalConfig
+    order_three_real: MaterialityOrderThreeRealConfig
+    reference_harness: MaterialityReferenceHarnessConfig
 
 
 class SupportGridsConfig(FrozenConfigModel):
@@ -697,7 +697,7 @@ class ScientificConfig(FrozenConfigModel):
     comparators: ComparatorsConfig
     numerics: NumericsConfig
     statistics: StatisticsConfig
-    claim_materiality: ClaimMaterialityConfig
+    materiality: MaterialityConfig
     support_grids: SupportGridsConfig
     robustness: RobustnessConfig
     experiments: ExperimentsConfig

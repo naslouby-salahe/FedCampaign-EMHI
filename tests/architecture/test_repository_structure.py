@@ -94,7 +94,7 @@ REQUIRED_SOURCE_FILES = (
     "src/fedcampaign_emhi/evaluation/metrics.py",
     "src/fedcampaign_emhi/evaluation/scalability.py",
     "src/fedcampaign_emhi/evaluation/validation.py",
-    "src/fedcampaign_emhi/evaluation/smoke_gate.py",
+    "src/fedcampaign_emhi/evaluation/smoke_validation.py",
     "src/fedcampaign_emhi/analysis/__init__.py",
     "src/fedcampaign_emhi/analysis/summaries.py",
     "src/fedcampaign_emhi/analysis/statistics.py",

@@ -127,7 +127,7 @@ class OperatingPointState(StrEnum):
     UNAVAILABLE = "Operating Point Unavailable"
 
 
-class ClaimState(StrEnum):
+class SupportState(StrEnum):
     SUPPORTED = "SUPPORTED"
     PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
     MECHANISM_ONLY = "MECHANISM_ONLY"

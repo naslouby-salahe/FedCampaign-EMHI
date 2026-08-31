@@ -108,7 +108,7 @@ def test_centroid_assignment_uses_euclidean_distance_and_smaller_index_ties() ->
     assert tied == 0
 
 
-def test_residual_rank_uses_midrank_and_support_gate() -> None:
+def test_residual_rank_uses_midrank_and_support_criterion() -> None:
     reference = RankReference(scores=(0.1, 0.2, 0.8))
     residual = coalition_conditioned_residual_rank(0.2, reference, 1.0e-12)
     assert residual == midrank(0.2, reference)

@@ -64,7 +64,7 @@ def paired_atom_metrics(
 
 def enumerate_hofd_equivalence_plan(config: ScientificConfig) -> HofdEquivalencePlan:
     experiment = config.experiments.exclusion_matched_hofd_equivalence
-    materiality = config.claim_materiality.hofd_equivalence
+    materiality = config.materiality.hofd_equivalence
     interval = materiality.stopping_time_difference_interval_epochs
     return HofdEquivalencePlan(
         primary_client_count=config.experiments.pure_order_separation_validation.primary_client_count,
@@ -95,15 +95,15 @@ def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount)
     return target
 
 
-def nrmse_equivalence_gate(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> Boolean:
+def nrmse_equivalence_criterion(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> Boolean:
     return nrmse_upper < margin
 
 
-def cosine_equivalence_gate(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> Boolean:
+def cosine_equivalence_criterion(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> Boolean:
     return mean_cosine >= minimum
 
 
-def stopping_time_equivalence_gate(
+def stopping_time_equivalence_criterion(
     ci_lower: FiniteFloat,
     ci_upper: FiniteFloat,
     interval_lower: FiniteFloat,
@@ -112,5 +112,5 @@ def stopping_time_equivalence_gate(
     return ci_lower >= interval_lower and ci_upper <= interval_upper
 
 
-def pfa_prerequisite_gate(null_pfa_upper: Probability, target_pfa: Probability) -> Boolean:
+def pfa_prerequisite_criterion(null_pfa_upper: Probability, target_pfa: Probability) -> Boolean:
     return null_pfa_upper <= target_pfa

@@ -43,7 +43,7 @@ def required_record_completeness(
     return ExperimentState.COMPLETED
 
 
-def claim_metric_is_finite(metric_value: FiniteFloat) -> ExperimentState:
+def metric_is_finite(metric_value: FiniteFloat) -> ExperimentState:
     return ExperimentState.COMPLETED if isfinite(metric_value) else ExperimentState.INVALID
 
 

@@ -5,7 +5,7 @@ from math import floor, isfinite, log, log1p
 import numpy as np
 from numpy.typing import NDArray
 
-from fedcampaign_emhi.domain.enums import ClaimState, DatasetName, ExperimentState
+from fedcampaign_emhi.domain.enums import DatasetName, ExperimentState, SupportState
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
@@ -254,10 +254,10 @@ def complete_benign_horizons(
 
 def horizon_eligibility_state(
     complete_horizons: RecordCount, required_horizons: RecordCount
-) -> ClaimState:
+) -> SupportState:
     if complete_horizons < required_horizons:
-        return ClaimState.NOT_TESTED
-    return ClaimState.SUPPORTED
+        return SupportState.NOT_TESTED
+    return SupportState.SUPPORTED
 
 
 def detector_fit_sample_requirement_is_met(detector_fit_epoch_count: EpochCount) -> Boolean:

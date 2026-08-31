@@ -13,7 +13,7 @@ from fedcampaign_emhi.datasets.inventory import (
     build_edge_iiotset_release_identity,
     inventory_raw_directory,
 )
-from fedcampaign_emhi.domain.enums import ClaimState, GroundTruthClass
+from fedcampaign_emhi.domain.enums import GroundTruthClass, SupportState
 
 
 def test_secondary_adapter_pipeline(tmp_path: Path) -> None:
@@ -45,8 +45,8 @@ def test_secondary_adapter_pipeline(tmp_path: Path) -> None:
     counted = epoch_event_count_records(records)
     assert all(record.protocol_group != "UNKNOWN_PROTOCOL" for record in counted)
     selected = select_secondary_clients(records, 60, 2, 2, 12, 2)
-    assert selected.claim_state is ClaimState.SUPPORTED
+    assert selected.support_state is SupportState.SUPPORTED
     assert selected.selected_client_ids == ("192.168.1.10", "192.168.1.11")
     untested = select_secondary_clients(records, 60, 2, 2, 12, 6)
-    assert untested.claim_state is ClaimState.NOT_TESTED
+    assert untested.support_state is SupportState.NOT_TESTED
     assert "primary" not in inspect.signature(select_secondary_clients).parameters

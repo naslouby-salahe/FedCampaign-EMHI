@@ -6,7 +6,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.normalization import (
     record_enters_epoch_event_count,
 )
 from fedcampaign_emhi.datasets.partitions import epoch_index
-from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
+from fedcampaign_emhi.domain.enums import ExperimentState, GroundTruthClass, SupportState
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientBenignTally,
@@ -247,20 +247,20 @@ def select_secondary_clients_from_tallies(
             selected_client_ids=(),
             eligible_client_ids=eligible_ids,
             eligibility=tuple(eligibility),
-            claim_state=ClaimState.NOT_TESTED,
+            support_state=SupportState.NOT_TESTED,
         )
     if len(eligible_ids) < target_client_count:
         return SecondaryClientSelection(
             selected_client_ids=eligible_ids,
             eligible_client_ids=eligible_ids,
             eligibility=tuple(eligibility),
-            claim_state=ClaimState.SUPPORTED,
+            support_state=SupportState.SUPPORTED,
         )
     return SecondaryClientSelection(
         selected_client_ids=eligible_ids[:target_client_count],
         eligible_client_ids=eligible_ids,
         eligibility=tuple(eligibility),
-        claim_state=ClaimState.SUPPORTED,
+        support_state=SupportState.SUPPORTED,
     )
 
 

@@ -11,7 +11,7 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch, score_exceeds_threshold
-from fedcampaign_emhi.domain.enums import ClaimState, CoalitionOrder, ContextMethodName
+from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, SupportState
 from fedcampaign_emhi.domain.types import (
     BinIndex,
     Boolean,
@@ -140,7 +140,8 @@ def _order_context(
         (
             context
             for context in fit.order_contexts
-            if context.coalition_order is coalition_order and context.state is ClaimState.SUPPORTED
+            if context.coalition_order is coalition_order
+            and context.state is SupportState.SUPPORTED
         ),
         None,
     )
@@ -217,7 +218,7 @@ def _projection_cell(
         (
             cell
             for cell in coalition_fit.cells
-            if cell.context_cell == context_cell and cell.state is ClaimState.SUPPORTED
+            if cell.context_cell == context_cell and cell.state is SupportState.SUPPORTED
         ),
         None,
     )
@@ -260,7 +261,7 @@ def _coalition_standardized_atom_and_norm_at_epoch(
     coalition_fit: CoalitionFitRecord,
     epoch_index: EpochIndexValue,
 ) -> tuple[tuple[FiniteFloat, ...], FiniteFloat] | None:
-    if coalition_fit.state is not ClaimState.SUPPORTED:
+    if coalition_fit.state is not SupportState.SUPPORTED:
         return None
     order_context = _order_context(fit, coalition_fit.coalition_order)
     if order_context is None:

@@ -9,12 +9,12 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import (
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
     MethodName,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -141,7 +141,7 @@ def evaluate_finite_horizon_common_mode_seed(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=client_ids,
         eligible_client_ids=client_ids,
-        claim_state=ClaimState.SUPPORTED,
+        support_state=SupportState.SUPPORTED,
         detector_fit_epochs=nuisance_epochs,
         nuisance_fit_epochs=nuisance_epochs,
         threshold_calibration_epochs=(),

@@ -9,7 +9,7 @@ from fedcampaign_emhi.synthetic.self_explanation import (
     enumerate_self_exclusion_grid,
     evaluate_self_explanation_seed,
     exact_nuisance_derivative_within_margin,
-    material_attenuation_gate,
+    material_attenuation_criterion,
     primary_directional_test_passes,
 )
 
@@ -50,9 +50,9 @@ def test_primary_condition_is_registry_declared() -> None:
     assert matching
 
 
-def test_exact_nuisance_derivative_gate() -> None:
+def test_exact_nuisance_derivative_criterion() -> None:
     loaded = load_production_configuration()
-    margin = loaded.values.claim_materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct
+    margin = loaded.values.materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct
     assert exact_nuisance_derivative_within_margin(0.0, margin) is True
     assert (
         exact_nuisance_derivative_within_margin(margin * analytic_direct_derivative(), margin)
@@ -66,11 +66,11 @@ def test_exact_nuisance_derivative_gate() -> None:
     )
 
 
-def test_material_attenuation_gate() -> None:
+def test_material_attenuation_criterion() -> None:
     loaded = load_production_configuration()
-    minimum = loaded.values.claim_materiality.self_explanation.minimum_attenuation_difference
-    assert material_attenuation_gate(minimum, minimum) is True
-    assert material_attenuation_gate(minimum - 0.01, minimum) is False
+    minimum = loaded.values.materiality.self_explanation.minimum_attenuation_difference
+    assert material_attenuation_criterion(minimum, minimum) is True
+    assert material_attenuation_criterion(minimum - 0.01, minimum) is False
 
 
 def test_primary_directional_test() -> None:

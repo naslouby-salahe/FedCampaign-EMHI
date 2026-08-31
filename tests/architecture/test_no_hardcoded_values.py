@@ -19,7 +19,7 @@ FORMULA_OWNERS = frozenset(
         "emhi/evidence.py",
         "emhi/projection.py",
         "models/autoencoder.py",
-        "evaluation/smoke_gate.py",
+        "evaluation/smoke_validation.py",
     }
 )
 

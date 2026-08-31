@@ -48,33 +48,33 @@ class FullMethodSupportInputs:
 
 @dataclass(frozen=True)
 class FullMethodSupportResult:
-    pfa_gate_passes: Boolean
-    odi_rate_gate_passes: Boolean
-    advantage_gate_passes: Boolean
-    lead_gate_passes: Boolean
-    directional_gate_passes: Boolean
-    matched_operating_point_gate_passes: Boolean
+    pfa_criterion_satisfied: Boolean
+    odi_rate_criterion_satisfied: Boolean
+    advantage_criterion_satisfied: Boolean
+    lead_criterion_satisfied: Boolean
+    directional_criterion_satisfied: Boolean
+    matched_operating_point_criterion_satisfied: Boolean
 
     @property
     def all_criteria_pass(self) -> Boolean:
         return (
-            self.pfa_gate_passes
-            and self.odi_rate_gate_passes
-            and self.advantage_gate_passes
-            and self.lead_gate_passes
-            and self.directional_gate_passes
-            and self.matched_operating_point_gate_passes
+            self.pfa_criterion_satisfied
+            and self.odi_rate_criterion_satisfied
+            and self.advantage_criterion_satisfied
+            and self.lead_criterion_satisfied
+            and self.directional_criterion_satisfied
+            and self.matched_operating_point_criterion_satisfied
         )
 
     @property
     def failed_criteria(self) -> tuple[ComponentName, ...]:
         checks = (
-            ("heldout_pfa", self.pfa_gate_passes),
-            ("strict_odi_rate", self.odi_rate_gate_passes),
-            ("paired_odi_advantage", self.advantage_gate_passes),
-            ("median_operational_lead", self.lead_gate_passes),
-            ("directional_inference", self.directional_gate_passes),
-            ("matched_operating_point", self.matched_operating_point_gate_passes),
+            ("heldout_pfa", self.pfa_criterion_satisfied),
+            ("strict_odi_rate", self.odi_rate_criterion_satisfied),
+            ("paired_odi_advantage", self.advantage_criterion_satisfied),
+            ("median_operational_lead", self.lead_criterion_satisfied),
+            ("directional_inference", self.directional_criterion_satisfied),
+            ("matched_operating_point", self.matched_operating_point_criterion_satisfied),
         )
         return tuple(name for name, passed in checks if not passed)
 
@@ -87,7 +87,7 @@ def assert_known_experiment(config: ScientificConfig, experiment_name: Experimen
 
 def enumerate_primary_strict_odi_plan(config: ScientificConfig) -> PrimaryStrictOdiPlan:
     experiment = config.experiments.primary_strict_odi_evaluation
-    materiality = config.claim_materiality.primary_real
+    materiality = config.materiality.primary_real
     return PrimaryStrictOdiPlan(
         dataset_name=config.datasets.primary.name,
         methods=tuple(experiment.methods),
@@ -99,11 +99,11 @@ def enumerate_primary_strict_odi_plan(config: ScientificConfig) -> PrimaryStrict
     )
 
 
-def strict_odi_rate_gate(mean_odi_rate: Probability, minimum_rate: Probability) -> Boolean:
+def strict_odi_rate_criterion(mean_odi_rate: Probability, minimum_rate: Probability) -> Boolean:
     return mean_odi_rate >= minimum_rate
 
 
-def paired_odi_advantage_gate(
+def paired_odi_advantage_criterion(
     full_odi_rate: Probability,
     comparator_odi_rate: Probability,
     minimum_advantage: Probability,
@@ -111,7 +111,7 @@ def paired_odi_advantage_gate(
     return (full_odi_rate - comparator_odi_rate) >= minimum_advantage
 
 
-def median_operational_lead_gate(
+def median_operational_lead_criterion(
     median_lead_epochs: FiniteFloat,
     minimum_lead_epochs: FiniteFloat,
 ) -> Boolean:
@@ -158,22 +158,22 @@ def evaluation_epoch_budget(
 
 def evaluate_full_method_support(inputs: FullMethodSupportInputs) -> FullMethodSupportResult:
     return FullMethodSupportResult(
-        pfa_gate_passes=inputs.heldout_pfa_upper_bound <= inputs.target_pfa,
-        odi_rate_gate_passes=strict_odi_rate_gate(
+        pfa_criterion_satisfied=inputs.heldout_pfa_upper_bound <= inputs.target_pfa,
+        odi_rate_criterion_satisfied=strict_odi_rate_criterion(
             inputs.mean_strict_odi_rate,
             inputs.minimum_strict_odi_rate,
         ),
-        advantage_gate_passes=paired_odi_advantage_gate(
+        advantage_criterion_satisfied=paired_odi_advantage_criterion(
             inputs.paired_odi_advantage,
             0.0,
             inputs.minimum_odi_advantage,
         ),
-        lead_gate_passes=median_operational_lead_gate(
+        lead_criterion_satisfied=median_operational_lead_criterion(
             inputs.median_lead_among_successes,
             inputs.minimum_median_lead,
         ),
-        directional_gate_passes=inputs.directional_adjusted_p_value < inputs.nominal_alpha,
-        matched_operating_point_gate_passes=matched_operating_point_requirement(
+        directional_criterion_satisfied=inputs.directional_adjusted_p_value < inputs.nominal_alpha,
+        matched_operating_point_criterion_satisfied=matched_operating_point_requirement(
             inputs.full_operating_point_available,
             inputs.comparator_operating_point_available,
         ),

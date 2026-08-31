@@ -2,7 +2,6 @@ from fedcampaign_emhi.config.schema import FrozenConfigModel
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -13,6 +12,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     MethodName,
     OverwritePolicy,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -147,7 +147,7 @@ class PreparedDatasetRecord(FrozenConfigModel):
     dataset_name: DatasetName
     selected_client_ids: tuple[ClientId, ...] = ()
     eligible_client_ids: tuple[ClientId, ...] = ()
-    selection_claim_state: ClaimState = ClaimState.NOT_TESTED
+    selection_support_state: SupportState = SupportState.NOT_TESTED
     epochs: tuple[PreparedEpochRecord, ...]
     client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
@@ -159,7 +159,7 @@ class DatasetSplitRecord(FrozenConfigModel):
     dataset_name: DatasetName
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
-    claim_state: ClaimState
+    support_state: SupportState
     detector_fit_epochs: tuple[EpochIndexValue, ...]
     nuisance_fit_epochs: tuple[EpochIndexValue, ...]
     threshold_calibration_epochs: tuple[EpochIndexValue, ...]
@@ -224,7 +224,7 @@ class OrderContextFitRecord(FrozenConfigModel):
     coalition_order: CoalitionOrder
     context_method: ContextMethodName
     centroids: tuple[tuple[FiniteFloat, ...], ...]
-    state: ClaimState
+    state: SupportState
 
 
 class ConditionalRankReferenceRecord(FrozenConfigModel):
@@ -241,14 +241,14 @@ class ProjectionCellFitRecord(FrozenConfigModel):
     coordinate_means: tuple[FiniteFloat, ...]
     coordinate_deviations: tuple[FiniteFloat, ...]
     operational_norm_reference: FiniteFloat | None
-    state: ClaimState
+    state: SupportState
 
 
 class CoalitionFitRecord(FrozenConfigModel):
     coalition_client_ids: tuple[ClientId, ...]
     coalition_order: CoalitionOrder
     cells: tuple[ProjectionCellFitRecord, ...]
-    state: ClaimState
+    state: SupportState
 
 
 class EMHIFitArtifactRecord(FrozenConfigModel):
@@ -291,7 +291,7 @@ class StatisticalRecord(FrozenConfigModel):
     confidence_level: Probability | None
     confidence_lower: FiniteFloat | None
     confidence_upper: FiniteFloat | None
-    decision: ClaimState
+    decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -306,7 +306,7 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     numerical_failure_count: RecordCount
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
-    decision: ClaimState
+    decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -318,7 +318,7 @@ class FiniteHorizonAggregationRecord(FrozenConfigModel):
     operating_point_unavailable_count: RecordCount
     target_pfa: Probability
     maximum_heldout_upper_pfa: FiniteFloat | None
-    decision: ClaimState
+    decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -362,7 +362,7 @@ class HolmFamilyResultRecord(FrozenConfigModel):
     raw_p_value: Probability | None
     holm_input_p_value: Probability
     adjusted_p_value: Probability | None
-    decision: ClaimState
+    decision: SupportState
 
 
 class PrimaryHolmFamilyRecord(FrozenConfigModel):

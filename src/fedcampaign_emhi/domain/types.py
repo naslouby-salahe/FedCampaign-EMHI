@@ -9,7 +9,6 @@ from pydantic import Field, StringConstraints
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -22,6 +21,7 @@ from fedcampaign_emhi.domain.enums import (
     PreprocessingLayer,
     RecordExclusionReason,
     ScientificOutcomeKind,
+    SupportState,
 )
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
@@ -369,7 +369,7 @@ class PrimaryClientSelection:
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
     eligibility: tuple[ClientEligibilityRecord, ...]
-    claim_state: ClaimState
+    support_state: SupportState
 
 
 @dataclass(frozen=True)
@@ -427,7 +427,7 @@ class SecondaryClientSelection:
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
     eligibility: tuple[ClientEligibilityRecord, ...]
-    claim_state: ClaimState
+    support_state: SupportState
 
 
 @dataclass(frozen=True)

@@ -27,10 +27,10 @@ from fedcampaign_emhi.comparators.global_factor_residual import (
     selected_factor_rank,
 )
 from fedcampaign_emhi.comparators.hofd_equivalence import (
-    cosine_equivalence_gate,
-    nrmse_equivalence_gate,
-    pfa_prerequisite_gate,
-    stopping_time_equivalence_gate,
+    cosine_equivalence_criterion,
+    nrmse_equivalence_criterion,
+    pfa_prerequisite_criterion,
+    stopping_time_equivalence_criterion,
     target_coalition_for_order,
 )
 from fedcampaign_emhi.comparators.lancaster import (
@@ -208,17 +208,15 @@ def validate_comparator_runtime_contracts(config: ScientificConfig) -> None:
     methods = comparator_methods_with_runtime()
     if len(methods) != len(set(methods)):
         raise ValueError("comparator runtime contract contains duplicate methods")
-    nrmse_equivalence_gate(0.0, config.claim_materiality.hofd_equivalence.atom_nrmse_upper_margin)
-    cosine_equivalence_gate(
-        1.0, config.claim_materiality.hofd_equivalence.minimum_cosine_similarity
-    )
-    stopping_time_equivalence_gate(
+    nrmse_equivalence_criterion(0.0, config.materiality.hofd_equivalence.atom_nrmse_upper_margin)
+    cosine_equivalence_criterion(1.0, config.materiality.hofd_equivalence.minimum_cosine_similarity)
+    stopping_time_equivalence_criterion(
         0.0,
         0.0,
-        config.claim_materiality.hofd_equivalence.stopping_time_difference_interval_epochs[0],
-        config.claim_materiality.hofd_equivalence.stopping_time_difference_interval_epochs[1],
+        config.materiality.hofd_equivalence.stopping_time_difference_interval_epochs[0],
+        config.materiality.hofd_equivalence.stopping_time_difference_interval_epochs[1],
     )
-    pfa_prerequisite_gate(0.0, config.evidence.calibrated_finite_horizon.target_pfa)
+    pfa_prerequisite_criterion(0.0, config.evidence.calibrated_finite_horizon.target_pfa)
     target_coalition_for_order(
         CoalitionOrder(config.study.maximum_coalition_order),
         config.experiments.pure_order_separation_validation.primary_client_count,

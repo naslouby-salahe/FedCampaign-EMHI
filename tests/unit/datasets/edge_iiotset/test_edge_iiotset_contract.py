@@ -33,7 +33,7 @@ from fedcampaign_emhi.datasets.inventory import (
     edge_iiotset_field_mapping,
     inventory_raw_directory,
 )
-from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
+from fedcampaign_emhi.domain.enums import ExperimentState, GroundTruthClass, SupportState
 from fedcampaign_emhi.domain.types import EdgeIiotsetFlowRecord
 
 
@@ -180,12 +180,12 @@ def test_secondary_client_selection_uses_all_eligible_between_minimum_and_target
         _flow(70.0, "192.168.1.99", 1, "Backdoor"),
     )
     mid = select_secondary_clients(records, 60, 2, 2, 12, 2)
-    assert mid.claim_state is ClaimState.SUPPORTED
+    assert mid.support_state is SupportState.SUPPORTED
     assert mid.selected_client_ids == ("192.168.1.10", "192.168.1.11", "192.168.1.12")
     targeted = select_secondary_clients(records, 60, 2, 2, 2, 2)
     assert targeted.selected_client_ids == ("192.168.1.10", "192.168.1.11")
     untested = select_secondary_clients(records, 60, 2, 2, 12, 6)
-    assert untested.claim_state is ClaimState.NOT_TESTED
+    assert untested.support_state is SupportState.NOT_TESTED
     assert untested.selected_client_ids == ()
     assert tuple(inspect.signature(select_secondary_clients).parameters) == (
         "records",

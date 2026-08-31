@@ -35,10 +35,10 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     separate_benign_and_evaluation,
 )
 from fedcampaign_emhi.domain.enums import (
-    ClaimState,
     ExperimentState,
     GroundTruthClass,
     RecordExclusionReason,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import FileInventoryEntry, TonIotNetworkFlowRecord
 
@@ -211,12 +211,12 @@ def test_primary_client_selection_ranks_ties_and_rejects_undersized_federation()
         _flow(70.0, "-", 0, "normal"),
     )
     selected = select_primary_clients(records, 60, 2, 2, 3)
-    assert selected.claim_state is ClaimState.SUPPORTED
+    assert selected.support_state is SupportState.SUPPORTED
     assert selected.selected_client_ids == ("10.0.0.2", "10.0.0.1", "10.0.0.3")
     assert "10.0.0.9" not in selected.eligible_client_ids
     assert "-" not in selected.eligible_client_ids
     undersized = select_primary_clients(records, 60, 2, 2, 8)
-    assert undersized.claim_state is ClaimState.NOT_TESTED
+    assert undersized.support_state is SupportState.NOT_TESTED
     assert undersized.selected_client_ids == ()
     assert len(undersized.eligible_client_ids) == 3
     assert client_identity_is_ambiguous("-")

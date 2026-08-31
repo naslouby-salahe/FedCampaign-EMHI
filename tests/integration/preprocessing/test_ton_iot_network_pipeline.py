@@ -13,7 +13,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     select_primary_clients,
     separate_benign_and_evaluation,
 )
-from fedcampaign_emhi.domain.enums import ClaimState, ExperimentState, GroundTruthClass
+from fedcampaign_emhi.domain.enums import ExperimentState, GroundTruthClass, SupportState
 
 
 def test_adapter_pipeline_inventories_selects_and_separates(tmp_path: Path) -> None:
@@ -47,10 +47,10 @@ def test_adapter_pipeline_inventories_selects_and_separates(tmp_path: Path) -> N
     assert len(separation.discrepancies) == 1
     assert separation.discrepancies[0].ground_truth.classification is GroundTruthClass.AMBIGUOUS
     selected = select_primary_clients(records, 60, 2, 2, 2)
-    assert selected.claim_state is ClaimState.SUPPORTED
+    assert selected.support_state is SupportState.SUPPORTED
     assert selected.selected_client_ids == ("10.0.0.1", "10.0.0.2")
     undersized = select_primary_clients(records, 60, 2, 2, 5)
-    assert undersized.claim_state is ClaimState.NOT_TESTED
+    assert undersized.support_state is SupportState.NOT_TESTED
     assert undersized.selected_client_ids == ()
     attachment = attach_epoch_ground_truth(records[4], 60)
     assert attachment.epoch.index == 2

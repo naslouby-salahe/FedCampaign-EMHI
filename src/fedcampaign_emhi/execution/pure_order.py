@@ -11,12 +11,12 @@ from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import (
-    ClaimState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
     MethodName,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import Boolean, ClientId, FiniteFloat, SeedValue
 from fedcampaign_emhi.emhi.innovation_calibration import build_emhi_fit_artifact
@@ -155,7 +155,7 @@ def evaluate_fitted_pure_order_cell(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=client_ids,
         eligible_client_ids=client_ids,
-        claim_state=ClaimState.SUPPORTED,
+        support_state=SupportState.SUPPORTED,
         detector_fit_epochs=nuisance_epochs,
         nuisance_fit_epochs=nuisance_epochs,
         threshold_calibration_epochs=(),

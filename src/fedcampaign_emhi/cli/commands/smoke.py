@@ -24,7 +24,9 @@ def smoke_command(
     typer.echo(f"experiment={ExperimentName.SYNTHETIC_MODULE_VALIDATION.value}")
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"overwrite={overwrite}")
-    typer.echo(f"smoke_gate={'PASS' if result.state is ExperimentState.COMPLETED else 'FAIL'}")
+    typer.echo(
+        f"smoke_validation={'PASS' if result.state is ExperimentState.COMPLETED else 'FAIL'}"
+    )
     typer.echo(f"state={result.state.value}")
     typer.echo(f"completed_cells={result.completed_cell_count}")
     typer.echo(f"detail={result.detail}")

@@ -50,7 +50,7 @@ class SmokeFixtureName:
 
 
 @dataclass(frozen=True)
-class SmokeGateResult:
+class SmokeValidationResult:
     passed: Boolean
     failures: tuple[SmokeFixtureName, ...]
 
@@ -107,7 +107,7 @@ class SemanticIdempotencyRecord:
         }
 
 
-def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> SmokeGateResult:
+def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> SmokeValidationResult:
     context = loaded.values.context
     projection = loaded.values.projection
     evidence = loaded.values.evidence
@@ -261,7 +261,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(CAMPAIGN_DURATION, campaign_duration_epochs(1, 4) == 4, failures)
     _check(NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)
 
-    return SmokeGateResult(passed=not failures, failures=tuple(failures))
+    return SmokeValidationResult(passed=not failures, failures=tuple(failures))
 
 
 def smoke_false_stop_counts() -> tuple[RecordCount, ...]:

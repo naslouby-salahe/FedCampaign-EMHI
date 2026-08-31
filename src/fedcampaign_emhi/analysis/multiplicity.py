@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
-from fedcampaign_emhi.domain.enums import ClaimState, PrimaryHolmHypothesis, SecondaryHolmHypothesis
+from fedcampaign_emhi.domain.enums import (
+    PrimaryHolmHypothesis,
+    SecondaryHolmHypothesis,
+    SupportState,
+)
 from fedcampaign_emhi.domain.types import ComponentName, Probability
 
 
@@ -8,7 +12,7 @@ from fedcampaign_emhi.domain.types import ComponentName, Probability
 class HolmHypothesisInput:
     identifier: ComponentName
     raw_p_value: Probability | None
-    decision: ClaimState
+    decision: SupportState
 
 
 @dataclass(frozen=True)
@@ -17,7 +21,7 @@ class HolmHypothesisResult:
     raw_p_value: Probability | None
     holm_input_p_value: Probability
     adjusted_p_value: Probability | None
-    decision: ClaimState
+    decision: SupportState
 
 
 def holm_adjusted_p_values(

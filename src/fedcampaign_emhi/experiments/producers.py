@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
 from fedcampaign_emhi.comparators.hofd_equivalence import (
-    cosine_equivalence_gate,
-    nrmse_equivalence_gate,
+    cosine_equivalence_criterion,
+    nrmse_equivalence_criterion,
     paired_atom_metrics,
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
@@ -46,7 +46,7 @@ from fedcampaign_emhi.synthetic.robustness import (
 from fedcampaign_emhi.synthetic.self_explanation import (
     evaluate_self_explanation_seed,
     exact_nuisance_derivative_within_margin,
-    material_attenuation_gate,
+    material_attenuation_criterion,
 )
 from fedcampaign_emhi.synthetic.sequential import (
     SignedTheoremSeedMetrics,
@@ -93,16 +93,9 @@ def _evaluate_hofd_equivalence_seed(
     loaded: LoadedScientificConfiguration,
     seed: SeedValue,
 ) -> SyntheticCellOutcome:
-    """Compare the fitted EMHI residual with the exclusion-matched HOFD residual.
-
-    Each configured support level is an independent held-out condition.  EMHI
-    uses its configured cross-fitted calibration route; HOFD uses its declared
-    ridge/SVD route on the identical rank rows.  This keeps the comparison
-    paired without silently substituting a proxy scorer.
-    """
     config = loaded.values
     experiment = config.experiments.exclusion_matched_hofd_equivalence
-    materiality = config.claim_materiality.hofd_equivalence
+    materiality = config.materiality.hofd_equivalence
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
     condition_records: list[YamlNode] = []
     failures: list[ComponentName] = []
@@ -161,8 +154,10 @@ def _evaluate_hofd_equivalence_seed(
             hofd_atoms,
             config.numerics.metric_denominator_floor,
         )
-        nrmse_passes = nrmse_equivalence_gate(metrics.nrmse, materiality.atom_nrmse_upper_margin)
-        cosine_passes = cosine_equivalence_gate(
+        nrmse_passes = nrmse_equivalence_criterion(
+            metrics.nrmse, materiality.atom_nrmse_upper_margin
+        )
+        cosine_passes = cosine_equivalence_criterion(
             metrics.cosine_similarity, materiality.minimum_cosine_similarity
         )
         if not nrmse_passes:
@@ -363,13 +358,13 @@ def run_synthetic_cell(
     if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
         result = evaluate_self_explanation_seed(config, seed)
         failures: list[ComponentName] = []
-        materiality = config.claim_materiality.self_explanation
+        materiality = config.materiality.self_explanation
         if not exact_nuisance_derivative_within_margin(
             result.primary_exact_nuisance_derivative,
             materiality.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
         ):
             failures.append("self-explanation exact nuisance derivative")
-        if not material_attenuation_gate(
+        if not material_attenuation_criterion(
             result.primary_attenuation_contrast,
             materiality.minimum_attenuation_difference,
         ):
@@ -494,7 +489,7 @@ def run_synthetic_cell(
             {
                 "condition_count": len(records),
                 "conditions": records,
-                "implementation_state": "partial_projection_scorer_not_claim_eligible",
+                "implementation_state": "method_evaluation_unavailable",
             },
             pure_order_metrics=primary_metrics,
         )

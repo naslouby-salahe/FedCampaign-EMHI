@@ -11,7 +11,12 @@ from fedcampaign_emhi.artifacts.records import (
     ProjectionCellFitRecord,
 )
 from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import ClaimState, CoalitionOrder, ContextMethodName, MethodName
+from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
+    ContextMethodName,
+    MethodName,
+    SupportState,
+)
 from fedcampaign_emhi.domain.types import (
     BasisSize,
     BinIndex,
@@ -338,7 +343,7 @@ def _fit_order_context(
             coalition_order=coalition_order,
             context_method=context_method,
             centroids=((1.0,),),
-            state=ClaimState.SUPPORTED,
+            state=SupportState.SUPPORTED,
         )
     rows = tuple(
         row
@@ -380,13 +385,13 @@ def _fit_order_context(
             coalition_order=coalition_order,
             context_method=context_method,
             centroids=(),
-            state=ClaimState.NOT_TESTED,
+            state=SupportState.NOT_TESTED,
         )
     return OrderContextFitRecord(
         coalition_order=coalition_order,
         context_method=context_method,
         centroids=centroids.centroids,
-        state=ClaimState.SUPPORTED,
+        state=SupportState.SUPPORTED,
     )
 
 
@@ -546,7 +551,7 @@ def _cross_fitted_cell_statistics(
                 training_epochs,
             )
             order_context_cache[order_context_key] = order_context
-        if order_context.state is not ClaimState.SUPPORTED:
+        if order_context.state is not SupportState.SUPPORTED:
             continue
         if context_cell >= len(order_context.centroids):
             continue
@@ -677,7 +682,7 @@ def _fit_projection_cell(
             coordinate_means=(),
             coordinate_deviations=(),
             operational_norm_reference=None,
-            state=ClaimState.NOT_TESTED,
+            state=SupportState.NOT_TESTED,
         )
     rows = _conditioned_rows(config, ranks, coalition, epochs, references)
     design_rows, tensors = _design_and_tensors(rows, basis_size)
@@ -701,7 +706,7 @@ def _fit_projection_cell(
             coordinate_means=(),
             coordinate_deviations=(),
             operational_norm_reference=None,
-            state=ClaimState.NOT_TESTED,
+            state=SupportState.NOT_TESTED,
         )
     means, deviations, norm_reference = cross_fitted_statistics
     return ProjectionCellFitRecord(
@@ -716,7 +721,7 @@ def _fit_projection_cell(
         coordinate_means=means,
         coordinate_deviations=deviations,
         operational_norm_reference=norm_reference,
-        state=ClaimState.SUPPORTED,
+        state=SupportState.SUPPORTED,
     )
 
 
@@ -771,13 +776,13 @@ def build_emhi_fit_artifact(
         order_context = next(
             context for context in order_contexts if context.coalition_order is coalition.order
         )
-        if order_context.state is not ClaimState.SUPPORTED:
+        if order_context.state is not SupportState.SUPPORTED:
             coalition_fits.append(
                 CoalitionFitRecord(
                     coalition_client_ids=coalition.client_ids,
                     coalition_order=coalition.order,
                     cells=(),
-                    state=ClaimState.NOT_TESTED,
+                    state=SupportState.NOT_TESTED,
                 )
             )
             continue
@@ -831,9 +836,9 @@ def build_emhi_fit_artifact(
                 coalition_order=coalition.order,
                 cells=tuple(cells),
                 state=(
-                    ClaimState.SUPPORTED
-                    if any(cell.state is ClaimState.SUPPORTED for cell in cells)
-                    else ClaimState.NOT_TESTED
+                    SupportState.SUPPORTED
+                    if any(cell.state is SupportState.SUPPORTED for cell in cells)
+                    else SupportState.NOT_TESTED
                 ),
             )
         )

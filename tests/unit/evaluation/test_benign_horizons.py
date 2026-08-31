@@ -14,7 +14,7 @@ from fedcampaign_emhi.datasets.preprocessing import (
     complete_benign_horizons,
     horizon_eligibility_state,
 )
-from fedcampaign_emhi.domain.enums import ClaimState
+from fedcampaign_emhi.domain.enums import SupportState
 from fedcampaign_emhi.evaluation.benign_horizons import (
     TrajectoryCache,
     horizon_trajectory,
@@ -33,7 +33,7 @@ def test_horizons_are_consecutive_nonoverlapping_and_drop_trailing() -> None:
     assert 19 not in horizons[2].epoch_indexes
     assert horizons_are_nonoverlapping(horizons)
     assert sequential_stop_reset_epochs(horizons) == (10, 13, 16)
-    assert horizon_eligibility_state(len(horizons), 4) is ClaimState.NOT_TESTED
+    assert horizon_eligibility_state(len(horizons), 4) is SupportState.NOT_TESTED
 
 
 def test_trajectory_cache_is_reused_only_for_identical_evaluation_inputs(
