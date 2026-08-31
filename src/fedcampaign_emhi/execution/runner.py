@@ -2286,7 +2286,7 @@ def _calibrate_comparator_operating_point(
     return selected, calibration_counts, len(calibration_horizons), heldout_count, upper
 
 
-def _materialize_seed_statistics(
+def materialize_seed_statistics(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     experiment_name: ExperimentName,
@@ -2312,6 +2312,20 @@ def _materialize_seed_statistics(
         else:
             method_name, records = method_groups[existing]
             method_groups[existing] = (method_name, (*records, summary))
+    expected_confirmatory = loaded.values.randomness.real_confirmatory_roots
+    method_groups = [
+        (method_name, records)
+        for method_name, records in method_groups
+        if confirmatory_completeness_within_tolerance(
+            loaded,
+            expected_confirmatory,
+            tuple(
+                record.seed
+                for record in records
+                if record.execution_role is ExecutionRole.CONFIRMATORY
+            ),
+        )
+    ]
     if not method_groups:
         return ()
     raw_p_values: list[FiniteFloat] = []
@@ -2893,7 +2907,7 @@ def execute_experiment(
         repository,
         experiment_name,
     )
-    _materialize_seed_statistics(loaded, repository, experiment_name)
+    materialize_seed_statistics(loaded, repository, experiment_name)
     _materialize_not_tested_primary_holm_statistic(loaded, repository, experiment_name)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
