@@ -20,10 +20,12 @@ from fedcampaign_emhi.domain.types import (
     BinIndex,
     Boolean,
     ByteCount,
+    CellCount,
     ClientId,
     ComponentName,
     ConfigurationDigest,
     EpochIndexValue,
+    FalseAlarmRate,
     FiniteFloat,
     MaterialDependencyFingerprint,
     NumericalFloor,
@@ -308,6 +310,29 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
     decision: SupportState
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class ContextEstimatorSensitivityMetrics(FrozenConfigModel):
+    heldout_pfa: FalseAlarmRate | None
+    campaign_detection_rate: Probability
+    strict_odi_rate: Probability
+    operational_lead_mean: FiniteFloat | None
+    context_coverage: Probability
+    abstention_rate: Probability
+    numerical_failure_rate: Probability
+
+
+class ContextEstimatorSensitivityCellRecord(FrozenConfigModel):
+    seed: SeedValue
+    basis_size_override: BasisSize | None
+    context_cell_count_override: CellCount | None
+    forced_ridge_override: RidgePenalty | None
+    context_method_override: ContextMethodName | None
+    condition: ContextEstimatorSensitivityMetrics
+    base: ContextEstimatorSensitivityMetrics
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest

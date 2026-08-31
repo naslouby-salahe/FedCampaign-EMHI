@@ -33,6 +33,8 @@ from fedcampaign_emhi.artifacts.records import (
     BenignPartitionRecord,
     CampaignRegistryRecord,
     CompletionRecord,
+    ContextEstimatorSensitivityCellRecord,
+    ContextEstimatorSensitivityMetrics,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
@@ -86,8 +88,10 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    BasisSize,
     BenignHorizon,
     Boolean,
+    CellCount,
     ComponentName,
     ConfigurationDigest,
     EpochIndexValue,
@@ -99,6 +103,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     RelativePath,
     ResumeStep,
+    RidgePenalty,
     RuntimeSeconds,
     SeedValue,
 )
@@ -3059,6 +3064,346 @@ def _execute_real_emhi_methods(
     return completed, ()
 
 
+def sensitivity_base_specification(
+    loaded: LoadedScientificConfiguration,
+) -> tuple[ContextMethodName, CoalitionOrder, Boolean]:
+    specification = _emhi_method_specification(MethodName.FULL_FEDCAMPAIGN_EMHI)
+    if specification is None:
+        raise ValueError("Full FedCampaign-EMHI must be a registered EMHI hierarchy")
+    return (
+        specification.context_method,
+        specification.maximum_order,
+        specification.purification_enabled,
+    )
+
+
+def _sensitivity_condition_fit(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    ranks: MarginalRankArtifactRecord,
+    split: DatasetSplitRecord,
+    context_method: ContextMethodName,
+    maximum_order: CoalitionOrder,
+    basis_size: BasisSize,
+    cell_count: CellCount,
+    purification_enabled: Boolean,
+    forced_no_abstention: Boolean,
+    ridge_candidates: tuple[RidgePenalty, ...] | None,
+) -> EMHIFitArtifactRecord:
+    condition_digest = payload_digest(
+        cast(
+            YamlNode,
+            {
+                "context_method": context_method.value,
+                "basis_size": basis_size,
+                "cell_count": cell_count,
+                "forced_no_abstention": forced_no_abstention,
+                "ridge_candidates": None if ridge_candidates is None else list(ridge_candidates),
+            },
+        )
+    )
+    fingerprint = material_fingerprint(
+        nuisance_context_boundary_digest(loaded.values), (condition_digest,)
+    )
+    return build_emhi_fit_artifact(
+        loaded.values,
+        scores,
+        ranks,
+        split,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        context_method,
+        maximum_order,
+        basis_size,
+        cell_count,
+        purification_enabled,
+        forced_no_abstention,
+        fingerprint,
+        ridge_candidates,
+    )
+
+
+def _emhi_metrics_for_fit(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    split: DatasetSplitRecord,
+    partitions: BenignPartitionRecord,
+    campaigns: CampaignRegistryRecord,
+    target_local_pfa: FalseAlarmRate,
+) -> ContextEstimatorSensitivityMetrics:
+    calibration = calibrate_operating_points(
+        loaded.values,
+        scores,
+        ranks,
+        fit,
+        split.nuisance_fit_epochs,
+        partitions,
+        target_local_pfa,
+    )
+    campaign_rows, odi_values = _campaign_rows(loaded, scores, ranks, fit, campaigns, calibration)
+    rows = tuple(cast(Mapping[str, YamlNode], row) for row in campaign_rows)
+    detection_rate = (
+        sum(cast(Boolean, row["global_detected_within_horizon"]) for row in rows) / len(rows)
+        if rows
+        else 0.0
+    )
+    strict_odi_rate = sum(odi_values) / len(odi_values) if odi_values else 0.0
+    leads = tuple(
+        cast(FiniteFloat, row["operational_lead_epochs"])
+        for row in rows
+        if row["operational_lead_epochs"] is not None
+    )
+    operational_lead_mean = sum(leads) / len(leads) if leads else None
+    coverages = tuple(cast(FiniteFloat, row["context_coverage"]) for row in rows)
+    context_coverage = sum(coverages) / len(coverages) if coverages else 0.0
+    total_cells = sum(len(coalition_fit.cells) for coalition_fit in fit.coalition_fits)
+    failed_cells = sum(
+        1
+        for coalition_fit in fit.coalition_fits
+        for cell in coalition_fit.cells
+        if cell.numerical_failure
+    )
+    return ContextEstimatorSensitivityMetrics(
+        heldout_pfa=calibration.global_operating_point.heldout_upper_pfa,
+        campaign_detection_rate=detection_rate,
+        strict_odi_rate=strict_odi_rate,
+        operational_lead_mean=operational_lead_mean,
+        context_coverage=context_coverage,
+        abstention_rate=1.0 - context_coverage,
+        numerical_failure_rate=(failed_cells / total_cells if total_cells else 0.0),
+    )
+
+
+def sensitivity_conditions(
+    loaded: LoadedScientificConfiguration,
+    base_context_method: ContextMethodName,
+) -> tuple[
+    tuple[
+        BasisSize | None,
+        CellCount | None,
+        RidgePenalty | None,
+        ContextMethodName | None,
+        BasisSize,
+        CellCount,
+        tuple[RidgePenalty, ...] | None,
+        ContextMethodName,
+        Boolean,
+    ],
+    ...,
+]:
+    sensitivity = loaded.values.experiments.context_and_estimator_sensitivity
+    primary_basis_size = loaded.values.basis.primary_size
+    primary_cell_count = loaded.values.context.primary_cell_count
+    conditions: list[
+        tuple[
+            BasisSize | None,
+            CellCount | None,
+            RidgePenalty | None,
+            ContextMethodName | None,
+            BasisSize,
+            CellCount,
+            tuple[RidgePenalty, ...] | None,
+            ContextMethodName,
+            Boolean,
+        ]
+    ] = []
+    for basis_size in loaded.values.basis.sensitivity_sizes:
+        conditions.append(
+            (
+                basis_size,
+                None,
+                None,
+                None,
+                basis_size,
+                primary_cell_count,
+                None,
+                base_context_method,
+                False,
+            )
+        )
+    for cell_count in loaded.values.context.cell_count_sensitivity:
+        conditions.append(
+            (
+                None,
+                cell_count,
+                None,
+                None,
+                primary_basis_size,
+                cell_count,
+                None,
+                base_context_method,
+                False,
+            )
+        )
+    conditions.append(
+        (
+            None,
+            None,
+            sensitivity.forced_ridge,
+            None,
+            primary_basis_size,
+            primary_cell_count,
+            (sensitivity.forced_ridge,),
+            base_context_method,
+            False,
+        )
+    )
+    for context_variant in sensitivity.context_variants:
+        forced_no_abstention = context_variant is ContextMethodName.FORCED_NO_ABSTENTION
+        variant_context_method = base_context_method if forced_no_abstention else context_variant
+        conditions.append(
+            (
+                None,
+                None,
+                None,
+                context_variant,
+                primary_basis_size,
+                primary_cell_count,
+                None,
+                variant_context_method,
+                forced_no_abstention,
+            )
+        )
+    return tuple(conditions)
+
+
+def sensitivity_cell_slug(
+    basis_override: BasisSize | None,
+    cell_override: CellCount | None,
+    ridge_override: RidgePenalty | None,
+    method_override: ContextMethodName | None,
+) -> RelativePath:
+    if basis_override is not None:
+        return f"basis-size-{basis_override}"
+    if cell_override is not None:
+        return f"context-cell-count-{cell_override}"
+    if ridge_override is not None:
+        return f"forced-ridge-{ridge_override}"
+    if method_override is not None:
+        return _method_slug(cast(MethodName, method_override))
+    raise ValueError("sensitivity cell requires exactly one overridden factor")
+
+
+def materialize_context_and_estimator_sensitivity_cells(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> tuple[Path, ...]:
+    experiment_name = ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY
+    dataset_name = loaded.values.datasets.primary.name
+    base_context_method, maximum_order, purification_enabled = sensitivity_base_specification(
+        loaded
+    )
+    _inventory_path, prepared_path, split_path, partitions_path, campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return ()
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    target_local_pfa = _local_pfa_target(loaded, experiment_name)
+    conditions = sensitivity_conditions(loaded, base_context_method)
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    paths: list[Path] = []
+    for seed in loaded.values.randomness.real_development_roots:
+        score_path = with_technical_retry(
+            loaded,
+            partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+        )
+        rank_path = with_technical_retry(
+            loaded,
+            partial(
+                _materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path
+            ),
+        )
+        base_fit_path = with_technical_retry(
+            loaded,
+            partial(
+                _materialize_emhi_fit,
+                loaded,
+                repository,
+                dataset_name,
+                seed,
+                MethodName.FULL_FEDCAMPAIGN_EMHI,
+                score_path,
+                rank_path,
+            ),
+        )
+        scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+        ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+        base_fit = EMHIFitArtifactRecord.model_validate_json(base_fit_path.read_bytes())
+        base_metrics = _emhi_metrics_for_fit(
+            loaded, scores, ranks, base_fit, split, partitions, campaigns, target_local_pfa
+        )
+        for (
+            basis_override,
+            cell_override,
+            ridge_override,
+            method_override,
+            basis_size,
+            cell_count,
+            ridge_candidates,
+            context_method,
+            forced_no_abstention,
+        ) in conditions:
+            condition_fit = _sensitivity_condition_fit(
+                loaded,
+                scores,
+                ranks,
+                split,
+                context_method,
+                maximum_order,
+                basis_size,
+                cell_count,
+                purification_enabled,
+                forced_no_abstention,
+                ridge_candidates,
+            )
+            condition_metrics = _emhi_metrics_for_fit(
+                loaded, scores, ranks, condition_fit, split, partitions, campaigns, target_local_pfa
+            )
+            source_paths = (score_path, rank_path, base_fit_path)
+            source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+            payload: YamlNode = {
+                "seed": seed,
+                "basis_size_override": basis_override,
+                "context_cell_count_override": cell_override,
+                "forced_ridge_override": ridge_override,
+                "context_method_override": (
+                    None if method_override is None else method_override.value
+                ),
+                "condition": cast(YamlNode, condition_metrics.model_dump(mode="json")),
+                "base": cast(YamlNode, base_metrics.model_dump(mode="json")),
+                "source_result_ids": list(source_ids),
+            }
+            record = ContextEstimatorSensitivityCellRecord(
+                seed=seed,
+                basis_size_override=basis_override,
+                context_cell_count_override=cell_override,
+                forced_ridge_override=ridge_override,
+                context_method_override=method_override,
+                condition=condition_metrics,
+                base=base_metrics,
+                source_result_ids=source_ids,
+                dependency_fingerprint=material_fingerprint(
+                    nuisance_context_boundary_digest(loaded.values),
+                    tuple(file_sha256(path) for path in source_paths),
+                ),
+                content_digest=payload_digest(payload),
+            )
+            slug = sensitivity_cell_slug(
+                basis_override, cell_override, ridge_override, method_override
+            )
+            path = root / "diagnostics" / "sensitivity" / f"seed-{seed}" / f"{slug}.json"
+            write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+            paths.append(path)
+    return tuple(paths)
+
+
 def execute_experiment(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -3099,6 +3444,22 @@ def execute_experiment(
             run_record_path=run_path,
             completed_cell_count=0,
             detail="required deterministic preprocessing artifacts are missing",
+        )
+    if experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
+        sensitivity_cells = materialize_context_and_estimator_sensitivity_cells(loaded, repository)
+        run_path = publish_experiment_run_record(
+            loaded,
+            repository,
+            experiment_name,
+            overwrite_policy,
+            ExperimentState.COMPLETED,
+        )
+        return ExperimentExecutionResult(
+            experiment_name=experiment_name,
+            state=ExperimentState.COMPLETED,
+            run_record_path=run_path,
+            completed_cell_count=len(sensitivity_cells),
+            detail="one-factor sensitivity diagnostic cells completed",
         )
     if not contract.methods:
         prepared_path = _preprocessing_paths(
