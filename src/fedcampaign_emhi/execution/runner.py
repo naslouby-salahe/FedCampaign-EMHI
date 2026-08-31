@@ -12,6 +12,7 @@ from fedcampaign_emhi.analysis.statistics import (
     mean_bca_one_sided_lower_bound,
     one_sided_synthetic_sign_flip_p_value,
     paired_mean_bca_interval,
+    sign_flip_p_value,
     two_sided_sign_flip_p_value,
 )
 from fedcampaign_emhi.analysis.summaries import build_seed_summary
@@ -28,6 +29,7 @@ from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ArtifactManifest,
+    BenignHorizonRecord,
     BenignPartitionRecord,
     CampaignRegistryRecord,
     CompletionRecord,
@@ -84,6 +86,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    BenignHorizon,
     Boolean,
     ComponentName,
     ConfigurationDigest,
@@ -113,8 +116,10 @@ from fedcampaign_emhi.emhi.thresholds import (
 from fedcampaign_emhi.evaluation.benign_horizons import (
     TrajectoryCache,
     calibrate_client_local_operating_point,
+    calibrate_global_operating_point,
     calibrate_operating_points,
     heldout_benign_false_stop_records,
+    horizon_trajectory,
 )
 from fedcampaign_emhi.evaluation.campaign_replay import (
     campaign_trajectory,
@@ -145,6 +150,15 @@ from fedcampaign_emhi.execution.pure_order import (
     emhi_method_settings,
     evaluate_comparator_pure_order_cell,
     evaluate_fitted_pure_order_cell,
+)
+from fedcampaign_emhi.experiments.benign_robustness import (
+    EpochEventVolume,
+    enumerate_benign_common_mode_plan,
+    federation_wide_epoch_event_counts,
+    paired_false_campaign_difference,
+    rolling_benign_horizons,
+    select_high_volume_windows,
+    window_event_counts,
 )
 from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
 from fedcampaign_emhi.experiments.producers import (
@@ -2501,6 +2515,226 @@ def _materialize_not_tested_primary_holm_statistic(
     return path
 
 
+def _stress_window_false_declaration_rate(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    threshold: FiniteFloat | None,
+    stress_windows: tuple[BenignHorizon, ...],
+    trajectory_cache: TrajectoryCache,
+) -> FiniteFloat | None:
+    if threshold is None or not stress_windows:
+        return None
+    stops = tuple(
+        global_stop_epoch(
+            horizon_trajectory(
+                config,
+                ranks,
+                fit,
+                BenignHorizonRecord(
+                    start_epoch=window.start_epoch, epoch_indexes=window.epoch_indexes
+                ),
+                None,
+                trajectory_cache,
+            ),
+            threshold,
+        )
+        is not None
+        for window in stress_windows
+    )
+    return sum(stops) / len(stops)
+
+
+def _comparator_stress_window_false_declaration_rate(
+    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    threshold: FiniteFloat | None,
+    stress_windows: tuple[BenignHorizon, ...],
+) -> FiniteFloat | None:
+    if threshold is None or not stress_windows:
+        return None
+    stops = tuple(
+        _comparator_stop(evidence_scores, window.epoch_indexes, threshold) is not None
+        for window in stress_windows
+    )
+    return sum(stops) / len(stops)
+
+
+def _benign_common_mode_seed_difference(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    stress_windows: tuple[BenignHorizon, ...],
+) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+    _inventory_path, _prepared_path, split_path, partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    score_path = with_technical_retry(
+        loaded,
+        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+    )
+    rank_path = with_technical_retry(
+        loaded,
+        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
+    )
+    ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    fit_path = with_technical_retry(
+        loaded,
+        partial(
+            _materialize_emhi_fit,
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            score_path,
+            rank_path,
+        ),
+    )
+    fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
+    emhi_calibration = calibrate_global_operating_point(loaded.values, ranks, fit, partitions)
+    trajectory_cache = TrajectoryCache()
+    emhi_fcr = _stress_window_false_declaration_rate(
+        loaded.values,
+        ranks,
+        fit,
+        emhi_calibration.threshold,
+        stress_windows,
+        trajectory_cache,
+    )
+    raw_scores = _comparator_epoch_scores(
+        loaded, repository, ranks, MethodName.RAW_MEAN_RANK_FUSION
+    )
+    comparator_scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
+    comparator_threshold, *_rest = _calibrate_comparator_operating_point(
+        loaded, comparator_scores, partitions
+    )
+    raw_mean_fcr = _comparator_stress_window_false_declaration_rate(
+        comparator_scores, comparator_threshold, stress_windows
+    )
+    if emhi_fcr is None or raw_mean_fcr is None:
+        return None
+    return (
+        paired_false_campaign_difference(raw_mean_fcr, emhi_fcr),
+        (score_path, rank_path, fit_path),
+    )
+
+
+def materialize_benign_common_mode_statistic(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> Path | None:
+    experiment_name = ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS
+    plan = enumerate_benign_common_mode_plan(loaded.values)
+    required_methods = {
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        MethodName.RAW_MEAN_RANK_FUSION,
+    }
+    if not required_methods.issubset(plan.methods):
+        return None
+    _inventory_path, prepared_path, split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, plan.dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return None
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    horizon_length = loaded.values.campaign.evaluation_horizon_epochs
+    all_windows = rolling_benign_horizons(
+        split.heldout_benign_epochs,
+        horizon_length,
+        plan.stress_stride_epochs,
+    )
+    if not all_windows:
+        return None
+    epoch_volumes = tuple(
+        EpochEventVolume(
+            client_id=epoch.client_id,
+            epoch_index=epoch.epoch_index,
+            raw_event_count=epoch.raw_event_count,
+        )
+        for epoch in prepared.epochs
+    )
+    epoch_totals = federation_wide_epoch_event_counts(epoch_volumes, prepared.selected_client_ids)
+    counts = window_event_counts(all_windows, epoch_totals)
+    stress_windows = select_high_volume_windows(all_windows, counts, plan.top_event_count_fraction)
+    expected_confirmatory = loaded.values.randomness.real_confirmatory_roots
+    differences: list[FiniteFloat] = []
+    source_paths: list[Path] = []
+    covered_seeds: list[SeedValue] = []
+    for seed in expected_confirmatory:
+        outcome = _benign_common_mode_seed_difference(
+            loaded, repository, plan.dataset_name, seed, stress_windows
+        )
+        if outcome is None:
+            continue
+        difference, seed_paths = outcome
+        differences.append(difference)
+        source_paths.extend(seed_paths)
+        covered_seeds.append(seed)
+    if not confirmatory_completeness_within_tolerance(
+        loaded, expected_confirmatory, tuple(covered_seeds)
+    ):
+        return None
+    estimate = sum(differences) / len(differences)
+    flipped = exact_sign_flip_means(tuple(differences))
+    raw_p_value = sign_flip_p_value(estimate, flipped, True)
+    interval = paired_mean_bca_interval(
+        tuple(differences),
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "hypothesis_identifier": PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION.value,
+        "metric_name": "false_campaign_reduction",
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": len(differences),
+        "estimate": estimate,
+        "raw_p_value": raw_p_value,
+        "confidence_level": loaded.values.statistics.confidence_level,
+        "confidence_lower": interval[0],
+        "confidence_upper": interval[1],
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier=PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION.value,
+        metric_name="false_campaign_reduction",
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=len(differences),
+        estimate=estimate,
+        raw_p_value=raw_p_value,
+        adjusted_p_value=None,
+        confidence_level=loaded.values.statistics.confidence_level,
+        confidence_lower=interval[0],
+        confidence_upper=interval[1],
+        decision=(
+            SupportState.SUPPORTED
+            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
+            else SupportState.NULL_RESULT
+        ),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    path = root / "statistics" / "tests" / "common-mode-false-campaign-reduction.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
+
+
 def _evaluate_comparator_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -2909,6 +3143,8 @@ def execute_experiment(
     )
     materialize_seed_statistics(loaded, repository, experiment_name)
     _materialize_not_tested_primary_holm_statistic(loaded, repository, experiment_name)
+    if experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
+        materialize_benign_common_mode_statistic(loaded, repository)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,
