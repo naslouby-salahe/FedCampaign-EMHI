@@ -116,3 +116,13 @@ def paired_false_campaign_difference(
     raw_mean_fcr: Probability, emhi_fcr: Probability
 ) -> FiniteFloat:
     return raw_mean_fcr - emhi_fcr
+
+
+def synthetic_count_stress_multiplier(
+    bucket_counts: tuple[FiniteFloat, ...], factor: FiniteFloat
+) -> tuple[FiniteFloat, ...]:
+    if factor <= 0.0:
+        raise ValueError("benign count multiplication factors must be positive")
+    if not bucket_counts:
+        raise ValueError("count stress requires at least one raw event-count bucket")
+    return tuple(float(count) * factor for count in bucket_counts)

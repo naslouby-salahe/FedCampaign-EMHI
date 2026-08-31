@@ -2,6 +2,7 @@ import hashlib
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from functools import partial
+from math import expm1, log1p
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -31,9 +32,12 @@ from fedcampaign_emhi.artifacts.records import (
     BenignHorizonRecord,
     BenignPartitionRecord,
     CampaignRegistryRecord,
+    ClientDetectorScoreStream,
+    ClientFeatureScalerRecord,
     CompletionRecord,
     ContextEstimatorSensitivityCellRecord,
     ContextEstimatorSensitivityMetrics,
+    CountStressDiagnosticRecord,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
@@ -68,7 +72,13 @@ from fedcampaign_emhi.comparators.runtime import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.detection.scoring import build_detector_score_artifact
+from fedcampaign_emhi.datasets.preprocessing import apply_robust_scaler, shannon_entropy
+from fedcampaign_emhi.detection.detector_assignment import assign_detector_families
+from fedcampaign_emhi.detection.scoring import (
+    build_detector_score_artifact,
+    detector_seed,
+    score_client,
+)
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
@@ -102,6 +112,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     RelativePath,
     RidgePenalty,
+    RobustScaler,
     RuntimeSeconds,
     SeedValue,
 )
@@ -161,6 +172,7 @@ from fedcampaign_emhi.experiments.benign_robustness import (
     paired_false_campaign_difference,
     rolling_benign_horizons,
     select_high_volume_windows,
+    synthetic_count_stress_multiplier,
     window_event_counts,
 )
 from fedcampaign_emhi.experiments.definitions import ExperimentContract, experiment_registry
@@ -2734,6 +2746,236 @@ def materialize_benign_common_mode_statistic(
     return path
 
 
+def stress_epoch_feature_values(
+    unscaled_feature_values: tuple[FiniteFloat, ...],
+    factor: FiniteFloat,
+) -> tuple[FiniteFloat, ...]:
+    if len(unscaled_feature_values) < 2:
+        raise ValueError(
+            "count stress requires at least one bucket plus the total/entropy dimensions"
+        )
+    bucket_values = unscaled_feature_values[:-2]
+    total_value = unscaled_feature_values[-2]
+    bucket_counts = tuple(expm1(value) for value in bucket_values)
+    stressed_counts = synthetic_count_stress_multiplier(bucket_counts, factor)
+    stressed_log1p = tuple(log1p(count) for count in stressed_counts)
+    stressed_total = total_value * factor
+    stressed_entropy = shannon_entropy(stressed_counts)
+    return (*stressed_log1p, stressed_total, stressed_entropy)
+
+
+def _apply_client_scaler(
+    scaler: ClientFeatureScalerRecord, values: tuple[FiniteFloat, ...]
+) -> tuple[FiniteFloat, ...]:
+    return tuple(
+        apply_robust_scaler(
+            RobustScaler(median=median, iqr=iqr, iqr_floor=scaler.iqr_floor), (value,)
+        )[0]
+        for median, iqr, value in zip(scaler.medians, scaler.iqrs, values, strict=True)
+    )
+
+
+def _stressed_detector_scores(
+    loaded: LoadedScientificConfiguration,
+    prepared: PreparedDatasetRecord,
+    split: DatasetSplitRecord,
+    scores: DetectorScoreArtifactRecord,
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    stress_epoch_indexes: tuple[EpochIndexValue, ...],
+    factor: FiniteFloat,
+) -> DetectorScoreArtifactRecord:
+    assignments = assign_detector_families(split.selected_client_ids)
+    stress_epoch_set = set(stress_epoch_indexes)
+    nuisance_epoch_set = set(split.nuisance_fit_epochs)
+    scalers_by_client = {scaler.client_id: scaler for scaler in prepared.client_scalers}
+    streams: list[ClientDetectorScoreStream] = []
+    for assignment in assignments:
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == assignment.client_id)
+        fit_rows = tuple(
+            row.feature_values
+            for row in client_rows
+            if row.epoch_index in split.detector_fit_epochs
+        )
+        scaler = scalers_by_client[assignment.client_id]
+        stress_rows = tuple(
+            _apply_client_scaler(
+                scaler, stress_epoch_feature_values(row.unscaled_feature_values, factor)
+            )
+            for row in client_rows
+            if row.epoch_index in stress_epoch_set
+        )
+        seed = detector_seed(root_seed, dataset_name, assignment.client_id)
+        stress_scores = score_client(
+            loaded.values, assignment.family, fit_rows, stress_rows, seed, assignment.client_id
+        )
+        stress_epochs = tuple(
+            row.epoch_index for row in client_rows if row.epoch_index in stress_epoch_set
+        )
+        original_stream = next(
+            stream for stream in scores.client_streams if stream.client_id == assignment.client_id
+        )
+        nuisance_pairs = tuple(
+            (epoch, score)
+            for epoch, score in zip(
+                original_stream.epoch_indexes, original_stream.scores, strict=True
+            )
+            if epoch in nuisance_epoch_set
+        )
+        stress_pairs = tuple(zip(stress_epochs, stress_scores, strict=True))
+        combined = tuple(sorted((*nuisance_pairs, *stress_pairs)))
+        streams.append(
+            ClientDetectorScoreStream(
+                client_id=assignment.client_id,
+                detector_family=assignment.family,
+                detector_seed=seed,
+                epoch_indexes=tuple(epoch for epoch, _score in combined),
+                scores=tuple(score for _epoch, score in combined),
+            )
+        )
+    return DetectorScoreArtifactRecord(
+        dataset_name=dataset_name,
+        root_seed=root_seed,
+        selected_client_ids=split.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=scores.dependency_fingerprint,
+    )
+
+
+def _count_stress_false_declaration_rates(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    factor: FiniteFloat,
+) -> tuple[FiniteFloat, FiniteFloat, tuple[Path, ...]] | None:
+    _inventory_path, prepared_path, split_path, partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
+    partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
+    stress_windows = tuple(
+        BenignHorizon(start_epoch=horizon.start_epoch, epoch_indexes=horizon.epoch_indexes)
+        for horizon in partitions.heldout_horizons
+    )
+    if not stress_windows:
+        return None
+    stress_epoch_indexes = tuple(
+        sorted({epoch for horizon in stress_windows for epoch in horizon.epoch_indexes})
+    )
+    score_path = with_technical_retry(
+        loaded,
+        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+    )
+    rank_path = with_technical_retry(
+        loaded,
+        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
+    )
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+    stressed_scores = _stressed_detector_scores(
+        loaded, prepared, split, scores, dataset_name, seed, stress_epoch_indexes, factor
+    )
+    stressed_ranks = build_marginal_rank_artifact(
+        stressed_scores,
+        split.nuisance_fit_epochs,
+        loaded.values.context.rank_clip_epsilon,
+        stressed_scores.dependency_fingerprint,
+    )
+    fit_path = with_technical_retry(
+        loaded,
+        partial(
+            _materialize_emhi_fit,
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            score_path,
+            rank_path,
+        ),
+    )
+    fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
+    emhi_calibration = calibrate_global_operating_point(
+        loaded.values, stressed_ranks, fit, partitions
+    )
+    trajectory_cache = TrajectoryCache()
+    emhi_fcr = _stress_window_false_declaration_rate(
+        loaded.values,
+        stressed_ranks,
+        fit,
+        emhi_calibration.threshold,
+        stress_windows,
+        trajectory_cache,
+    )
+    raw_scores = _comparator_epoch_scores(
+        loaded, repository, stressed_ranks, MethodName.RAW_MEAN_RANK_FUSION
+    )
+    comparator_scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
+    comparator_threshold, *_rest = _calibrate_comparator_operating_point(
+        loaded, comparator_scores, partitions
+    )
+    raw_mean_fcr = _comparator_stress_window_false_declaration_rate(
+        comparator_scores, comparator_threshold, stress_windows
+    )
+    if emhi_fcr is None or raw_mean_fcr is None:
+        return None
+    return emhi_fcr, raw_mean_fcr, (score_path, rank_path, fit_path)
+
+
+def materialize_benign_common_mode_count_stress_diagnostics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> tuple[Path, ...]:
+    experiment_name = ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS
+    plan = enumerate_benign_common_mode_plan(loaded.values)
+    required_methods = {MethodName.FULL_FEDCAMPAIGN_EMHI, MethodName.RAW_MEAN_RANK_FUSION}
+    if not required_methods.issubset(plan.methods):
+        return ()
+    _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, plan.dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return ()
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    paths: list[Path] = []
+    for factor in loaded.values.robustness.benign_count_multiplication_factors:
+        for seed in loaded.values.randomness.real_confirmatory_roots:
+            outcome = _count_stress_false_declaration_rates(
+                loaded, repository, plan.dataset_name, seed, factor
+            )
+            if outcome is None:
+                continue
+            emhi_fcr, raw_mean_fcr, source_paths = outcome
+            source_digests = tuple(file_sha256(path) for path in source_paths)
+            source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+            payload: YamlNode = {
+                "seed": seed,
+                "multiplication_factor": factor,
+                "emhi_false_declaration_rate": emhi_fcr,
+                "raw_mean_false_declaration_rate": raw_mean_fcr,
+                "source_result_ids": list(source_ids),
+            }
+            record = CountStressDiagnosticRecord(
+                seed=seed,
+                multiplication_factor=factor,
+                emhi_false_declaration_rate=emhi_fcr,
+                raw_mean_false_declaration_rate=raw_mean_fcr,
+                source_result_ids=source_ids,
+                dependency_fingerprint=material_fingerprint(
+                    statistical_analysis_boundary_digest(loaded.values), source_digests
+                ),
+                content_digest=payload_digest(payload),
+            )
+            path = root / "diagnostics" / "count-stress" / f"factor-{factor}" / f"seed-{seed}.json"
+            write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+            paths.append(path)
+    return tuple(paths)
+
+
 def _evaluate_comparator_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -3500,6 +3742,7 @@ def execute_experiment(
     _materialize_not_tested_primary_holm_statistic(loaded, repository, experiment_name)
     if experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
         materialize_benign_common_mode_statistic(loaded, repository)
+        materialize_benign_common_mode_count_stress_diagnostics(loaded, repository)
     state = ExperimentState.COMPLETED
     run_path = publish_experiment_run_record(
         loaded,

@@ -338,6 +338,16 @@ class ContextEstimatorSensitivityCellRecord(FrozenConfigModel):
     content_digest: ConfigurationDigest
 
 
+class CountStressDiagnosticRecord(FrozenConfigModel):
+    seed: SeedValue
+    multiplication_factor: FiniteFloat
+    emhi_false_declaration_rate: Probability
+    raw_mean_false_declaration_rate: Probability
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
 class FiniteHorizonAggregationRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     independent_unit_count: RecordCount

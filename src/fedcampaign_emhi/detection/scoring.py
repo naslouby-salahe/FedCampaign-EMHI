@@ -66,7 +66,7 @@ def detector_seed(
     )
 
 
-def _score_client(
+def score_client(
     config: ScientificConfig,
     detector_family: DetectorFamily,
     fit_rows: tuple[tuple[FiniteFloat, ...], ...],
@@ -138,7 +138,7 @@ def build_detector_score_artifact(
             )
         score_rows = tuple(row.feature_values for row in client_rows)
         seed = detector_seed(root_seed, dataset_name, assignment.client_id)
-        scores = _score_client(
+        scores = score_client(
             config,
             assignment.family,
             fit_rows,

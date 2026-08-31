@@ -111,7 +111,7 @@ def retain_first_chronological(
     )
 
 
-def shannon_entropy(bucket_counts: tuple[RecordCount, ...]) -> FiniteFloat:
+def shannon_entropy(bucket_counts: tuple[FiniteFloat, ...]) -> FiniteFloat:
     total = sum(bucket_counts)
     if total == 0:
         return 0.0

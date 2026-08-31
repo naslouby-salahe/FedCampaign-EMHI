@@ -9,6 +9,7 @@ from fedcampaign_emhi.experiments.benign_robustness import (
     paired_false_campaign_difference,
     rolling_benign_horizons,
     select_high_volume_windows,
+    synthetic_count_stress_multiplier,
     window_event_counts,
 )
 
@@ -99,3 +100,17 @@ def test_select_high_volume_windows_retains_boundary_ties() -> None:
         select_high_volume_windows((), (), 0.5)
     with pytest.raises(ValueError):
         select_high_volume_windows(windows, counts[:-1], 0.5)
+
+
+def test_synthetic_count_stress_preserves_bucket_proportions() -> None:
+    buckets = (10.0, 30.0, 60.0)
+    doubled = synthetic_count_stress_multiplier(buckets, 2.0)
+    assert doubled == (20.0, 60.0, 120.0)
+    total_original = sum(buckets)
+    total_doubled = sum(doubled)
+    for original, stressed in zip(buckets, doubled, strict=True):
+        assert stressed / total_doubled == pytest.approx(original / total_original)
+    with pytest.raises(ValueError):
+        synthetic_count_stress_multiplier(buckets, -1.0)
+    with pytest.raises(ValueError):
+        synthetic_count_stress_multiplier((), 2.0)
