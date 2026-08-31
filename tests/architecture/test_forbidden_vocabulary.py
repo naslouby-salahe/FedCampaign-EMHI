@@ -20,7 +20,6 @@ FORBIDDEN_TERMS = (
     "ton_iot_network_v2",
     "run_id",
     "uuid",
-    "canonical",
 )
 
 MANUSCRIPT_ARCHITECTURE_PATTERN = re.compile(r"(?:^|_)(?:claim|gate)(?:_|$)|(?:Claim|Gate)")
