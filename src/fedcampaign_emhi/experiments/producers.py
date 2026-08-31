@@ -479,9 +479,10 @@ def run_synthetic_cell(
             )
         if method_name is primary.method and primary_metrics is None:
             failures.append("missing primary fitted pure-order score")
-        failures.append("missing exact-exclusion fitted pure-order artifact scorer")
-        failures.append("missing exact-exclusion fitted pure-order artifact grid")
-        if method_name not in emhi_methods:
+        if method_name in emhi_methods:
+            failures.append("missing exact-exclusion fitted pure-order artifact scorer")
+            failures.append("missing exact-exclusion fitted pure-order artifact grid")
+        else:
             failures.append("missing native comparator pure-order grid")
         return SyntheticCellOutcome(
             tuple(sorted(set(failures))),
@@ -489,7 +490,11 @@ def run_synthetic_cell(
             {
                 "condition_count": len(records),
                 "conditions": records,
-                "implementation_state": "method_evaluation_unavailable",
+                "implementation_state": (
+                    "awaiting_fitted_emhi_artifact_grid"
+                    if method_name in emhi_methods
+                    else "awaiting_native_comparator_grid"
+                ),
             },
             pure_order_metrics=primary_metrics,
         )

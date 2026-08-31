@@ -478,6 +478,7 @@ def _execute_synthetic_experiment(
                         if grid_complete:
                             evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
                             evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
+                            evidence["implementation_state"] = "fitted_emhi_artifact_grid"
                             if primary_fitted is not None and primary_fitted.artifact_path_complete:
                                 evidence["primary_exact_exclusion_artifact_score"] = {
                                     "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
@@ -558,6 +559,8 @@ def _execute_synthetic_experiment(
                                 "completed_cell_count": len(comparator_completed),
                                 "complete": comparator_grid_complete,
                             }
+                            if comparator_grid_complete:
+                                evidence["implementation_state"] = "native_comparator_grid"
                             outcome = replace(
                                 outcome,
                                 evidence=evidence,
