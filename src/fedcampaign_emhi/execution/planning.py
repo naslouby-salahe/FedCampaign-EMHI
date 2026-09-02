@@ -2,17 +2,8 @@ from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
-from fedcampaign_emhi.domain.types import ArtifactFilename, ResumeStep, SeedCount
+from fedcampaign_emhi.domain.types import ArtifactFilename, SeedCount
 from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan, resolve_experiment_name
-
-RESUME_SEQUENCE: tuple[ResumeStep, ...] = (
-    "validate required existing artifacts",
-    "reuse compatible ancestors",
-    "identify incompatible or incomplete artifacts",
-    "invalidate only their descendants",
-    "reconstruct the minimum required subgraph",
-    "atomically publish completed outputs",
-)
 
 
 @dataclass(frozen=True)

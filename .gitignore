@@ -225,3 +225,9 @@ __marimo__/
 
 # Temporary implementation notes
 docs/.tmp-*/
+
+# Temporary architecture-audit working state
+docs/.audit-temp/
+
+# Local Graphify AST/HTML artifacts
+graphify-out/

@@ -36,6 +36,7 @@ from fedcampaign_emhi.domain.types import (
     EpochSeconds,
     EvidenceFactor,
     FalseAlarmRate,
+    GlobalEvidenceState,
     LocalPolicyArtifact,
     MaterialDependencyFingerprint,
     OperationalLeadEpochs,
@@ -69,7 +70,9 @@ from fedcampaign_emhi.emhi.projection import proper_subset_design_row
 from fedcampaign_emhi.emhi.sequential import (
     coalition_materially_active,
     first_global_stop_epoch,
+    next_global_state,
     statistical_stop,
+    threshold_predicate,
     trailing_support_window_client_ids,
     trailing_window_support_predicate,
 )
@@ -101,6 +104,15 @@ type TrajectoryCacheKey = tuple[
 
 class TrajectoryCache(UserDict[TrajectoryCacheKey, SequentialTrajectory]):
     __slots__ = ()
+
+
+@dataclass(frozen=True)
+class OperationalEpochAdvance:
+    record: EpochOperationalEvidence
+    global_state: GlobalEvidenceState
+    support_predicate: Boolean
+    stopped: Boolean
+    active_history: tuple[tuple[ClientId, ...], ...]
 
 
 def horizon_trajectory(
@@ -790,6 +802,40 @@ def sequential_trajectory(
             raise ValueError("distributed support must match the statistical-stop support clause")
         support.append(predicate)
     return SequentialTrajectory(epochs=records, support_predicates=tuple(support))
+
+
+def advance_operational_epoch(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    epoch_index: EpochIndexValue,
+    previous_state: GlobalEvidenceState,
+    active_history: tuple[tuple[ClientId, ...], ...],
+    threshold: ThresholdValue,
+    maximum_order: CoalitionOrder | None = None,
+    order_lag_lookups: OrderOutsideContextLagLookup | None = None,
+) -> OperationalEpochAdvance:
+    record = operational_evidence_at_epoch(
+        config,
+        ranks,
+        fit,
+        epoch_index,
+        maximum_order,
+        order_lag_lookups=order_lag_lookups,
+    )
+    history = (*active_history, record.materially_active_client_ids)
+    window_epochs = config.distributed_support.trailing_window_epochs
+    minimum_clients = config.distributed_support.minimum_clients
+    support = trailing_window_support_predicate(history, window_epochs, minimum_clients)
+    state = next_global_state(previous_state, record.global_evidence_factor)
+    stopped = threshold_predicate(state, threshold) and support
+    return OperationalEpochAdvance(
+        record=record,
+        global_state=state,
+        support_predicate=support,
+        stopped=stopped,
+        active_history=history,
+    )
 
 
 def global_stop_epoch(

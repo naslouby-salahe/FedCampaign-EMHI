@@ -30,6 +30,7 @@ from fedcampaign_emhi.domain.types import (
 )
 
 PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path("configs/fedcampaign-emhi.yaml")
+TESTS_CONFIGURATION_RELATIVE_PATH = Path("configs/tests.yml")
 SMOKE_CONFIGURATION_RELATIVE_PATH = Path("configs/smoke.yml")
 
 
@@ -127,7 +128,7 @@ def load_production_configuration(
 ) -> LoadedScientificConfiguration:
     repository = root or repository_root()
     return load_scientific_configuration(
-        repository / PRODUCTION_CONFIGURATION_RELATIVE_PATH,
+        repository / configuration_relative_path(ConfigurationProfile.PRODUCTION),
         ConfigurationProfile.PRODUCTION,
     )
 
@@ -139,9 +140,19 @@ def production_configuration_context(
     return repository, load_production_configuration(repository)
 
 
+def configuration_relative_path(profile: ConfigurationProfile) -> Path:
+    if profile is ConfigurationProfile.PRODUCTION:
+        return PRODUCTION_CONFIGURATION_RELATIVE_PATH
+    if profile is ConfigurationProfile.TESTS:
+        return TESTS_CONFIGURATION_RELATIVE_PATH
+    if profile is ConfigurationProfile.SMOKE:
+        return SMOKE_CONFIGURATION_RELATIVE_PATH
+    raise ConfigurationValidationError(f"unsupported configuration profile {profile.value}")
+
+
 def load_smoke_configuration(root: Path | None = None) -> LoadedScientificConfiguration:
     repository = root or repository_root()
     return load_scientific_configuration(
-        repository / SMOKE_CONFIGURATION_RELATIVE_PATH,
+        repository / configuration_relative_path(ConfigurationProfile.SMOKE),
         ConfigurationProfile.SMOKE,
     )

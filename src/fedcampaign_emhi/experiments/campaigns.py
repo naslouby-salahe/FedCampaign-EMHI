@@ -2,7 +2,6 @@ import hashlib
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from functools import partial
 from math import log
 from pathlib import Path
 from time import perf_counter
@@ -78,6 +77,11 @@ from fedcampaign_emhi.comparators.contracts import (
     comparator_method_contracts,
     native_target_order,
 )
+from fedcampaign_emhi.comparators.dependence import (
+    cosine_equivalence_criterion,
+    nrmse_equivalence_criterion,
+    stopping_time_equivalence_criterion,
+)
 from fedcampaign_emhi.comparators.fusion import (
     CompositionCandidateResult,
     CompositionSelectionInputs,
@@ -119,6 +123,7 @@ from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
     CellCount,
+    ClientCount,
     ComponentName,
     ConfigurationDigest,
     ContextCoverage,
@@ -184,6 +189,7 @@ from fedcampaign_emhi.evaluation.records import (
 )
 from fedcampaign_emhi.evaluation.scalability import (
     ScalabilityMeasurement,
+    collect_scalability_measurements,
     expected_scalability_coalitions,
     summarize_scalability,
 )
@@ -215,6 +221,7 @@ from fedcampaign_emhi.experiments.calibration import (
     evaluate_fitted_pure_order_cell,
 )
 from fedcampaign_emhi.experiments.registry import (
+    RESUME_SEQUENCE,
     ExperimentContract,
     FullMethodSupportInputs,
     FullMethodSupportResult,
@@ -242,6 +249,7 @@ from fedcampaign_emhi.experiments.robustness import (
 )
 from fedcampaign_emhi.experiments.synthetic import (
     EstimatorFeasibilityObservation,
+    HofdEquivalenceObservation,
     PureOrderObservation,
     PureOrderSeedMetrics,
     SelfExplanationObservation,
@@ -263,17 +271,6 @@ def campaign_dataset(
     if experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION:
         return loaded.values.datasets.secondary.name
     return loaded.values.datasets.primary.name
-
-
-def _run_resume_sequence() -> tuple[ComponentName, ...]:
-    return (
-        "validate required existing artifacts",
-        "reuse compatible ancestors",
-        "identify incompatible or incomplete artifacts",
-        "invalidate only their descendants",
-        "reconstruct the minimum required subgraph",
-        "atomically publish completed outputs",
-    )
 
 
 @dataclass(frozen=True)
@@ -396,7 +393,7 @@ def publish_experiment_run_record(
         material_digest=loaded.material_digest,
         implementation_digest=_implementation_digest(repository),
         overwrite_policy=overwrite_policy,
-        resume_sequence=_run_resume_sequence(),
+        resume_sequence=RESUME_SEQUENCE,
         state=state,
     )
     write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
@@ -571,6 +568,7 @@ def _execute_synthetic_experiment(
     finite_horizon_observations: list[FiniteHorizonObservation] = []
     estimator_feasibility_observations: list[EstimatorFeasibilityObservation] = []
     composition_observations: list[CompositionCandidateObservation] = []
+    hofd_observations: list[HofdEquivalenceObservation] = []
     for role in contract.execution_roles:
         methods: tuple[MethodName | None, ...] = contract.methods or (None,)
         for seed in synthetic_role_seeds(loaded, role):
@@ -853,6 +851,15 @@ def _execute_synthetic_experiment(
                             diagnostic_path=diagnostic_path,
                         )
                     )
+                if state is ExperimentState.COMPLETED and outcome.hofd_metrics is not None:
+                    hofd_observations.append(
+                        HofdEquivalenceObservation(
+                            execution_role=role,
+                            seed=seed,
+                            metric=outcome.hofd_metrics,
+                            diagnostic_path=diagnostic_path,
+                        )
+                    )
                 if (
                     state is ExperimentState.COMPLETED
                     and composition_metrics is not None
@@ -936,6 +943,12 @@ def _execute_synthetic_experiment(
             loaded,
             repository,
             tuple(composition_observations),
+        )
+    if experiment_name is ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE:
+        materialize_hofd_equivalence_statistics(
+            loaded,
+            repository,
+            tuple(hofd_observations),
         )
     state = ExperimentState.COMPLETED if invalid == 0 else ExperimentState.INVALID
     run_path = publish_experiment_run_record(
@@ -1136,6 +1149,155 @@ def materialize_pure_order_statistics(
     )
     staging = layout.roots.outputs_root / "cache" / "staging"
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
+    return path
+
+
+def materialize_hofd_equivalence_statistics(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    observations: tuple[HofdEquivalenceObservation, ...],
+) -> Path | None:
+    confirmatory = tuple(
+        observation
+        for observation in observations
+        if observation.execution_role is ExecutionRole.CONFIRMATORY
+    )
+    expected = loaded.values.randomness.synthetic_confirmatory_roots
+    observed_seeds = tuple(observation.seed for observation in confirmatory)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
+        return None
+    materiality = loaded.values.materiality.hofd_equivalence
+    interval = materiality.stopping_time_difference_interval_epochs
+    confidence_level = loaded.values.statistics.confidence_level
+    replicates = loaded.values.statistics.bootstrap_replicates
+    analysis_seed = loaded.values.randomness.statistical_analysis_base_seed
+    conditions: list[YamlNode] = []
+    nrmse_estimates: list[MetricValue] = []
+    all_supported = True
+    primary_supports = (
+        loaded.values.experiments.exclusion_matched_hofd_equivalence.primary_support_levels
+    )
+    for order in CoalitionOrder:
+        if int(order) > int(loaded.values.study.maximum_coalition_order):
+            continue
+        for support in primary_supports:
+            matched = tuple(
+                metric
+                for observation in confirmatory
+                for metric in observation.metric.conditions
+                if metric.coalition_order is order and metric.support_per_context == support
+            )
+            if len(matched) != len(confirmatory):
+                all_supported = False
+                conditions.append(
+                    {
+                        "coalition_order": int(order),
+                        "support_per_context": support,
+                        "decision": SupportState.NOT_TESTED.value,
+                    }
+                )
+                continue
+            nrmse_values = tuple(metric.atom_nrmse for metric in matched)
+            cosine_values = tuple(metric.atom_cosine_similarity for metric in matched)
+            nrmse_interval = paired_mean_bca_interval(
+                nrmse_values, confidence_level, replicates, analysis_seed
+            )
+            stop_values = tuple(
+                metric.stopping_time_difference
+                for metric in matched
+                if metric.pfa_prerequisite_passes and metric.stopping_time_difference is not None
+            )
+            pfa_ok = all(metric.pfa_prerequisite_passes for metric in matched)
+            stop_interval = (
+                paired_mean_bca_interval(stop_values, confidence_level, replicates, analysis_seed)
+                if stop_values and pfa_ok
+                else None
+            )
+            nrmse_estimate = sum(nrmse_values) / len(nrmse_values)
+            nrmse_estimates.append(nrmse_estimate)
+            nrmse_ok = nrmse_equivalence_criterion(
+                nrmse_interval[1], materiality.atom_nrmse_upper_margin
+            )
+            cosine_ok = cosine_equivalence_criterion(
+                sum(cosine_values) / len(cosine_values),
+                materiality.minimum_cosine_similarity,
+            )
+            stop_ok = stop_interval is not None and stopping_time_equivalence_criterion(
+                stop_interval[0],
+                stop_interval[1],
+                interval[0],
+                interval[1],
+            )
+            supported = nrmse_ok and cosine_ok and pfa_ok and stop_ok
+            all_supported = all_supported and supported
+            conditions.append(
+                {
+                    "coalition_order": int(order),
+                    "support_per_context": support,
+                    "nrmse_estimate": nrmse_estimate,
+                    "nrmse_confidence_lower": nrmse_interval[0],
+                    "nrmse_confidence_upper": nrmse_interval[1],
+                    "mean_cosine_similarity": sum(cosine_values) / len(cosine_values),
+                    "pfa_prerequisite_passes": pfa_ok,
+                    "stopping_time_difference_estimate": (
+                        None if not stop_values else sum(stop_values) / len(stop_values)
+                    ),
+                    "stopping_time_confidence_lower": (
+                        None if stop_interval is None else stop_interval[0]
+                    ),
+                    "stopping_time_confidence_upper": (
+                        None if stop_interval is None else stop_interval[1]
+                    ),
+                    "decision": (
+                        SupportState.SUPPORTED.value
+                        if supported
+                        else SupportState.NULL_RESULT.value
+                    ),
+                }
+            )
+    layout = build_artifact_layout(loaded, repository)
+    source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE.value,
+        "hypothesis_identifier": "Exclusion-Matched HOFD Equivalence",
+        "metric_name": "atom_nrmse_cosine_stopping_time",
+        "method_name": MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD.value,
+        "independent_unit_count": len(confirmatory),
+        "confidence_level": confidence_level,
+        "conditions": conditions,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier="Exclusion-Matched HOFD Equivalence",
+        metric_name="atom_nrmse_cosine_stopping_time",
+        method_name=MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD.value,
+        independent_unit_count=len(confirmatory),
+        estimate=(sum(nrmse_estimates) / len(nrmse_estimates) if nrmse_estimates else 0.0),
+        raw_p_value=None,
+        adjusted_p_value=None,
+        confidence_level=confidence_level,
+        confidence_lower=None,
+        confidence_upper=None,
+        decision=SupportState.SUPPORTED if all_supported else SupportState.NULL_RESULT,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.experiment_outputs_root(ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE)
+        / "statistics"
+        / "tests"
+        / "exclusion-matched-hofd-equivalence.json"
+    )
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    dumped = cast(YamlNode, record.model_dump(mode="json"))
+    if isinstance(dumped, dict):
+        dumped = {**dumped, "conditions": conditions}
+    write_atomic_json(path, dumped, staging)
     return path
 
 
@@ -3056,27 +3218,19 @@ def _benign_common_mode_seed_fcr(
     )
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
-    score_path = with_technical_retry(
-        loaded,
-        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
-    )
-    rank_path = with_technical_retry(
-        loaded,
-        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
+    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    rank_path = materialize_marginal_ranks_with_retry(
+        loaded, repository, dataset_name, seed, score_path
     )
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
-    fit_path = with_technical_retry(
+    fit_path = materialize_emhi_fit_with_retry(
         loaded,
-        partial(
-            _materialize_emhi_fit,
-            loaded,
-            repository,
-            dataset_name,
-            seed,
-            MethodName.FULL_FEDCAMPAIGN_EMHI,
-            score_path,
-            rank_path,
-        ),
+        repository,
+        dataset_name,
+        seed,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        score_path,
+        rank_path,
     )
     fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
     emhi_calibration = calibrate_global_operating_point(loaded.values, ranks, fit, partitions)
@@ -3337,13 +3491,9 @@ def _count_stress_false_declaration_rates(
     stress_epoch_indexes = tuple(
         sorted({epoch for horizon in stress_windows for epoch in horizon.epoch_indexes})
     )
-    score_path = with_technical_retry(
-        loaded,
-        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
-    )
-    rank_path = with_technical_retry(
-        loaded,
-        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
+    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    rank_path = materialize_marginal_ranks_with_retry(
+        loaded, repository, dataset_name, seed, score_path
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     stressed_scores = _stressed_detector_scores(
@@ -3355,18 +3505,14 @@ def _count_stress_false_declaration_rates(
         loaded.values.context.rank_clip_epsilon,
         stressed_scores.dependency_fingerprint,
     )
-    fit_path = with_technical_retry(
+    fit_path = materialize_emhi_fit_with_retry(
         loaded,
-        partial(
-            _materialize_emhi_fit,
-            loaded,
-            repository,
-            dataset_name,
-            seed,
-            MethodName.FULL_FEDCAMPAIGN_EMHI,
-            score_path,
-            rank_path,
-        ),
+        repository,
+        dataset_name,
+        seed,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        score_path,
+        rank_path,
     )
     fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
     emhi_calibration = calibrate_global_operating_point(
@@ -3463,26 +3609,18 @@ def _campaign_detection_rate_for_method(
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
-    score_path = with_technical_retry(
-        loaded,
-        partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    rank_path = materialize_marginal_ranks_with_retry(
+        loaded, repository, dataset_name, seed, score_path
     )
-    rank_path = with_technical_retry(
+    fit_path = materialize_emhi_fit_with_retry(
         loaded,
-        partial(_materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path),
-    )
-    fit_path = with_technical_retry(
-        loaded,
-        partial(
-            _materialize_emhi_fit,
-            loaded,
-            repository,
-            dataset_name,
-            seed,
-            method_name,
-            score_path,
-            rank_path,
-        ),
+        repository,
+        dataset_name,
+        seed,
+        method_name,
+        score_path,
+        rank_path,
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
@@ -3847,6 +3985,100 @@ def _evaluate_comparator_seed_cell(
     return cell_path
 
 
+def materialize_detector_scores_with_retry(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+) -> Path:
+    return with_technical_retry(
+        loaded,
+        lambda: _materialize_detector_scores(loaded, repository, dataset_name, seed),
+    )
+
+
+def materialize_marginal_ranks_with_retry(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    score_path: Path,
+) -> Path:
+    return with_technical_retry(
+        loaded,
+        lambda: _materialize_marginal_ranks(loaded, repository, dataset_name, seed, score_path),
+    )
+
+
+def materialize_emhi_fit_with_retry(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    method_name: MethodName,
+    score_path: Path,
+    rank_path: Path,
+) -> Path:
+    return with_technical_retry(
+        loaded,
+        lambda: _materialize_emhi_fit(
+            loaded, repository, dataset_name, seed, method_name, score_path, rank_path
+        ),
+    )
+
+
+def evaluate_emhi_seed_cell_with_retry(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+    score_path: Path,
+    rank_path: Path,
+    fit_path: Path,
+) -> Path:
+    return with_technical_retry(
+        loaded,
+        lambda: _evaluate_emhi_seed_cell(
+            loaded,
+            repository,
+            experiment_name,
+            execution_role,
+            method_name,
+            seed,
+            score_path,
+            rank_path,
+            fit_path,
+        ),
+    )
+
+
+def evaluate_comparator_seed_cell_with_retry(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+    score_path: Path,
+    rank_path: Path,
+) -> Path:
+    return with_technical_retry(
+        loaded,
+        lambda: _evaluate_comparator_seed_cell(
+            loaded,
+            repository,
+            experiment_name,
+            execution_role,
+            method_name,
+            seed,
+            score_path,
+            rank_path,
+        ),
+    )
+
+
 def _execute_real_emhi_methods(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -3881,65 +4113,44 @@ def _execute_real_emhi_methods(
         return completed, ()
     for role in contract.execution_roles:
         for seed in _role_seeds(loaded, role):
-            score_path = with_technical_retry(
-                loaded,
-                partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+            score_path = materialize_detector_scores_with_retry(
+                loaded, repository, dataset_name, seed
             )
-            rank_path = with_technical_retry(
-                loaded,
-                partial(
-                    _materialize_marginal_ranks,
+            rank_path = materialize_marginal_ranks_with_retry(
+                loaded, repository, dataset_name, seed, score_path
+            )
+            for method_name in supported:
+                fit_path = materialize_emhi_fit_with_retry(
                     loaded,
                     repository,
                     dataset_name,
                     seed,
+                    method_name,
                     score_path,
-                ),
-            )
-            for method_name in supported:
-                fit_path = with_technical_retry(
-                    loaded,
-                    partial(
-                        _materialize_emhi_fit,
-                        loaded,
-                        repository,
-                        dataset_name,
-                        seed,
-                        method_name,
-                        score_path,
-                        rank_path,
-                    ),
+                    rank_path,
                 )
-                with_technical_retry(
+                evaluate_emhi_seed_cell_with_retry(
                     loaded,
-                    partial(
-                        _evaluate_emhi_seed_cell,
-                        loaded,
-                        repository,
-                        experiment_name,
-                        role,
-                        method_name,
-                        seed,
-                        score_path,
-                        rank_path,
-                        fit_path,
-                    ),
+                    repository,
+                    experiment_name,
+                    role,
+                    method_name,
+                    seed,
+                    score_path,
+                    rank_path,
+                    fit_path,
                 )
                 completed += 1
             for method_name in missing:
-                with_technical_retry(
+                evaluate_comparator_seed_cell_with_retry(
                     loaded,
-                    partial(
-                        _evaluate_comparator_seed_cell,
-                        loaded,
-                        repository,
-                        experiment_name,
-                        role,
-                        method_name,
-                        seed,
-                        score_path,
-                        rank_path,
-                    ),
+                    repository,
+                    experiment_name,
+                    role,
+                    method_name,
+                    seed,
+                    score_path,
+                    rank_path,
                 )
                 completed += 1
     return completed, ()
@@ -4191,28 +4402,18 @@ def materialize_context_and_estimator_sensitivity_cells(
     staging = layout.roots.outputs_root / "cache" / "staging"
     paths: list[Path] = []
     for seed in loaded.values.randomness.real_development_roots:
-        score_path = with_technical_retry(
-            loaded,
-            partial(_materialize_detector_scores, loaded, repository, dataset_name, seed),
+        score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+        rank_path = materialize_marginal_ranks_with_retry(
+            loaded, repository, dataset_name, seed, score_path
         )
-        rank_path = with_technical_retry(
+        base_fit_path = materialize_emhi_fit_with_retry(
             loaded,
-            partial(
-                _materialize_marginal_ranks, loaded, repository, dataset_name, seed, score_path
-            ),
-        )
-        base_fit_path = with_technical_retry(
-            loaded,
-            partial(
-                _materialize_emhi_fit,
-                loaded,
-                repository,
-                dataset_name,
-                seed,
-                MethodName.FULL_FEDCAMPAIGN_EMHI,
-                score_path,
-                rank_path,
-            ),
+            repository,
+            dataset_name,
+            seed,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            score_path,
+            rank_path,
         )
         scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
         ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
@@ -4285,6 +4486,17 @@ def materialize_context_and_estimator_sensitivity_cells(
     return tuple(paths)
 
 
+def collect_scalability_seed_measurements(
+    loaded: LoadedScientificConfiguration,
+    client_count: ClientCount,
+    seed: SeedValue,
+) -> tuple[ScalabilityMeasurement, ...]:
+    return with_technical_retry(
+        loaded,
+        lambda: collect_scalability_measurements(loaded, client_count, seed),
+    )
+
+
 def materialize_coalition_scalability_summaries(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -4303,43 +4515,46 @@ def materialize_coalition_scalability_summaries(
         if coalitions != registered:
             raise ValueError("derived coalition count must match the registry coalition count")
         payload_bytes = application_payload_bytes_per_epoch(client_count)
-        measurements: tuple[ScalabilityMeasurement, ...] = ()
-        summary = (
-            None
-            if not measurements
-            else summarize_scalability(
-                client_count,
-                measurements,
-                maximum_latency,
-                maximum_failure_rate,
-            )
+        seeds = config.randomness.real_development_roots + tuple(
+            seed
+            for seed in config.randomness.real_confirmatory_roots
+            if seed not in config.randomness.real_development_roots
+        )
+
+        collected: list[ScalabilityMeasurement] = []
+        for seed in seeds:
+            collected.extend(collect_scalability_seed_measurements(loaded, client_count, seed))
+        measurements = tuple(collected)
+        summary = summarize_scalability(
+            client_count,
+            measurements,
+            maximum_latency,
+            maximum_failure_rate,
+            config.scalability_timing.result_quantile,
         )
         scored_rate = None
-        if summary is not None and summary.median_server_latency_seconds > 0.0:
+        if summary.median_server_latency_seconds > 0.0:
             scored_rate = throughput(coalitions, summary.median_server_latency_seconds)
         payload: YamlNode = {
             "client_count": client_count,
             "expected_coalitions": coalitions,
             "application_payload_bytes_per_epoch": payload_bytes,
-            "median_server_latency_seconds": (
-                None if summary is None else summary.median_server_latency_seconds
-            ),
-            "p95_server_latency_seconds": (
-                None if summary is None else summary.p95_server_latency_seconds
-            ),
-            "numerical_failure_rate": None if summary is None else summary.numerical_failure_rate,
+            "median_server_latency_seconds": summary.median_server_latency_seconds,
+            "p95_server_latency_seconds": summary.p95_server_latency_seconds,
+            "median_end_to_end_latency_seconds": summary.median_end_to_end_latency_seconds,
+            "p95_end_to_end_latency_seconds": summary.p95_end_to_end_latency_seconds,
+            "numerical_failure_rate": summary.numerical_failure_rate,
             "throughput": scored_rate,
-            "latency_criterion_state": (
-                SupportState.NOT_TESTED.value
-                if summary is None
-                else summary.latency_criterion_state.value
+            "local_timing_operating_point_available": (
+                summary.local_timing_operating_point_available
             ),
-            "numerical_criterion_state": (
-                SupportState.NOT_TESTED.value
-                if summary is None
-                else summary.numerical_criterion_state.value
+            "global_timing_operating_point_available": (
+                summary.global_timing_operating_point_available
             ),
-            "state": ExperimentState.COMPLETED.value if summary is None else summary.state.value,
+            "latency_criterion_state": summary.latency_criterion_state.value,
+            "numerical_criterion_state": summary.numerical_criterion_state.value,
+            "artifact_fit_seconds": summary.artifact_fit_seconds,
+            "state": summary.state.value,
         }
         path = root / "metrics" / "aggregate" / f"k-{client_count}.json"
         write_atomic_json(path, payload, staging)

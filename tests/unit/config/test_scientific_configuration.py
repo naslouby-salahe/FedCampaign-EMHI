@@ -109,7 +109,7 @@ def test_digest_is_deterministic(
 def test_reduced_configs_cannot_replace_production(repo_root: Path) -> None:
     production = load_production_configuration()
     tests = load_scientific_configuration(
-        repo_root / "configs" / "tests.yml", ConfigurationProfile.TESTS
+        repo_root / "configs/tests.yml", ConfigurationProfile.TESTS
     )
     smoke = load_smoke_configuration()
     assert tests.profile != production.profile

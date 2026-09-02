@@ -20,6 +20,14 @@ FORBIDDEN_TERMS = (
     "ton_iot_network_v2",
     "run_id",
     "uuid",
+    "claim",
+)
+
+FORBIDDEN_CLAIM_FRAGMENTS = (
+    "CLAIM_",
+    "claim_registry",
+    "ClaimRegistry",
+    "ClaimIdentifier",
 )
 
 MANUSCRIPT_ARCHITECTURE_PATTERN = re.compile(r"(?:^|_)(?:claim|gate)(?:_|$)|(?:Claim|Gate)")
@@ -66,6 +74,10 @@ def test_production_has_no_manuscript_claim_or_gate_architecture() -> None:
     findings: list[str] = []
     for path in source_files():
         findings.extend(manuscript_architecture_violations(path))
+        text = path.read_text(encoding="utf-8")
+        for fragment in FORBIDDEN_CLAIM_FRAGMENTS:
+            if fragment in text:
+                findings.append(f"{path.relative_to(SRC_ROOT).as_posix()}:{fragment}")
     assert findings == []
 
 
@@ -73,6 +85,12 @@ def test_outputs_and_results_remain_distinct() -> None:
     text = (SRC_ROOT / "artifacts" / "storage.py").read_text(encoding="utf-8")
     assert "outputs_root" in text
     assert "results_root" in text
+
+
+def test_claim_identifier_names_are_forbidden() -> None:
+    parsed = ast.parse("class ClaimIdentifier:\n    pass\n")
+    names = [node.name for node in ast.walk(parsed) if isinstance(node, ast.ClassDef)]
+    assert any(MANUSCRIPT_ARCHITECTURE_PATTERN.search(name) for name in names)
 
 
 def test_forbidden_vocabulary_fails_on_fixture() -> None:

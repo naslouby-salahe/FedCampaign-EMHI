@@ -9,8 +9,18 @@ from fedcampaign_emhi.domain.types import (
     OdiRateAdvantage,
     OperationalLeadEpochs,
     Probability,
+    ResumeStep,
     SeedCount,
     SeedValue,
+)
+
+RESUME_SEQUENCE: tuple[ResumeStep, ...] = (
+    "validate required existing artifacts",
+    "reuse compatible ancestors",
+    "identify incompatible or incomplete artifacts",
+    "invalidate only their descendants",
+    "reconstruct the minimum required subgraph",
+    "atomically publish completed outputs",
 )
 
 

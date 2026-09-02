@@ -23,7 +23,7 @@ PACKAGE_DEPENDENCIES: dict[str, frozenset[str]] = {
     "emhi": frozenset({"domain", "config", "artifacts", "runtime"}),
     "detection": frozenset({"domain", "config", "models", "emhi", "artifacts", "runtime"}),
     "comparators": frozenset({"domain", "config", "emhi", "artifacts", "runtime", "models"}),
-    "synthetic": frozenset({"domain", "config", "emhi", "runtime"}),
+    "synthetic": frozenset({"domain", "config", "emhi", "runtime", "evaluation"}),
     "experiments": frozenset(
         {
             "domain",
@@ -41,7 +41,16 @@ PACKAGE_DEPENDENCIES: dict[str, frozenset[str]] = {
         }
     ),
     "evaluation": frozenset(
-        {"domain", "config", "emhi", "comparators", "artifacts", "datasets", "detection"}
+        {
+            "domain",
+            "config",
+            "emhi",
+            "comparators",
+            "artifacts",
+            "datasets",
+            "detection",
+            "runtime",
+        }
     ),
     "analysis": frozenset({"domain", "config", "evaluation", "artifacts"}),
     "execution": frozenset(

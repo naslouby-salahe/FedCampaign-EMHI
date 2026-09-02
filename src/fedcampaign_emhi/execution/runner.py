@@ -6,12 +6,12 @@ from fedcampaign_emhi.artifacts.storage import build_artifact_layout, write_atom
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import ExperimentName, OverwritePolicy
-from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE, plan_experiments
+from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.experiments.campaigns import (
     ExperimentExecutionResult,
     execute_campaign_experiment,
 )
-from fedcampaign_emhi.experiments.registry import assert_known_experiment
+from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_experiment
 
 
 def execute_experiment(

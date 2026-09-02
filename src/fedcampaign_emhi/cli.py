@@ -22,7 +22,6 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import ArtifactIdentity, Boolean
 from fedcampaign_emhi.execution.planning import (
-    RESUME_SEQUENCE,
     plan_experiments,
     resolve_requested_experiment,
 )
@@ -33,7 +32,7 @@ from fedcampaign_emhi.execution.preprocessing import (
 )
 from fedcampaign_emhi.execution.runner import execute_experiment, publish_plan_artifact
 from fedcampaign_emhi.execution.status import project_status
-from fedcampaign_emhi.experiments.registry import assert_known_experiment
+from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_experiment
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
 from fedcampaign_emhi.runtime import assess_implementation_readiness
 

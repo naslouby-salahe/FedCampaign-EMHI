@@ -1,41 +1,94 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite, sqrt
 from pathlib import Path
+from time import perf_counter
 
+from fedcampaign_emhi.artifacts.records import (
+    BenignHorizonRecord,
+    BenignPartitionRecord,
+    ClientDetectorScoreStream,
+    ClientMarginalRankStream,
+    DatasetSplitRecord,
+    DetectorScoreArtifactRecord,
+    EMHIFitArtifactRecord,
+    MarginalRankArtifactRecord,
+)
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.dependence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
     paired_atom_metrics,
+    pfa_prerequisite_criterion,
 )
 from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
+from fedcampaign_emhi.detection import score_exceeds_threshold
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
+    ContextMethodName,
+    DatasetName,
+    DetectorFamily,
     ExecutionRole,
     ExperimentName,
     GeneratorName,
     MethodName,
+    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     AttenuationDifference,
+    BasisSize,
+    Boolean,
     ClientCount,
     ClientId,
     ComponentName,
     DetectorScore,
     EffectCoefficient,
+    EpochIndexValue,
+    InnovationCoordinate,
+    NuisanceCoefficient,
+    NumericalFloor,
+    Probability,
+    ProjectionNrmse,
     RankValue,
     RecordCount,
+    ScoreShift,
     SeedValue,
     StandardizedDrift,
+    StoppingTimeDifferenceEpochs,
+    ThresholdValue,
 )
-from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
+from fedcampaign_emhi.emhi.calibration import (
+    build_emhi_fit_artifact,
+    calibrate_innovations_on_nuisance_fit,
+)
 from fedcampaign_emhi.emhi.innovations import projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row, ridge_coefficient_matrix
-from fedcampaign_emhi.emhi.structure import tensor_representation
-from fedcampaign_emhi.evaluation.metrics import atom_cosine_similarity, atom_nrmse
+from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact, tensor_representation
+from fedcampaign_emhi.emhi.thresholds import (
+    clopper_pearson_one_sided_upper_bound,
+    select_calibrated_threshold,
+)
+from fedcampaign_emhi.evaluation.metrics import (
+    abstention_rate,
+    atom_cosine_similarity,
+    atom_nrmse,
+    campaign_detection_rate,
+    paired_detection_indicator_difference,
+    paired_stopping_time_difference,
+    target_order_drift,
+)
+from fedcampaign_emhi.evaluation.scalability import scalability_client_ids
+from fedcampaign_emhi.evaluation.sequential import (
+    calibrate_global_operating_point,
+    coalition_evidence_at_epoch,
+    global_stop_epoch,
+    sequential_trajectory,
+    trajectory_context_coverage,
+)
+from fedcampaign_emhi.runtime import deterministic_digest
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
     evaluate_estimator_feasibility_seed,
@@ -53,6 +106,7 @@ from fedcampaign_emhi.synthetic.pure_order import (
     enumerate_pure_order_grid,
     sample_generator_row,
     sample_independent_uniform_ranks,
+    sample_mixed_order_ranks,
     validate_generator_purity,
 )
 from fedcampaign_emhi.synthetic.self_explanation import (
@@ -108,6 +162,30 @@ class EstimatorFeasibilitySeedMetrics:
 
 
 @dataclass(frozen=True)
+class HofdEquivalenceConditionMetrics:
+    coalition_order: CoalitionOrder
+    support_per_context: RecordCount
+    atom_nrmse: ProjectionNrmse
+    atom_cosine_similarity: Probability
+    stopping_time_difference: StoppingTimeDifferenceEpochs | None
+    detection_indicator_difference: Probability
+    pfa_prerequisite_passes: Boolean
+
+
+@dataclass(frozen=True)
+class HofdEquivalenceSeedMetrics:
+    conditions: tuple[HofdEquivalenceConditionMetrics, ...]
+
+
+@dataclass(frozen=True)
+class HofdEquivalenceObservation:
+    execution_role: ExecutionRole
+    seed: SeedValue
+    metric: HofdEquivalenceSeedMetrics
+    diagnostic_path: Path
+
+
+@dataclass(frozen=True)
 class SyntheticCellOutcome:
     failed_checks: tuple[ComponentName, ...]
     method_score: DetectorScore | None
@@ -116,6 +194,78 @@ class SyntheticCellOutcome:
     pure_order_metrics: PureOrderSeedMetrics | None = None
     signed_theorem_metrics: SignedTheoremSeedMetrics | None = None
     estimator_feasibility_metrics: EstimatorFeasibilitySeedMetrics | None = None
+    hofd_metrics: HofdEquivalenceSeedMetrics | None = None
+
+
+def _pure_polynomial_generator(order: CoalitionOrder) -> GeneratorName:
+    if order is CoalitionOrder.ONE:
+        return GeneratorName.PURE_ORDER_ONE
+    if order is CoalitionOrder.TWO:
+        return GeneratorName.PURE_ORDER_TWO
+    return GeneratorName.PURE_CONTINUOUS_TRIPLE
+
+
+def _residual_norm(atom: tuple[InnovationCoordinate, ...]) -> DetectorScore:
+    return sqrt(sum(value * value for value in atom))
+
+
+def _residual_scores_for_rows(
+    rows: tuple[tuple[RankValue, ...], ...],
+    emhi_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    hofd_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    basis_size: BasisSize,
+) -> tuple[tuple[DetectorScore, ...], tuple[DetectorScore, ...]]:
+    emhi_scores: list[DetectorScore] = []
+    hofd_scores: list[DetectorScore] = []
+    for row in rows:
+        tensor = tensor_representation(row, basis_size)
+        design = proper_subset_design_row(row, basis_size)
+        emhi_scores.append(_residual_norm(projection_residual(tensor, emhi_coefficients, design)))
+        hofd_scores.append(_residual_norm(projection_residual(tensor, hofd_coefficients, design)))
+    return tuple(emhi_scores), tuple(hofd_scores)
+
+
+def _first_score_stop(
+    scores: tuple[DetectorScore, ...], threshold: ThresholdValue
+) -> EpochIndexValue | None:
+    for index, score in enumerate(scores):
+        if score_exceeds_threshold(score, threshold):
+            return index
+    return None
+
+
+def _calibrate_residual_threshold(
+    calibration_horizons: tuple[tuple[DetectorScore, ...], ...],
+    heldout_horizons: tuple[tuple[DetectorScore, ...], ...],
+    config: ScientificConfig,
+) -> tuple[ThresholdValue | None, Probability | None, RecordCount]:
+    candidates = config.evidence.calibrated_finite_horizon.threshold_candidates
+    stop_counts = tuple(
+        sum(
+            1
+            for horizon in calibration_horizons
+            if _first_score_stop(horizon, candidate) is not None
+        )
+        for candidate in candidates
+    )
+    selected = select_calibrated_threshold(
+        candidates,
+        stop_counts,
+        len(calibration_horizons),
+        config.evidence.calibrated_finite_horizon.calibration_confidence,
+        config.evidence.calibrated_finite_horizon.target_pfa,
+    )
+    if selected is None or not heldout_horizons:
+        return None, None, 0
+    heldout_false_stops = sum(
+        1 for horizon in heldout_horizons if _first_score_stop(horizon, selected) is not None
+    )
+    upper = clopper_pearson_one_sided_upper_bound(
+        heldout_false_stops,
+        len(heldout_horizons),
+        config.evidence.calibrated_finite_horizon.calibration_confidence,
+    )
+    return selected, upper, heldout_false_stops
 
 
 def _evaluate_hofd_equivalence_seed(
@@ -126,104 +276,339 @@ def _evaluate_hofd_equivalence_seed(
     experiment = config.experiments.exclusion_matched_hofd_equivalence
     materiality = config.materiality.hofd_equivalence
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
-    condition_records: list[YamlNode] = []
-    failures: list[ComponentName] = []
-    for support in experiment.primary_support_levels:
-        calibration_rows = tuple(
-            sample_independent_uniform_ranks(client_count, seed + index)[:3]
-            for index in range(support)
-        )
-        heldout_count = (
-            config.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
-        )
-        heldout_rows = tuple(
-            sample_independent_uniform_ranks(client_count, seed + support + index)[:3]
-            for index in range(heldout_count)
-        )
-        calibration_design_rows = tuple(
-            proper_subset_design_row(row, config.basis.primary_size) for row in calibration_rows
-        )
-        calibration_tensors = tuple(
-            tensor_representation(row, config.basis.primary_size) for row in calibration_rows
-        )
-        calibration = calibrate_innovations_on_nuisance_fit(
-            calibration_design_rows,
-            calibration_tensors,
-            config.projection.ridge_candidates,
-            config.projection.cross_validation.fold_count,
-            config.projection.selection_tie_tolerance_mse,
-            config.projection.zero_ridge_svd_relative_cutoff,
-            config.projection.atom_scale_floor,
-        )
-        if calibration is None:
-            failures.append(f"HOFD equivalence calibration support {support}")
-            continue
-        heldout_design_rows = tuple(
-            proper_subset_design_row(row, config.basis.primary_size) for row in heldout_rows
-        )
-        heldout_tensors = tuple(
-            tensor_representation(row, config.basis.primary_size) for row in heldout_rows
-        )
-        emhi_atoms = tuple(
-            projection_residual(tensor, calibration.complete_nuisance_coefficients, design)
-            for tensor, design in zip(heldout_tensors, heldout_design_rows, strict=True)
-        )
-        hofd_coefficients = ridge_coefficient_matrix(
-            calibration_design_rows,
-            calibration_tensors,
-            config.comparators.exclusion_matched_conditional_hofd.ridge_penalty,
-            config.comparators.exclusion_matched_conditional_hofd.relative_singular_cutoff,
-        )
-        hofd_atoms = tuple(
-            projection_residual(tensor, hofd_coefficients, design)
-            for tensor, design in zip(heldout_tensors, heldout_design_rows, strict=True)
-        )
-        paired_atoms = paired_atom_metrics(
-            emhi_atoms,
-            hofd_atoms,
-            config.numerics.metric_denominator_floor,
-        )
-        nrmse = atom_nrmse(emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor)
-        cosine = atom_cosine_similarity(
-            emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor
-        )
-        if paired_atoms.nrmse != nrmse or paired_atoms.cosine_similarity != cosine:
-            raise ValueError("paired atom metrics must match atom NRMSE and cosine formulas")
-        nrmse_passes = nrmse_equivalence_criterion(
-            nrmse,
-            materiality.atom_nrmse_upper_margin,
-        )
-        cosine_passes = cosine_equivalence_criterion(
-            cosine,
-            materiality.minimum_cosine_similarity,
-        )
-        if not nrmse_passes:
-            failures.append(f"HOFD atom NRMSE support {support}")
-        if not cosine_passes:
-            failures.append(f"HOFD atom cosine support {support}")
-        condition_records.append(
+    heldout_count = config.synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed
+    horizon_length = config.campaign.evaluation_horizon_epochs
+    calibration_count = config.synthetic.sample_sizes.finite_horizon_calibration_horizons_per_seed
+    heldout_horizon_count = (
+        config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
+    )
+    orders = tuple(
+        order for order in CoalitionOrder if int(order) <= int(config.study.maximum_coalition_order)
+    )
+    supports = tuple(
+        sorted(
             {
-                "support_per_context": support,
-                "heldout_samples": heldout_count,
-                "atom_nrmse": paired_atoms.nrmse,
-                "atom_cosine_similarity": paired_atoms.cosine_similarity,
-                "nrmse_equivalence_passes": nrmse_passes,
-                "cosine_equivalence_passes": cosine_passes,
+                *experiment.primary_support_levels,
+                *config.support_grids.hofd_equivalence_samples_per_context,
             }
         )
+    )
+    condition_records: list[YamlNode] = []
+    condition_metrics: list[HofdEquivalenceConditionMetrics] = []
+    failures: list[ComponentName] = []
+    offset = 0
+    for order in orders:
+        width = int(order)
+        cell = PureOrderCell(
+            generator=_pure_polynomial_generator(order),
+            effect=config.generators.pure_polynomial.primary_reference_theta,
+            method=MethodName.FULL_FEDCAMPAIGN_EMHI,
+            target_order=order,
+            enabled_orders=frozenset((order,)),
+        )
+        for support in supports:
+            nuisance_rows = tuple(
+                sample_independent_uniform_ranks(client_count, seed + offset + index)[:width]
+                for index in range(support)
+            )
+            offset += support
+            heldout_rows = tuple(
+                sample_generator_row(cell, client_count, seed + offset + index)[:width]
+                for index in range(heldout_count)
+            )
+            offset += heldout_count
+            nuisance_design = tuple(
+                proper_subset_design_row(row, config.basis.primary_size) for row in nuisance_rows
+            )
+            nuisance_tensors = tuple(
+                tensor_representation(row, config.basis.primary_size) for row in nuisance_rows
+            )
+            calibration = calibrate_innovations_on_nuisance_fit(
+                nuisance_design,
+                nuisance_tensors,
+                config.projection.ridge_candidates,
+                config.projection.cross_validation.fold_count,
+                config.projection.selection_tie_tolerance_mse,
+                config.projection.zero_ridge_svd_relative_cutoff,
+                config.projection.atom_scale_floor,
+            )
+            if calibration is None:
+                failures.append(f"HOFD equivalence calibration order {width} support {support}")
+                continue
+            heldout_design = tuple(
+                proper_subset_design_row(row, config.basis.primary_size) for row in heldout_rows
+            )
+            heldout_tensors = tuple(
+                tensor_representation(row, config.basis.primary_size) for row in heldout_rows
+            )
+            emhi_atoms = tuple(
+                projection_residual(tensor, calibration.complete_nuisance_coefficients, design)
+                for tensor, design in zip(heldout_tensors, heldout_design, strict=True)
+            )
+            hofd_coefficients = ridge_coefficient_matrix(
+                nuisance_design,
+                nuisance_tensors,
+                config.comparators.exclusion_matched_conditional_hofd.ridge_penalty,
+                config.comparators.exclusion_matched_conditional_hofd.relative_singular_cutoff,
+            )
+            hofd_atoms = tuple(
+                projection_residual(tensor, hofd_coefficients, design)
+                for tensor, design in zip(heldout_tensors, heldout_design, strict=True)
+            )
+            paired_atoms = paired_atom_metrics(
+                emhi_atoms,
+                hofd_atoms,
+                config.numerics.metric_denominator_floor,
+            )
+            nrmse = atom_nrmse(emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor)
+            cosine = atom_cosine_similarity(
+                emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor
+            )
+            if paired_atoms.nrmse != nrmse or paired_atoms.cosine_similarity != cosine:
+                raise ValueError("paired atom metrics must match atom NRMSE and cosine formulas")
+            nrmse_passes = nrmse_equivalence_criterion(
+                nrmse,
+                materiality.atom_nrmse_upper_margin,
+            )
+            cosine_passes = cosine_equivalence_criterion(
+                cosine,
+                materiality.minimum_cosine_similarity,
+            )
+
+            null_horizons = tuple(
+                tuple(
+                    sample_independent_uniform_ranks(
+                        client_count, seed + offset + horizon_index * horizon_length + epoch_index
+                    )[:width]
+                    for epoch_index in range(horizon_length)
+                )
+                for horizon_index in range(calibration_count + heldout_horizon_count)
+            )
+            offset += (calibration_count + heldout_horizon_count) * horizon_length
+            emhi_null = tuple(
+                _residual_scores_for_rows(
+                    horizon,
+                    calibration.complete_nuisance_coefficients,
+                    hofd_coefficients,
+                    config.basis.primary_size,
+                )[0]
+                for horizon in null_horizons
+            )
+            hofd_null = tuple(
+                _residual_scores_for_rows(
+                    horizon,
+                    calibration.complete_nuisance_coefficients,
+                    hofd_coefficients,
+                    config.basis.primary_size,
+                )[1]
+                for horizon in null_horizons
+            )
+            emhi_threshold, emhi_pfa, _emhi_false = _calibrate_residual_threshold(
+                emhi_null[:calibration_count], emhi_null[calibration_count:], config
+            )
+            hofd_threshold, hofd_pfa, _hofd_false = _calibrate_residual_threshold(
+                hofd_null[:calibration_count], hofd_null[calibration_count:], config
+            )
+            pfa_ok = (
+                emhi_pfa is not None
+                and hofd_pfa is not None
+                and pfa_prerequisite_criterion(
+                    emhi_pfa, config.evidence.calibrated_finite_horizon.target_pfa
+                )
+                and pfa_prerequisite_criterion(
+                    hofd_pfa, config.evidence.calibrated_finite_horizon.target_pfa
+                )
+            )
+            effect_horizon = tuple(
+                sample_generator_row(cell, client_count, seed + offset + epoch_index)[:width]
+                for epoch_index in range(horizon_length)
+            )
+            offset += horizon_length
+            emhi_effect, hofd_effect = _residual_scores_for_rows(
+                effect_horizon,
+                calibration.complete_nuisance_coefficients,
+                hofd_coefficients,
+                config.basis.primary_size,
+            )
+            emhi_stop = (
+                None if emhi_threshold is None else _first_score_stop(emhi_effect, emhi_threshold)
+            )
+            hofd_stop = (
+                None if hofd_threshold is None else _first_score_stop(hofd_effect, hofd_threshold)
+            )
+            stop_difference = (
+                None
+                if emhi_stop is None or hofd_stop is None
+                else paired_stopping_time_difference(emhi_stop, hofd_stop)
+            )
+            detection_difference = paired_detection_indicator_difference(
+                emhi_stop is not None, hofd_stop is not None
+            )
+            condition_metrics.append(
+                HofdEquivalenceConditionMetrics(
+                    coalition_order=order,
+                    support_per_context=support,
+                    atom_nrmse=nrmse,
+                    atom_cosine_similarity=cosine,
+                    stopping_time_difference=stop_difference,
+                    detection_indicator_difference=detection_difference,
+                    pfa_prerequisite_passes=pfa_ok,
+                )
+            )
+            condition_records.append(
+                {
+                    "coalition_order": width,
+                    "support_per_context": support,
+                    "heldout_samples": heldout_count,
+                    "atom_nrmse": paired_atoms.nrmse,
+                    "atom_cosine_similarity": paired_atoms.cosine_similarity,
+                    "nrmse_equivalence_passes": nrmse_passes,
+                    "cosine_equivalence_passes": cosine_passes,
+                    "emhi_null_pfa": emhi_pfa,
+                    "hofd_null_pfa": hofd_pfa,
+                    "pfa_prerequisite_passes": pfa_ok,
+                    "emhi_stop_epoch": emhi_stop,
+                    "hofd_stop_epoch": hofd_stop,
+                    "stopping_time_difference": stop_difference,
+                    "detection_indicator_difference": detection_difference,
+                }
+            )
     return SyntheticCellOutcome(
         tuple(failures),
         None,
         {
-            "comparison": "paired exclusion-matched EMHI and HOFD atom residuals",
+            "comparison": "paired exclusion-matched EMHI and HOFD atoms and sequential routes",
             "context_cell_count": experiment.context_cell_count,
             "conditions": condition_records,
         },
+        hofd_metrics=HofdEquivalenceSeedMetrics(tuple(condition_metrics)),
     )
 
 
 def _synthetic_robustness_client_ids(client_count: ClientCount) -> tuple[ClientId, ...]:
-    return tuple(f"synthetic-robustness-{index}" for index in range(client_count))
+    return scalability_client_ids(client_count)
+
+
+def _context_dependent_triple_cell(effect: EffectCoefficient) -> PureOrderCell:
+    return PureOrderCell(
+        generator=GeneratorName.CONTEXT_DEPENDENT_PURE_TRIPLE,
+        effect=effect,
+        method=MethodName.FULL_FEDCAMPAIGN_EMHI,
+        target_order=CoalitionOrder.THREE,
+        enabled_orders=frozenset((CoalitionOrder.THREE,)),
+    )
+
+
+def _rank_rows_as_emhi_artifacts(
+    config: ScientificConfig,
+    client_ids: tuple[ClientId, ...],
+    rows: tuple[tuple[RankValue, ...], ...],
+    nuisance_count: RecordCount,
+    seed: SeedValue,
+    producer: ComponentName,
+) -> tuple[DetectorScoreArtifactRecord, MarginalRankArtifactRecord, EMHIFitArtifactRecord]:
+    fingerprint = deterministic_digest({"producer": producer, "seed": seed})
+    epochs = tuple(range(len(rows)))
+    scores = DetectorScoreArtifactRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        root_seed=seed,
+        selected_client_ids=client_ids,
+        client_streams=tuple(
+            ClientDetectorScoreStream(
+                client_id=client_id,
+                detector_family=DetectorFamily.ISOLATION_FOREST,
+                detector_seed=seed,
+                epoch_indexes=epochs,
+                scores=tuple(row[index] for row in rows),
+            )
+            for index, client_id in enumerate(client_ids)
+        ),
+        dependency_fingerprint=fingerprint,
+    )
+    nuisance_epochs = tuple(range(nuisance_count))
+    split = DatasetSplitRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        selected_client_ids=client_ids,
+        eligible_client_ids=client_ids,
+        support_state=SupportState.SUPPORTED,
+        detector_fit_epochs=nuisance_epochs,
+        nuisance_fit_epochs=nuisance_epochs,
+        threshold_calibration_epochs=(),
+        heldout_benign_epochs=(),
+    )
+    ranks = build_marginal_rank_artifact(
+        scores, nuisance_epochs, config.context.rank_clip_epsilon, fingerprint
+    )
+    fit = build_emhi_fit_artifact(
+        config,
+        scores,
+        ranks,
+        split,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        CoalitionOrder(config.study.maximum_coalition_order),
+        config.basis.primary_size,
+        config.context.primary_cell_count,
+        True,
+        False,
+        fingerprint,
+    )
+    return scores, ranks, fit
+
+
+def _contaminate_row(
+    row: tuple[RankValue, ...],
+    client_ids: tuple[ClientId, ...],
+    contaminated_ids: frozenset[ClientId],
+    outside_rank_shift: ScoreShift,
+    rank_clip_epsilon: NumericalFloor,
+) -> tuple[RankValue, ...]:
+    return tuple(
+        contaminate_rank(rank, outside_rank_shift, rank_clip_epsilon)
+        if client_id in contaminated_ids
+        else rank
+        for client_id, rank in zip(client_ids, row, strict=True)
+    )
+
+
+def _target_order_standardized_drift(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    target_ids: tuple[ClientId, ...],
+    null_epochs: tuple[EpochIndexValue, ...],
+    alternative_epochs: tuple[EpochIndexValue, ...],
+) -> StandardizedDrift | None:
+    coalition_fit = next(
+        (
+            candidate
+            for candidate in fit.coalition_fits
+            if candidate.coalition_client_ids == target_ids
+        ),
+        None,
+    )
+    if coalition_fit is None:
+        return None
+    null_scores = tuple(
+        coalition_evidence_at_epoch(config, ranks, fit, coalition_fit, epoch)
+        for epoch in null_epochs
+    )
+    alternative_scores = tuple(
+        coalition_evidence_at_epoch(config, ranks, fit, coalition_fit, epoch)
+        for epoch in alternative_epochs
+    )
+    if any(value is None for value in (*null_scores, *alternative_scores)):
+        return None
+    resolved_null = tuple(value for value in null_scores if value is not None)
+    resolved_alternative = tuple(value for value in alternative_scores if value is not None)
+    mean = sum(resolved_null) / len(resolved_null)
+    deviation = sqrt(sum((value - mean) ** 2 for value in resolved_null) / len(resolved_null))
+    return target_order_drift(
+        sum(resolved_alternative) / len(resolved_alternative),
+        mean,
+        deviation,
+        config.numerics.metric_denominator_floor,
+    )
 
 
 def _evaluate_outside_contamination_seed(
@@ -233,29 +618,119 @@ def _evaluate_outside_contamination_seed(
     specification = config.generators.outside_contamination
     client_ids = _synthetic_robustness_client_ids(specification.client_count)
     target = outside_contamination_targets(client_ids)
-    outside = tuple(client_id for client_id in client_ids if client_id not in target)
-    records: list[YamlNode] = []
-    for fraction in specification.correlated_campaign_fractions:
-        contaminated = contaminated_outside_clients(outside, fraction)
-        transformed = tuple(
-            contaminate_rank(
-                sample_independent_uniform_ranks(specification.client_count, seed + index)[0],
+    outside = tuple(client_id for client_id in client_ids if client_id not in set(target))
+    cell = _context_dependent_triple_cell(specification.target_triple_theta)
+    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
+    evaluation_count = (
+        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
+    )
+    warmup = config.campaign.prestart_warmup_epochs
+    horizon = config.campaign.evaluation_horizon_epochs
+    campaign_length = warmup + horizon
+    calibration_count = config.synthetic.sample_sizes.finite_horizon_calibration_horizons_per_seed
+    heldout_count = config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
+    fractions = specification.correlated_campaign_fractions
+    prefix_count = (
+        nuisance_count + evaluation_count + ((calibration_count + heldout_count) * campaign_length)
+    )
+    uncontaminated: list[tuple[RankValue, ...]] = [
+        sample_generator_row(cell, specification.client_count, seed + index)
+        for index in range(prefix_count)
+    ]
+    campaign_blocks: list[tuple[tuple[RankValue, ...], ...]] = []
+    for fraction in fractions:
+        contaminated_ids = frozenset(contaminated_outside_clients(outside, fraction))
+        block = tuple(
+            _contaminate_row(
+                sample_generator_row(
+                    cell,
+                    specification.client_count,
+                    seed + len(uncontaminated) + (len(campaign_blocks) * campaign_length) + index,
+                ),
+                client_ids,
+                contaminated_ids,
                 specification.outside_rank_shift,
                 config.context.rank_clip_epsilon,
             )
-            for index, _client_id in enumerate(contaminated)
+            for index in range(campaign_length)
+        )
+        campaign_blocks.append(block)
+    rows = tuple(uncontaminated) + tuple(row for block in campaign_blocks for row in block)
+    _scores, ranks, fit = _rank_rows_as_emhi_artifacts(
+        config,
+        client_ids,
+        rows,
+        nuisance_count,
+        seed,
+        "outside-campaign-contamination",
+    )
+    calibration_start = nuisance_count + evaluation_count
+
+    def _horizons(origin: EpochIndexValue, count: RecordCount) -> tuple[BenignHorizonRecord, ...]:
+        return tuple(
+            BenignHorizonRecord(
+                start_epoch=origin + (index * campaign_length) + warmup,
+                epoch_indexes=tuple(
+                    range(
+                        origin + (index * campaign_length) + warmup,
+                        origin + ((index + 1) * campaign_length),
+                    )
+                ),
+            )
+            for index in range(count)
+        )
+
+    operating = calibrate_global_operating_point(
+        config,
+        ranks,
+        fit,
+        BenignPartitionRecord(
+            dataset_name=DatasetName.TON_IOT_NETWORK,
+            calibration_horizons=_horizons(calibration_start, calibration_count),
+            heldout_horizons=_horizons(
+                calibration_start + (calibration_count * campaign_length),
+                heldout_count,
+            ),
+        ),
+    )
+    null_epochs = tuple(range(nuisance_count, nuisance_count + evaluation_count))
+    campaign_origin = calibration_start + ((calibration_count + heldout_count) * campaign_length)
+    records: list[YamlNode] = []
+    for index, fraction in enumerate(fractions):
+        start = campaign_origin + (index * campaign_length)
+        scored = tuple(range(start + warmup, start + campaign_length))
+        trajectory = sequential_trajectory(config, ranks, fit, scored)
+        coverage = trajectory_context_coverage(trajectory)
+        stop = (
+            None
+            if operating.threshold is None
+            else global_stop_epoch(trajectory, operating.threshold)
+        )
+        drift = _target_order_standardized_drift(
+            config,
+            ranks,
+            fit,
+            target,
+            null_epochs,
+            scored,
         )
         records.append(
             {
                 "correlated_campaign_fraction": fraction,
-                "contaminated_outside_client_ids": contaminated,
-                "transformed_rank_count": len(transformed),
+                "contaminated_outside_client_ids": list(
+                    contaminated_outside_clients(outside, fraction)
+                ),
+                "target_order_drift": drift,
+                "detection_rate": campaign_detection_rate((stop,), horizon),
+                "context_coverage": coverage,
+                "abstention_rate": abstention_rate(coverage),
+                "null_pfa": operating.heldout_upper_pfa,
             }
         )
     return SyntheticCellOutcome(
         (),
         None,
-        {"target_client_ids": target, "contamination_conditions": records},
+        {"target_client_ids": list(target), "contamination_conditions": records},
     )
 
 
@@ -263,26 +738,128 @@ def _evaluate_dropout_sparsity_seed(
     loaded: LoadedScientificConfiguration, seed: SeedValue
 ) -> SyntheticCellOutcome:
     config = loaded.values
-    client_ids = _synthetic_robustness_client_ids(
-        config.generators.outside_contamination.client_count
-    )
-    target = outside_contamination_targets(client_ids)
+    cell = _context_dependent_triple_cell(config.generators.context_dependent_triple.primary_theta)
+    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
+    warmup = config.campaign.prestart_warmup_epochs
+    horizon = config.campaign.evaluation_horizon_epochs
+    campaign_length = warmup + horizon
+    calibration_count = config.synthetic.sample_sizes.finite_horizon_calibration_horizons_per_seed
+    heldout_count = config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
     records: list[YamlNode] = []
-    for fraction in config.generators.client_dropout.unavailable_fractions:
-        available = availability_mask(client_ids, fraction, seed)
-        records.append(
-            {
-                "unavailable_fraction": fraction,
-                "available_client_ids": available,
-                "target_coalition_active": dropout_coalition_is_active(
+    for client_count in config.robustness.scalability_client_counts:
+        client_ids = _synthetic_robustness_client_ids(client_count)
+        target = outside_contamination_targets(client_ids)
+        prefix_count = nuisance_count + ((calibration_count + heldout_count) * campaign_length)
+        rows = tuple(
+            sample_generator_row(cell, client_count, seed + client_count + index)
+            for index in range(prefix_count + campaign_length)
+        )
+        _scores, ranks, fit = _rank_rows_as_emhi_artifacts(
+            config,
+            client_ids,
+            rows,
+            nuisance_count,
+            seed + client_count,
+            "client-dropout-sparsity",
+        )
+
+        def _horizons(
+            origin: EpochIndexValue, count: RecordCount
+        ) -> tuple[BenignHorizonRecord, ...]:
+            return tuple(
+                BenignHorizonRecord(
+                    start_epoch=origin + (index * campaign_length) + warmup,
+                    epoch_indexes=tuple(
+                        range(
+                            origin + (index * campaign_length) + warmup,
+                            origin + ((index + 1) * campaign_length),
+                        )
+                    ),
+                )
+                for index in range(count)
+            )
+
+        operating = calibrate_global_operating_point(
+            config,
+            ranks,
+            fit,
+            BenignPartitionRecord(
+                dataset_name=DatasetName.TON_IOT_NETWORK,
+                calibration_horizons=_horizons(nuisance_count, calibration_count),
+                heldout_horizons=_horizons(
+                    nuisance_count + (calibration_count * campaign_length),
+                    heldout_count,
+                ),
+            ),
+        )
+        campaign_origin = prefix_count
+        scored = tuple(range(campaign_origin + warmup, campaign_origin + campaign_length))
+        for fraction in config.generators.client_dropout.unavailable_fractions:
+            available_by_epoch = {
+                epoch: frozenset(availability_mask(client_ids, fraction, seed + epoch))
+                for epoch in scored
+            }
+            active_epochs = 0
+            for epoch in scored:
+                available = tuple(available_by_epoch[epoch])
+                if dropout_coalition_is_active(
                     target,
                     available,
                     client_ids,
                     config.context.minimum_available_outside_clients,
                     config.context.minimum_available_outside_fraction,
-                ),
-            }
-        )
+                ):
+                    active_epochs += 1
+            coverage = active_epochs / len(scored)
+            filtered_streams = tuple(
+                ClientMarginalRankStream(
+                    client_id=stream.client_id,
+                    nuisance_reference_scores=stream.nuisance_reference_scores,
+                    epoch_indexes=tuple(
+                        epoch
+                        for epoch, _rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+                        if epoch not in available_by_epoch
+                        or stream.client_id in available_by_epoch[epoch]
+                    ),
+                    ranks=tuple(
+                        rank
+                        for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+                        if epoch not in available_by_epoch
+                        or stream.client_id in available_by_epoch[epoch]
+                    ),
+                )
+                for stream in ranks.client_streams
+            )
+            filtered_ranks = ranks.model_copy(update={"client_streams": filtered_streams})
+            started = perf_counter()
+            trajectory = sequential_trajectory(config, filtered_ranks, fit, scored)
+            latency = perf_counter() - started
+            stop = (
+                None
+                if operating.threshold is None
+                else global_stop_epoch(trajectory, operating.threshold)
+            )
+            drift = _target_order_standardized_drift(
+                config,
+                ranks,
+                fit,
+                target,
+                tuple(range(nuisance_count)),
+                scored,
+            )
+            records.append(
+                {
+                    "client_count": client_count,
+                    "unavailable_fraction": fraction,
+                    "context_coverage": coverage,
+                    "abstention_rate": abstention_rate(coverage),
+                    "standardized_null_bias": drift,
+                    "detection_rate": campaign_detection_rate((stop,), horizon),
+                    "latency_seconds": latency,
+                    "null_pfa": operating.heldout_upper_pfa,
+                    "operating_point_available": operating.threshold is not None,
+                }
+            )
     return SyntheticCellOutcome((), None, {"dropout_conditions": records})
 
 
@@ -418,8 +995,32 @@ def run_synthetic_cell(
                 {"implementation_state": "unusable_nuisance_standardization"},
             )
         standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
+        mixed_diagnostics: list[YamlNode] = []
+        mixed_failures: list[ComponentName] = []
+        remaining = client_count - int(CoalitionOrder.THREE)
+        for term_index, term_set in enumerate(config.generators.mixed_order.enabled_term_sets):
+            enabled = frozenset(CoalitionOrder(term) for term in term_set)
+            row = sample_mixed_order_ranks(
+                enabled,
+                config.generators.mixed_order.term_coefficient,
+                remaining,
+                seed + sample_count + term_index,
+            )
+            mixed_score, _state = score_comparator_ranks(method_name, row[: int(order)], config)
+            finite = isfinite(mixed_score)
+            mixed_diagnostics.append(
+                {
+                    "enabled_orders": [int(item) for item in sorted(enabled)],
+                    "finite_native_order_score": finite,
+                    "native_order_score": mixed_score,
+                }
+            )
+            if not finite:
+                mixed_failures.append(
+                    f"mixed-order diagnostic {sorted(int(item) for item in enabled)}"
+                )
         return SyntheticCellOutcome(
-            (),
+            tuple(mixed_failures),
             standardized_score,
             {
                 "implementation_state": "native_order_score_complete",
@@ -428,6 +1029,7 @@ def run_synthetic_cell(
                 "standardized_target_order_error": abs(
                     standardized_score - config.generators.pure_polynomial.primary_reference_theta
                 ),
+                "mixed_order_diagnostics": mixed_diagnostics,
             },
         )
     if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
