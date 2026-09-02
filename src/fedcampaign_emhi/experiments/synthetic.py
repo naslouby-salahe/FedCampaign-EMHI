@@ -35,6 +35,7 @@ from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_
 from fedcampaign_emhi.emhi.innovations import projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row, ridge_coefficient_matrix
 from fedcampaign_emhi.emhi.structure import tensor_representation
+from fedcampaign_emhi.evaluation.metrics import atom_cosine_similarity, atom_nrmse
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
     evaluate_estimator_feasibility_seed,
@@ -177,16 +178,24 @@ def _evaluate_hofd_equivalence_seed(
             projection_residual(tensor, hofd_coefficients, design)
             for tensor, design in zip(heldout_tensors, heldout_design_rows, strict=True)
         )
-        metrics = paired_atom_metrics(
+        paired_atoms = paired_atom_metrics(
             emhi_atoms,
             hofd_atoms,
             config.numerics.metric_denominator_floor,
         )
+        nrmse = atom_nrmse(emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor)
+        cosine = atom_cosine_similarity(
+            emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor
+        )
+        if paired_atoms.nrmse != nrmse or paired_atoms.cosine_similarity != cosine:
+            raise ValueError("paired atom metrics must match atom NRMSE and cosine formulas")
         nrmse_passes = nrmse_equivalence_criterion(
-            metrics.nrmse, materiality.atom_nrmse_upper_margin
+            nrmse,
+            materiality.atom_nrmse_upper_margin,
         )
         cosine_passes = cosine_equivalence_criterion(
-            metrics.cosine_similarity, materiality.minimum_cosine_similarity
+            cosine,
+            materiality.minimum_cosine_similarity,
         )
         if not nrmse_passes:
             failures.append(f"HOFD atom NRMSE support {support}")
@@ -196,8 +205,8 @@ def _evaluate_hofd_equivalence_seed(
             {
                 "support_per_context": support,
                 "heldout_samples": heldout_count,
-                "atom_nrmse": metrics.nrmse,
-                "atom_cosine_similarity": metrics.cosine_similarity,
+                "atom_nrmse": paired_atoms.nrmse,
+                "atom_cosine_similarity": paired_atoms.cosine_similarity,
                 "nrmse_equivalence_passes": nrmse_passes,
                 "cosine_equivalence_passes": cosine_passes,
             }
@@ -352,6 +361,7 @@ def run_synthetic_cell(
                     "abstention_rate": metrics.abstention_rate,
                     "condition_number": metrics.condition_number,
                     "numerical_failure": metrics.numerical_failure,
+                    "numerical_failure_rate": metrics.numerical_failure_rate,
                 },
                 "condition_evaluations": [
                     {
@@ -368,6 +378,7 @@ def run_synthetic_cell(
                         "abstention_rate": evaluation.metrics.abstention_rate,
                         "condition_number": evaluation.metrics.condition_number,
                         "numerical_failure": evaluation.metrics.numerical_failure,
+                        "numerical_failure_rate": evaluation.metrics.numerical_failure_rate,
                     }
                     for evaluation in evaluations
                 ],

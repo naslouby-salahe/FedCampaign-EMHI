@@ -8,7 +8,6 @@ from fedcampaign_emhi.comparators.fusion import (
     CompositionSelectionInputs,
     build_composition_selection_record,
     candidate_is_eligible,
-    composition_seed_count,
     materialize_composition_record,
     mean_standardized_error,
     median_runtime_seconds,
@@ -115,9 +114,6 @@ def test_selection_ignores_real_outcomes_and_uses_development_seeds() -> None:
     assert contract.methods == challenge.candidates
     assert contract.uses_real_seeds is False
     assert contract.uses_synthetic_seeds is True
-    assert composition_seed_count(len(loaded.values.randomness.synthetic_development_roots)) == (
-        len(loaded.values.randomness.synthetic_development_roots)
-    )
 
 
 def test_composition_record_materialization() -> None:

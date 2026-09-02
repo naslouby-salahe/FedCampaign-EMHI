@@ -37,6 +37,7 @@ from fedcampaign_emhi.domain.types import (
     MetricValue,
     NuisanceCoefficient,
     NumericalFloor,
+    OdiRateAdvantage,
     OperationalLeadEpochs,
     OperationalNormReference,
     PairedDifference,
@@ -89,24 +90,6 @@ class ScientificCellRecord(FrozenConfigModel):
     peak_rss_bytes: ByteCount
     application_payload_bytes: ByteCount
     completion_record: CompletionRecord
-
-
-class DependencyIndexEntry(FrozenConfigModel):
-    artifact_id: ArtifactIdentity
-    semantic_path: RelativePath
-    producer_contract: ComponentName
-    producer_experiment: ExperimentName | None
-    producer_cell: RelativePath | None
-    dependency_fingerprint: MaterialDependencyFingerprint
-    upstream_artifact_ids: tuple[ArtifactIdentity, ...]
-    content_hashes: tuple[ConfigurationDigest, ...]
-    active_state: ArtifactLifecycleState
-    stale_reason: ComponentName | None
-    downstream_consumers: tuple[ArtifactIdentity, ...]
-
-
-class DependencyIndexRecord(FrozenConfigModel):
-    entries: tuple[DependencyIndexEntry, ...]
 
 
 class ExperimentRunRecord(FrozenConfigModel):
@@ -310,6 +293,8 @@ class StatisticalRecord(FrozenConfigModel):
     confidence_level: Probability | None
     confidence_lower: StatisticValue | None
     confidence_upper: StatisticValue | None
+    hodges_lehmann_shift: StatisticValue | None = None
+    equivalence_established: Boolean | None = None
     decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -433,6 +418,33 @@ class PrimaryHolmFamilyRecord(FrozenConfigModel):
     results: tuple[HolmFamilyResultRecord, ...]
     source_statistical_paths: tuple[RelativePath, ...]
     source_artifact_hashes: tuple[ConfigurationDigest, ...]
+    content_digest: ConfigurationDigest
+
+
+class SecondaryHolmFamilyRecord(FrozenConfigModel):
+    material_digest: ConfigurationDigest
+    results: tuple[HolmFamilyResultRecord, ...]
+    source_statistical_paths: tuple[RelativePath, ...]
+    source_artifact_hashes: tuple[ConfigurationDigest, ...]
+    content_digest: ConfigurationDigest
+
+
+class FullMethodSupportRecord(FrozenConfigModel):
+    experiment_name: ExperimentName
+    heldout_pfa_upper_bound: Probability | None
+    mean_strict_odi_rate: Probability
+    paired_odi_advantage: OdiRateAdvantage
+    median_lead_among_successes: OperationalLeadEpochs | None
+    directional_adjusted_p_value: Probability | None
+    pfa_criterion_satisfied: Boolean
+    odi_rate_criterion_satisfied: Boolean
+    advantage_criterion_satisfied: Boolean
+    lead_criterion_satisfied: Boolean
+    directional_criterion_satisfied: Boolean
+    matched_operating_point_criterion_satisfied: Boolean
+    all_criteria_pass: Boolean
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
 
 

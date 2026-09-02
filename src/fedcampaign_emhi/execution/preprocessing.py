@@ -71,6 +71,7 @@ from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     normalize_event_type as ton_normalize_event_type,
 )
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
+from fedcampaign_emhi.datasets.ton_iot_network.loading import validate_ton_iot_network_csv_schema
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
 )
@@ -567,7 +568,10 @@ def _build_prepared_and_split(
 def _prepare_ton_epochs_from_csv(
     loaded: LoadedScientificConfiguration, raw_directory: Path
 ) -> PreparedDatasetRecord:
-    paths = tuple(str(path) for path in _csv_paths(raw_directory))
+    csv_paths = _csv_paths(raw_directory)
+    for path in csv_paths:
+        validate_ton_iot_network_csv_schema(path)
+    paths = tuple(str(path) for path in csv_paths)
     if not paths:
         return _prepare_ton_epochs(loaded, (), (), (), SupportState.NOT_TESTED, 0, 0, 0)
     epoch_seconds = loaded.values.time.real_data_epoch_seconds

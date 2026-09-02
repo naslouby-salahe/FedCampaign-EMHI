@@ -77,14 +77,6 @@ def marginal_campaign_targets(client_ids: tuple[ClientId, ...]) -> tuple[ClientI
     return lexicographic_target_clients(client_ids, 3)
 
 
-def pair_relation_targets(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
-    return lexicographic_target_clients(client_ids, 2)
-
-
-def single_client_target(client_ids: tuple[ClientId, ...]) -> ClientId:
-    return lexicographic_target_clients(client_ids, 1)[0]
-
-
 def apply_marginal_score_shift(
     scores: tuple[DetectorScore, ...],
     ordered_client_ids: tuple[ClientId, ...],
@@ -94,21 +86,6 @@ def apply_marginal_score_shift(
     shifted: list[DetectorScore] = []
     for client_id, score in zip(ordered_client_ids, scores, strict=True):
         if client_id in attacked:
-            shifted.append(score + score_shift)
-        else:
-            shifted.append(score)
-    return tuple(shifted)
-
-
-def apply_single_client_score_shift(
-    scores: tuple[DetectorScore, ...],
-    ordered_client_ids: tuple[ClientId, ...],
-    score_shift: ScoreShift,
-) -> tuple[DetectorScore, ...]:
-    attacked = single_client_target(ordered_client_ids)
-    shifted: list[DetectorScore] = []
-    for client_id, score in zip(ordered_client_ids, scores, strict=True):
-        if client_id == attacked:
             shifted.append(score + score_shift)
         else:
             shifted.append(score)

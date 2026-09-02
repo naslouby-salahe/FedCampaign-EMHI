@@ -47,6 +47,11 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact
 from fedcampaign_emhi.emhi.thresholds import select_calibrated_threshold
+from fedcampaign_emhi.evaluation.metrics import (
+    maximal_proper_subset_drift,
+    proper_subset_drift,
+    target_order_drift,
+)
 from fedcampaign_emhi.evaluation.sequential import (
     calibrate_global_operating_point,
     coalition_evidence_at_epoch,
@@ -542,8 +547,11 @@ def evaluate_fitted_pure_order_cell(
         resolved_alternative = tuple(value for value in alternative_scores if value is not None)
         mean = sum(resolved_null) / len(resolved_null)
         deviation = sqrt(sum((value - mean) ** 2 for value in resolved_null) / len(resolved_null))
-        return (sum(resolved_alternative) / len(resolved_alternative) - mean) / max(
-            deviation, config.numerics.metric_denominator_floor
+        return target_order_drift(
+            sum(resolved_alternative) / len(resolved_alternative),
+            mean,
+            deviation,
+            config.numerics.metric_denominator_floor,
         )
 
     target_ids = client_ids[: int(cell.target_order)]
@@ -559,6 +567,20 @@ def evaluate_fitted_pure_order_cell(
     if target_drift is None or len(subset_drifts) != expected_subset_count:
         return FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, False), False)
     return FittedPureOrderResult(
-        PureOrderDriftMetrics(max(abs(drift) for drift in subset_drifts), target_drift, True),
+        PureOrderDriftMetrics(
+            maximal_proper_subset_drift(
+                tuple(
+                    proper_subset_drift(
+                        (drift,),
+                        (0.0,),
+                        1.0,
+                        config.numerics.metric_denominator_floor,
+                    )
+                    for drift in subset_drifts
+                )
+            ),
+            target_drift,
+            True,
+        ),
         True,
     )

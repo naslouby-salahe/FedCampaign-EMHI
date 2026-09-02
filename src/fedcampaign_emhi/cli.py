@@ -2,7 +2,10 @@ from collections.abc import Callable
 
 import typer
 
-from fedcampaign_emhi.analysis.results import materialize_primary_holm_family
+from fedcampaign_emhi.analysis.results import (
+    materialize_primary_holm_family,
+    materialize_secondary_holm_family,
+)
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout
 from fedcampaign_emhi.config.loading import (
     load_smoke_configuration,
@@ -236,8 +239,10 @@ def report_command(
 def analyze_command() -> None:
     repository, loaded = production_configuration_context()
     primary_holm_path = materialize_primary_holm_family(loaded, repository)
+    secondary_holm_path = materialize_secondary_holm_family(loaded, repository)
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"primary_holm_artifact={primary_holm_path}")
+    typer.echo(f"secondary_holm_artifact={secondary_holm_path}")
 
 
 application.command("doctor")(doctor_command)
@@ -248,3 +253,7 @@ application.command("smoke")(smoke_command)
 application.command("run")(run_command)
 application.command("status")(status_command)
 application.command("report")(report_command)
+
+
+if __name__ == "__main__":
+    main()

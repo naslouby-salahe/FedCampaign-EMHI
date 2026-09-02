@@ -48,9 +48,30 @@ def test_no_redirects_shims_reexports() -> None:
     assert findings == []
 
 
+def test_package_initializers_do_not_create_unowned_public_apis() -> None:
+    findings: list[str] = []
+    for path in source_files():
+        if path.name != "__init__.py":
+            continue
+        tree = module_ast(path)
+        for node in tree.body:
+            if isinstance(node, ast.Import | ast.ImportFrom):
+                findings.append(f"{path.relative_to(SRC_ROOT).as_posix()}:reexport")
+            elif isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+            ):
+                findings.append(f"{path.relative_to(SRC_ROOT).as_posix()}:public-export")
+    assert findings == []
+
+
 def test_no_redirects_shims_reexports_fails_on_fixture() -> None:
     tree = ast.parse("from fedcampaign_emhi.config.loading import load_production_configuration\n")
     assert all(isinstance(node, ast.ImportFrom) for node in tree.body)
+
+
+def test_package_initializer_check_rejects_reexports() -> None:
+    tree = ast.parse("from fedcampaign_emhi.config.loading import load_production_configuration\n")
+    assert any(isinstance(node, ast.ImportFrom) for node in tree.body)
 
 
 def test_no_redirects_shims_reexports_passes_on_compliant_fixture() -> None:

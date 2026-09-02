@@ -1,37 +1,13 @@
 from scipy.stats import beta
 
-from fedcampaign_emhi.domain.enums import (
-    ExperimentState,
-    OperatingPointState,
-    ScientificOutcomeKind,
-)
 from fedcampaign_emhi.domain.types import (
     ConfidenceLevel,
     ESrThreshold,
     FalseAlarmRate,
     Probability,
     RecordCount,
-    ScientificOutcome,
     ThresholdValue,
 )
-
-
-def operating_point_unavailable_outcome() -> ScientificOutcome:
-    return ScientificOutcome(
-        kind=ScientificOutcomeKind.OPERATING_POINT_UNAVAILABLE,
-        operating_point_state=OperatingPointState.UNAVAILABLE,
-        experiment_state=ExperimentState.COMPLETED,
-        is_implementation_error=False,
-    )
-
-
-def unfavorable_completed_outcome() -> ScientificOutcome:
-    return ScientificOutcome(
-        kind=ScientificOutcomeKind.COMPLETED_UNFAVORABLE,
-        operating_point_state=OperatingPointState.AVAILABLE,
-        experiment_state=ExperimentState.COMPLETED,
-        is_implementation_error=False,
-    )
 
 
 def clopper_pearson_one_sided_upper_bound(
@@ -68,11 +44,3 @@ def select_calibrated_threshold(
 
 def esr_threshold_from_arl_alpha(arl_alpha: FalseAlarmRate) -> ESrThreshold:
     return 1.0 / arl_alpha
-
-
-def calibrated_finite_horizon_outcome(
-    selected_threshold: ThresholdValue | None,
-) -> ScientificOutcome:
-    if selected_threshold is None:
-        return operating_point_unavailable_outcome()
-    return unfavorable_completed_outcome()

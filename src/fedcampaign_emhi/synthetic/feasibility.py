@@ -27,7 +27,6 @@ from fedcampaign_emhi.domain.types import (
     GramConditionNumber,
     HistogramBinMass,
     InnovationCoordinate,
-    NumericalFloor,
     Probability,
     ProjectionNrmse,
     RankEstimationError,
@@ -46,7 +45,6 @@ from fedcampaign_emhi.emhi.contexts import (
     fit_context_centroids,
     outside_context_histogram,
 )
-from fedcampaign_emhi.emhi.evidence import euclidean_norm
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
 from fedcampaign_emhi.emhi.projection import (
     proper_subset_design_row,
@@ -56,6 +54,14 @@ from fedcampaign_emhi.emhi.structure import (
     coalition_conditioned_residual_rank,
     shifted_legendre_phi_one,
     tensor_representation,
+)
+from fedcampaign_emhi.evaluation.metrics import (
+    abstention_rate,
+    conditional_rank_mae,
+    context_coverage,
+    numerical_failure_rate,
+    projection_nrmse,
+    standardized_null_bias,
 )
 from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
@@ -69,6 +75,7 @@ class EstimatorFeasibilityMetrics:
     abstention_rate: Probability
     condition_number: GramConditionNumber | None
     numerical_failure: Boolean
+    numerical_failure_rate: Probability
 
 
 @dataclass(frozen=True)
@@ -197,7 +204,16 @@ def evaluate_estimator_feasibility_seed(
 def _numerical_failure_metrics(
     condition_number: GramConditionNumber | None = None,
 ) -> EstimatorFeasibilityMetrics:
-    return EstimatorFeasibilityMetrics(0.0, 0.0, 0.0, 0.0, 1.0, condition_number, True)
+    return EstimatorFeasibilityMetrics(
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        condition_number,
+        True,
+        numerical_failure_rate(1, 1),
+    )
 
 
 def _component_seed(
@@ -224,28 +240,6 @@ def _component_seed(
             ),
         )
     )
-
-
-def _conditional_rank_mae(
-    estimated_ranks: tuple[RankValue, ...], truth_ranks: tuple[RankValue, ...]
-) -> RankEstimationError:
-    if len(estimated_ranks) != len(truth_ranks) or not estimated_ranks:
-        raise ValueError("conditional-rank MAE requires aligned nonempty samples")
-    return sum(
-        abs(estimate - truth) for estimate, truth in zip(estimated_ranks, truth_ranks, strict=True)
-    ) / len(estimated_ranks)
-
-
-def _projection_nrmse(
-    projections: tuple[tuple[InnovationCoordinate, ...], ...],
-    tensor_rows: tuple[tuple[InnovationCoordinate, ...], ...],
-    floor: NumericalFloor,
-) -> ProjectionNrmse:
-    if not projections or len(projections) != len(tensor_rows):
-        raise ValueError("projection NRMSE requires aligned nonempty evaluation rows")
-    residual = sqrt(sum(euclidean_norm(row) ** 2 for row in projections) / len(projections))
-    reference = sqrt(sum(euclidean_norm(row) ** 2 for row in tensor_rows) / len(tensor_rows))
-    return residual / (reference + floor)
 
 
 def _histogram_rows(
@@ -471,21 +465,21 @@ def evaluate_estimator_feasibility_condition(
         if item is not None
         for index in truth_indexes
     )
-    projections = tuple(
-        tuple(tensor - atom for tensor, atom in zip(tensor_row, atom_row, strict=True))
-        for tensor_row, atom_row in zip(evaluation_tensors, atoms, strict=True)
-    )
-    coverage = len(supported) / (len(evaluation.ranks) - 1)
+    coverage = context_coverage(len(supported), len(evaluation.ranks) - 1)
     return EstimatorFeasibilityMetrics(
-        _conditional_rank_mae(estimated, truth),
-        _projection_nrmse(
-            projections, evaluation_tensors, config.numerics.metric_denominator_floor
+        conditional_rank_mae(estimated, truth),
+        projection_nrmse(
+            atoms,
+            evaluation_tensors,
+            evaluation_tensors,
+            config.numerics.metric_denominator_floor,
         ),
-        euclidean_norm(mean_atom) / max(trace_root, config.numerics.metric_denominator_floor),
+        standardized_null_bias(mean_atom, trace_root, config.numerics.metric_denominator_floor),
         coverage,
-        1.0 - coverage,
+        abstention_rate(coverage),
         condition_number,
         False,
+        numerical_failure_rate(0, 1),
     )
 
 
@@ -544,31 +538,6 @@ def primary_feasibility_context_support(
         config.context.minimum_support_epochs.order_three,
         seed,
     )
-
-
-def initial_markov_state(negative_probability: Probability, seed: SeedValue) -> LatentMarkovState:
-    generator = np.random.default_rng(thirty_two_bit_seed(seed))
-    if float(generator.random()) < negative_probability:
-        return LatentMarkovState.NEGATIVE
-    return LatentMarkovState.POSITIVE
-
-
-def next_markov_state(
-    current_state: LatentMarkovState, same_state_probability: Probability, seed: SeedValue
-) -> LatentMarkovState:
-    generator = np.random.default_rng(thirty_two_bit_seed(seed))
-    if float(generator.random()) < same_state_probability:
-        return current_state
-    return (
-        LatentMarkovState.POSITIVE
-        if current_state is LatentMarkovState.NEGATIVE
-        else LatentMarkovState.NEGATIVE
-    )
-
-
-def outside_rank_from_interval(lower: RankValue, upper: RankValue, seed: SeedValue) -> RankValue:
-    generator = np.random.default_rng(thirty_two_bit_seed(seed))
-    return float(generator.uniform(lower, upper))
 
 
 def context_conditional_density(

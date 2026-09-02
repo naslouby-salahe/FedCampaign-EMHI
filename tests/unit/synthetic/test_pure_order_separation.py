@@ -15,13 +15,11 @@ from fedcampaign_emhi.experiments.registry import experiment_registry
 from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
 from fedcampaign_emhi.synthetic.pure_order import (
     GeneratorPurityReport,
-    context_dependent_pure_triple_marginals,
     enumerate_pure_order_grid,
     generator_effects,
     generator_enabled_orders,
     mixed_order_absent_terms_integrate_to_zero,
     polynomial_density,
-    pure_order_drift_metrics,
     sample_context_dependent_pure_triple_ranks,
     sample_mixed_order_ranks,
     validate_generator_purity,
@@ -74,11 +72,6 @@ def test_xor_exact_marginals_hold_for_configured_strengths() -> None:
         assert xor_exact_marginals(
             strength, loaded.values.numerics.deterministic_comparison_tolerance
         )
-
-
-def test_context_dependent_triple_marginal_check() -> None:
-    assert context_dependent_pure_triple_marginals(0.0) is True
-    assert context_dependent_pure_triple_marginals(-1.0) is False
 
 
 def test_absent_mixed_order_terms_are_detected() -> None:
@@ -164,26 +157,6 @@ def test_complete_generator_effect_method_grid_is_enumerated() -> None:
     assert {cell.method for cell in grid} == set(
         config.experiments.pure_order_separation_validation.methods
     )
-
-
-def test_pure_order_drift_uses_only_proper_subset_and_target_coordinates() -> None:
-    alternative = (
-        (0.25, 0.25, 0.75),
-        (0.25, 0.75, 0.25),
-        (0.75, 0.25, 0.25),
-        (0.75, 0.75, 0.75),
-    ) * 2
-    null = tuple(
-        (first, second, third)
-        for first in (0.25, 0.75)
-        for second in (0.25, 0.75)
-        for third in (0.25, 0.75)
-    )
-
-    metrics = pure_order_drift_metrics(alternative, null, CoalitionOrder.THREE, 1.0e-12)
-
-    assert metrics.maximum_proper_subset_standardized_drift == 0.0
-    assert metrics.target_order_standardized_drift > 0.0
 
 
 def test_pure_order_producer_describes_the_execution_layer_grid() -> None:

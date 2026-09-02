@@ -1,11 +1,10 @@
-import hashlib
 from collections import UserDict
 from math import floor, isfinite, log, log1p
 
 import numpy as np
 from numpy.typing import NDArray
 
-from fedcampaign_emhi.domain.enums import DatasetName, ExperimentState, SupportState
+from fedcampaign_emhi.domain.enums import DatasetName, ExperimentState
 from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
@@ -17,8 +16,6 @@ from fedcampaign_emhi.domain.types import (
     EpochFeatureVector,
     EpochIndexValue,
     FeatureValue,
-    HashBucketCount,
-    HashBucketIndex,
     NormalizedEventToken,
     NumericalFloor,
     Probability,
@@ -47,16 +44,6 @@ def chronological_partition_lengths(
         threshold_and_policy_calibration=threshold,
         heldout_benign=common_benign_epoch_count - used,
     )
-
-
-def event_type_hash_bucket(
-    event_type: NormalizedEventToken, bucket_count: HashBucketCount
-) -> HashBucketIndex:
-    if bucket_count <= 0:
-        raise ValueError("bucket_count must be positive")
-    digest = hashlib.sha256(event_type.encode("utf-8")).digest()
-    identity = int.from_bytes(digest[:8], "big")
-    return identity % bucket_count
 
 
 def retain_first_chronological(
@@ -143,40 +130,12 @@ def epoch_features_are_finite(vector: EpochFeatureVector) -> Boolean:
     return all(isfinite(count) for count in vector.log1p_bucket_counts)
 
 
-def empty_epoch_feature_vector(bucket_count: HashBucketCount) -> EpochFeatureVector:
-    zeros = tuple(0.0 for _ in range(bucket_count))
-    return EpochFeatureVector(
-        log1p_bucket_counts=zeros,
-        total_raw_event_count=0,
-        shannon_entropy=0.0,
-    )
-
-
 def inclusive_epoch_range(
     start_epoch: EpochIndexValue, end_epoch: EpochIndexValue
 ) -> tuple[EpochIndexValue, ...]:
     if end_epoch < start_epoch:
         return ()
     return tuple(range(start_epoch, end_epoch + 1))
-
-
-def common_benign_epoch_bounds(
-    per_client_epochs: tuple[tuple[EpochIndexValue, ...], ...],
-) -> tuple[EpochIndexValue, EpochIndexValue] | None:
-    if not per_client_epochs:
-        return None
-    starts: list[EpochIndexValue] = []
-    ends: list[EpochIndexValue] = []
-    for epochs in per_client_epochs:
-        if not epochs:
-            return None
-        starts.append(min(epochs))
-        ends.append(max(epochs))
-    start = max(starts)
-    end = min(ends)
-    if end < start:
-        return None
-    return (start, end)
 
 
 def chronological_benign_partitions(
@@ -250,15 +209,3 @@ def complete_benign_horizons(
         block = epoch_indexes[start : start + horizon_length]
         horizons.append(BenignHorizon(start_epoch=block[0], epoch_indexes=block))
     return tuple(horizons)
-
-
-def horizon_eligibility_state(
-    complete_horizons: RecordCount, required_horizons: RecordCount
-) -> SupportState:
-    if complete_horizons < required_horizons:
-        return SupportState.NOT_TESTED
-    return SupportState.SUPPORTED
-
-
-def detector_fit_sample_requirement_is_met(detector_fit_epoch_count: EpochCount) -> Boolean:
-    return detector_fit_epoch_count > 0

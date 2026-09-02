@@ -18,14 +18,11 @@ from fedcampaign_emhi.domain.types import (
     ConfigurationDigest,
     EffectCoefficient,
     FalseAlarmRate,
-    NumericalFloor,
     NumericalTolerance,
     PositiveEpochCount,
     RankValue,
     RecordCount,
     RuntimeSeconds,
-    SeedCount,
-    StandardDeviation,
     StandardizedError,
 )
 from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
@@ -119,10 +116,6 @@ def materialize_composition_record(
     )
 
 
-def composition_seed_count(development_root_count: SeedCount) -> SeedCount:
-    return development_root_count
-
-
 @dataclass(frozen=True)
 class CompositionSelectionInputs:
     reference_theta: EffectCoefficient
@@ -132,20 +125,6 @@ class CompositionSelectionInputs:
     heldout_null_horizons_per_seed: RecordCount
     timed_scoring_rows: RecordCount
     artifact_filename: ArtifactFilename
-
-
-def standardized_estimation_error(
-    candidate_mean_score: EffectCoefficient, reference_theta: EffectCoefficient
-) -> StandardizedError:
-    return abs(candidate_mean_score - reference_theta)
-
-
-def null_standard_deviation_is_usable(
-    null_deviation: StandardDeviation, metric_denominator_floor: NumericalFloor
-) -> Boolean:
-    from math import isfinite
-
-    return isfinite(null_deviation) and null_deviation > metric_denominator_floor
 
 
 def selection_rule_identity(inputs: CompositionSelectionInputs) -> ConfigurationDigest:

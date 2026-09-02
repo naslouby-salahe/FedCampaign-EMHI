@@ -30,7 +30,6 @@ from fedcampaign_emhi.domain.types import (
 )
 
 PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path("configs/fedcampaign-emhi.yaml")
-TESTS_CONFIGURATION_RELATIVE_PATH = Path("configs/tests.yml")
 SMOKE_CONFIGURATION_RELATIVE_PATH = Path("configs/smoke.yml")
 
 
@@ -138,14 +137,6 @@ def production_configuration_context(
 ) -> tuple[Path, LoadedScientificConfiguration]:
     repository = root or repository_root()
     return repository, load_production_configuration(repository)
-
-
-def load_tests_configuration(root: Path | None = None) -> LoadedScientificConfiguration:
-    repository = root or repository_root()
-    return load_scientific_configuration(
-        repository / TESTS_CONFIGURATION_RELATIVE_PATH,
-        ConfigurationProfile.TESTS,
-    )
 
 
 def load_smoke_configuration(root: Path | None = None) -> LoadedScientificConfiguration:

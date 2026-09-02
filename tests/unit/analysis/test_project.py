@@ -5,7 +5,9 @@ import pytest
 
 from fedcampaign_emhi.analysis.results import (
     PRIMARY_HOLM_STATISTICS,
+    SECONDARY_HOLM_STATISTICS,
     materialize_primary_holm_family,
+    materialize_secondary_holm_family,
 )
 from fedcampaign_emhi.artifacts.provenance import (
     material_fingerprint,
@@ -91,6 +93,21 @@ def _write_full_family(
         )
 
 
+def _write_secondary_family(
+    loaded: LoadedScientificConfiguration, repository: Path, raw_p_values: tuple[float, ...]
+) -> None:
+    layout = build_artifact_layout(loaded, repository)
+    for index, (experiment_name, hypothesis, _method) in enumerate(SECONDARY_HOLM_STATISTICS):
+        _write_statistical_record(
+            loaded,
+            repository,
+            layout.experiment_outputs_root(experiment_name),
+            hypothesis.value,
+            raw_p_values[index],
+            f"secondary-hypothesis-{index}",
+        )
+
+
 def test_materialize_primary_holm_family_adjusts_across_all_five_hypotheses(
     production_configuration: LoadedScientificConfiguration, tmp_path: Path
 ) -> None:
@@ -143,3 +160,59 @@ def test_materialize_primary_holm_family_rejects_stale_source_lineage(
 
     with pytest.raises(ValueError, match="stale source lineage"):
         materialize_primary_holm_family(production_configuration, tmp_path)
+
+
+def test_materialize_secondary_holm_family_adjusts_across_all_six_hypotheses(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    _write_secondary_family(production_configuration, tmp_path, (0.001, 0.5, 0.5, 0.5, 0.5, 0.5))
+
+    path = materialize_secondary_holm_family(production_configuration, tmp_path)
+
+    record = PrimaryHolmFamilyRecord.model_validate_json(path.read_bytes())
+    assert len(record.results) == len(SECONDARY_HOLM_STATISTICS)
+    smallest = next(
+        result
+        for result in record.results
+        if result.hypothesis_identifier == SECONDARY_HOLM_STATISTICS[0][1].value
+    )
+    assert smallest.raw_p_value == 0.001
+    assert smallest.adjusted_p_value == pytest.approx(0.006)
+    assert smallest.decision is SupportState.SUPPORTED
+    assert record.source_statistical_paths
+    assert len(record.source_artifact_hashes) == len(SECONDARY_HOLM_STATISTICS)
+
+
+def test_materialize_secondary_holm_family_requires_every_hypothesis(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    layout = build_artifact_layout(production_configuration, tmp_path)
+    experiment_name, hypothesis, _method = SECONDARY_HOLM_STATISTICS[0]
+    _write_statistical_record(
+        production_configuration,
+        tmp_path,
+        layout.experiment_outputs_root(experiment_name),
+        hypothesis.value,
+        0.01,
+        "only-secondary-hypothesis",
+    )
+
+    with pytest.raises(FileNotFoundError):
+        materialize_secondary_holm_family(production_configuration, tmp_path)
+
+
+def test_materialize_secondary_holm_family_rejects_stale_source_lineage(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    _write_secondary_family(production_configuration, tmp_path, (0.01, 0.5, 0.5, 0.5, 0.5, 0.5))
+    layout = build_artifact_layout(production_configuration, tmp_path)
+    experiment_name = SECONDARY_HOLM_STATISTICS[0][0]
+    source_path = (
+        layout.experiment_outputs_root(experiment_name)
+        / "diagnostics"
+        / "secondary-hypothesis-0-source.json"
+    )
+    source_path.write_text('{"diagnostic":"tampered"}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stale source lineage"):
+        materialize_secondary_holm_family(production_configuration, tmp_path)

@@ -2,7 +2,6 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
     ClientId,
-    EpochCount,
     EpochIndexValue,
     EvidenceFactor,
     GlobalEvidenceState,
@@ -25,12 +24,6 @@ def threshold_predicate(global_state: GlobalEvidenceState, threshold: ThresholdV
     return global_state >= threshold
 
 
-def distributed_support_predicate(
-    window_client_ids: tuple[ClientId, ...], minimum_clients: ClientCount
-) -> Boolean:
-    return len(set(window_client_ids)) >= minimum_clients
-
-
 def statistical_stop(
     global_state: GlobalEvidenceState,
     threshold: ThresholdValue,
@@ -42,10 +35,10 @@ def statistical_stop(
     )
 
 
-def trailing_window_length(window_epochs: EpochCount, elapsed_epochs: EpochCount) -> EpochCount:
-    if elapsed_epochs < window_epochs:
-        return elapsed_epochs
-    return window_epochs
+def distributed_support_predicate(
+    window_client_ids: tuple[ClientId, ...], minimum_clients: ClientCount
+) -> Boolean:
+    return len(set(window_client_ids)) >= minimum_clients
 
 
 def coalition_materially_active(

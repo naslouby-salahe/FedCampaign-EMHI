@@ -3,30 +3,22 @@ from math import isclose
 import pytest
 
 from fedcampaign_emhi.config.loading import load_production_configuration
-from fedcampaign_emhi.datasets.campaigns import warmup_is_clean
 from fedcampaign_emhi.datasets.preprocessing import complete_benign_horizons
-from fedcampaign_emhi.domain.enums import OperatingPointState, ScientificOutcomeKind
 from fedcampaign_emhi.emhi.sequential import (
     coalition_materially_active,
     distributed_support_predicate,
     first_global_stop_epoch,
-    statistical_stop,
     trailing_support_window_client_ids,
-    trailing_window_length,
     trailing_window_support_predicate,
 )
 from fedcampaign_emhi.emhi.thresholds import (
-    calibrated_finite_horizon_outcome,
     clopper_pearson_one_sided_upper_bound,
     esr_threshold_from_arl_alpha,
-    operating_point_unavailable_outcome,
     select_calibrated_threshold,
 )
 from fedcampaign_emhi.evaluation.sequential import (
     campaign_replay_plan,
-    horizons_are_nonoverlapping,
     operational_lead,
-    sequential_stop_reset_epochs,
     statistical_lead,
 )
 
@@ -43,8 +35,6 @@ def test_trailing_window_unions_distinct_clients_over_last_epochs() -> None:
     per_epoch = (("a", "b"), ("b", "c"), ("d",))
     assert trailing_support_window_client_ids(per_epoch, 5) == ("a", "b", "c", "d")
     assert trailing_support_window_client_ids(per_epoch, 2) == ("b", "c", "d")
-    assert trailing_window_length(5, 3) == 3
-    assert trailing_window_length(5, 9) == 5
 
 
 def test_support_predicate_requires_minimum_distinct_clients_and_can_delay() -> None:
@@ -64,7 +54,6 @@ def test_support_predicate_requires_minimum_distinct_clients_and_can_delay() -> 
 
 
 def test_support_predicate_never_lowers_threshold() -> None:
-    assert statistical_stop(4.0, 4.0, (), 2) is False
     assert distributed_support_predicate(("a", "b", "c"), 3) is True
 
 
@@ -100,17 +89,6 @@ def test_calibrated_finite_horizon_contract_and_selection() -> None:
         finite_horizon.target_pfa,
     )
     assert selected == 3.0
-    unavailable = calibrated_finite_horizon_outcome(None)
-    assert unavailable.kind is ScientificOutcomeKind.OPERATING_POINT_UNAVAILABLE
-    assert unavailable.operating_point_state is OperatingPointState.UNAVAILABLE
-    assert unavailable.experiment_state.value == "Completed"
-    assert not unavailable.is_implementation_error
-    completed = calibrated_finite_horizon_outcome(10.0)
-    assert completed.kind is ScientificOutcomeKind.COMPLETED_UNFAVORABLE
-    assert completed.operating_point_state is OperatingPointState.AVAILABLE
-    assert operating_point_unavailable_outcome().operating_point_state is (
-        OperatingPointState.UNAVAILABLE
-    )
 
 
 def test_minimum_zero_false_stop_horizons_is_fifty_nine() -> None:
@@ -125,8 +103,6 @@ def test_candidate_thresholds_evaluated_on_nonoverlapping_calibration_horizons()
     all_horizons = horizons_a + horizons_b
     flat = [epoch for horizon in all_horizons for epoch in horizon.epoch_indexes]
     assert len(flat) == len(set(flat))
-    assert horizons_are_nonoverlapping(horizons_a)
-    assert sequential_stop_reset_epochs(horizons_a) == (200, 260, 320)
 
 
 def test_threshold_is_never_modified_using_heldout_data() -> None:
@@ -166,11 +142,6 @@ def test_campaign_replay_resets_state_and_computes_warmup_through_contexts() -> 
     assert plan.global_state_reset is True
     assert plan.local_persistence_reset is True
     assert first_global_stop_epoch((2.0,), (True,), 1.0) == 0
-
-
-def test_replay_warmup_must_be_clean() -> None:
-    assert warmup_is_clean(()) is True
-    assert warmup_is_clean((7,)) is False
 
 
 def test_statistical_lead_formula() -> None:

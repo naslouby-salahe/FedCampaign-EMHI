@@ -2,12 +2,9 @@ from math import exp, sqrt
 
 import numpy as np
 
-from fedcampaign_emhi.domain.enums import EvidencePath
 from fedcampaign_emhi.domain.types import (
     BettingLambda,
-    Boolean,
     CompensatorValue,
-    EffectCoefficient,
     EvidenceClipBound,
     EvidenceFactor,
     EvidenceStatistic,
@@ -16,7 +13,6 @@ from fedcampaign_emhi.domain.types import (
     Quantile,
     SignedDirectionCoordinate,
     StandardizedAtomCoordinate,
-    TensorDimension,
 )
 
 OPERATIONAL_EVIDENCE_COMPENSATOR = 0.125
@@ -83,23 +79,6 @@ def operational_evidence_factor(
     return exp(bet_lambda * statistic - OPERATIONAL_EVIDENCE_COMPENSATOR)
 
 
-def signed_direction_is_fixed_before_evaluation(
-    direction: tuple[SignedDirectionCoordinate, ...],
-) -> Boolean:
-    return any(coordinate > 0.0 or coordinate < 0.0 for coordinate in direction)
-
-
-def polynomial_signed_direction(
-    tensor_size: TensorDimension, generator_coefficient: EffectCoefficient
-) -> tuple[SignedDirectionCoordinate, ...]:
-    if tensor_size <= 0:
-        raise ValueError("tensor_size must be positive")
-    if not (generator_coefficient > 0.0 or generator_coefficient < 0.0):
-        raise ValueError("signed evidence requires a nonzero predeclared generator coefficient")
-    sign: SignedDirectionCoordinate = 1.0 if generator_coefficient > 0.0 else -1.0
-    return tuple(sign if index == 0 else 0.0 for index in range(tensor_size))
-
-
 def signed_statistic(
     standardized_atom: tuple[StandardizedAtomCoordinate, ...],
     direction: tuple[SignedDirectionCoordinate, ...],
@@ -114,18 +93,6 @@ def signed_statistic(
     return clip_statistic(projected, clip_bound)
 
 
-def signed_conditional_null_holds(expected_statistic: EvidenceStatistic) -> Boolean:
-    return expected_statistic <= SIGNED_NULL_EXPECTATION_UPPER_BOUND
-
-
-def conditional_e_detector_path() -> EvidencePath:
-    return EvidencePath.SIGNED_THEOREM
-
-
-def primary_real_data_evidence_path() -> EvidencePath:
-    return EvidencePath.OPERATIONAL_NORM
-
-
 def operational_norm_reference_quantile(
     standardized_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...], quantile: Quantile
 ) -> OperationalNormReference:
@@ -134,10 +101,6 @@ def operational_norm_reference_quantile(
     norms = tuple(euclidean_norm(atom) for atom in standardized_atoms)
     array = np.asarray(norms, dtype=np.float64)
     return float(np.quantile(array, quantile))
-
-
-def locked_signed_compensator() -> EvidenceStatistic:
-    return signed_theorem_compensator(LOCKED_SIGNED_CLIP_BOUND, LOCKED_SIGNED_BET_LAMBDA)
 
 
 def within_order_aggregate(factors: tuple[EvidenceFactor, ...]) -> EvidenceFactor:

@@ -1,15 +1,7 @@
 from dataclasses import dataclass
 
-from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, MethodName
-from fedcampaign_emhi.domain.types import (
-    Boolean,
-    CellCount,
-    PositiveEpochCount,
-    Probability,
-    ThresholdValue,
-)
-from fedcampaign_emhi.emhi.contexts import NO_OUTSIDE_CONTEXT_CELL_COUNT
+from fedcampaign_emhi.domain.types import Boolean, PositiveEpochCount
 
 
 @dataclass(frozen=True)
@@ -36,20 +28,8 @@ def native_target_order(method_name: MethodName) -> CoalitionOrder | None:
     return None
 
 
-def order_at_most_two_weights() -> tuple[Probability, Probability]:
-    return (1 / 2, 1 / 2)
-
-
 def full_hierarchy_order_set() -> tuple[CoalitionOrder, ...]:
     return (CoalitionOrder.ONE, CoalitionOrder.TWO, CoalitionOrder.THREE)
-
-
-def no_outside_context_cell_count() -> CellCount:
-    return NO_OUTSIDE_CONTEXT_CELL_COUNT
-
-
-def conditional_pair_dependence_maximum_order() -> CoalitionOrder:
-    return CoalitionOrder.TWO
 
 
 def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
@@ -229,15 +209,4 @@ def comparator_method_contracts() -> tuple[ComparatorMethodContract, ...]:
             is_equivalence_comparator=False,
             establishes_primary_effect=False,
         ),
-    )
-
-
-def calibrated_finite_horizon_backend_contract(
-    config: ScientificConfig,
-) -> tuple[PositiveEpochCount, Probability, tuple[ThresholdValue, ...]]:
-    finite_horizon = config.evidence.calibrated_finite_horizon
-    return (
-        config.campaign.evaluation_horizon_epochs,
-        finite_horizon.target_pfa,
-        finite_horizon.threshold_candidates,
     )

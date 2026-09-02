@@ -9,8 +9,8 @@ from fedcampaign_emhi.config.loading import (
     configuration_digest,
     histogram_edges,
     load_production_configuration,
+    load_scientific_configuration,
     load_smoke_configuration,
-    load_tests_configuration,
     minimum_zero_false_stop_horizons,
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
@@ -106,9 +106,11 @@ def test_digest_is_deterministic(
     assert len(production_configuration.material_digest) == 64
 
 
-def test_reduced_configs_cannot_replace_production() -> None:
+def test_reduced_configs_cannot_replace_production(repo_root: Path) -> None:
     production = load_production_configuration()
-    tests = load_tests_configuration()
+    tests = load_scientific_configuration(
+        repo_root / "configs" / "tests.yml", ConfigurationProfile.TESTS
+    )
     smoke = load_smoke_configuration()
     assert tests.profile != production.profile
     assert smoke.profile != production.profile

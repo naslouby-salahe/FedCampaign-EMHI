@@ -2,20 +2,13 @@ import inspect
 from math import exp
 
 from fedcampaign_emhi.config.loading import load_production_configuration
-from fedcampaign_emhi.domain.enums import EvidencePath
 from fedcampaign_emhi.emhi.evidence import (
     OPERATIONAL_EVIDENCE_COMPENSATOR,
     across_order_aggregate,
     clip_statistic,
-    conditional_e_detector_path,
     euclidean_norm,
-    locked_signed_compensator,
     operational_evidence_factor,
     operational_norm_reference_quantile,
-    polynomial_signed_direction,
-    primary_real_data_evidence_path,
-    signed_conditional_null_holds,
-    signed_direction_is_fixed_before_evaluation,
     signed_evidence_factor,
     signed_statistic,
     signed_theorem_compensator,
@@ -31,16 +24,13 @@ from fedcampaign_emhi.emhi.sequential import (
 
 
 def test_signed_statistic_projects_and_clips() -> None:
-    direction = polynomial_signed_direction(4, 1.0)
+    direction = (1.0, 0.0, 0.0, 0.0)
     assert direction == (1.0, 0.0, 0.0, 0.0)
-    assert signed_direction_is_fixed_before_evaluation(direction)
     atom = (2.0, 9.0, -3.0, 1.0)
     assert signed_statistic(atom, direction, 1.0) == 1.0
-    negative = polynomial_signed_direction(2, -2.0)
+    negative = (-1.0, 0.0)
     assert negative == (-1.0, 0.0)
     assert signed_statistic((0.5, 8.0), negative, 1.0) == -0.5
-    assert signed_conditional_null_holds(0.0)
-    assert not signed_conditional_null_holds(0.1)
 
 
 def test_signed_factor_matches_independent_exponent() -> None:
@@ -49,12 +39,9 @@ def test_signed_factor_matches_independent_exponent() -> None:
     bet_lambda = loaded.values.evidence.bet_lambda
     compensator = signed_theorem_compensator(clip_bound, bet_lambda)
     assert compensator == 0.125
-    assert locked_signed_compensator() == 0.125
     statistic = clip_statistic(1.0, clip_bound)
     expected = exp(bet_lambda * statistic - (bet_lambda**2) * ((2.0 * clip_bound) ** 2) / 8.0)
     assert signed_evidence_factor(1.0, clip_bound, bet_lambda) == expected
-    assert conditional_e_detector_path() is EvidencePath.SIGNED_THEOREM
-    assert primary_real_data_evidence_path() is EvidencePath.OPERATIONAL_NORM
 
 
 def test_operational_norm_uses_vector_l2_and_fixed_compensator() -> None:

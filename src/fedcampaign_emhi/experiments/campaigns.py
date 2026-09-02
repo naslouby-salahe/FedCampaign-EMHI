@@ -1,15 +1,23 @@
 import hashlib
-from collections.abc import Callable, Mapping
+import json
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
+from math import log
 from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-from fedcampaign_emhi.analysis.results import build_seed_summary
+from fedcampaign_emhi.analysis.results import (
+    SECONDARY_HOLM_STATISTICS,
+    build_seed_summary,
+    paired_seed_differences,
+)
 from fedcampaign_emhi.analysis.statistics import (
     exact_sign_flip_means,
+    hodges_lehmann_shift,
     holm_adjusted_p_values,
+    interval_establishes_equivalence,
     mean_bca_one_sided_lower_bound,
     one_sided_synthetic_sign_flip_p_value,
     paired_mean_bca_interval,
@@ -42,6 +50,7 @@ from fedcampaign_emhi.artifacts.records import (
     EstimatorFeasibilityAggregationRecord,
     ExperimentRunRecord,
     FiniteHorizonAggregationRecord,
+    FullMethodSupportRecord,
     MarginalRankArtifactRecord,
     PreparedDatasetRecord,
     ScientificCellRecord,
@@ -120,9 +129,11 @@ from fedcampaign_emhi.domain.types import (
     FeatureValue,
     MaterialDependencyFingerprint,
     MetricRate,
+    MetricValue,
     OdiIndicator,
     OdiRateAdvantage,
     OperationalLeadEpochs,
+    Probability,
     RankValue,
     RecordCount,
     RelativePath,
@@ -133,6 +144,7 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     StandardizedError,
     ThresholdValue,
+    YamlKeyPath,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.evidence import (
@@ -145,11 +157,35 @@ from fedcampaign_emhi.emhi.thresholds import (
     clopper_pearson_one_sided_upper_bound,
     select_calibrated_threshold,
 )
-from fedcampaign_emhi.evaluation.metrics import decisive_order, earliest_local_stop
+from fedcampaign_emhi.evaluation.metrics import (
+    application_payload_bytes_per_epoch,
+    auprc,
+    auroc,
+    campaign_detection_rate,
+    common_mode_suppression,
+    decisive_order,
+    earliest_local_stop,
+    false_campaigns_per_ten_thousand_benign_epochs,
+    finite_horizon_pfa_point_estimate,
+    mean_log_evidence_growth,
+    order_evidence_share,
+    outside_conditioning_power_loss,
+    paired_detection_indicator_difference,
+    paired_stopping_time_difference,
+    pfa_difference,
+    registry_coalition_count,
+    seed_level_odi_rate,
+    throughput,
+)
 from fedcampaign_emhi.evaluation.records import (
     OperationalCalibration,
     SequentialTrajectory,
     odi_evaluation_record,
+)
+from fedcampaign_emhi.evaluation.scalability import (
+    ScalabilityMeasurement,
+    expected_scalability_coalitions,
+    summarize_scalability,
 )
 from fedcampaign_emhi.evaluation.sequential import (
     TrajectoryCache,
@@ -180,20 +216,26 @@ from fedcampaign_emhi.experiments.calibration import (
 )
 from fedcampaign_emhi.experiments.registry import (
     ExperimentContract,
+    FullMethodSupportInputs,
+    FullMethodSupportResult,
     assert_known_experiment,
     confirmatory_completeness_within_tolerance,
+    evaluate_full_method_support,
     experiment_registry,
+    matched_operating_point_requirement,
+    median_of,
+    median_operational_lead_criterion,
+    paired_odi_advantage_criterion,
+    strict_odi_rate_criterion,
 )
 from fedcampaign_emhi.experiments.robustness import (
     EpochEventVolume,
-    common_mode_suppression,
     detection_rate_loss_within_maximum,
     enumerate_benign_common_mode_plan,
     false_campaign_suppression_meets_minimum,
     federation_wide_epoch_event_counts,
     paired_false_campaign_difference,
     rolling_benign_horizons,
-    seed_level_power_loss,
     select_high_volume_windows,
     stress_epoch_feature_values,
     window_event_counts,
@@ -209,6 +251,10 @@ from fedcampaign_emhi.experiments.synthetic import (
 )
 from fedcampaign_emhi.synthetic.generators import validate_synthetic_generators
 from fedcampaign_emhi.synthetic.pure_order import enumerate_pure_order_grid
+from fedcampaign_emhi.synthetic.self_explanation import (
+    analytic_direct_derivative,
+    primary_directional_test_passes,
+)
 
 
 def campaign_dataset(
@@ -237,6 +283,13 @@ class ExperimentExecutionResult:
     run_record_path: Path
     completed_cell_count: RecordCount
     detail: ComponentName
+
+
+@dataclass(frozen=True)
+class MethodSeedOdi:
+    seed: SeedValue
+    method_value: MetricValue
+    source_evaluation_id: ArtifactIdentity
 
 
 @dataclass(frozen=True)
@@ -932,13 +985,32 @@ def materialize_self_explanation_statistics(
         loaded.values.statistics.bootstrap_replicates,
         loaded.values.randomness.statistical_analysis_base_seed,
     )
+    derivatives = tuple(
+        observation.metric.primary_exact_nuisance_derivative for observation in confirmatory
+    )
+    interval_of_derivatives = paired_mean_bca_interval(
+        derivatives,
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    direct = analytic_direct_derivative()
+    fraction = loaded.values.materiality.self_explanation.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct
+    equivalence_margin = fraction * abs(direct)
+    equivalence_established = interval_establishes_equivalence(
+        interval_of_derivatives[0],
+        interval_of_derivatives[1],
+        -equivalence_margin,
+        equivalence_margin,
+    )
+    attenuation_shift = hodges_lehmann_shift(values)
     layout = build_artifact_layout(loaded, repository)
     source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
     source_digests = tuple(file_sha256(path) for path in source_paths)
     source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
     payload: YamlNode = {
         "experiment_name": ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION.value,
-        "hypothesis_identifier": "Self-Explanation Material Attenuation",
+        "hypothesis_identifier": PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION.value,
         "metric_name": "primary_attenuation_contrast",
         "method_name": "Exact Complement Exclusion",
         "independent_unit_count": len(values),
@@ -947,10 +1019,12 @@ def materialize_self_explanation_statistics(
         "confidence_level": loaded.values.statistics.confidence_level,
         "confidence_lower": interval[0],
         "confidence_upper": interval[1],
+        "hodges_lehmann_shift": attenuation_shift,
+        "equivalence_established": equivalence_established,
         "source_result_ids": list(source_ids),
     }
     record = StatisticalRecord(
-        hypothesis_identifier="Self-Explanation Material Attenuation",
+        hypothesis_identifier=PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION.value,
         metric_name="primary_attenuation_contrast",
         method_name="Exact Complement Exclusion",
         independent_unit_count=len(values),
@@ -960,9 +1034,13 @@ def materialize_self_explanation_statistics(
         confidence_level=loaded.values.statistics.confidence_level,
         confidence_lower=interval[0],
         confidence_upper=interval[1],
+        hodges_lehmann_shift=attenuation_shift,
+        equivalence_established=equivalence_established,
         decision=(
             SupportState.SUPPORTED
-            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
+            if primary_directional_test_passes(
+                raw_p_value, loaded.values.statistics.nominal_significance_alpha
+            )
             else SupportState.NULL_RESULT
         ),
         source_result_ids=source_ids,
@@ -1611,6 +1689,14 @@ def _calibration_payload(calibration: OperationalCalibration) -> YamlNode:
             "calibration_horizon_count": global_point.calibration_horizon_count,
             "heldout_false_stop_count": global_point.heldout_false_stop_count,
             "heldout_horizon_count": global_point.heldout_horizon_count,
+            "heldout_pfa_point_estimate": (
+                None
+                if global_point.heldout_horizon_count == 0
+                else finite_horizon_pfa_point_estimate(
+                    global_point.heldout_false_stop_count,
+                    global_point.heldout_horizon_count,
+                )
+            ),
             "heldout_upper_pfa": global_point.heldout_upper_pfa,
         },
         "local": [
@@ -1656,9 +1742,9 @@ def _campaign_rows(
     fit: EMHIFitArtifactRecord,
     campaigns: CampaignRegistryRecord,
     calibration: OperationalCalibration,
-) -> tuple[tuple[YamlNode, ...], tuple[OdiRateAdvantage, ...]]:
+) -> tuple[tuple[YamlNode, ...], tuple[OdiIndicator, ...]]:
     rows: list[YamlNode] = []
-    odi_values: list[OdiRateAdvantage] = []
+    odi_values: list[OdiIndicator] = []
     threshold = calibration.global_operating_point.threshold
     for campaign in campaigns.campaigns:
         started = perf_counter()
@@ -1691,7 +1777,31 @@ def _campaign_rows(
         coverage = trajectory_context_coverage(trajectory)
         decisive = _trajectory_decisive_order(loaded, trajectory, global_stop)
         indicator: OdiIndicator = odi.indicator
-        odi_values.append(float(indicator))
+        odi_values.append(indicator)
+        stop_row = next(
+            (item for item in trajectory.epochs if item.epoch_index == global_stop),
+            None,
+        )
+        order_share = None
+        if stop_row is not None and decisive is not None:
+            matching_factor = next(
+                (factor for order, factor in stop_row.order_factors if order is decisive),
+                None,
+            )
+            if matching_factor is not None:
+                order_share = order_evidence_share(
+                    matching_factor,
+                    tuple(factor for _order, factor in stop_row.order_factors),
+                    loaded.values.numerics.metric_denominator_floor,
+                )
+        log_growth = (
+            None
+            if not trajectory.epochs
+            else mean_log_evidence_growth(
+                tuple(log(max(item.global_evidence_factor, 1.0)) for item in trajectory.epochs)
+            )
+        )
+        scored_coalitions = 0 if stop_row is None else stop_row.scored_coalition_count
         rows.append(
             {
                 "start_epoch": campaign.start_epoch,
@@ -1705,11 +1815,22 @@ def _campaign_rows(
                 "operational_lead_epochs": operational,
                 "global_detected_within_horizon": odi.global_detection_indicator,
                 "local_detected_within_horizon": 0 if earliest_local is None else 1,
+                "paired_stopping_time_difference": (
+                    None
+                    if global_stop is None or earliest_local is None
+                    else paired_stopping_time_difference(global_stop, earliest_local)
+                ),
+                "paired_detection_indicator_difference": paired_detection_indicator_difference(
+                    bool(odi.global_detection_indicator), earliest_local is not None
+                ),
                 "decisive_order": None if decisive is None else int(decisive),
+                "order_evidence_share": order_share,
+                "mean_log_evidence_growth": log_growth,
                 "context_coverage": coverage,
                 "abstention_rate": 1.0 - coverage,
                 "server_latency_seconds": elapsed,
                 "end_to_end_latency_seconds": elapsed,
+                "throughput": None if elapsed <= 0.0 else throughput(scored_coalitions, elapsed),
             }
         )
     return tuple(rows), tuple(odi_values)
@@ -1744,6 +1865,9 @@ def _heldout_rows(
             "first_stop_epoch": stop_epoch,
             "context_coverage": trajectory_context_coverage(trajectory),
             "abstention_rate": 1.0 - trajectory_context_coverage(trajectory),
+            "global_evidence_factor": (
+                1.0 if not trajectory.epochs else trajectory.epochs[-1].global_evidence_factor
+            ),
         }
         for index, (horizon, trajectory, stop_epoch) in enumerate(records)
     )
@@ -1830,6 +1954,30 @@ def _evaluate_emhi_seed_cell(
         calibration,
     )
     heldout_rows = _heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
+    heldout_maps = tuple(_as_mapping(row) for row in heldout_rows)
+    campaign_maps = tuple(_as_mapping(row) for row in campaign_rows)
+    heldout_false_stops = sum(int(cast(Boolean, row["false_campaign"])) for row in heldout_maps)
+    heldout_epochs = sum(len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons)
+    false_campaign_rate = (
+        None
+        if heldout_epochs <= 0
+        else false_campaigns_per_ten_thousand_benign_epochs(heldout_false_stops, heldout_epochs)
+    )
+    positive_scores = tuple(
+        cast(DetectorScore, row["mean_log_evidence_growth"])
+        for row in campaign_maps
+        if row["mean_log_evidence_growth"] is not None
+    )
+    negative_scores = tuple(
+        log(max(cast(DetectorScore, row["global_evidence_factor"]), 1.0)) for row in heldout_maps
+    )
+    ranking_scores = (*positive_scores, *negative_scores)
+    ranking_labels = (
+        *(True for _score in positive_scores),
+        *(False for _score in negative_scores),
+    )
+    ranking_auroc = None if not ranking_scores else auroc(ranking_scores, ranking_labels)
+    ranking_auprc = None if not ranking_scores else auprc(ranking_scores, ranking_labels)
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
@@ -1854,6 +2002,14 @@ def _evaluate_emhi_seed_cell(
         "calibration": _calibration_payload(calibration),
         PartitionRole.HELDOUT_BENIGN.value: list(heldout_rows),
         "campaigns": list(campaign_rows),
+        "seed_strict_odi_rate": None if not odi_values else seed_level_odi_rate(odi_values),
+        "false_campaigns_per_ten_thousand_benign_epochs": false_campaign_rate,
+        "campaign_versus_heldout_auroc": (
+            None if ranking_auroc is None else ranking_auroc.metric_value
+        ),
+        "campaign_versus_heldout_auprc": (
+            None if ranking_auprc is None else ranking_auprc.metric_value
+        ),
     }
     raw_hash = write_atomic_json(raw_path, raw_payload, staging)
     output_paths = [raw_path.relative_to(repository).as_posix()]
@@ -2375,6 +2531,475 @@ def _materialize_not_tested_primary_holm_statistic(
     return path
 
 
+def _hypothesis_artifact_stem(identifier: ComponentName) -> RelativePath:
+    return identifier.lower().replace(" ", "-")
+
+
+def _as_mapping(payload: YamlNode) -> Mapping[YamlKeyPath, YamlNode]:
+    if not isinstance(payload, Mapping):
+        raise ValueError("evaluation payload must be a mapping")
+    return payload
+
+
+def _load_seed_summaries(
+    root: Path,
+) -> tuple[tuple[Path, SeedSummaryRecord], ...]:
+    summary_root = root / "metrics" / "seed-summaries"
+    paths = tuple(sorted(summary_root.glob("**/*.json")))
+    return tuple((path, SeedSummaryRecord.model_validate_json(path.read_bytes())) for path in paths)
+
+
+def _confirmatory_method_summaries(
+    summaries: tuple[tuple[Path, SeedSummaryRecord], ...],
+    method_name: MethodName,
+) -> tuple[tuple[Path, SeedSummaryRecord], ...]:
+    return tuple(
+        (path, record)
+        for path, record in summaries
+        if record.execution_role is ExecutionRole.CONFIRMATORY
+        and record.method_name is method_name
+        and record.metric_name == "strict_odi_rate"
+    )
+
+
+def _method_seed_odi(
+    record: SeedSummaryRecord, summary_identity: ArtifactIdentity
+) -> MethodSeedOdi:
+    source_identity = (
+        record.source_evaluation_ids[0] if record.source_evaluation_ids else summary_identity
+    )
+    return MethodSeedOdi(
+        seed=record.seed,
+        method_value=record.method_value,
+        source_evaluation_id=source_identity,
+    )
+
+
+def _pair_confirmatory_odi(
+    full_summaries: tuple[tuple[Path, SeedSummaryRecord], ...],
+    comparator_summaries: tuple[tuple[Path, SeedSummaryRecord], ...],
+) -> tuple[
+    tuple[Path, ...],
+    tuple[SeedSummaryRecord, ...],
+    tuple[SeedSummaryRecord, ...],
+    tuple[MethodSeedOdi, ...],
+    tuple[MethodSeedOdi, ...],
+]:
+    comparator_by_seed = tuple((record.seed, path, record) for path, record in comparator_summaries)
+    paired_paths: list[Path] = []
+    paired_full_records: list[SeedSummaryRecord] = []
+    paired_comparator_records: list[SeedSummaryRecord] = []
+    paired_full_odi: list[MethodSeedOdi] = []
+    paired_comparator_odi: list[MethodSeedOdi] = []
+    for path, record in full_summaries:
+        match = next(
+            (
+                (comparator_path, comparator_record)
+                for seed, comparator_path, comparator_record in comparator_by_seed
+                if seed == record.seed
+            ),
+            None,
+        )
+        if match is None:
+            continue
+        comparator_path, comparator_record = match
+        full_identity = path.as_posix()
+        comparator_identity = comparator_path.as_posix()
+        paired_paths.extend((path, comparator_path))
+        paired_full_records.append(record)
+        paired_comparator_records.append(comparator_record)
+        paired_full_odi.append(_method_seed_odi(record, full_identity))
+        paired_comparator_odi.append(_method_seed_odi(comparator_record, comparator_identity))
+    return (
+        tuple(paired_paths),
+        tuple(paired_full_records),
+        tuple(paired_comparator_records),
+        tuple(paired_full_odi),
+        tuple(paired_comparator_odi),
+    )
+
+
+def _materialize_paired_confirmatory_odi_contrast(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    hypothesis_identifier: ComponentName,
+    comparator_method: MethodName,
+    metric_name: ComponentName,
+) -> StatisticalRecord | None:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    summaries = _load_seed_summaries(root)
+    full_summaries = _confirmatory_method_summaries(summaries, MethodName.FULL_FEDCAMPAIGN_EMHI)
+    comparator_summaries = _confirmatory_method_summaries(summaries, comparator_method)
+    paired_paths, paired_full, paired_comparator, paired_full_odi, paired_comparator_odi = (
+        _pair_confirmatory_odi(full_summaries, comparator_summaries)
+    )
+    paired_seeds = tuple(item.seed for item in paired_full_odi)
+    expected = loaded.values.randomness.real_confirmatory_roots
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in paired_paths)
+    source_digests = tuple(file_sha256(path) for path in paired_paths)
+    complete = confirmatory_completeness_within_tolerance(loaded, expected, paired_seeds)
+    if not complete:
+        payload: YamlNode = {
+            "experiment_name": experiment_name.value,
+            "hypothesis_identifier": hypothesis_identifier,
+            "metric_name": metric_name,
+            "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+            "independent_unit_count": len(paired_seeds),
+            "estimate": 0.0,
+            "raw_p_value": None,
+            "confidence_level": None,
+            "confidence_lower": None,
+            "confidence_upper": None,
+            "hodges_lehmann_shift": None,
+            "source_result_ids": list(source_ids),
+        }
+        record = StatisticalRecord(
+            hypothesis_identifier=hypothesis_identifier,
+            metric_name=metric_name,
+            method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+            independent_unit_count=len(paired_seeds),
+            estimate=0.0,
+            raw_p_value=None,
+            adjusted_p_value=None,
+            confidence_level=None,
+            confidence_lower=None,
+            confidence_upper=None,
+            hodges_lehmann_shift=None,
+            decision=SupportState.NOT_TESTED,
+            source_result_ids=source_ids,
+            dependency_fingerprint=material_fingerprint(
+                statistical_analysis_boundary_digest(loaded.values), source_digests
+            ),
+            content_digest=payload_digest(payload),
+        )
+        path = (
+            root
+            / "statistics"
+            / "tests"
+            / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+        )
+        write_atomic_json(
+            path,
+            cast(YamlNode, record.model_dump(mode="json")),
+            layout.roots.outputs_root / "cache" / "staging",
+        )
+        return record
+    paired_with_difference = tuple(
+        replace(
+            full,
+            reference_method_name=comparator.method_name,
+            reference_value=comparator.method_value,
+            paired_difference=full.method_value - comparator.method_value,
+        )
+        for full, comparator in zip(paired_full, paired_comparator, strict=True)
+    )
+    differences = paired_seed_differences(paired_with_difference)
+    if len(differences) != len(paired_full_odi) or len(differences) != len(paired_comparator_odi):
+        raise ValueError("paired ODI differences must preserve confirmatory seed pairing")
+    estimate = sum(differences) / len(differences)
+    shift = hodges_lehmann_shift(differences)
+    raw_p_value = sign_flip_p_value(estimate, exact_sign_flip_means(differences), True)
+    interval = paired_mean_bca_interval(
+        differences,
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    payload = {
+        "experiment_name": experiment_name.value,
+        "hypothesis_identifier": hypothesis_identifier,
+        "metric_name": metric_name,
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": len(differences),
+        "estimate": estimate,
+        "raw_p_value": raw_p_value,
+        "confidence_level": loaded.values.statistics.confidence_level,
+        "confidence_lower": interval[0],
+        "confidence_upper": interval[1],
+        "hodges_lehmann_shift": shift,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier=hypothesis_identifier,
+        metric_name=metric_name,
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=len(differences),
+        estimate=estimate,
+        raw_p_value=raw_p_value,
+        adjusted_p_value=None,
+        confidence_level=loaded.values.statistics.confidence_level,
+        confidence_lower=interval[0],
+        confidence_upper=interval[1],
+        hodges_lehmann_shift=shift,
+        decision=(
+            SupportState.SUPPORTED
+            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
+            else SupportState.NULL_RESULT
+        ),
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+    )
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return record
+
+
+def _confirmatory_raw_evaluation_paths(root: Path, method_name: MethodName) -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            (
+                root
+                / "evaluations"
+                / "raw"
+                / ExecutionRole.CONFIRMATORY.value
+                / method_artifact_stem(method_name)
+            ).glob("*.json")
+        )
+    )
+
+
+def _evaluation_heldout_upper_pfa(payload: Mapping[YamlKeyPath, YamlNode]) -> Probability | None:
+    calibration = _as_mapping(payload["calibration"])
+    global_point = _as_mapping(calibration["global"])
+    heldout = global_point["heldout_upper_pfa"]
+    if heldout is None:
+        return None
+    return cast(Probability, heldout)
+
+
+def _evaluation_operating_point_available(payload: Mapping[YamlKeyPath, YamlNode]) -> Boolean:
+    calibration = _as_mapping(payload["calibration"])
+    global_point = _as_mapping(calibration["global"])
+    return global_point["threshold"] is not None
+
+
+def _evaluation_success_leads(
+    payload: Mapping[YamlKeyPath, YamlNode],
+) -> tuple[OperationalLeadEpochs, ...]:
+    campaigns = payload["campaigns"]
+    if not isinstance(campaigns, Sequence):
+        return ()
+    leads: list[OperationalLeadEpochs] = []
+    for row in campaigns:
+        if not isinstance(row, Mapping):
+            continue
+        if row["strict_odi"] != 1:
+            continue
+        lead = row["operational_lead_epochs"]
+        if lead is None:
+            continue
+        leads.append(cast(OperationalLeadEpochs, lead))
+    return tuple(leads)
+
+
+def _materialize_full_method_support(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    contrast: StatisticalRecord | None,
+) -> Path | None:
+    if contrast is None or contrast.raw_p_value is None:
+        return None
+    dataset_name = campaign_dataset(loaded, ExperimentName.PRIMARY_STRICT_ODI_EVALUATION)
+    prepared_path = _preprocessing_paths(loaded, repository, dataset_name)[1]
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return None
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(ExperimentName.PRIMARY_STRICT_ODI_EVALUATION)
+    full_paths = _confirmatory_raw_evaluation_paths(root, MethodName.FULL_FEDCAMPAIGN_EMHI)
+    comparator_paths = _confirmatory_raw_evaluation_paths(
+        root, MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI
+    )
+    expected = loaded.values.randomness.real_confirmatory_roots
+    full_payloads = tuple(
+        _as_mapping(cast(YamlNode, json.loads(path.read_text(encoding="utf-8"))))
+        for path in full_paths
+    )
+    comparator_payloads = tuple(
+        _as_mapping(cast(YamlNode, json.loads(path.read_text(encoding="utf-8"))))
+        for path in comparator_paths
+    )
+    full_seeds = tuple(cast(SeedValue, payload["seed"]) for payload in full_payloads)
+    comparator_seeds = tuple(cast(SeedValue, payload["seed"]) for payload in comparator_payloads)
+    if not confirmatory_completeness_within_tolerance(
+        loaded, expected, full_seeds
+    ) or not confirmatory_completeness_within_tolerance(loaded, expected, comparator_seeds):
+        return None
+    upper_bounds = tuple(_evaluation_heldout_upper_pfa(payload) for payload in full_payloads)
+    if any(bound is None for bound in upper_bounds):
+        return None
+    heldout_upper = max(cast(tuple[Probability, ...], upper_bounds))
+    summaries = _confirmatory_method_summaries(
+        _load_seed_summaries(root), MethodName.FULL_FEDCAMPAIGN_EMHI
+    )
+    if not summaries:
+        return None
+    mean_strict_odi_rate = sum(record.method_value for _path, record in summaries) / len(summaries)
+    success_leads = tuple(
+        lead for payload in full_payloads for lead in _evaluation_success_leads(payload)
+    )
+    materiality = loaded.values.materiality.primary_real
+    target_pfa = loaded.values.evidence.calibrated_finite_horizon.target_pfa
+    nominal_alpha = loaded.values.statistics.nominal_significance_alpha
+    full_available = all(
+        _evaluation_operating_point_available(payload) for payload in full_payloads
+    )
+    comparator_available = all(
+        _evaluation_operating_point_available(payload) for payload in comparator_payloads
+    )
+    paired_advantage = contrast.estimate
+    pfa_ok = heldout_upper <= target_pfa
+    odi_ok = strict_odi_rate_criterion(mean_strict_odi_rate, materiality.minimum_strict_odi_rate)
+    advantage_ok = paired_odi_advantage_criterion(
+        paired_advantage, materiality.minimum_odi_rate_advantage_over_order_at_most_two
+    )
+    matched_ok = matched_operating_point_requirement(full_available, comparator_available)
+    directional_ok = contrast.raw_p_value < nominal_alpha
+    if success_leads:
+        median_lead = median_of(success_leads)
+        lead_ok = median_operational_lead_criterion(
+            median_lead, materiality.minimum_median_operational_lead_epochs
+        )
+        result = evaluate_full_method_support(
+            FullMethodSupportInputs(
+                heldout_pfa_upper_bound=heldout_upper,
+                target_pfa=target_pfa,
+                mean_strict_odi_rate=mean_strict_odi_rate,
+                minimum_strict_odi_rate=materiality.minimum_strict_odi_rate,
+                paired_odi_advantage=paired_advantage,
+                minimum_odi_advantage=materiality.minimum_odi_rate_advantage_over_order_at_most_two,
+                median_lead_among_successes=median_lead,
+                minimum_median_lead=materiality.minimum_median_operational_lead_epochs,
+                directional_adjusted_p_value=contrast.raw_p_value,
+                nominal_alpha=nominal_alpha,
+                full_operating_point_available=full_available,
+                comparator_operating_point_available=comparator_available,
+            )
+        )
+        if result.lead_criterion_satisfied is not lead_ok:
+            raise ValueError("full-method lead criterion is inconsistent")
+        if result.pfa_criterion_satisfied is not pfa_ok:
+            raise ValueError("full-method PFA criterion is inconsistent")
+        if result.odi_rate_criterion_satisfied is not odi_ok:
+            raise ValueError("full-method ODI-rate criterion is inconsistent")
+        if result.advantage_criterion_satisfied is not advantage_ok:
+            raise ValueError("full-method advantage criterion is inconsistent")
+        if result.matched_operating_point_criterion_satisfied is not matched_ok:
+            raise ValueError("full-method operating-point criterion is inconsistent")
+        if result.directional_criterion_satisfied is not directional_ok:
+            raise ValueError("full-method directional criterion is inconsistent")
+    else:
+        result = FullMethodSupportResult(
+            pfa_criterion_satisfied=pfa_ok,
+            odi_rate_criterion_satisfied=odi_ok,
+            advantage_criterion_satisfied=advantage_ok,
+            lead_criterion_satisfied=False,
+            directional_criterion_satisfied=directional_ok,
+            matched_operating_point_criterion_satisfied=matched_ok,
+        )
+    source_paths = (*full_paths, *comparator_paths)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    all_criteria_pass = (
+        result.pfa_criterion_satisfied
+        and result.odi_rate_criterion_satisfied
+        and result.advantage_criterion_satisfied
+        and result.lead_criterion_satisfied
+        and result.directional_criterion_satisfied
+        and result.matched_operating_point_criterion_satisfied
+    )
+    median_lead_value = None if not success_leads else median_of(success_leads)
+    payload: YamlNode = {
+        "experiment_name": ExperimentName.PRIMARY_STRICT_ODI_EVALUATION.value,
+        "heldout_pfa_upper_bound": heldout_upper,
+        "mean_strict_odi_rate": mean_strict_odi_rate,
+        "paired_odi_advantage": paired_advantage,
+        "median_lead_among_successes": median_lead_value,
+        "directional_adjusted_p_value": contrast.raw_p_value,
+        "pfa_criterion_satisfied": result.pfa_criterion_satisfied,
+        "odi_rate_criterion_satisfied": result.odi_rate_criterion_satisfied,
+        "advantage_criterion_satisfied": result.advantage_criterion_satisfied,
+        "lead_criterion_satisfied": result.lead_criterion_satisfied,
+        "directional_criterion_satisfied": result.directional_criterion_satisfied,
+        "matched_operating_point_criterion_satisfied": result.matched_operating_point_criterion_satisfied,
+        "all_criteria_pass": all_criteria_pass,
+        "source_result_ids": list(source_ids),
+    }
+    record = FullMethodSupportRecord(
+        experiment_name=ExperimentName.PRIMARY_STRICT_ODI_EVALUATION,
+        heldout_pfa_upper_bound=heldout_upper,
+        mean_strict_odi_rate=mean_strict_odi_rate,
+        paired_odi_advantage=paired_advantage,
+        median_lead_among_successes=median_lead_value,
+        directional_adjusted_p_value=contrast.raw_p_value,
+        pfa_criterion_satisfied=result.pfa_criterion_satisfied,
+        odi_rate_criterion_satisfied=result.odi_rate_criterion_satisfied,
+        advantage_criterion_satisfied=result.advantage_criterion_satisfied,
+        lead_criterion_satisfied=result.lead_criterion_satisfied,
+        directional_criterion_satisfied=result.directional_criterion_satisfied,
+        matched_operating_point_criterion_satisfied=result.matched_operating_point_criterion_satisfied,
+        all_criteria_pass=all_criteria_pass,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = root / "statistics" / "tests" / "full-method-support.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
+
+
+def _materialize_confirmatory_odi_inferences(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    primary_not_tested: Boolean,
+) -> None:
+    if experiment_name is ExperimentName.PRIMARY_STRICT_ODI_EVALUATION and not primary_not_tested:
+        contrast = _materialize_paired_confirmatory_odi_contrast(
+            loaded,
+            repository,
+            experiment_name,
+            PrimaryHolmHypothesis.PRIMARY_ODI_ADVANTAGE_OVER_ORDER_AT_MOST_TWO_EMHI.value,
+            MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
+            "paired_strict_odi_rate_advantage",
+        )
+        _materialize_full_method_support(loaded, repository, contrast)
+        return
+    if experiment_name not in {
+        ExperimentName.EXCLUSION_MECHANISM_ABLATION,
+        ExperimentName.PURIFICATION_AND_ORDER_ABLATION,
+    }:
+        return
+    for family_experiment, hypothesis, comparator_method in SECONDARY_HOLM_STATISTICS:
+        if family_experiment is not experiment_name:
+            continue
+        _materialize_paired_confirmatory_odi_contrast(
+            loaded,
+            repository,
+            experiment_name,
+            hypothesis.value,
+            comparator_method,
+            "paired_strict_odi_rate_advantage",
+        )
+
+
 def _stress_window_false_declaration_rate(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -2490,7 +3115,10 @@ def _benign_common_mode_seed_difference(
     if outcome is None:
         return None
     emhi_fcr, raw_mean_fcr, paths = outcome
-    return paired_false_campaign_difference(raw_mean_fcr, emhi_fcr), paths
+    reduction = paired_false_campaign_difference(raw_mean_fcr, emhi_fcr)
+    if reduction != pfa_difference(raw_mean_fcr, emhi_fcr):
+        raise ValueError("false-campaign reduction must match the PFA difference")
+    return reduction, paths
 
 
 def materialize_benign_common_mode_statistic(
@@ -2550,6 +3178,7 @@ def materialize_benign_common_mode_statistic(
     ):
         return None
     estimate = sum(differences) / len(differences)
+    shift = hodges_lehmann_shift(tuple(differences))
     flipped = exact_sign_flip_means(tuple(differences))
     raw_p_value = sign_flip_p_value(estimate, flipped, True)
     interval = paired_mean_bca_interval(
@@ -2571,6 +3200,7 @@ def materialize_benign_common_mode_statistic(
         "confidence_level": loaded.values.statistics.confidence_level,
         "confidence_lower": interval[0],
         "confidence_upper": interval[1],
+        "hodges_lehmann_shift": shift,
         "source_result_ids": list(source_ids),
     }
     record = StatisticalRecord(
@@ -2584,6 +3214,7 @@ def materialize_benign_common_mode_statistic(
         confidence_level=loaded.values.statistics.confidence_level,
         confidence_lower=interval[0],
         confidence_upper=interval[1],
+        hodges_lehmann_shift=shift,
         decision=(
             SupportState.SUPPORTED
             if raw_p_value < loaded.values.statistics.nominal_significance_alpha
@@ -2870,8 +3501,10 @@ def _campaign_detection_rate_for_method(
     typed_rows = tuple(cast(Mapping[str, YamlNode], row) for row in rows)
     if not typed_rows:
         return None
-    detections = tuple(cast(Boolean, row["global_detected_within_horizon"]) for row in typed_rows)
-    detection_rate = sum(detections) / len(detections)
+    detection_rate = campaign_detection_rate(
+        tuple(cast(EpochIndexValue | None, row["global_stop_epoch"]) for row in typed_rows),
+        loaded.values.campaign.evaluation_horizon_epochs,
+    )
     return detection_rate, (score_path, rank_path, fit_path)
 
 
@@ -2943,7 +3576,7 @@ def materialize_benign_common_mode_positive_power_measurement(
         emhi_dr, emhi_dr_paths = emhi_dr_outcome
         no_outside_dr, no_outside_dr_paths = no_outside_dr_outcome
         emhi_fcr, raw_mean_fcr, fcr_paths = fcr_outcome
-        power_losses.append(seed_level_power_loss(no_outside_dr, emhi_dr))
+        power_losses.append(outside_conditioning_power_loss(no_outside_dr, emhi_dr))
         suppressions.append(common_mode_suppression(emhi_fcr, raw_mean_fcr, floor))
         source_paths.extend((*emhi_dr_paths, *no_outside_dr_paths, *fcr_paths))
         covered_seeds.append(seed)
@@ -3053,7 +3686,7 @@ def _evaluate_comparator_seed_cell(
             )
         )
         indicator: OdiIndicator = odi.indicator
-        odi_values.append(float(indicator))
+        odi_values.append(indicator)
         campaign_rows.append(
             {
                 "start_epoch": campaign.start_epoch,
@@ -3652,6 +4285,68 @@ def materialize_context_and_estimator_sensitivity_cells(
     return tuple(paths)
 
 
+def materialize_coalition_scalability_summaries(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> tuple[Path, ...]:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(ExperimentName.COALITION_SCALABILITY)
+    staging = layout.roots.outputs_root / "cache" / "staging"
+    config = loaded.values
+    maximum_order = config.study.maximum_coalition_order
+    maximum_latency = config.materiality.reference_harness.p95_latency_maximum_seconds
+    maximum_failure_rate = config.materiality.maximum_pooled_numerical_failure_rate
+    paths: list[Path] = []
+    for client_count in config.robustness.scalability_client_counts:
+        coalitions = expected_scalability_coalitions(config, client_count)
+        registered = registry_coalition_count(client_count, maximum_order)
+        if coalitions != registered:
+            raise ValueError("derived coalition count must match the registry coalition count")
+        payload_bytes = application_payload_bytes_per_epoch(client_count)
+        measurements: tuple[ScalabilityMeasurement, ...] = ()
+        summary = (
+            None
+            if not measurements
+            else summarize_scalability(
+                client_count,
+                measurements,
+                maximum_latency,
+                maximum_failure_rate,
+            )
+        )
+        scored_rate = None
+        if summary is not None and summary.median_server_latency_seconds > 0.0:
+            scored_rate = throughput(coalitions, summary.median_server_latency_seconds)
+        payload: YamlNode = {
+            "client_count": client_count,
+            "expected_coalitions": coalitions,
+            "application_payload_bytes_per_epoch": payload_bytes,
+            "median_server_latency_seconds": (
+                None if summary is None else summary.median_server_latency_seconds
+            ),
+            "p95_server_latency_seconds": (
+                None if summary is None else summary.p95_server_latency_seconds
+            ),
+            "numerical_failure_rate": None if summary is None else summary.numerical_failure_rate,
+            "throughput": scored_rate,
+            "latency_criterion_state": (
+                SupportState.NOT_TESTED.value
+                if summary is None
+                else summary.latency_criterion_state.value
+            ),
+            "numerical_criterion_state": (
+                SupportState.NOT_TESTED.value
+                if summary is None
+                else summary.numerical_criterion_state.value
+            ),
+            "state": ExperimentState.COMPLETED.value if summary is None else summary.state.value,
+        }
+        path = root / "metrics" / "aggregate" / f"k-{client_count}.json"
+        write_atomic_json(path, payload, staging)
+        paths.append(path)
+    return tuple(paths)
+
+
 def execute_campaign_experiment(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -3692,6 +4387,22 @@ def execute_campaign_experiment(
             run_record_path=run_path,
             completed_cell_count=0,
             detail="required deterministic preprocessing artifacts are missing",
+        )
+    if experiment_name is ExperimentName.COALITION_SCALABILITY:
+        scalability_paths = materialize_coalition_scalability_summaries(loaded, repository)
+        run_path = publish_experiment_run_record(
+            loaded,
+            repository,
+            experiment_name,
+            overwrite_policy,
+            ExperimentState.COMPLETED,
+        )
+        return ExperimentExecutionResult(
+            experiment_name=experiment_name,
+            state=ExperimentState.COMPLETED,
+            run_record_path=run_path,
+            completed_cell_count=len(scalability_paths),
+            detail="coalition-scalability derived summaries completed",
         )
     if experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
         sensitivity_cells = materialize_context_and_estimator_sensitivity_cells(loaded, repository)
@@ -3751,7 +4462,12 @@ def execute_campaign_experiment(
         experiment_name,
     )
     materialize_seed_statistics(loaded, repository, experiment_name)
-    _materialize_not_tested_primary_holm_statistic(loaded, repository, experiment_name)
+    not_tested_primary = _materialize_not_tested_primary_holm_statistic(
+        loaded, repository, experiment_name
+    )
+    _materialize_confirmatory_odi_inferences(
+        loaded, repository, experiment_name, not_tested_primary is not None
+    )
     if experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
         materialize_benign_common_mode_statistic(loaded, repository)
         materialize_benign_common_mode_count_stress_diagnostics(loaded, repository)

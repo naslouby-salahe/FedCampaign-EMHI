@@ -49,7 +49,7 @@ def center_and_scale_atom(
     )
 
 
-def projection_residual(
+def innovation_excludes_same_order_representation(
     tensor: tuple[InnovationCoordinate, ...],
     coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
     design_row: tuple[BasisCoordinate, ...],
@@ -66,13 +66,13 @@ def projection_residual(
     return tuple(left - right for left, right in zip(tensor, predicted, strict=True))
 
 
-def unsupported_context_observation_count(observation_count: RecordCount) -> Boolean:
-    return observation_count < 2
-
-
-def innovation_excludes_same_order_representation(
+def projection_residual(
     tensor: tuple[InnovationCoordinate, ...],
     coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
     design_row: tuple[BasisCoordinate, ...],
 ) -> tuple[InnovationCoordinate, ...]:
-    return projection_residual(tensor, coefficients, design_row)
+    return innovation_excludes_same_order_representation(tensor, coefficients, design_row)
+
+
+def unsupported_context_observation_count(observation_count: RecordCount) -> Boolean:
+    return observation_count < 2

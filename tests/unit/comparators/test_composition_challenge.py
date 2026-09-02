@@ -1,12 +1,7 @@
-import pytest
-
 from fedcampaign_emhi.comparators.fusion import (
     CompositionSelectionInputs,
-    composition_seed_count,
-    null_standard_deviation_is_usable,
     select_strongest_comparator,
     selection_rule_identity,
-    standardized_estimation_error,
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import MethodName
@@ -37,22 +32,6 @@ def test_selection_inputs_come_from_configuration() -> None:
     )
     assert inputs.artifact_filename == "strongest-comparator-composition.json"
     assert inputs.timed_scoring_rows == 10000
-
-
-def test_estimation_error_is_absolute_distance_from_truth() -> None:
-    theta = build_inputs().reference_theta
-    assert standardized_estimation_error(theta + 0.05, theta) == pytest.approx(0.05)
-    assert standardized_estimation_error(theta - 0.05, theta) == pytest.approx(0.05)
-    assert standardized_estimation_error(theta, theta) == 0.0
-
-
-def test_null_deviation_floor_rejects_degenerate_calibration() -> None:
-    loaded = load_production_configuration()
-    floor = loaded.values.numerics.metric_denominator_floor
-    assert null_standard_deviation_is_usable(1.0, floor) is True
-    assert null_standard_deviation_is_usable(floor, floor) is False
-    assert null_standard_deviation_is_usable(0.0, floor) is False
-    assert null_standard_deviation_is_usable(floor / 2, floor) is False
 
 
 def test_selection_rule_identity_is_deterministic() -> None:
@@ -94,9 +73,3 @@ def test_no_real_outcome_input_exists_in_selection_signature() -> None:
     parameter_names = tuple(signature.parameters)
     assert "campaign" not in " ".join(parameter_names)
     assert "real" not in " ".join(parameter_names)
-
-
-def test_seed_count_matches_development_roots() -> None:
-    loaded = load_production_configuration()
-    expected = len(loaded.values.randomness.synthetic_development_roots)
-    assert composition_seed_count(expected) == expected

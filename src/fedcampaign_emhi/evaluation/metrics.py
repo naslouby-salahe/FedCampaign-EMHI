@@ -89,10 +89,9 @@ def campaign_detection_rate(
 ) -> Probability:
     if not global_stop_epochs:
         raise ValueError("campaign detection rate requires the complete campaign registry")
-    detected = sum(
+    return sum(
         1 for epoch in global_stop_epochs if epoch is not None and epoch <= horizon_epochs
-    )
-    return detected / len(global_stop_epochs)
+    ) / len(global_stop_epochs)
 
 
 def finite_horizon_pfa_point_estimate(
@@ -173,8 +172,7 @@ def order_evidence_share(
     all_order_factors: tuple[EvidenceFactor, ...],
     metric_denominator_floor: NumericalFloor,
 ) -> EvidenceShare:
-    total = sum(all_order_factors) + metric_denominator_floor
-    return order_factor / total
+    return order_factor / (sum(all_order_factors) + metric_denominator_floor)
 
 
 def decisive_order(
@@ -201,11 +199,9 @@ def atom_nrmse(
 ) -> ProjectionNrmse:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
-    if len(emhi_atoms) != len(hofd_atoms):
-        raise ValueError("atom NRMSE requires aligned EMHI and HOFD atoms")
-    if not emhi_atoms:
-        raise ValueError("atom NRMSE requires at least one atom")
-    differences = sqrt(
+    if len(emhi_atoms) != len(hofd_atoms) or not emhi_atoms:
+        raise ValueError("atom NRMSE requires aligned nonempty atoms")
+    difference = sqrt(
         sum(
             euclidean_norm(tuple(left - right for left, right in zip(emhi, hofd, strict=True))) ** 2
             for emhi, hofd in zip(emhi_atoms, hofd_atoms, strict=True)
@@ -213,7 +209,7 @@ def atom_nrmse(
         / len(emhi_atoms)
     )
     reference = sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms) / len(emhi_atoms))
-    return differences / (reference + metric_denominator_floor)
+    return difference / max(reference, metric_denominator_floor)
 
 
 def atom_cosine_similarity(
@@ -223,17 +219,17 @@ def atom_cosine_similarity(
 ) -> CosineSimilarity:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
-    if len(emhi_atoms) != len(hofd_atoms):
-        raise ValueError("atom cosine similarity requires aligned EMHI and HOFD atoms")
-    if not emhi_atoms:
-        raise ValueError("atom cosine similarity requires at least one atom")
+    if len(emhi_atoms) != len(hofd_atoms) or not emhi_atoms:
+        raise ValueError("atom cosine similarity requires aligned nonempty atoms")
     inner = sum(
         sum(left * right for left, right in zip(emhi, hofd, strict=True))
         for emhi, hofd in zip(emhi_atoms, hofd_atoms, strict=True)
     )
-    emhi_norm = sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms))
-    hofd_norm = sqrt(sum(euclidean_norm(atom) ** 2 for atom in hofd_atoms))
-    return inner / (emhi_norm * hofd_norm + metric_denominator_floor)
+    return inner / max(
+        sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms))
+        * sqrt(sum(euclidean_norm(atom) ** 2 for atom in hofd_atoms)),
+        metric_denominator_floor,
+    )
 
 
 def paired_stopping_time_difference(
@@ -336,22 +332,23 @@ def outside_conditioning_power_loss(
 def auroc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUROC requires aligned scores and labels")
-    positives = sum(1 for label in labels if label)
-    negatives = len(labels) - positives
-    if positives == 0 or negatives == 0:
+    positives = sum(labels)
+    if positives == 0 or positives == len(labels):
         return MaybeDefinedMetric.not_defined()
-    raw_value = cast(float, sklearn_metrics.roc_auc_score(list(labels), list(scores)))
-    return MaybeDefinedMetric.defined(float(raw_value))
+    return MaybeDefinedMetric.defined(
+        float(cast(float, sklearn_metrics.roc_auc_score(list(labels), list(scores))))
+    )
 
 
 def auprc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUPRC requires aligned scores and labels")
-    positives = sum(1 for label in labels if label)
+    positives = sum(labels)
     if positives == 0 or positives == len(labels):
         return MaybeDefinedMetric.not_defined()
-    raw_value = cast(float, sklearn_metrics.average_precision_score(list(labels), list(scores)))
-    return MaybeDefinedMetric.defined(float(raw_value))
+    return MaybeDefinedMetric.defined(
+        float(cast(float, sklearn_metrics.average_precision_score(list(labels), list(scores))))
+    )
 
 
 def registry_coalition_count(

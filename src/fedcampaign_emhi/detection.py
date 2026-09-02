@@ -11,8 +11,6 @@ from fedcampaign_emhi.domain.enums import (
     DatasetName,
     DetectorFamily,
     DetectorFamilyRemainder,
-    OperatingPointState,
-    PartitionRole,
 )
 from fedcampaign_emhi.domain.types import (
     AutoencoderBeta,
@@ -35,8 +33,6 @@ from fedcampaign_emhi.domain.types import (
     NumericalTolerance,
     Probability,
     Quantile,
-    RankReference,
-    RankValue,
     RecordCount,
     RequiredExceedanceCount,
     SampleCap,
@@ -49,7 +45,6 @@ from fedcampaign_emhi.domain.types import (
     WeightDecay,
     WorkerCount,
 )
-from fedcampaign_emhi.emhi.structure import clip_rank, midrank
 from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
 from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores
 from fedcampaign_emhi.models.classical import (
@@ -80,10 +75,6 @@ def assign_detector_families(
             )
         )
     return tuple(assignments)
-
-
-def permitted_fitting_partitions() -> tuple[PartitionRole, ...]:
-    return (PartitionRole.DETECTOR_FIT,)
 
 
 def score_isolation_forest(
@@ -156,34 +147,9 @@ def score_autoencoder(
     )
 
 
-def family_uses_detector_fit_only(family: DetectorFamily) -> Boolean:
-    return family in {
-        DetectorFamily.ISOLATION_FOREST,
-        DetectorFamily.ONE_CLASS_SVM,
-        DetectorFamily.AUTOENCODER,
-    }
-
-
-def oriented_score_stream(scores: tuple[DetectorScore, ...]) -> tuple[DetectorScore, ...]:
-    if not scores:
-        raise ValueError("score stream must contain at least one epoch")
-    return scores
-
-
 def score_stream_isolation_check(score_count: RecordCount, epoch_count: RecordCount) -> None:
     if score_count != epoch_count:
         raise ValueError("detector score stream must contain exactly one score per scored epoch")
-
-
-def rank_stream(
-    scores: tuple[DetectorScore, ...],
-    benign_reference_scores: tuple[DetectorScore, ...],
-    rank_clip_epsilon: NumericalFloor,
-) -> tuple[RankValue, ...]:
-    if not benign_reference_scores:
-        raise ValueError("marginal rank reference requires benign nuisance-fit scores")
-    reference = RankReference(scores=benign_reference_scores)
-    return tuple(clip_rank(midrank(score, reference), rank_clip_epsilon) for score in scores)
 
 
 def detector_seed(
@@ -370,11 +336,3 @@ def heldout_false_stop_count(
         if first_local_stop_epoch(horizon, required_exceedances, window_epochs) is not None:
             stops += 1
     return stops
-
-
-def operating_point_state_for_policy(
-    artifact: LocalPolicyArtifact | None,
-) -> OperatingPointState:
-    if artifact is None:
-        return OperatingPointState.UNAVAILABLE
-    return OperatingPointState.AVAILABLE

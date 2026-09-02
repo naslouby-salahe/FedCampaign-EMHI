@@ -7,14 +7,10 @@ import rfc8785
 from fedcampaign_emhi.config.loading import load_production_configuration, repository_root
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import (
     Boolean,
-    ComponentName,
     ConfigurationDigest,
     DeterministicUtf8Bytes,
-    RelativePath,
-    RuntimeSeconds,
     ScientificChoiceCount,
     SeedDerivationIdentity,
     SeedValue,
@@ -55,36 +51,6 @@ def derive_component_seed(identity: SeedDerivationIdentity) -> SeedValue:
 
 def thirty_two_bit_seed(seed: SeedValue) -> ThirtyTwoBitSeed:
     return seed % THIRTY_TWO_BIT_MODULUS
-
-
-@dataclass(frozen=True)
-class RuntimeLogEvent:
-    experiment_name: ExperimentName
-    execution_role: ExecutionRole | None
-    semantic_cell_path: RelativePath | None
-    seed: SeedValue | None
-    stage: ComponentName
-    state: ExperimentState
-    elapsed_seconds: RuntimeSeconds
-    detail: ComponentName
-
-
-def write_runtime_log(destination: Path, event: RuntimeLogEvent) -> None:
-    payload = {
-        "experiment_name": event.experiment_name.value,
-        "execution_role": None if event.execution_role is None else event.execution_role.value,
-        "semantic_cell_path": event.semantic_cell_path,
-        "seed": event.seed,
-        "stage": event.stage,
-        "state": event.state.value,
-        "elapsed_seconds": event.elapsed_seconds,
-        "detail": event.detail,
-    }
-    encoded = deterministic_utf8_bytes(payload)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    staging = destination.with_suffix(destination.suffix + ".partial")
-    staging.write_bytes(encoded)
-    staging.replace(destination)
 
 
 @dataclass(frozen=True)

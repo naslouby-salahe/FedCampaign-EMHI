@@ -1,13 +1,11 @@
 from typing import cast
 
-from fedcampaign_emhi.artifacts.records import ArtifactManifest
 from fedcampaign_emhi.artifacts.storage import payload_digest
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
-    Boolean,
     ConfigurationDigest,
     MaterialDependencyFingerprint,
 )
@@ -26,15 +24,6 @@ def material_fingerprint(
         "upstream_digests": list(upstream_digests),
     }
     return payload_digest(payload)
-
-
-def manifests_are_compatible(current: ArtifactManifest, observed: ArtifactManifest) -> Boolean:
-    return (
-        current.artifact_id == observed.artifact_id
-        and current.material_fingerprint == observed.material_fingerprint
-        and current.content_digest == observed.content_digest
-        and current.upstream_ids == observed.upstream_ids
-    )
 
 
 def synthetic_invariant_boundary_digest(config: ScientificConfig) -> ConfigurationDigest:
@@ -204,36 +193,6 @@ def evidence_export_boundary_digest(config: ScientificConfig) -> ConfigurationDi
     )
 
 
-def report_summary_boundary_digest(config: ScientificConfig) -> ConfigurationDigest:
-    return payload_digest(
-        cast(
-            YamlNode,
-            {
-                "experiments": {
-                    "primary_strict_odi_evaluation": (
-                        config.experiments.primary_strict_odi_evaluation.model_dump(mode="json")
-                    ),
-                },
-            },
-        )
-    )
-
-
-def plan_boundary_digest(config: ScientificConfig) -> ConfigurationDigest:
-    return payload_digest(
-        cast(
-            YamlNode,
-            {
-                "support_grids": config.support_grids.model_dump(mode="json"),
-                "robustness": config.robustness.model_dump(mode="json"),
-                "experiments": config.experiments.model_dump(mode="json"),
-                "randomness": config.randomness.model_dump(mode="json"),
-                "runtime": config.runtime.model_dump(mode="json"),
-            },
-        )
-    )
-
-
 def descendant_ids(
     graph: tuple[ArtifactDependencyNode, ...],
     changed_ids: tuple[ArtifactIdentity, ...],
@@ -254,9 +213,3 @@ def descendant_ids(
             discovered.append(child)
             pending.append(child)
     return tuple(sorted(discovered))
-
-
-def nodes_by_id(
-    graph: tuple[ArtifactDependencyNode, ...],
-) -> tuple[tuple[ArtifactIdentity, ArtifactDependencyNode], ...]:
-    return tuple((node.artifact_id, node) for node in graph)

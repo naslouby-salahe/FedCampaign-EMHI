@@ -3,15 +3,12 @@ import inspect
 from fedcampaign_emhi.detection import (
     assign_detector_families,
     candidate_thresholds_from_nuisance_scores,
-    family_uses_detector_fit_only,
     heldout_false_stop_count,
-    operating_point_state_for_policy,
-    permitted_fitting_partitions,
     persistence_is_triggered,
     score_isolation_forest,
     select_immutable_local_policy,
 )
-from fedcampaign_emhi.domain.enums import DetectorFamily, OperatingPointState, PartitionRole
+from fedcampaign_emhi.domain.enums import DetectorFamily
 from fedcampaign_emhi.domain.types import LocalPolicyArtifact
 
 
@@ -31,8 +28,6 @@ def test_persistence_may_trigger_once_m_observations_exist() -> None:
 
 
 def test_fitting_uses_detector_fit_only() -> None:
-    assert permitted_fitting_partitions() == (PartitionRole.DETECTOR_FIT,)
-    assert family_uses_detector_fit_only(DetectorFamily.ISOLATION_FOREST)
     assert "heldout" not in inspect.signature(score_isolation_forest).parameters
     fit_rows = tuple((float(index), 0.0) for index in range(20))
     scores = score_isolation_forest(fit_rows, ((0.0, 0.0), (100.0, 0.0)), 10, 16, 1.0, 1, 7)
@@ -48,5 +43,4 @@ def test_local_policy_is_selected_on_calibration_and_immutable() -> None:
     assert selected == strict
     heldout = heldout_false_stop_count(((True,), (False,)), 1, 1)
     assert heldout == 1
-    assert operating_point_state_for_policy(None) is OperatingPointState.UNAVAILABLE
     assert "heldout" not in inspect.signature(select_immutable_local_policy).parameters

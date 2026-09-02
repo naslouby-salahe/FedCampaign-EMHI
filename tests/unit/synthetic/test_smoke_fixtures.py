@@ -5,14 +5,11 @@ from fedcampaign_emhi.datasets.campaigns import campaign_duration_epochs, merge_
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.emhi.sequential import distributed_support_predicate
 from fedcampaign_emhi.synthetic.generators import (
-    apply_single_client_score_shift,
     contaminate_rank,
     contaminated_outside_count,
     equally_spaced_loadings,
     gaussian_copula_pair,
     marginal_campaign_targets,
-    pair_relation_targets,
-    single_client_target,
 )
 from fedcampaign_emhi.synthetic.pure_order import (
     lexicographic_target_clients,
@@ -20,7 +17,6 @@ from fedcampaign_emhi.synthetic.pure_order import (
     polynomial_envelope,
     polynomial_scale,
     sample_xor_ranks,
-    xor_and_mixed_order_target_clients,
 )
 from fedcampaign_emhi.synthetic.self_explanation import analytic_direct_derivative
 
@@ -47,15 +43,10 @@ def test_polynomial_scale_and_illegal_order_three_thetas() -> None:
     assert polynomial_envelope(0.1, CoalitionOrder.ONE) == 1.0 + (0.1 * sqrt(3.0))
 
 
-def test_lexicographic_targets_and_single_client_shift() -> None:
+def test_lexicographic_targets() -> None:
     clients = ("c3", "c1", "c2", "c4")
     assert lexicographic_target_clients(clients, 3) == ("c1", "c2", "c3")
-    assert xor_and_mixed_order_target_clients(clients) == ("c1", "c2", "c3")
     assert marginal_campaign_targets(clients) == ("c1", "c2", "c3")
-    assert pair_relation_targets(clients) == ("c1", "c2")
-    assert single_client_target(clients) == "c1"
-    shifted = apply_single_client_score_shift((0.0, 0.0, 0.0, 0.0), ("c1", "c2", "c3", "c4"), 2.0)
-    assert shifted == (2.0, 0.0, 0.0, 0.0)
 
 
 def test_single_client_cannot_satisfy_distributed_support() -> None:

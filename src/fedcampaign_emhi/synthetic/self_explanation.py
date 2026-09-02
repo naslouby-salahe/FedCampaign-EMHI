@@ -29,6 +29,10 @@ from fedcampaign_emhi.emhi.contexts import (
     leave_one_out_context_members,
     partial_coalition_context_members,
 )
+from fedcampaign_emhi.evaluation.metrics import (
+    self_explanation_attenuation,
+    self_explanation_material_contrast,
+)
 from fedcampaign_emhi.synthetic.generators import (
     equally_spaced_loadings,
     generate_common_mode_scores,
@@ -65,16 +69,6 @@ def transform_nuisance(
     if transform is NuisanceTransformName.TANH:
         return tanh(2.0 * statistic)
     return log(1.0 + exp(statistic)) - log(2.0)
-
-
-def scalar_innovation_fixture(
-    coalition_scores: tuple[DetectorScore, ...],
-    context_scores: tuple[DetectorScore, ...],
-    transform: NuisanceTransformName,
-) -> InnovationCoordinate:
-    response = coalition_mean(coalition_scores)
-    nuisance = transform_nuisance(coalition_mean(context_scores), transform)
-    return response - nuisance
 
 
 @dataclass(frozen=True)
@@ -175,8 +169,8 @@ def material_attenuation_criterion(
     return attenuation_contrast >= minimum_attenuation_difference
 
 
-def primary_directional_test_passes(adjusted_p_value: Probability, alpha: Probability) -> Boolean:
-    return adjusted_p_value < alpha
+def primary_directional_test_passes(raw_p_value: Probability, alpha: Probability) -> Boolean:
+    return raw_p_value < alpha
 
 
 def _context_indices(
@@ -310,9 +304,10 @@ def evaluate_self_explanation_seed(
                 for perturbation in config.generators.self_explanation.derivative_regression_perturbations
             ),
         )
-        attenuation = 1.0 - (
-            abs(innovation_derivative)
-            / (abs(direct_derivative) + config.numerics.metric_denominator_floor)
+        attenuation = self_explanation_attenuation(
+            innovation_derivative,
+            direct_derivative,
+            config.numerics.metric_denominator_floor,
         )
         measurements.append(
             SelfExplanationMeasurement(
@@ -355,7 +350,9 @@ def evaluate_self_explanation_seed(
         if measurement.cell.context_method is ContextMethodName.INCLUSIVE_CONTEXT
     )
     primary_exact_derivative = exact.nuisance_derivative
-    primary_attenuation_contrast = inclusive.attenuation - exact.attenuation
+    primary_attenuation_contrast = self_explanation_material_contrast(
+        inclusive.attenuation, exact.attenuation
+    )
     return SelfExplanationSeedResult(
         measurements=tuple(measurements),
         primary_exact_nuisance_derivative=primary_exact_derivative,

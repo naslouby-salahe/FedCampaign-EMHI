@@ -1,6 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
-from math import exp, isfinite
+from math import exp
 
 from fedcampaign_emhi.artifacts.provenance import content_digest
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
@@ -10,20 +10,13 @@ from fedcampaign_emhi.detection import first_local_stop_epoch
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     DatasetName,
-    ExperimentState,
     PartitionRole,
 )
 from fedcampaign_emhi.domain.types import (
-    BenignHorizon,
     Boolean,
     ConfigurationDigest,
-    EpochIndexValue,
-    MetricValue,
-    NumericalFloor,
-    OperationalNormReference,
     OwnershipStatement,
     RankReference,
-    RecordCount,
     SeedValue,
 )
 from fedcampaign_emhi.emhi.calibration import fold_observation_indexes
@@ -49,82 +42,6 @@ from fedcampaign_emhi.emhi.projection import (
 from fedcampaign_emhi.emhi.sequential import trailing_support_window_client_ids
 from fedcampaign_emhi.emhi.structure import bounded_basis, clip_rank, midrank, tensor_dimension
 from fedcampaign_emhi.evaluation.metrics import censored_plot_value, strict_odi_outcome
-from fedcampaign_emhi.evaluation.records import (
-    BenignHorizonEvaluationRecord,
-    CampaignEvaluationRecord,
-)
-from fedcampaign_emhi.evaluation.sequential import CampaignReplayPlan, horizons_are_nonoverlapping
-
-
-def campaign_record_state(record: CampaignEvaluationRecord) -> ExperimentState:
-    if record.end_epoch < record.start_epoch:
-        return ExperimentState.INVALID
-    if not record.participating_clients:
-        return ExperimentState.INVALID
-    finite_values = (
-        record.context_coverage,
-        record.abstention_rate,
-        record.server_latency_seconds,
-        record.end_to_end_latency_seconds,
-    )
-    if not all(isfinite(metric_value) for metric_value in finite_values):
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def benign_horizon_record_state(
-    record: BenignHorizonEvaluationRecord,
-) -> ExperimentState:
-    finite_values = (record.threshold, record.context_coverage, record.abstention_rate)
-    if not all(isfinite(metric_value) for metric_value in finite_values):
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def required_record_completeness(
-    observed_count: RecordCount, expected_count: RecordCount
-) -> ExperimentState:
-    if observed_count != expected_count:
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def metric_is_finite(metric_value: MetricValue) -> ExperimentState:
-    return ExperimentState.COMPLETED if isfinite(metric_value) else ExperimentState.INVALID
-
-
-def replay_plan_state(plan: CampaignReplayPlan) -> ExperimentState:
-    if not plan.global_state_reset or not plan.local_persistence_reset:
-        return ExperimentState.INVALID
-    if not plan.campaign_epochs:
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def benign_horizon_records_state(
-    horizons: tuple[BenignHorizonEvaluationRecord, ...],
-) -> ExperimentState:
-    if not horizons:
-        return ExperimentState.INVALID
-    if any(benign_horizon_record_state(record) is ExperimentState.INVALID for record in horizons):
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def no_imputation(metric_values: tuple[MetricValue | None, ...]) -> ExperimentState:
-    if any(metric_value is None for metric_value in metric_values):
-        return ExperimentState.INVALID
-    return ExperimentState.COMPLETED
-
-
-def nonoverlapping_horizon_state(
-    horizons: tuple[BenignHorizon, ...],
-) -> ExperimentState:
-    return (
-        ExperimentState.COMPLETED
-        if horizons_are_nonoverlapping(horizons)
-        else ExperimentState.INVALID
-    )
 
 
 @dataclass(frozen=True)
@@ -345,17 +262,3 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)
 
     return SmokeValidationResult(passed=not failures, failures=tuple(failures))
-
-
-def smoke_false_stop_counts() -> tuple[RecordCount, ...]:
-    return (20, 15, 5, 0)
-
-
-def smoke_first_activity_epochs() -> tuple[EpochIndexValue, ...]:
-    return (300, 302)
-
-
-def smoke_operational_norm_scale(
-    norm_quantile: OperationalNormReference, floor: NumericalFloor
-) -> OperationalNormReference:
-    return max(norm_quantile, floor)

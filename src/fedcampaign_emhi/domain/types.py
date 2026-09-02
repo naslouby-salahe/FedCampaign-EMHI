@@ -1,6 +1,5 @@
 import hashlib
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -12,14 +11,10 @@ from fedcampaign_emhi.domain.enums import (
     ContextMethodName,
     DatasetName,
     DetectorFamily,
-    ExperimentName,
     ExperimentState,
     GroundTruthClass,
-    MethodName,
-    OperatingPointState,
     PreprocessingLayer,
     RecordExclusionReason,
-    ScientificOutcomeKind,
     SupportState,
 )
 
@@ -240,14 +235,6 @@ class StrictOdiOutcome:
 
 
 @dataclass(frozen=True)
-class ScientificOutcome:
-    kind: ScientificOutcomeKind
-    operating_point_state: OperatingPointState
-    experiment_state: ExperimentState
-    is_implementation_error: Boolean
-
-
-@dataclass(frozen=True)
 class ArtifactRoots:
     outputs_root: Path
     results_root: Path
@@ -256,25 +243,6 @@ class ArtifactRoots:
         if namespace is ArtifactNamespace.OUTPUTS:
             return self.outputs_root
         return self.results_root
-
-
-@dataclass(frozen=True)
-class ExperimentIdentity:
-    experiment_name: ExperimentName
-    descriptive_slug: ArtifactFilename
-
-
-@dataclass(frozen=True)
-class MethodIdentity:
-    method_name: MethodName
-
-
-@dataclass(frozen=True)
-class ProperSubsetDesignShape:
-    coalition_order: CoalitionOrder
-    basis_size: BasisSize
-    tensor_dimension: TensorDimension
-    design_column_count: DesignColumnCount
 
 
 @dataclass(frozen=True)
@@ -354,15 +322,6 @@ class PreprocessExecutionRecord:
     decisions: tuple[PreprocessingLayerDecision, ...]
     requested_datasets: tuple[DatasetName, ...]
     reconstruct_from: tuple[tuple[DatasetName, PreprocessingLayer | None], ...]
-
-
-@dataclass(frozen=True)
-class PairingKey:
-    dataset: DatasetName
-    selected_client_ids: tuple[ClientId, ...]
-    campaign_start_epoch: EpochIndexValue
-    campaign_end_epoch: EpochIndexValue
-    participating_client_ids: tuple[ClientId, ...]
 
 
 @dataclass(frozen=True)
@@ -454,53 +413,10 @@ class PrimaryClientSelection:
 
 
 @dataclass(frozen=True)
-class TonIotNetworkReleaseIdentity:
-    release_persistent_identifier: NormalizedEventToken
-    dataset_version_label: NormalizedEventToken
-    files: tuple[FileInventoryEntry, ...]
-    ground_truth_source_sha256: Sha256Hex | None
-    adapter_material_code_fingerprint: ConfigurationDigest
-    adapter_producer_commit: NormalizedEventToken
-    published_external_checksum_cross_checks: tuple[NormalizedEventToken, ...]
-
-
-@dataclass(frozen=True)
-class GroundTruthDiscrepancy:
-    record: TonIotNetworkFlowRecord
-    ground_truth: GroundTruthLabel
-
-
-@dataclass(frozen=True)
-class EpochGroundTruthAttachment:
-    client_id: ClientId
-    epoch: EpochIndex
-    ground_truth: GroundTruthLabel
-
-
-@dataclass(frozen=True)
-class BenignEvaluationSeparation:
-    benign_records: tuple[TonIotNetworkFlowRecord, ...]
-    evaluation_records: tuple[TonIotNetworkFlowRecord, ...]
-    discrepancies: tuple[GroundTruthDiscrepancy, ...]
-    experiment_state: ExperimentState
-
-
-@dataclass(frozen=True)
 class ClientBenignTally:
     client_id: ClientId
     benign_event_count: RecordCount
     observed_epoch_indexes: tuple[EpochIndexValue, ...]
-
-
-@dataclass(frozen=True)
-class EdgeIiotsetReleaseIdentity:
-    release_persistent_identifier: NormalizedEventToken
-    dataset_version_label: NormalizedEventToken
-    files: tuple[FileInventoryEntry, ...]
-    ground_truth_source_sha256: Sha256Hex | None
-    adapter_material_code_fingerprint: ConfigurationDigest
-    adapter_producer_commit: NormalizedEventToken
-    published_external_checksum_cross_checks: tuple[NormalizedEventToken, ...]
 
 
 @dataclass(frozen=True)
@@ -509,26 +425,6 @@ class SecondaryClientSelection:
     eligible_client_ids: tuple[ClientId, ...]
     eligibility: tuple[ClientEligibilityRecord, ...]
     support_state: SupportState
-
-
-@dataclass(frozen=True)
-class EdgeIiotsetGroundTruthDiscrepancy:
-    record: EdgeIiotsetFlowRecord
-    ground_truth: GroundTruthLabel
-
-
-@dataclass(frozen=True)
-class EdgeIiotsetBenignEvaluationSeparation:
-    benign_records: tuple[EdgeIiotsetFlowRecord, ...]
-    evaluation_records: tuple[EdgeIiotsetFlowRecord, ...]
-    discrepancies: tuple[EdgeIiotsetGroundTruthDiscrepancy, ...]
-    experiment_state: ExperimentState
-
-
-@dataclass(frozen=True)
-class MaximalOutsideField:
-    coalition: CoalitionMembers
-    complement_client_ids: tuple[ClientId, ...]
 
 
 @dataclass(frozen=True)
@@ -569,10 +465,6 @@ class CrossFittedInnovationCalibration:
     standardized_held_fold_innovations: tuple[tuple[FiniteFloat, ...], ...]
     complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
     selected_ridge_penalty: RidgePenalty
-
-
-class MetricNotDefinedState(StrEnum):
-    NOT_DEFINED = "Not Defined"
 
 
 MetricValue = FiniteFloat

@@ -1,8 +1,6 @@
 import numpy as np
-from numpy.typing import NDArray
 
 from fedcampaign_emhi.domain.types import (
-    Boolean,
     FeatureDimension,
     LayerWidth,
     ModelParameter,
@@ -25,15 +23,6 @@ def fedavg_weighted_mean(
         accumulator += np.asarray(parameters, dtype=np.float64) * count
     averaged = accumulator / total
     return tuple(float(coordinate) for coordinate in averaged.tolist())
-
-
-def store_parameters_float32(parameters: tuple[ModelParameter, ...]) -> tuple[ModelParameter, ...]:
-    stored: NDArray[np.float32] = np.asarray(parameters, dtype=np.float32)
-    return tuple(float(coordinate) for coordinate in stored.tolist())
-
-
-def optimizer_state_resets_each_round() -> Boolean:
-    return True
 
 
 def federated_autoencoder_widths(

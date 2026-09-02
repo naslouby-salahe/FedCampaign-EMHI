@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import numpy as np
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
@@ -13,12 +15,18 @@ from fedcampaign_emhi.domain.types import (
     NumericalFloor,
     NumericalTolerance,
     ProjectionMeanSquaredError,
-    ProperSubsetDesignShape,
     RankValue,
     RecordCount,
     RidgePenalty,
+    TensorDimension,
 )
-from fedcampaign_emhi.emhi.structure import bounded_basis, tensor_dimension, tensor_representation
+from fedcampaign_emhi.emhi.structure import bounded_basis, tensor_representation
+
+
+@dataclass(frozen=True)
+class ProperSubsetDesignShape:
+    design_column_count: DesignColumnCount
+    tensor_dimension: TensorDimension
 
 
 def proper_subset_design_column_count(
@@ -31,20 +39,35 @@ def proper_subset_design_column_count(
     return 1 + (3 * basis_size) + (3 * (basis_size**2))
 
 
+def proper_subset_design_shape(
+    coalition_order: CoalitionOrder, basis_size: BasisSize
+) -> ProperSubsetDesignShape:
+    return ProperSubsetDesignShape(
+        design_column_count=proper_subset_design_column_count(coalition_order, basis_size),
+        tensor_dimension=basis_size ** int(coalition_order),
+    )
+
+
 def proper_subset_design_row(
     member_ranks: tuple[RankValue, ...], basis_size: BasisSize
 ) -> tuple[BasisCoordinate, ...]:
     order = len(member_ranks)
     if order < 1:
         raise ValueError("proper-subset design requires at least one coalition member")
+    expected = proper_subset_design_shape(CoalitionOrder(order), basis_size)
     intercept = (1.0,)
     if order == 1:
+        if len(intercept) != expected.design_column_count:
+            raise ValueError("order-one proper-subset design shape mismatch")
         return intercept
     singletons: list[BasisCoordinate] = []
     for rank in member_ranks:
         singletons.extend(bounded_basis(rank, basis_size))
     if order == 2:
-        return intercept + tuple(singletons)
+        row = intercept + tuple(singletons)
+        if len(row) != expected.design_column_count:
+            raise ValueError("order-two proper-subset design shape mismatch")
+        return row
     pair_coordinates: list[BasisCoordinate] = []
     for left_index in range(order):
         for right_index in range(left_index + 1, order):
@@ -53,22 +76,14 @@ def proper_subset_design_row(
                     (member_ranks[left_index], member_ranks[right_index]), basis_size
                 )
             )
-    return intercept + tuple(singletons) + tuple(pair_coordinates)
+    row = intercept + tuple(singletons) + tuple(pair_coordinates)
+    if len(row) != expected.design_column_count:
+        raise ValueError("proper-subset design shape mismatch")
+    return row
 
 
 def blocked_fit_is_supported(observation_count: RecordCount, fold_count: FoldCount) -> Boolean:
     return observation_count >= fold_count
-
-
-def proper_subset_design_shape(
-    coalition_order: CoalitionOrder, basis_size: BasisSize
-) -> ProperSubsetDesignShape:
-    return ProperSubsetDesignShape(
-        coalition_order=coalition_order,
-        basis_size=basis_size,
-        tensor_dimension=tensor_dimension(basis_size, coalition_order),
-        design_column_count=proper_subset_design_column_count(coalition_order, basis_size),
-    )
 
 
 def blocked_fold_bounds(

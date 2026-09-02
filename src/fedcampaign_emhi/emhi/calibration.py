@@ -64,7 +64,7 @@ from fedcampaign_emhi.emhi.contexts import (
 from fedcampaign_emhi.emhi.evidence import operational_norm_reference_quantile
 from fedcampaign_emhi.emhi.innovations import (
     center_and_scale_atom,
-    projection_residual,
+    innovation_excludes_same_order_representation,
     sample_mean,
     sample_standard_deviation,
     unsupported_context_observation_count,
@@ -74,6 +74,7 @@ from fedcampaign_emhi.emhi.projection import (
     blocked_fold_bounds,
     fold_size_weighted_mse,
     proper_subset_design_row,
+    proper_subset_design_shape,
     ridge_coefficient_matrix,
     select_ridge_penalty,
 )
@@ -81,6 +82,7 @@ from fedcampaign_emhi.emhi.structure import (
     build_marginal_rank_artifact,
     coalition_conditioned_residual_rank,
     enumerate_coalitions,
+    proper_subset_members,
     rank_at_epoch,
     tensor_representation,
 )
@@ -146,7 +148,9 @@ def cross_validated_ridge_penalty(
                 svd_relative_cutoff,
             )
             held_residuals = tuple(
-                projection_residual(tensors[index], coefficients, design_rows[index])
+                innovation_excludes_same_order_representation(
+                    tensors[index], coefficients, design_rows[index]
+                )
                 for index in held
             )
             fold_mses.append(residual_mean_square(held_residuals))
@@ -173,7 +177,11 @@ def held_fold_innovations(
             svd_relative_cutoff,
         )
         for index in held:
-            collected.append(projection_residual(tensors[index], coefficients, design_rows[index]))
+            collected.append(
+                innovation_excludes_same_order_representation(
+                    tensors[index], coefficients, design_rows[index]
+                )
+            )
     return tuple(collected)
 
 
@@ -523,6 +531,8 @@ def _conditioned_rows(
     epochs: tuple[EpochIndexValue, ...],
     references: tuple[ConditionalRankReferenceRecord, ...],
 ) -> tuple[tuple[RankValue, ...], ...]:
+    if int(coalition.order) > 1 and not proper_subset_members(coalition):
+        raise ValueError("purification requires nonempty proper subsets")
     return tuple(
         conditioned
         for epoch_index in epochs
@@ -537,8 +547,13 @@ def _design_and_tensors(
     rows: tuple[tuple[RankValue, ...], ...],
     basis_size: BasisSize,
 ) -> tuple[tuple[tuple[BasisCoordinate, ...], ...], tuple[tuple[InnovationCoordinate, ...], ...]]:
+    designs = tuple(proper_subset_design_row(row, basis_size) for row in rows)
+    if rows:
+        shape = proper_subset_design_shape(CoalitionOrder(len(rows[0])), basis_size)
+        if any(len(design) != shape.design_column_count for design in designs):
+            raise ValueError("proper-subset design rows must match the design shape")
     return (
-        tuple(proper_subset_design_row(row, basis_size) for row in rows),
+        designs,
         tuple(tensor_representation(row, basis_size) for row in rows),
     )
 
@@ -687,7 +702,7 @@ def _cross_fitted_cell_statistics(
                     continue
                 design_row = proper_subset_design_row(conditioned, basis_size)
                 held_innovations.append(
-                    projection_residual(
+                    innovation_excludes_same_order_representation(
                         tensor,
                         calibration.complete_nuisance_coefficients,
                         design_row,

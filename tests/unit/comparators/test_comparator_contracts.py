@@ -4,7 +4,6 @@ from fedcampaign_emhi.comparators.dependence import (
     lancaster_triple_moment,
     lexicographic_vine_order,
     log_linear_design_column_count,
-    log_linear_includes_triple,
     pair_dependence_moment,
     pair_dependence_nonconformity,
     selected_factor_rank,
@@ -12,8 +11,6 @@ from fedcampaign_emhi.comparators.dependence import (
 )
 from fedcampaign_emhi.comparators.federated import (
     fedavg_weighted_mean,
-    optimizer_state_resets_each_round,
-    store_parameters_float32,
 )
 from fedcampaign_emhi.comparators.fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.comparators.sequential import (
@@ -57,7 +54,6 @@ def test_hofd_zero_when_tensor_in_design_span() -> None:
 
 
 def test_log_linear_has_no_triple_term() -> None:
-    assert log_linear_includes_triple() is False
     assert log_linear_design_column_count(3) == 37
 
 
@@ -78,10 +74,7 @@ def test_cusum_increment_and_global_max() -> None:
     assert next_cusum_state(0.0, 0.5, 0.5, 0.05) == 0.0
 
 
-def test_fedavg_weighted_mean_and_float32_storage() -> None:
+def test_fedavg_weighted_mean() -> None:
     averaged = fedavg_weighted_mean(((1.0, 3.0), (5.0, 7.0)), (1, 3))
     assert abs(averaged[0] - 4.0) < 1.0e-12
-    stored = store_parameters_float32((0.1, 0.2))
-    assert len(stored) == 2
-    assert optimizer_state_resets_each_round() is True
     assert selected_factor_rank((2.0, 1.0, 0.1), 0.8, 3, (1, 2, 3)) == 2

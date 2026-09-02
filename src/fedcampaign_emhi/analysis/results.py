@@ -5,6 +5,7 @@ from fedcampaign_emhi.analysis.statistics import (
     HolmHypothesisInput,
     paired_difference,
     primary_holm_family,
+    secondary_holm_family,
 )
 from fedcampaign_emhi.artifacts.provenance import (
     content_digest,
@@ -14,6 +15,7 @@ from fedcampaign_emhi.artifacts.provenance import (
 from fedcampaign_emhi.artifacts.records import (
     HolmFamilyResultRecord,
     PrimaryHolmFamilyRecord,
+    SecondaryHolmFamilyRecord,
     SeedSummaryRecord,
     StatisticalRecord,
 )
@@ -30,6 +32,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     MethodName,
     PrimaryHolmHypothesis,
+    SecondaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -103,23 +106,6 @@ def build_seed_summary(
     )
 
 
-def paired_seed_differences(
-    summaries: tuple[SeedSummaryRecord, ...],
-) -> tuple[PairedDifference, ...]:
-    differences: list[PairedDifference] = []
-    seen: set[SeedValue] = set()
-    for summary in summaries:
-        if summary.seed in seen:
-            raise ValueError("seed summaries must contain one row per independent seed")
-        seen.add(summary.seed)
-        if summary.paired_difference is None:
-            raise ValueError("paired inference requires paired seed summaries")
-        differences.append(summary.paired_difference)
-    if not differences:
-        raise ValueError("paired inference requires at least one independent seed")
-    return tuple(differences)
-
-
 PRIMARY_HOLM_STATISTICS = (
     (
         ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION,
@@ -142,6 +128,59 @@ PRIMARY_HOLM_STATISTICS = (
         PrimaryHolmHypothesis.STRONG_LOCAL_ODI_ABOVE_MINIMUM,
     ),
 )
+
+
+SECONDARY_HOLM_STATISTICS: tuple[
+    tuple[ExperimentName, SecondaryHolmHypothesis, MethodName], ...
+] = (
+    (
+        ExperimentName.EXCLUSION_MECHANISM_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_INCLUSIVE_CONTEXT,
+        MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
+    ),
+    (
+        ExperimentName.EXCLUSION_MECHANISM_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_LEAVE_ONE_OUT_CONTEXT,
+        MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
+    ),
+    (
+        ExperimentName.EXCLUSION_MECHANISM_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_PARTIAL_EXCLUSION,
+        MethodName.PARTIAL_COALITION_EXCLUSION,
+    ),
+    (
+        ExperimentName.PURIFICATION_AND_ORDER_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_NO_PURIFICATION,
+        MethodName.NO_PROPER_SUBSET_PURIFICATION,
+    ),
+    (
+        ExperimentName.PURIFICATION_AND_ORDER_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_ORDER_ONE,
+        MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
+    ),
+    (
+        ExperimentName.PURIFICATION_AND_ORDER_ABLATION,
+        SecondaryHolmHypothesis.FULL_VERSUS_ORDER_AT_MOST_TWO,
+        MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
+    ),
+)
+
+
+def paired_seed_differences(
+    summaries: tuple[SeedSummaryRecord, ...],
+) -> tuple[PairedDifference, ...]:
+    if not summaries:
+        raise ValueError("paired seed differences require at least one seed summary")
+    seeds = tuple(summary.seed for summary in summaries)
+    if len(seeds) != len(frozenset(seeds)):
+        raise ValueError("paired seed differences reject duplicate seeds")
+    differences: list[PairedDifference] = []
+    for summary in summaries:
+        difference = summary.paired_difference
+        if difference is None:
+            raise ValueError("paired seed differences require a paired difference for every seed")
+        differences.append(difference)
+    return tuple(differences)
 
 
 def _verified_statistical_record(
@@ -179,7 +218,7 @@ def materialize_primary_holm_family(
         paths.append(matching[0])
         inputs.append(
             HolmHypothesisInput(
-                identifier=hypothesis,
+                identifier=hypothesis.value,
                 raw_p_value=record.raw_p_value,
                 decision=record.decision,
             )
@@ -224,6 +263,80 @@ def materialize_primary_holm_family(
         / "statistics"
         / "multiplicity"
         / "primary-holm.json"
+    )
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
+
+
+def materialize_secondary_holm_family(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    paths: list[Path] = []
+    inputs: list[HolmHypothesisInput] = []
+    for experiment_name, hypothesis, _method in SECONDARY_HOLM_STATISTICS:
+        root = layout.experiment_outputs_root(experiment_name) / "statistics"
+        matching = tuple(
+            path
+            for path in sorted(root.rglob("*.json"))
+            if _verified_statistical_record(loaded, repository, path).hypothesis_identifier
+            == hypothesis
+        )
+        if len(matching) != 1:
+            raise FileNotFoundError(f"missing verified secondary Holm statistic {hypothesis!s}")
+        record = _verified_statistical_record(loaded, repository, matching[0])
+        paths.append(matching[0])
+        inputs.append(
+            HolmHypothesisInput(
+                identifier=hypothesis.value,
+                raw_p_value=record.raw_p_value,
+                decision=record.decision,
+            )
+        )
+    results = secondary_holm_family(tuple(inputs))
+    relative_paths = tuple(path.relative_to(repository).as_posix() for path in paths)
+    source_hashes = tuple(file_sha256(path) for path in paths)
+    payload: YamlNode = {
+        "material_digest": loaded.material_digest,
+        "results": [
+            {
+                "hypothesis_identifier": result.identifier,
+                "raw_p_value": result.raw_p_value,
+                "holm_input_p_value": result.holm_input_p_value,
+                "adjusted_p_value": result.adjusted_p_value,
+                "decision": result.decision.value,
+            }
+            for result in results
+        ],
+        "source_statistical_paths": list(relative_paths),
+        "source_artifact_hashes": list(source_hashes),
+    }
+    record = SecondaryHolmFamilyRecord(
+        material_digest=loaded.material_digest,
+        results=tuple(
+            HolmFamilyResultRecord(
+                hypothesis_identifier=result.identifier,
+                raw_p_value=result.raw_p_value,
+                holm_input_p_value=result.holm_input_p_value,
+                adjusted_p_value=result.adjusted_p_value,
+                decision=result.decision,
+            )
+            for result in results
+        ),
+        source_statistical_paths=relative_paths,
+        source_artifact_hashes=source_hashes,
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        layout.roots.results_root
+        / "project_summary"
+        / "statistics"
+        / "multiplicity"
+        / "secondary-holm.json"
     )
     write_atomic_json(
         path,

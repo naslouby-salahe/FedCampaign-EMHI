@@ -24,7 +24,7 @@ def test_estimator_feasibility_statistics_aggrecriterion_primary_confirmatory_me
                 execution_role=ExecutionRole.CONFIRMATORY,
                 seed=seed,
                 metric=EstimatorFeasibilitySeedMetrics(
-                    EstimatorFeasibilityMetrics(0.01, 0.01, 0.01, 1.0, 0.0, 1.0, False)
+                    EstimatorFeasibilityMetrics(0.01, 0.01, 0.01, 1.0, 0.0, 1.0, False, 0.0)
                 ),
                 diagnostic_path=diagnostic_path,
             )

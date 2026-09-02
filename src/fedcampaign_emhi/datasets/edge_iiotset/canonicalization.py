@@ -14,13 +14,6 @@ def protocol_payload_is_resolvable(payload: NormalizedEventToken | None) -> Bool
     return payload.strip() not in UNRESOLVED_PROTOCOL_PAYLOADS
 
 
-def dominant_protocol_group(column_names: tuple[NormalizedEventToken, ...]) -> NormalizedEventToken:
-    for prefix in PROTOCOL_GROUP_PREFIXES:
-        if any(column.startswith(prefix) for column in column_names):
-            return prefix[:-1]
-    return UNKNOWN_PROTOCOL_GROUP
-
-
 def dominant_protocol_group_for_row(
     fields: tuple[tuple[NormalizedEventToken, NormalizedEventToken | None], ...],
 ) -> NormalizedEventToken:

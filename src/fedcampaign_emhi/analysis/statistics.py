@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from statistics import NormalDist
 
 from fedcampaign_emhi.domain.enums import (
-    ExperimentalUnitKind,
     PrimaryHolmHypothesis,
     SecondaryHolmHypothesis,
     SignFlipDirection,
@@ -13,11 +12,9 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     BootstrapAcceleration,
     BootstrapBiasCorrection,
-    ClientId,
     ComponentName,
     EquivalenceBoundary,
     PairedDifference,
-    PairingKey,
     Probability,
     RecordCount,
     SeedValue,
@@ -49,34 +46,6 @@ def paired_difference(
     if len(treatment) != len(reference):
         raise ValueError("paired samples must have equal length")
     return tuple(left - right for left, right in zip(treatment, reference, strict=True))
-
-
-def pairing_selected_clients(key: PairingKey) -> tuple[ClientId, ...]:
-    return key.selected_client_ids
-
-
-def controlled_experimental_unit() -> ExperimentalUnitKind:
-    return ExperimentalUnitKind.GENERATOR_ROOT_SEED
-
-
-def real_experimental_unit() -> ExperimentalUnitKind:
-    return ExperimentalUnitKind.ALGORITHM_ROOT_SEED
-
-
-def seed_level_aggregate(campaign_level_values: tuple[StatisticValue, ...]) -> StatisticValue:
-    if not campaign_level_values:
-        raise ValueError("seed-level aggregation requires at least one campaign-level value")
-    return sum(campaign_level_values) / len(campaign_level_values)
-
-
-def two_sided_sign_flip_p_value(
-    observed_mean: StatisticValue, flipped_means: tuple[StatisticValue, ...]
-) -> Probability:
-    if not flipped_means:
-        raise ValueError("flipped means must be non-empty")
-    observed_abs = abs(observed_mean)
-    extreme = sum(1 for statistic in flipped_means if abs(statistic) >= observed_abs)
-    return extreme / len(flipped_means)
 
 
 def one_sided_synthetic_sign_flip_p_value(
@@ -143,30 +112,6 @@ def exact_sign_flip_means(differences: tuple[PairedDifference, ...]) -> tuple[St
         flipped_mean(differences, exact_sign_pattern(index, len(differences)))
         for index in range(sign_flip_assignment_count(len(differences)))
     )
-
-
-def hodges_lehmann_shift(differences: tuple[PairedDifference, ...]) -> StatisticValue:
-    if not differences:
-        raise ValueError("Hodges-Lehmann shift requires at least one paired difference")
-    walsh: list[StatisticValue] = []
-    for first_index, first in enumerate(differences):
-        for second in differences[first_index:]:
-            walsh.append((first + second) / 2.0)
-    ordered = sorted(walsh)
-    count = len(ordered)
-    midpoint = count // 2
-    if count % 2 == 1:
-        return ordered[midpoint]
-    return (ordered[midpoint - 1] + ordered[midpoint]) / 2.0
-
-
-def interval_establishes_equivalence(
-    lower: StatisticValue,
-    upper: StatisticValue,
-    region_lower: EquivalenceBoundary,
-    region_upper: EquivalenceBoundary,
-) -> Boolean:
-    return lower >= region_lower and upper <= region_upper
 
 
 def degenerate_bootstrap_interval(
@@ -355,10 +300,6 @@ def primary_holm_family_identifiers() -> tuple[ComponentName, ...]:
     return tuple(hypothesis.value for hypothesis in PrimaryHolmHypothesis)
 
 
-def secondary_holm_family_identifiers() -> tuple[ComponentName, ...]:
-    return tuple(hypothesis.value for hypothesis in SecondaryHolmHypothesis)
-
-
 def holm_nonrejecting_input_p_value() -> Probability:
     return 1.0
 
@@ -395,6 +336,35 @@ def primary_holm_family(
     inputs: tuple[HolmHypothesisInput, ...],
 ) -> tuple[HolmHypothesisResult, ...]:
     return fixed_holm_family(primary_holm_family_identifiers(), inputs)
+
+
+def hodges_lehmann_shift(differences: tuple[PairedDifference, ...]) -> StatisticValue:
+    if not differences:
+        raise ValueError("Hodges-Lehmann shift requires paired differences")
+    walsh_averages = tuple(
+        (differences[left] + differences[right]) / 2
+        for left in range(len(differences))
+        for right in range(left, len(differences))
+    )
+    ordered = sorted(walsh_averages)
+    count = len(ordered)
+    midpoint = count // 2
+    if count % 2 == 1:
+        return ordered[midpoint]
+    return (ordered[midpoint - 1] + ordered[midpoint]) / 2
+
+
+def interval_establishes_equivalence(
+    lower: StatisticValue,
+    upper: StatisticValue,
+    region_lower: EquivalenceBoundary,
+    region_upper: EquivalenceBoundary,
+) -> Boolean:
+    return lower >= region_lower and upper <= region_upper
+
+
+def secondary_holm_family_identifiers() -> tuple[ComponentName, ...]:
+    return tuple(hypothesis.value for hypothesis in SecondaryHolmHypothesis)
 
 
 def secondary_holm_family(

@@ -43,6 +43,8 @@ def test_self_explanation_statistics_are_materialized_from_confirmatory_outputs(
     assert record.raw_p_value is not None
     assert record.confidence_lower == 0.25
     assert record.confidence_upper == 0.25
+    assert record.equivalence_established is True
+    assert record.hodges_lehmann_shift is not None
     assert len(record.source_result_ids) == len(observations)
 
 

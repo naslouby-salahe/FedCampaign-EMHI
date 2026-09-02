@@ -21,11 +21,6 @@ from fedcampaign_emhi.domain.types import (
 )
 
 
-def load_edge_iiotset_csv(path: Path) -> tuple[EdgeIiotsetFlowRecord, ...]:
-    records, _exclusions = load_edge_iiotset_csv_with_exclusions(path)
-    return records
-
-
 def _parse_row_fields(
     row: Mapping[NormalizedEventToken, NormalizedEventToken | None],
 ) -> tuple[UnixTimestampSeconds, ClientId, BinaryClassLabel, NormalizedEventToken] | ExcludedRecord:
@@ -49,19 +44,6 @@ def _parse_row_fields(
     if not attack_type:
         return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
     return (timestamp_seconds, source_host, binary_label, attack_type)
-
-
-def load_edge_iiotset_csv_with_exclusions(
-    path: Path,
-) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
-    records: list[EdgeIiotsetFlowRecord] = []
-    exclusions: list[ExcludedRecord] = []
-    for entry in iter_edge_iiotset_csv_entries(path):
-        if isinstance(entry, ExcludedRecord):
-            exclusions.append(entry)
-        else:
-            records.append(entry)
-    return tuple(records), tuple(exclusions)
 
 
 def iter_edge_iiotset_csv_entries(

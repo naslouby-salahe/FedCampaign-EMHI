@@ -1,6 +1,5 @@
 from fedcampaign_emhi.domain.enums import DatasetName
 from fedcampaign_emhi.domain.types import (
-    Boolean,
     CampaignRegistryEntry,
     ClientCount,
     ClientId,
@@ -37,27 +36,6 @@ def campaign_duration_epochs(
     start_epoch: EpochIndexValue, end_epoch: EpochIndexValue
 ) -> EpochCount:
     return end_epoch - start_epoch + 1
-
-
-def first_activity_is_distributed(
-    first_malicious_epochs: tuple[EpochIndexValue, ...],
-    window_epochs: PositiveEpochCount,
-) -> Boolean:
-    if not first_malicious_epochs:
-        return False
-    return max(first_malicious_epochs) - min(first_malicious_epochs) <= window_epochs
-
-
-def campaign_has_distributed_support(
-    participating_client_ids: tuple[ClientId, ...], minimum_clients: ClientCount
-) -> Boolean:
-    return len(set(participating_client_ids)) >= minimum_clients
-
-
-def warmup_is_clean(
-    warmup_malicious_epochs: tuple[EpochIndexValue, ...],
-) -> Boolean:
-    return not warmup_malicious_epochs
 
 
 def build_campaign_registry(

@@ -4,6 +4,8 @@ from fedcampaign_emhi.analysis.statistics import (
     HolmHypothesisInput,
     primary_holm_family,
     primary_holm_family_identifiers,
+    secondary_holm_family,
+    secondary_holm_family_identifiers,
 )
 from fedcampaign_emhi.domain.enums import SupportState
 
@@ -33,3 +35,30 @@ def test_fixed_holm_family_rejects_missing_or_duplicate_identifiers() -> None:
         primary_holm_family(primary_inputs()[:-1])
     with pytest.raises(ValueError):
         primary_holm_family((*primary_inputs(), primary_inputs()[0]))
+
+
+def secondary_inputs() -> tuple[HolmHypothesisInput, ...]:
+    return tuple(
+        HolmHypothesisInput(
+            identifier=identifier,
+            raw_p_value=0.01 if index == 0 else None,
+            decision=SupportState.SUPPORTED if index == 0 else SupportState.NOT_TESTED,
+        )
+        for index, identifier in enumerate(secondary_holm_family_identifiers())
+    )
+
+
+def test_secondary_holm_retains_fixed_family_size_for_not_tested_hypotheses() -> None:
+    results = secondary_holm_family(secondary_inputs())
+
+    assert len(results) == 6
+    assert results[0].adjusted_p_value == 0.06
+    assert all(result.holm_input_p_value == 1.0 for result in results[1:])
+    assert all(result.adjusted_p_value is None for result in results[1:])
+
+
+def test_secondary_holm_family_rejects_missing_or_duplicate_identifiers() -> None:
+    with pytest.raises(ValueError):
+        secondary_holm_family(secondary_inputs()[:-1])
+    with pytest.raises(ValueError):
+        secondary_holm_family((*secondary_inputs(), secondary_inputs()[0]))

@@ -10,7 +10,6 @@ from fedcampaign_emhi.emhi.contexts import (
     inclusive_context_members,
     leave_one_out_context_members,
     local_history_context_member_ranks,
-    oracle_outside_latent_cell,
     partial_coalition_context_members,
     shuffled_context_permutation,
     shuffled_outside_context_lag_lookup,
@@ -89,17 +88,6 @@ def test_oracle_cells_use_four_fixed_normal_quartile_boundaries() -> None:
     for index, boundary in enumerate(ORACLE_QUARTILE_BOUNDARIES):
         assert boundary == pytest.approx(norm.ppf((index + 1) / 4), abs=1e-12)
     assert ORACLE_QUARTILE_BOUNDARIES[1] == 0.0
-
-
-def test_oracle_cell_assignment_matches_quartile_membership() -> None:
-    low = float(norm.ppf(0.1))
-    second = float(norm.ppf(0.4))
-    third = 0.2
-    high = float(norm.ppf(0.9))
-    assert oracle_outside_latent_cell(low) == 0
-    assert oracle_outside_latent_cell(second) == 1
-    assert oracle_outside_latent_cell(third) == 2
-    assert oracle_outside_latent_cell(high) == 3
 
 
 def test_no_outside_context_uses_single_global_cell_without_kmeans() -> None:

@@ -7,7 +7,6 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import cdist
 from scipy.stats import norm
 
-from fedcampaign_emhi.config.loading import histogram_edges
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
@@ -22,7 +21,6 @@ from fedcampaign_emhi.domain.types import (
     CellCount,
     ClientCount,
     ClientId,
-    CoalitionMembers,
     ContextCentroids,
     ContextClusterIdentity,
     ContextTrainingRow,
@@ -33,7 +31,6 @@ from fedcampaign_emhi.domain.types import (
     KmeansInertia,
     KmeansInitializationCount,
     LatentState,
-    MaximalOutsideField,
     NumericalTolerance,
     OutsideContextHistogram,
     PermutationIndex,
@@ -95,14 +92,6 @@ ORACLE_QUARTILE_BOUNDARIES: tuple[LatentState, LatentState, LatentState] = (
 NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
 
 
-def oracle_outside_latent_cell(latent_state: LatentState) -> BinIndex:
-    boundaries = ORACLE_QUARTILE_BOUNDARIES
-    for cell_index, boundary in enumerate(boundaries):
-        if latent_state <= boundary:
-            return cell_index
-    return len(boundaries)
-
-
 def shuffled_context_permutation(
     row_keys: tuple[ResumeStep, ...], split_role: PartitionRole, context_seed: SeedValue
 ) -> tuple[PermutationIndex, ...]:
@@ -147,32 +136,12 @@ def local_history_context_member_ranks(
     return tuple(rank for client_id, rank in lagged_ranks if client_id in members)
 
 
-def maximal_outside_field(
-    selected_client_ids: tuple[ClientId, ...], coalition: CoalitionMembers
-) -> MaximalOutsideField:
-    complement = exact_exclusion_members(selected_client_ids, coalition.client_ids)
-    return MaximalOutsideField(coalition=coalition, complement_client_ids=complement)
-
-
-def nuisance_field_is_admissible(
-    field_client_ids: tuple[ClientId, ...],
-    selected_client_ids: tuple[ClientId, ...],
-    coalition: CoalitionMembers,
-) -> Boolean:
-    outside = set(exact_exclusion_members(selected_client_ids, coalition.client_ids))
-    return all(client_id in outside for client_id in field_client_ids)
-
-
 def histogram_bin_index(rank: RankValue, bin_count: BinCount) -> BinIndex:
     raw_index = int(rank * bin_count)
     last_index = bin_count - 1
     if raw_index > last_index:
         return last_index
     return raw_index
-
-
-def equal_width_histogram_edges(bin_count: BinCount) -> tuple[RankValue, ...]:
-    return histogram_edges(bin_count)
 
 
 def histogram_one_hot(rank: RankValue, bin_count: BinCount) -> tuple[HistogramBinMass, ...]:
@@ -326,12 +295,6 @@ def minimum_support_epochs_for_order(
     if order is CoalitionOrder.TWO:
         return order_two
     return order_three
-
-
-def coalition_context_support_is_sufficient(
-    observation_count: EpochCount, required_epochs: EpochCount
-) -> Boolean:
-    return observation_count >= required_epochs
 
 
 def _euclidean_distance(

@@ -6,22 +6,17 @@ from fedcampaign_emhi.domain.enums import (
     DatasetName,
 )
 from fedcampaign_emhi.domain.types import (
-    CoalitionMembers,
     ContextTrainingRow,
     RankReference,
 )
 from fedcampaign_emhi.emhi.contexts import (
     assign_context_cell,
     cap_context_training_rows,
-    coalition_context_support_is_sufficient,
     context_cluster_identity,
     context_row_ranking_value,
-    exact_exclusion_members,
     fit_context_centroids,
     histogram_one_hot,
-    maximal_outside_field,
     minimum_support_epochs_for_order,
-    nuisance_field_is_admissible,
     outside_context_histogram,
 )
 from fedcampaign_emhi.emhi.structure import coalition_conditioned_residual_rank, midrank
@@ -36,15 +31,6 @@ def test_midrank_matches_independent_oracle() -> None:
     assert midrank(1.0, reference) == expected
     assert midrank(2.0, reference) > midrank(1.0, reference)
     assert inspect.signature(midrank).parameters["score"]
-
-
-def test_maximal_outside_field_excludes_coalition_members() -> None:
-    coalition = CoalitionMembers(client_ids=("a", "b"), order=CoalitionOrder.TWO)
-    field = maximal_outside_field(("a", "b", "c", "d"), coalition)
-    assert field.complement_client_ids == ("c", "d")
-    assert nuisance_field_is_admissible(("c",), ("a", "b", "c", "d"), coalition)
-    assert not nuisance_field_is_admissible(("a", "c"), ("a", "b", "c", "d"), coalition)
-    assert exact_exclusion_members(("a", "b", "c"), ("a",)) == ("b", "c")
 
 
 def test_outside_histogram_uses_lagged_complement_ranks_and_abstains() -> None:
@@ -113,8 +99,6 @@ def test_residual_rank_uses_midrank_and_support_criterion() -> None:
     residual = coalition_conditioned_residual_rank(0.2, reference, 1.0e-12)
     assert residual == midrank(0.2, reference)
     assert minimum_support_epochs_for_order(CoalitionOrder.TWO, 100, 200, 400) == 200
-    assert coalition_context_support_is_sufficient(200, 200)
-    assert not coalition_context_support_is_sufficient(199, 200)
 
 
 def test_kmeans_fits_separated_histograms() -> None:

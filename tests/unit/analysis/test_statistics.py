@@ -1,3 +1,5 @@
+import pytest
+
 from fedcampaign_emhi.analysis.statistics import (
     exact_sign_pattern,
     hodges_lehmann_shift,
@@ -15,15 +17,24 @@ def test_paired_seed_statistics_preserve_pairing() -> None:
     assert hodges_lehmann_shift(differences) == 3.75
 
 
+def test_hodges_lehmann_shift_is_the_median_of_walsh_averages() -> None:
+    assert hodges_lehmann_shift((1.0, 2.0, 3.0, 4.0)) == 2.5
+
+
+def test_hodges_lehmann_shift_rejects_empty_differences() -> None:
+    with pytest.raises(ValueError):
+        hodges_lehmann_shift(())
+
+
+def test_equivalence_requires_entire_interval_inside_region() -> None:
+    assert interval_establishes_equivalence(-0.1, 0.1, -0.2, 0.2) is True
+    assert interval_establishes_equivalence(-0.3, 0.1, -0.2, 0.2) is False
+
+
 def test_exact_sign_family_includes_zero_assignment() -> None:
     assert sign_flip_assignment_count(3) == 8
     assert exact_sign_pattern(0, 3) == (1, 1, 1)
     assert exact_sign_pattern(7, 3) == (-1, -1, -1)
-
-
-def test_equivalence_requires_entire_interval_inside_region() -> None:
-    assert interval_establishes_equivalence(-0.1, 0.1, -0.2, 0.2)
-    assert not interval_establishes_equivalence(-0.3, 0.1, -0.2, 0.2)
 
 
 def test_one_sided_synthetic_sign_flip_uses_exact_family_when_feasible() -> None:

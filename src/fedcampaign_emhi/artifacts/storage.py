@@ -271,7 +271,3 @@ def write_artifact_manifest(
         manifest.model_dump(mode="json"),
         layout.roots.outputs_root / "cache" / "staging",
     )
-
-
-def read_json_bytes(path: Path) -> DeterministicUtf8Bytes:
-    return path.read_bytes()

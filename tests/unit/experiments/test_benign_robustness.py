@@ -2,16 +2,18 @@ import pytest
 
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.types import BenignHorizon
+from fedcampaign_emhi.evaluation.metrics import (
+    common_mode_suppression,
+    outside_conditioning_power_loss,
+)
 from fedcampaign_emhi.experiments.robustness import (
     EpochEventVolume,
-    common_mode_suppression,
     detection_rate_loss_within_maximum,
     enumerate_benign_common_mode_plan,
     false_campaign_suppression_meets_minimum,
     federation_wide_epoch_event_counts,
     paired_false_campaign_difference,
     rolling_benign_horizons,
-    seed_level_power_loss,
     select_high_volume_windows,
     synthetic_count_stress_multiplier,
     window_event_counts,
@@ -121,8 +123,8 @@ def test_synthetic_count_stress_preserves_bucket_proportions() -> None:
 
 
 def test_seed_level_power_loss_is_no_outside_minus_emhi() -> None:
-    assert seed_level_power_loss(0.8, 0.9) == pytest.approx(-0.1)
-    assert seed_level_power_loss(0.9, 0.8) == pytest.approx(0.1)
+    assert outside_conditioning_power_loss(0.8, 0.9) == pytest.approx(-0.1)
+    assert outside_conditioning_power_loss(0.9, 0.8) == pytest.approx(0.1)
 
 
 def test_common_mode_suppression_uses_denominator_floor() -> None:

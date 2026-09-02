@@ -49,11 +49,6 @@ class MethodName(StrEnum):
     SELECTED_STRONG_COMPARATOR_COMPOSITION = "Selected Strong Comparator Composition"
 
 
-class EvidencePath(StrEnum):
-    SIGNED_THEOREM = "signed_theorem"
-    OPERATIONAL_NORM = "operational_norm"
-
-
 class ContextMethodName(StrEnum):
     INCLUSIVE_CONTEXT = "Inclusive Context"
     LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION = "Leave-One-Out Insufficient Exclusion"
@@ -114,19 +109,6 @@ class ExperimentState(StrEnum):
     INVALID = "Invalid"
 
 
-class CellState(StrEnum):
-    PLANNED = "PLANNED"
-    RUNNING = "RUNNING"
-    COMPLETED = "Completed"
-    FAILED = "Failed"
-    INVALID = "Invalid"
-
-
-class OperatingPointState(StrEnum):
-    AVAILABLE = "Available"
-    UNAVAILABLE = "Operating Point Unavailable"
-
-
 class SupportState(StrEnum):
     SUPPORTED = "SUPPORTED"
     PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
@@ -135,14 +117,6 @@ class SupportState(StrEnum):
     NULL_RESULT = "NULL_RESULT"
     NOT_SUPPORTED = "NOT_SUPPORTED"
     NOT_TESTED = "NOT_TESTED"
-
-
-class ScientificOutcomeKind(StrEnum):
-    COMPLETED_UNFAVORABLE = "Completed"
-    OPERATING_POINT_UNAVAILABLE = "Operating Point Unavailable"
-    NOT_TESTED = "Not Tested"
-    FAILED_TECHNICAL = "Failed"
-    INVALID_PROVENANCE = "Invalid"
 
 
 class PrimaryHolmHypothesis(StrEnum):
@@ -175,11 +149,6 @@ class ArtifactNamespace(StrEnum):
     RESULTS = "results"
 
 
-class ExperimentalUnitKind(StrEnum):
-    GENERATOR_ROOT_SEED = "generator_root_seed"
-    ALGORITHM_ROOT_SEED = "algorithm_root_seed"
-
-
 class OverwritePolicy(StrEnum):
     REUSE_COMPATIBLE = "reuse_compatible"
     OVERWRITE = "overwrite"
@@ -209,10 +178,6 @@ class ArtifactLifecycleState(StrEnum):
     INCOMPLETE = "incomplete"
     FAILED = "failed"
     BLOCKED = "blocked"
-
-
-class DuplicateResolution(StrEnum):
-    RETAIN_FIRST_CHRONOLOGICAL = "retain_first_chronological"
 
 
 class RecordExclusionReason(StrEnum):

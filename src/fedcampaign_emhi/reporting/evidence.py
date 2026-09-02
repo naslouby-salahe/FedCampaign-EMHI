@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from fedcampaign_emhi.analysis.results import SECONDARY_HOLM_STATISTICS
 from fedcampaign_emhi.artifacts.provenance import (
     content_digest,
     evidence_export_boundary_digest,
@@ -12,6 +13,7 @@ from fedcampaign_emhi.artifacts.records import (
     PrimaryHolmFamilyRecord,
     ReportSourceRecord,
     ScientificCellRecord,
+    SecondaryHolmFamilyRecord,
     StatisticalRecord,
 )
 from fedcampaign_emhi.artifacts.storage import (
@@ -185,6 +187,63 @@ def _verified_primary_holm_family(
     return record
 
 
+def required_secondary_holm_statistics(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for experiment_name, hypothesis, _method in SECONDARY_HOLM_STATISTICS:
+        evidence = select_verified_evidence(loaded, repository, experiment_name)
+        matching = tuple(
+            path
+            for path in evidence.statistical_record_paths
+            if StatisticalRecord.model_validate_json(path.read_bytes()).hypothesis_identifier
+            == hypothesis
+        )
+        if len(matching) != 1:
+            raise FileNotFoundError(
+                "project summary is missing the required secondary Holm statistical artifact "
+                f"{hypothesis!s} from {experiment_name.value}"
+            )
+        paths.append(matching[0])
+    return tuple(paths)
+
+
+def _verified_secondary_holm_family(
+    loaded: LoadedScientificConfiguration, repository: Path, paths: tuple[Path, ...]
+) -> SecondaryHolmFamilyRecord:
+    layout = build_artifact_layout(loaded, repository)
+    path = (
+        layout.roots.results_root
+        / "project_summary"
+        / "statistics"
+        / "multiplicity"
+        / "secondary-holm.json"
+    )
+    if not path.is_file():
+        raise FileNotFoundError(
+            "project summary requires the verified secondary Holm analysis artifact"
+        )
+    record = SecondaryHolmFamilyRecord.model_validate_json(path.read_bytes())
+    if record.material_digest != loaded.material_digest:
+        raise ValueError("secondary Holm analysis artifact is stale")
+    expected_paths = tuple(source.relative_to(repository).as_posix() for source in paths)
+    expected_hashes = tuple(file_sha256(source) for source in paths)
+    if (
+        record.source_statistical_paths != expected_paths
+        or record.source_artifact_hashes != expected_hashes
+    ):
+        raise ValueError("secondary Holm analysis artifact has stale source lineage")
+    payload: YamlNode = {
+        "material_digest": record.material_digest,
+        "results": [result.model_dump(mode="json") for result in record.results],
+        "source_statistical_paths": list(record.source_statistical_paths),
+        "source_artifact_hashes": list(record.source_artifact_hashes),
+    }
+    if record.content_digest != payload_digest(payload):
+        raise ValueError("secondary Holm analysis artifact has an invalid content digest")
+    return record
+
+
 def select_verified_evidence(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -303,6 +362,8 @@ def materialize_report_scope(
         )
     primary_paths = required_primary_holm_statistics(loaded, repository)
     _verified_primary_holm_family(loaded, repository, primary_paths)
+    secondary_paths = required_secondary_holm_statistics(loaded, repository)
+    _verified_secondary_holm_family(loaded, repository, secondary_paths)
     completed = _completed_experiments(loaded, repository)
     reports = tuple(
         materialize_verified_experiment_report(

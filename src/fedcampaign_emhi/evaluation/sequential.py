@@ -27,7 +27,6 @@ from fedcampaign_emhi.domain.enums import (
     SupportState,
 )
 from fedcampaign_emhi.domain.types import (
-    BenignHorizon,
     BinIndex,
     Boolean,
     ClientId,
@@ -70,6 +69,8 @@ from fedcampaign_emhi.emhi.projection import proper_subset_design_row
 from fedcampaign_emhi.emhi.sequential import (
     coalition_materially_active,
     first_global_stop_epoch,
+    statistical_stop,
+    trailing_support_window_client_ids,
     trailing_window_support_predicate,
 )
 from fedcampaign_emhi.emhi.structure import (
@@ -100,22 +101,6 @@ type TrajectoryCacheKey = tuple[
 
 class TrajectoryCache(UserDict[TrajectoryCacheKey, SequentialTrajectory]):
     __slots__ = ()
-
-
-def sequential_stop_reset_epochs(
-    horizons: tuple[BenignHorizon, ...],
-) -> tuple[EpochIndexValue, ...]:
-    return tuple(horizon.start_epoch for horizon in horizons)
-
-
-def horizons_are_nonoverlapping(horizons: tuple[BenignHorizon, ...]) -> Boolean:
-    seen: list[EpochIndexValue] = []
-    for horizon in horizons:
-        for epoch in horizon.epoch_indexes:
-            if epoch in seen:
-                return False
-            seen.append(epoch)
-    return True
 
 
 def horizon_trajectory(
@@ -646,21 +631,6 @@ def _coalition_standardized_atom_and_norm_at_epoch(
     )
 
 
-def coalition_standardized_atom_at_epoch(
-    config: ScientificConfig,
-    ranks: MarginalRankArtifactRecord,
-    fit: EMHIFitArtifactRecord,
-    coalition_fit: CoalitionFitRecord,
-    epoch_index: EpochIndexValue,
-    *,
-    shuffled_lag_epoch: EpochIndexValue | None = None,
-) -> tuple[StandardizedAtomCoordinate, ...] | None:
-    resolved = _coalition_standardized_atom_and_norm_at_epoch(
-        config, ranks, fit, coalition_fit, epoch_index, shuffled_lag_epoch=shuffled_lag_epoch
-    )
-    return None if resolved is None else resolved[0]
-
-
 def coalition_evidence_at_epoch(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -807,13 +777,18 @@ def sequential_trajectory(
     support: list[Boolean] = []
     for record in records:
         active_history.append(record.materially_active_client_ids)
-        support.append(
-            trailing_window_support_predicate(
-                tuple(active_history),
-                config.distributed_support.trailing_window_epochs,
-                config.distributed_support.minimum_clients,
-            )
-        )
+        history = tuple(active_history)
+        window_epochs = config.distributed_support.trailing_window_epochs
+        minimum_clients = config.distributed_support.minimum_clients
+        predicate = trailing_window_support_predicate(history, window_epochs, minimum_clients)
+        if predicate is not statistical_stop(
+            1.0,
+            1.0,
+            trailing_support_window_client_ids(history, window_epochs),
+            minimum_clients,
+        ):
+            raise ValueError("distributed support must match the statistical-stop support clause")
+        support.append(predicate)
     return SequentialTrajectory(epochs=records, support_predicates=tuple(support))
 
 

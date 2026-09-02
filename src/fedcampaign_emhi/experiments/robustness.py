@@ -9,12 +9,10 @@ from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
     ClientId,
-    CommonModeSuppression,
     DetectionRateLoss,
     EpochCount,
     EpochIndexValue,
     FeatureValue,
-    NumericalFloor,
     Probability,
     RecordCount,
     RobustnessCountMultiplier,
@@ -134,22 +132,6 @@ def synthetic_count_stress_multiplier(
     if not bucket_counts:
         raise ValueError("count stress requires at least one raw event-count bucket")
     return tuple(count * factor for count in bucket_counts)
-
-
-def seed_level_power_loss(
-    no_outside_detection_rate: Probability, emhi_detection_rate: Probability
-) -> DetectionRateLoss:
-    return no_outside_detection_rate - emhi_detection_rate
-
-
-def common_mode_suppression(
-    emhi_false_campaign_rate: Probability,
-    raw_mean_false_campaign_rate: Probability,
-    metric_denominator_floor: NumericalFloor,
-) -> CommonModeSuppression:
-    return 1.0 - emhi_false_campaign_rate / (
-        raw_mean_false_campaign_rate + metric_denominator_floor
-    )
 
 
 def false_campaign_suppression_meets_minimum(

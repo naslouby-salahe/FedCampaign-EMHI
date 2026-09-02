@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from itertools import combinations
 from math import isfinite, isnan, sqrt
 
 import numpy as np
@@ -17,7 +16,6 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
     ClientId,
-    ClientIndex,
     EffectCoefficient,
     InnovationCoordinate,
     NumericalTolerance,
@@ -25,14 +23,10 @@ from fedcampaign_emhi.domain.types import (
     Probability,
     RankValue,
     SeedValue,
-    StandardDeviation,
     StandardizedDrift,
     XorInteractionStrength,
 )
-from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
-from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
-from fedcampaign_emhi.emhi.projection import proper_subset_design_row
-from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one, tensor_representation
+from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one
 from fedcampaign_emhi.runtime import thirty_two_bit_seed
 from fedcampaign_emhi.synthetic.feasibility import context_conditional_density
 
@@ -71,124 +65,6 @@ def sample_generator_row(
             cell.effect, latent_state, remaining, seed
         )
     return sample_mixed_order_ranks(cell.enabled_orders, cell.effect, remaining, seed)
-
-
-def _emhi_enabled_orders(method: MethodName) -> tuple[CoalitionOrder, ...] | None:
-    if method in {
-        MethodName.FULL_FEDCAMPAIGN_EMHI,
-        MethodName.INCLUSIVE_CONTEXT_FULL_HIERARCHY,
-        MethodName.LEAVE_ONE_OUT_INSUFFICIENT_EXCLUSION,
-        MethodName.PARTIAL_COALITION_EXCLUSION,
-        MethodName.NO_PROPER_SUBSET_PURIFICATION,
-        MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
-    }:
-        return (CoalitionOrder.ONE, CoalitionOrder.TWO, CoalitionOrder.THREE)
-    if method is MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI:
-        return (CoalitionOrder.ONE,)
-    if method is MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI:
-        return (CoalitionOrder.ONE, CoalitionOrder.TWO)
-    return None
-
-
-def _fitted_emhi_score(
-    config: ScientificConfig,
-    method: MethodName,
-    order: CoalitionOrder,
-    null_rows: tuple[tuple[RankValue, ...], ...],
-    rows: tuple[tuple[RankValue, ...], ...],
-) -> tuple[InnovationCoordinate, ...] | None:
-    enabled_orders = _emhi_enabled_orders(method)
-    if enabled_orders is None or order not in enabled_orders:
-        return None
-    null_targets = tuple(row[: int(order)] for row in null_rows)
-    calibration = calibrate_innovations_on_nuisance_fit(
-        tuple(proper_subset_design_row(row, config.basis.primary_size) for row in null_targets),
-        tuple(tensor_representation(row, config.basis.primary_size) for row in null_targets),
-        config.projection.ridge_candidates,
-        config.projection.cross_validation.fold_count,
-        config.projection.selection_tie_tolerance_mse,
-        config.projection.zero_ridge_svd_relative_cutoff,
-        config.projection.atom_scale_floor,
-    )
-    if calibration is None:
-        raise ValueError("fitted pure-order calibration was unavailable")
-    return tuple(
-        center_and_scale_atom(
-            projection_residual(
-                tensor_representation(row[: int(order)], config.basis.primary_size),
-                calibration.complete_nuisance_coefficients,
-                proper_subset_design_row(row[: int(order)], config.basis.primary_size),
-            ),
-            calibration.coordinate_means,
-            calibration.coordinate_deviations,
-            config.projection.atom_scale_floor,
-        )[0]
-        for row in rows
-    )
-
-
-def fitted_method_pure_order_metrics(
-    config: ScientificConfig,
-    cell: PureOrderCell,
-    seed: SeedValue,
-) -> PureOrderDriftMetrics:
-    client_count = config.experiments.pure_order_separation_validation.primary_client_count
-    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
-    evaluation_count = (
-        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
-    )
-    null_rows = tuple(
-        sample_independent_uniform_ranks(client_count, seed + index)
-        for index in range(nuisance_count)
-    )
-    alternative_rows = tuple(
-        sample_generator_row(cell, client_count, seed + nuisance_count + index)
-        for index in range(evaluation_count)
-    )
-    emhi_scores = _fitted_emhi_score(config, cell.method, cell.target_order, null_rows, null_rows)
-    alternative_emhi_scores = _fitted_emhi_score(
-        config, cell.method, cell.target_order, null_rows, alternative_rows
-    )
-    if emhi_scores is None or alternative_emhi_scores is None:
-        raise ValueError("missing fitted pure-order scorer for declared non-EMHI method")
-    null_scores, alternative_scores = emhi_scores, alternative_emhi_scores
-    null_mean = sum(null_scores) / len(null_scores)
-    null_deviation = sqrt(sum((value - null_mean) ** 2 for value in null_scores) / len(null_scores))
-    subset_drifts: list[StandardizedDrift] = []
-    for subset_order in CoalitionOrder:
-        if subset_order >= cell.target_order:
-            continue
-        subset_null = _fitted_emhi_score(config, cell.method, subset_order, null_rows, null_rows)
-        subset_alternative = _fitted_emhi_score(
-            config, cell.method, subset_order, null_rows, alternative_rows
-        )
-        if subset_null is None or subset_alternative is None:
-            continue
-        subset_mean = sum(subset_null) / len(subset_null)
-        subset_deviation = sqrt(
-            sum((value - subset_mean) ** 2 for value in subset_null) / len(subset_null)
-        )
-        subset_drifts.append(
-            _standardized_scalar_drift(
-                sum(subset_alternative) / len(subset_alternative),
-                subset_mean,
-                subset_deviation,
-                config.numerics.metric_denominator_floor,
-            )
-        )
-    return PureOrderDriftMetrics(
-        maximum_proper_subset_standardized_drift=max(subset_drifts, default=0.0),
-        target_order_standardized_drift=_signed_standardized_scalar_drift(
-            sum(alternative_scores) / len(alternative_scores),
-            null_mean,
-            null_deviation,
-            config.numerics.metric_denominator_floor,
-        ),
-        proper_subset_scoring_available=(
-            cell.target_order is CoalitionOrder.ONE
-            or len(subset_drifts) == int(cell.target_order) - 1
-        ),
-    )
 
 
 def generator_target_order(generator: GeneratorName) -> CoalitionOrder:
@@ -266,114 +142,26 @@ def polynomial_envelope(theta: EffectCoefficient, order: CoalitionOrder) -> Poly
     return 1.0 + (abs(theta) * polynomial_scale(order))
 
 
-def polynomial_density(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -> PolynomialDensity:
+def pure_order_one_response(
+    ranks: tuple[RankValue, ...], theta: EffectCoefficient
+) -> InnovationCoordinate:
     product = 1.0
     for rank in ranks:
         product *= shifted_legendre_phi_one(rank)
-    return 1.0 + (theta * product)
+    return theta * product
 
 
-def first_order_tensor_coordinate(
-    ranks: tuple[RankValue, ...], indices: tuple[ClientIndex, ...]
+def xor_parity_response(
+    bits: tuple[BinaryClassLabel, ...], strength: XorInteractionStrength
 ) -> InnovationCoordinate:
-    if not indices:
-        raise ValueError("tensor coordinate requires at least one member")
-    coordinate = 1.0
-    for index in indices:
-        coordinate *= shifted_legendre_phi_one(ranks[index])
-    return coordinate
+    parity = 0
+    for bit in bits:
+        parity ^= bit
+    return strength if parity else -strength
 
 
-def _standardized_scalar_drift(
-    alternative_mean: InnovationCoordinate,
-    null_mean: InnovationCoordinate,
-    null_deviation: StandardDeviation,
-    metric_denominator_floor: NumericalTolerance,
-) -> StandardizedDrift:
-    return abs(alternative_mean - null_mean) / max(null_deviation, metric_denominator_floor)
-
-
-def _signed_standardized_scalar_drift(
-    alternative_mean: InnovationCoordinate,
-    null_mean: InnovationCoordinate,
-    null_deviation: StandardDeviation,
-    metric_denominator_floor: NumericalTolerance,
-) -> StandardizedDrift:
-    return (alternative_mean - null_mean) / max(null_deviation, metric_denominator_floor)
-
-
-def pure_order_drift_metrics(
-    alternative_rows: tuple[tuple[RankValue, ...], ...],
-    null_rows: tuple[tuple[RankValue, ...], ...],
-    target_order: CoalitionOrder,
-    metric_denominator_floor: NumericalTolerance,
-) -> PureOrderDriftMetrics:
-    if not alternative_rows or len(alternative_rows) != len(null_rows):
-        raise ValueError("pure-order drift requires aligned nonempty alternative and null rows")
-    target_indices = tuple(range(int(target_order)))
-    if any(len(row) < len(target_indices) for row in (*alternative_rows, *null_rows)):
-        raise ValueError("pure-order drift rows do not contain the target coalition")
-    target_alternative = tuple(
-        first_order_tensor_coordinate(row, target_indices) for row in alternative_rows
-    )
-    target_null = tuple(first_order_tensor_coordinate(row, target_indices) for row in null_rows)
-    target_null_mean = sum(target_null) / len(target_null)
-    target_null_deviation = sqrt(
-        sum((value - target_null_mean) ** 2 for value in target_null) / len(target_null)
-    )
-    subset_drifts: list[StandardizedDrift] = []
-    for size in range(1, len(target_indices)):
-        for indices in combinations(target_indices, size):
-            alternative = tuple(
-                first_order_tensor_coordinate(row, indices) for row in alternative_rows
-            )
-            null = tuple(first_order_tensor_coordinate(row, indices) for row in null_rows)
-            null_mean = sum(null) / len(null)
-            null_deviation = sqrt(sum((value - null_mean) ** 2 for value in null) / len(null))
-            subset_drifts.append(
-                _standardized_scalar_drift(
-                    sum(alternative) / len(alternative),
-                    null_mean,
-                    null_deviation,
-                    metric_denominator_floor,
-                )
-            )
-    return PureOrderDriftMetrics(
-        maximum_proper_subset_standardized_drift=max(subset_drifts),
-        target_order_standardized_drift=_signed_standardized_scalar_drift(
-            sum(target_alternative) / len(target_alternative),
-            target_null_mean,
-            target_null_deviation,
-            metric_denominator_floor,
-        ),
-        proper_subset_scoring_available=True,
-    )
-
-
-def pure_continuous_triple_drift_metrics(
-    config: ScientificConfig, seed: SeedValue
-) -> PureOrderDriftMetrics:
-    client_count = config.experiments.pure_order_separation_validation.primary_client_count
-    order = CoalitionOrder.THREE
-    sample_count = (
-        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
-    )
-    theta = config.generators.pure_polynomial.primary_reference_theta
-    base_seed = seed * (2 * sample_count)
-    alternative_rows = tuple(
-        sample_pure_polynomial_ranks(order, theta, client_count - int(order), base_seed + index)
-        for index in range(sample_count)
-    )
-    null_rows = tuple(
-        sample_independent_uniform_ranks(client_count, base_seed + sample_count + index)
-        for index in range(sample_count)
-    )
-    return pure_order_drift_metrics(
-        alternative_rows,
-        null_rows,
-        order,
-        config.numerics.metric_denominator_floor,
-    )
+def polynomial_density(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -> PolynomialDensity:
+    return 1.0 + pure_order_one_response(ranks, theta)
 
 
 def lexicographic_target_clients(
@@ -383,26 +171,6 @@ def lexicographic_target_clients(
     if target_count > len(ordered):
         raise ValueError("target_count exceeds available clients")
     return ordered[:target_count]
-
-
-def xor_and_mixed_order_target_clients(client_ids: tuple[ClientId, ...]) -> tuple[ClientId, ...]:
-    return lexicographic_target_clients(client_ids, 3)
-
-
-def pure_order_one_response(
-    ranks: tuple[RankValue, ...], theta: EffectCoefficient
-) -> InnovationCoordinate:
-    return theta * sum(shifted_legendre_phi_one(rank) for rank in ranks)
-
-
-def xor_parity_response(
-    bits: tuple[BinaryClassLabel, ...], strength: XorInteractionStrength
-) -> InnovationCoordinate:
-    parity = 0
-    for bit in bits:
-        parity = (parity + bit) % 2
-    signed = 1.0 if parity == 1 else -1.0
-    return strength * signed
 
 
 def sample_independent_uniform_ranks(
@@ -567,6 +335,9 @@ def xor_exact_marginals(strength: XorInteractionStrength, tolerance: NumericalTo
     for state in range(XOR_BINARY_STATE_COUNT):
         bits = (state & 1, (state >> 1) & 1, (state >> 2) & 1)
         parity = (bits[0] ^ bits[1]) == bits[2]
+        signed = xor_parity_response(bits, 1.0)
+        if signed not in {-1.0, 1.0}:
+            return False
         probabilities.append((1.0 + strength if parity else 1.0 - strength) / 8.0)
     if abs(sum(probabilities) - 1.0) > tolerance:
         return False
@@ -588,10 +359,6 @@ def xor_exact_marginals(strength: XorInteractionStrength, tolerance: NumericalTo
             if abs(joint - (1.0 / (2 * 2))) > tolerance:
                 return False
     return True
-
-
-def context_dependent_pure_triple_marginals(theta: EffectCoefficient) -> Boolean:
-    return polynomial_density_is_valid(theta, CoalitionOrder.THREE)
 
 
 def mixed_order_absent_terms_integrate_to_zero(
