@@ -1,4 +1,7 @@
 from collections.abc import Callable
+from hashlib import sha256
+from pathlib import Path
+from subprocess import run
 
 import typer
 
@@ -20,7 +23,7 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
     PreprocessingLayer,
 )
-from fedcampaign_emhi.domain.types import ArtifactIdentity, Boolean
+from fedcampaign_emhi.domain.types import ArtifactIdentity, Boolean, ConfigurationDigest
 from fedcampaign_emhi.execution.planning import (
     plan_experiments,
     resolve_requested_experiment,
@@ -49,6 +52,25 @@ def main() -> None:
     application()
 
 
+def _git_commit(repository: Path) -> ConfigurationDigest:
+    completed = run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return "unavailable"
+    return completed.stdout.strip()
+
+
+def _lock_digest(repository: Path) -> ConfigurationDigest:
+    lock_path = repository / "uv.lock"
+    if not lock_path.is_file():
+        return "unavailable"
+    return sha256(lock_path.read_bytes()).hexdigest()
+
+
 def doctor_command() -> None:
     emit: Callable[[str], None] = typer.echo
     repository, loaded = production_configuration_context()
@@ -60,7 +82,21 @@ def doctor_command() -> None:
     secondary_files = discover_raw_paths(secondary_raw)
     missing_directories = [path for path in layout.required_directories() if not path.exists()]
     raw_inventory_executable = primary_raw.exists() and secondary_raw.exists()
+    statuses = project_status(loaded, repository)
+    incomplete = tuple(
+        status.experiment_name.value
+        for status in statuses
+        if status.state is not ExperimentState.COMPLETED
+    )
+    if missing_directories or not raw_inventory_executable:
+        next_action = "fedcampaign preprocess"
+    elif incomplete:
+        next_action = f"fedcampaign run {incomplete[0]}"
+    else:
+        next_action = "fedcampaign report"
     emit(f"repository={repository}")
+    emit(f"git_commit={_git_commit(repository)}")
+    emit(f"dependency_lock_digest={_lock_digest(repository)}")
     emit(f"configuration={loaded.source_path}")
     emit(f"material_digest={readiness.material_digest}")
     emit(f"production_configuration_valid={readiness.production_configuration_valid}")
@@ -71,7 +107,16 @@ def doctor_command() -> None:
     emit(f"secondary_raw_directory={secondary_raw}")
     emit(f"secondary_raw_file_count={len(secondary_files)}")
     emit(f"missing_artifact_directories={len(missing_directories)}")
-    emit("next_action=fedcampaign preprocess")
+    for status in statuses:
+        emit(
+            f"experiment={status.experiment_name.value}"
+            f" state={status.state.value}"
+            f" lifecycle={status.lifecycle_state.value}"
+            f" development_seeds={status.development_seed_count}"
+            f" confirmatory_seeds={status.confirmatory_seed_count}"
+        )
+    emit(f"next_action={next_action}")
+    emit("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
 
 
 _DATASET_ARGUMENT: DatasetName | None = typer.Argument(default=None)

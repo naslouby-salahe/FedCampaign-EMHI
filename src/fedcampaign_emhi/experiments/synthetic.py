@@ -25,7 +25,6 @@ from fedcampaign_emhi.comparators.dependence import (
 from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.detection import score_exceeds_threshold
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
@@ -47,9 +46,13 @@ from fedcampaign_emhi.domain.types import (
     DetectorScore,
     EffectCoefficient,
     EpochIndexValue,
+    EvidenceFactor,
     InnovationCoordinate,
+    InnovationDeviation,
+    InnovationMean,
     NuisanceCoefficient,
     NumericalFloor,
+    OperationalNormReference,
     Probability,
     ProjectionNrmse,
     RankValue,
@@ -63,9 +66,19 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.calibration import (
     build_emhi_fit_artifact,
     calibrate_innovations_on_nuisance_fit,
+    moments_from_held_fold_innovations,
 )
-from fedcampaign_emhi.emhi.innovations import projection_residual
+from fedcampaign_emhi.emhi.evidence import (
+    operational_evidence_factor,
+    operational_norm_reference_quantile,
+)
+from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row, ridge_coefficient_matrix
+from fedcampaign_emhi.emhi.sequential import (
+    initial_global_state,
+    next_global_state,
+    threshold_predicate,
+)
 from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact, tensor_representation
 from fedcampaign_emhi.emhi.thresholds import (
     clopper_pearson_one_sided_upper_bound,
@@ -205,38 +218,66 @@ def _pure_polynomial_generator(order: CoalitionOrder) -> GeneratorName:
     return GeneratorName.PURE_CONTINUOUS_TRIPLE
 
 
-def _residual_norm(atom: tuple[InnovationCoordinate, ...]) -> DetectorScore:
-    return sqrt(sum(value * value for value in atom))
-
-
-def _residual_scores_for_rows(
+def _standardized_atoms_for_rows(
     rows: tuple[tuple[RankValue, ...], ...],
-    emhi_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
-    hofd_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    means: tuple[InnovationMean, ...],
+    deviations: tuple[InnovationDeviation, ...],
     basis_size: BasisSize,
-) -> tuple[tuple[DetectorScore, ...], tuple[DetectorScore, ...]]:
-    emhi_scores: list[DetectorScore] = []
-    hofd_scores: list[DetectorScore] = []
+    scale_floor: NumericalFloor,
+) -> tuple[tuple[InnovationCoordinate, ...], ...]:
+    atoms: list[tuple[InnovationCoordinate, ...]] = []
     for row in rows:
         tensor = tensor_representation(row, basis_size)
         design = proper_subset_design_row(row, basis_size)
-        emhi_scores.append(_residual_norm(projection_residual(tensor, emhi_coefficients, design)))
-        hofd_scores.append(_residual_norm(projection_residual(tensor, hofd_coefficients, design)))
-    return tuple(emhi_scores), tuple(hofd_scores)
+        residual = projection_residual(tensor, coefficients, design)
+        atoms.append(center_and_scale_atom(residual, means, deviations, scale_floor))
+    return tuple(atoms)
 
 
-def _first_score_stop(
-    scores: tuple[DetectorScore, ...], threshold: ThresholdValue
+def _operational_factors_for_rows(
+    rows: tuple[tuple[RankValue, ...], ...],
+    coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    means: tuple[InnovationMean, ...],
+    deviations: tuple[InnovationDeviation, ...],
+    norm_reference: OperationalNormReference,
+    basis_size: BasisSize,
+    config: ScientificConfig,
+) -> tuple[EvidenceFactor, ...]:
+    atoms = _standardized_atoms_for_rows(
+        rows,
+        coefficients,
+        means,
+        deviations,
+        basis_size,
+        config.projection.atom_scale_floor,
+    )
+    return tuple(
+        operational_evidence_factor(
+            atom,
+            norm_reference,
+            config.projection.norm_reference_floor,
+            config.evidence.clip_bound,
+            config.evidence.bet_lambda,
+        )
+        for atom in atoms
+    )
+
+
+def _first_eprocess_stop(
+    factors: tuple[EvidenceFactor, ...], threshold: ThresholdValue
 ) -> EpochIndexValue | None:
-    for index, score in enumerate(scores):
-        if score_exceeds_threshold(score, threshold):
+    state = initial_global_state()
+    for index, factor in enumerate(factors):
+        state = next_global_state(state, factor)
+        if threshold_predicate(state, threshold):
             return index
     return None
 
 
-def _calibrate_residual_threshold(
-    calibration_horizons: tuple[tuple[DetectorScore, ...], ...],
-    heldout_horizons: tuple[tuple[DetectorScore, ...], ...],
+def _calibrate_eprocess_threshold(
+    calibration_horizons: tuple[tuple[EvidenceFactor, ...], ...],
+    heldout_horizons: tuple[tuple[EvidenceFactor, ...], ...],
     config: ScientificConfig,
 ) -> tuple[ThresholdValue | None, Probability | None, RecordCount]:
     candidates = config.evidence.calibrated_finite_horizon.threshold_candidates
@@ -244,7 +285,7 @@ def _calibrate_residual_threshold(
         sum(
             1
             for horizon in calibration_horizons
-            if _first_score_stop(horizon, candidate) is not None
+            if _first_eprocess_stop(horizon, candidate) is not None
         )
         for candidate in candidates
     )
@@ -258,7 +299,7 @@ def _calibrate_residual_threshold(
     if selected is None or not heldout_horizons:
         return None, None, 0
     heldout_false_stops = sum(
-        1 for horizon in heldout_horizons if _first_score_stop(horizon, selected) is not None
+        1 for horizon in heldout_horizons if _first_eprocess_stop(horizon, selected) is not None
     )
     upper = clopper_pearson_one_sided_upper_bound(
         heldout_false_stops,
@@ -375,6 +416,31 @@ def _evaluate_hofd_equivalence_seed(
                 materiality.minimum_cosine_similarity,
             )
 
+            hofd_nuisance_atoms = tuple(
+                projection_residual(tensor, hofd_coefficients, design)
+                for tensor, design in zip(nuisance_tensors, nuisance_design, strict=True)
+            )
+            hofd_moments = moments_from_held_fold_innovations(hofd_nuisance_atoms)
+            if hofd_moments is None:
+                failures.append(f"HOFD sequential moments order {width} support {support}")
+                continue
+            hofd_means, hofd_deviations = hofd_moments
+            emhi_norm = operational_norm_reference_quantile(
+                calibration.standardized_held_fold_innovations,
+                config.evidence.operational_norm_reference_quantile,
+            )
+            hofd_norm = operational_norm_reference_quantile(
+                tuple(
+                    center_and_scale_atom(
+                        atom,
+                        hofd_means,
+                        hofd_deviations,
+                        config.projection.atom_scale_floor,
+                    )
+                    for atom in hofd_nuisance_atoms
+                ),
+                config.evidence.operational_norm_reference_quantile,
+            )
             null_horizons = tuple(
                 tuple(
                     sample_independent_uniform_ranks(
@@ -386,27 +452,33 @@ def _evaluate_hofd_equivalence_seed(
             )
             offset += (calibration_count + heldout_horizon_count) * horizon_length
             emhi_null = tuple(
-                _residual_scores_for_rows(
+                _operational_factors_for_rows(
                     horizon,
                     calibration.complete_nuisance_coefficients,
-                    hofd_coefficients,
+                    calibration.coordinate_means,
+                    calibration.coordinate_deviations,
+                    emhi_norm,
                     config.basis.primary_size,
-                )[0]
+                    config,
+                )
                 for horizon in null_horizons
             )
             hofd_null = tuple(
-                _residual_scores_for_rows(
+                _operational_factors_for_rows(
                     horizon,
-                    calibration.complete_nuisance_coefficients,
                     hofd_coefficients,
+                    hofd_means,
+                    hofd_deviations,
+                    hofd_norm,
                     config.basis.primary_size,
-                )[1]
+                    config,
+                )
                 for horizon in null_horizons
             )
-            emhi_threshold, emhi_pfa, _emhi_false = _calibrate_residual_threshold(
+            emhi_threshold, emhi_pfa, _emhi_false = _calibrate_eprocess_threshold(
                 emhi_null[:calibration_count], emhi_null[calibration_count:], config
             )
-            hofd_threshold, hofd_pfa, _hofd_false = _calibrate_residual_threshold(
+            hofd_threshold, hofd_pfa, _hofd_false = _calibrate_eprocess_threshold(
                 hofd_null[:calibration_count], hofd_null[calibration_count:], config
             )
             pfa_ok = (
@@ -424,17 +496,33 @@ def _evaluate_hofd_equivalence_seed(
                 for epoch_index in range(horizon_length)
             )
             offset += horizon_length
-            emhi_effect, hofd_effect = _residual_scores_for_rows(
+            emhi_effect = _operational_factors_for_rows(
                 effect_horizon,
                 calibration.complete_nuisance_coefficients,
-                hofd_coefficients,
+                calibration.coordinate_means,
+                calibration.coordinate_deviations,
+                emhi_norm,
                 config.basis.primary_size,
+                config,
+            )
+            hofd_effect = _operational_factors_for_rows(
+                effect_horizon,
+                hofd_coefficients,
+                hofd_means,
+                hofd_deviations,
+                hofd_norm,
+                config.basis.primary_size,
+                config,
             )
             emhi_stop = (
-                None if emhi_threshold is None else _first_score_stop(emhi_effect, emhi_threshold)
+                None
+                if emhi_threshold is None
+                else _first_eprocess_stop(emhi_effect, emhi_threshold)
             )
             hofd_stop = (
-                None if hofd_threshold is None else _first_score_stop(hofd_effect, hofd_threshold)
+                None
+                if hofd_threshold is None
+                else _first_eprocess_stop(hofd_effect, hofd_threshold)
             )
             stop_difference = (
                 None

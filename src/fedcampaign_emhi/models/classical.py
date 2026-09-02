@@ -19,19 +19,29 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.runtime import thirty_two_bit_seed
 
 
-def isolation_forest_anomaly_scores(
+class FittedIsolationForest:
+    __slots__ = ("_estimator",)
+
+    def __init__(self, estimator: IsolationForest) -> None:
+        self._estimator = estimator
+
+    def score(self, score_rows: tuple[tuple[FeatureValue, ...], ...]) -> tuple[AnomalyScore, ...]:
+        score_matrix = np.asarray(score_rows, dtype=np.float64)
+        scored = np.array(self._estimator.score_samples(score_matrix), dtype=np.float64)
+        return tuple((-scored).tolist())
+
+
+def fit_isolation_forest(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
-    score_rows: tuple[tuple[FeatureValue, ...], ...],
     tree_count: TreeCount,
     max_samples_cap: SampleCap,
     max_features: FeatureFraction,
     jobs: WorkerCount,
     seed: SeedValue,
-) -> tuple[AnomalyScore, ...]:
+) -> FittedIsolationForest:
     if not fit_rows:
         raise ValueError("Isolation Forest requires a non-empty detector-fit matrix")
     fit_matrix = np.asarray(fit_rows, dtype=np.float64)
-    score_matrix = np.asarray(score_rows, dtype=np.float64)
     max_samples = min(int(max_samples_cap), int(fit_matrix.shape[0]))
     model = IsolationForest(random_state=int(thirty_two_bit_seed(seed)))
     model.set_params(
@@ -45,25 +55,47 @@ def isolation_forest_anomaly_scores(
         verbose=0,
     )
     model.fit(fit_matrix)
-    scored = np.array(model.score_samples(score_matrix), dtype=np.float64)
-    return tuple((-scored).tolist())
+    return FittedIsolationForest(model)
 
 
-def one_class_svm_anomaly_scores(
+def isolation_forest_anomaly_scores(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
     score_rows: tuple[tuple[FeatureValue, ...], ...],
+    tree_count: TreeCount,
+    max_samples_cap: SampleCap,
+    max_features: FeatureFraction,
+    jobs: WorkerCount,
+    seed: SeedValue,
+) -> tuple[AnomalyScore, ...]:
+    fitted = fit_isolation_forest(fit_rows, tree_count, max_samples_cap, max_features, jobs, seed)
+    return fitted.score(score_rows)
+
+
+class FittedOneClassSvm:
+    __slots__ = ("_estimator",)
+
+    def __init__(self, estimator: OneClassSVM) -> None:
+        self._estimator = estimator
+
+    def score(self, score_rows: tuple[tuple[FeatureValue, ...], ...]) -> tuple[AnomalyScore, ...]:
+        score_matrix = np.asarray(score_rows, dtype=np.float64)
+        scored = np.array(self._estimator.decision_function(score_matrix), dtype=np.float64)
+        return tuple((-scored).tolist())
+
+
+def fit_one_class_svm(
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
     nu: Probability,
     coefficient_zero: SvmCoefficientZero,
     solver_tolerance: NumericalTolerance,
     kernel_cache_mib: MemoryMib,
     max_iterations: SolverIterationLimit,
     seed: SeedValue,
-) -> tuple[AnomalyScore, ...]:
+) -> FittedOneClassSvm:
     if not fit_rows:
         raise ValueError("One-Class SVM requires a non-empty detector-fit matrix")
     del seed
     fit_matrix = np.asarray(fit_rows, dtype=np.float64)
-    score_matrix = np.asarray(score_rows, dtype=np.float64)
     model = OneClassSVM(
         kernel="rbf",
         nu=nu,
@@ -76,5 +108,26 @@ def one_class_svm_anomaly_scores(
         verbose=False,
     )
     model.fit(fit_matrix)
-    scored = np.array(model.decision_function(score_matrix), dtype=np.float64)
-    return tuple((-scored).tolist())
+    return FittedOneClassSvm(model)
+
+
+def one_class_svm_anomaly_scores(
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
+    nu: Probability,
+    coefficient_zero: SvmCoefficientZero,
+    solver_tolerance: NumericalTolerance,
+    kernel_cache_mib: MemoryMib,
+    max_iterations: SolverIterationLimit,
+    seed: SeedValue,
+) -> tuple[AnomalyScore, ...]:
+    fitted = fit_one_class_svm(
+        fit_rows,
+        nu,
+        coefficient_zero,
+        solver_tolerance,
+        kernel_cache_mib,
+        max_iterations,
+        seed,
+    )
+    return fitted.score(score_rows)

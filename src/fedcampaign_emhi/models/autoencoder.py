@@ -69,9 +69,27 @@ def _relu(values: NDArray[np.float32]) -> NDArray[np.float32]:
     return np.maximum(values, 0.0, dtype=np.float32)
 
 
-def autoencoder_anomaly_scores(
+class FittedAutoencoder:
+    __slots__ = ("_biases", "_weights")
+
+    def __init__(
+        self,
+        weights: tuple[NDArray[np.float32], ...],
+        biases: tuple[NDArray[np.float32], ...],
+    ) -> None:
+        self._weights = weights
+        self._biases = biases
+
+    def score(self, score_rows: tuple[tuple[FeatureValue, ...], ...]) -> tuple[AnomalyScore, ...]:
+        score_matrix = np.asarray(score_rows, dtype=np.float32)
+        reconstructions = _forward(score_matrix, self._weights, self._biases)
+        squared = np.square(score_matrix - reconstructions)
+        per_sample = np.mean(squared, axis=1, dtype=np.float64)
+        return tuple(float(value) for value in per_sample.tolist())
+
+
+def fit_autoencoder(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
-    score_rows: tuple[tuple[FeatureValue, ...], ...],
     learning_rate: LearningRate,
     beta_one: AutoencoderBeta,
     beta_two: AutoencoderBeta,
@@ -81,11 +99,10 @@ def autoencoder_anomaly_scores(
     epoch_count: SolverIterationLimit,
     root_seed: SeedValue,
     client_id: ClientId,
-) -> tuple[AnomalyScore, ...]:
+) -> FittedAutoencoder:
     if not fit_rows:
         raise ValueError("autoencoder requires a non-empty detector-fit matrix")
     fit_matrix = np.asarray(fit_rows, dtype=np.float32)
-    score_matrix = np.asarray(score_rows, dtype=np.float32)
     input_dimension = int(fit_matrix.shape[1])
     widths = autoencoder_layer_widths(input_dimension)
     init_generator = np.random.default_rng(thirty_two_bit_seed(root_seed))
@@ -133,10 +150,35 @@ def autoencoder_anomaly_scores(
                 weight_decay,
                 step,
             )
-    reconstructions = _forward(score_matrix, trained_weights, trained_biases)
-    squared = np.square(score_matrix - reconstructions)
-    per_sample = np.mean(squared, axis=1, dtype=np.float64)
-    return tuple(float(value) for value in per_sample.tolist())
+    return FittedAutoencoder(trained_weights, trained_biases)
+
+
+def autoencoder_anomaly_scores(
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
+    learning_rate: LearningRate,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
+    batch_size: BatchSize,
+    epoch_count: SolverIterationLimit,
+    root_seed: SeedValue,
+    client_id: ClientId,
+) -> tuple[AnomalyScore, ...]:
+    fitted = fit_autoencoder(
+        fit_rows,
+        learning_rate,
+        beta_one,
+        beta_two,
+        optimizer_epsilon,
+        weight_decay,
+        batch_size,
+        epoch_count,
+        root_seed,
+        client_id,
+    )
+    return fitted.score(score_rows)
 
 
 def _forward(

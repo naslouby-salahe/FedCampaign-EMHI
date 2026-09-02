@@ -19,10 +19,12 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.detection import (
+    FittedClientDetector,
     assign_detector_families,
     first_local_stop_epoch,
-    score_client,
+    fit_client_detector,
     score_exceeds_threshold,
+    score_fitted_client_detector,
 )
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
@@ -138,12 +140,17 @@ def measure_repetition_epoch_latencies(
     local_points: tuple[ClientLocalOperatingPoint, ...],
     epoch_indexes: tuple[EpochIndexValue, ...],
     threshold: ThresholdValue,
+    fitted_detectors: tuple[FittedClientDetector, ...],
+    client_features: tuple[tuple[tuple[FeatureValue, ...], ...], ...],
 ) -> tuple[tuple[LatencySeconds, LatencySeconds], ...]:
     state = initial_global_state()
     history: tuple[tuple[ClientId, ...], ...] = ()
     exceedances: tuple[tuple[Boolean, ...], ...] = tuple(() for _point in local_points)
     timed: list[tuple[LatencySeconds, LatencySeconds]] = []
     for epoch_index in epoch_indexes:
+        end_to_end_started = perf_counter()
+        for fitted, features in zip(fitted_detectors, client_features, strict=True):
+            score_fitted_client_detector(fitted, (features[epoch_index],))
         server_started = perf_counter()
         advance = advance_operational_epoch(
             config,
@@ -155,7 +162,6 @@ def measure_repetition_epoch_latencies(
             threshold,
         )
         server_elapsed = perf_counter() - server_started
-        local_started = perf_counter()
         updated: list[tuple[Boolean, ...]] = []
         for point, client_exceedances in zip(local_points, exceedances, strict=True):
             policy = point.policy
@@ -174,8 +180,7 @@ def measure_repetition_epoch_latencies(
             )
             updated.append(next_exceedances)
         exceedances = tuple(updated)
-        local_elapsed = perf_counter() - local_started
-        timed.append((server_elapsed, server_elapsed + local_elapsed))
+        timed.append((server_elapsed, perf_counter() - end_to_end_started))
         state = advance.global_state
         history = advance.active_history
     return tuple(timed)
@@ -372,6 +377,7 @@ def collect_scalability_measurements(
     )
     epochs = tuple(range(total_epochs))
     streams: list[ClientDetectorScoreStream] = []
+    fitted_detectors: list[FittedClientDetector] = []
     for assignment, client_features in zip(assignments, features, strict=True):
         detector_seed = derive_component_seed(
             SeedDerivationIdentity(
@@ -383,14 +389,15 @@ def collect_scalability_measurements(
                 condition_coordinates=(),
             )
         )
-        scores = score_client(
+        fitted = fit_client_detector(
             config,
             assignment.family,
             client_features[:nuisance_count],
-            client_features,
             detector_seed,
             assignment.client_id,
         )
+        fitted_detectors.append(fitted)
+        scores = score_fitted_client_detector(fitted, client_features)
         streams.append(
             ClientDetectorScoreStream(
                 client_id=assignment.client_id,
@@ -495,6 +502,7 @@ def collect_scalability_measurements(
     measured_epochs = tuple(range(measured_start, measured_start + measured))
     artifact_fit_seconds = perf_counter() - fit_started
     peak = resident_set_bytes()
+    fitted = tuple(fitted_detectors)
     measure_repetition_epoch_latencies(
         config,
         ranks,
@@ -503,6 +511,8 @@ def collect_scalability_measurements(
         local_points,
         warmup_epochs,
         selected_threshold,
+        fitted,
+        features,
     )
     peak = max(peak, resident_set_bytes())
     payload_bytes = application_payload_bytes_per_epoch(client_count)
@@ -516,6 +526,8 @@ def collect_scalability_measurements(
             local_points,
             measured_epochs,
             selected_threshold,
+            fitted,
+            features,
         )
         peak = max(peak, resident_set_bytes())
         for server_elapsed, end_to_end_elapsed in epoch_latencies:

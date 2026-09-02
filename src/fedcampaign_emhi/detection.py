@@ -46,12 +46,22 @@ from fedcampaign_emhi.domain.types import (
     WorkerCount,
 )
 from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
-from fedcampaign_emhi.models.autoencoder import autoencoder_anomaly_scores
+from fedcampaign_emhi.models.autoencoder import (
+    FittedAutoencoder,
+    autoencoder_anomaly_scores,
+    fit_autoencoder,
+)
 from fedcampaign_emhi.models.classical import (
+    FittedIsolationForest,
+    FittedOneClassSvm,
+    fit_isolation_forest,
+    fit_one_class_svm,
     isolation_forest_anomaly_scores,
     one_class_svm_anomaly_scores,
 )
 from fedcampaign_emhi.runtime import derive_component_seed
+
+type FittedClientDetector = FittedIsolationForest | FittedOneClassSvm | FittedAutoencoder
 
 _FAMILY_BY_REMAINDER = {
     DetectorFamilyRemainder.ISOLATION_FOREST: DetectorFamily.ISOLATION_FOREST,
@@ -145,6 +155,58 @@ def score_autoencoder(
         root_seed,
         client_id,
     )
+
+
+def fit_client_detector(
+    config: ScientificConfig,
+    detector_family: DetectorFamily,
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    seed: SeedValue,
+    client_id: ClientId,
+) -> FittedClientDetector:
+    if detector_family is DetectorFamily.ISOLATION_FOREST:
+        detector = config.detectors.isolation_forest
+        return fit_isolation_forest(
+            fit_rows,
+            detector.trees,
+            detector.max_samples_cap,
+            detector.max_features,
+            detector.jobs,
+            seed,
+        )
+    if detector_family is DetectorFamily.ONE_CLASS_SVM:
+        detector = config.detectors.one_class_svm
+        return fit_one_class_svm(
+            fit_rows,
+            detector.nu,
+            detector.coefficient_zero,
+            detector.solver_tolerance,
+            detector.kernel_cache_mib,
+            detector.max_iterations,
+            seed,
+        )
+    detector = config.detectors.autoencoder
+    if len(detector.betas) != 2:
+        raise ValueError("autoencoder requires exactly two Adam beta coefficients")
+    return fit_autoencoder(
+        fit_rows,
+        detector.learning_rate,
+        detector.betas[0],
+        detector.betas[1],
+        detector.optimizer_epsilon,
+        detector.weight_decay,
+        detector.batch_size,
+        detector.epochs,
+        seed,
+        client_id,
+    )
+
+
+def score_fitted_client_detector(
+    fitted: FittedClientDetector,
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
+) -> tuple[DetectorScore, ...]:
+    return fitted.score(score_rows)
 
 
 def score_stream_isolation_check(score_count: RecordCount, epoch_count: RecordCount) -> None:
