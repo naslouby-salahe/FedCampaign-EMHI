@@ -24,7 +24,7 @@ from fedcampaign_emhi.emhi.contexts import (
     leave_one_out_context_members,
     partial_coalition_context_members,
 )
-from fedcampaign_emhi.synthetic.common_mode import (
+from fedcampaign_emhi.synthetic.generators import (
     equally_spaced_loadings,
     generate_common_mode_scores,
     generate_unit_variance_autoregressive_latent,

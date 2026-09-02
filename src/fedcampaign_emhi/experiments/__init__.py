@@ -1,4 +1,3 @@
-from fedcampaign_emhi.experiments.coordinates import planned_seed_count
-from fedcampaign_emhi.experiments.definitions import experiment_registry
+from fedcampaign_emhi.experiments.registry import experiment_registry, planned_seed_count
 
 __all__ = ["experiment_registry", "planned_seed_count"]

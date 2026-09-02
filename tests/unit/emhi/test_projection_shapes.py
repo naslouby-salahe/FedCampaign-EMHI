@@ -1,12 +1,16 @@
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import RankReference
-from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_representation
-from fedcampaign_emhi.emhi.coalitions import enumerate_coalitions, required_outside_client_count
 from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.emhi.projection import blocked_fold_sizes, proper_subset_design_shape
-from fedcampaign_emhi.emhi.ranks import clipped_midrank
 from fedcampaign_emhi.emhi.sequential import initial_global_state, next_global_state
+from fedcampaign_emhi.emhi.structure import (
+    bounded_basis,
+    clipped_midrank,
+    enumerate_coalitions,
+    required_outside_client_count,
+    tensor_representation,
+)
 from fedcampaign_emhi.emhi.thresholds import (
     clopper_pearson_one_sided_upper_bound,
     select_calibrated_threshold,

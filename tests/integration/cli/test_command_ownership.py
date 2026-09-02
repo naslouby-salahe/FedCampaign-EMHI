@@ -1,7 +1,7 @@
 import pytest
 from typer.testing import CliRunner
 
-from fedcampaign_emhi.cli.main import application
+from fedcampaign_emhi.cli import application
 from fedcampaign_emhi.domain.enums import ExperimentName
 
 
@@ -42,7 +42,7 @@ def test_dry_run_never_reaches_experiment_execution(
     def reject_execution(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("dry run must not execute an experiment")
 
-    monkeypatch.setattr("fedcampaign_emhi.cli.commands.run.execute_experiment", reject_execution)
+    monkeypatch.setattr("fedcampaign_emhi.cli.execute_experiment", reject_execution)
 
     result = cli_runner.invoke(
         application,

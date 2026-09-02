@@ -1,53 +1,53 @@
 from math import log
+from pathlib import Path
+from typing import cast
 
-from fedcampaign_emhi.comparators.composition import (
-    CompositionSelectionInputs,
-    materialize_composition_record,
-    selection_rule_identity,
+from fedcampaign_emhi.artifacts.provenance import (
+    evidence_export_boundary_digest,
+    material_fingerprint,
 )
-from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
-from fedcampaign_emhi.comparators.conditional_log_linear import log_linear_design_column_count
-from fedcampaign_emhi.comparators.connected_information import (
+from fedcampaign_emhi.artifacts.records import StrongComparatorCompositionRecord
+from fedcampaign_emhi.artifacts.storage import build_artifact_layout, payload_digest
+from fedcampaign_emhi.comparators.contracts import comparator_method_contracts, native_target_order
+from fedcampaign_emhi.comparators.dependence import (
+    cosine_equivalence_criterion,
+    gaussian_h_function,
+    global_factor_residual_scores,
+    hofd_atom_rows,
     ipf_converged,
     iterative_proportional_fitting_step,
     jeffreys_smoothed_probabilities,
+    lancaster_triple_moment,
+    lancaster_triple_nonconformity,
+    lexicographic_vine_order,
+    log_linear_design_column_count,
+    nrmse_equivalence_criterion,
+    pair_dependence_moment,
+    pair_dependence_nonconformity,
+    pfa_prerequisite_criterion,
+    selected_factor_rank,
+    stopping_time_equivalence_criterion,
+    target_coalition_for_order,
     uniform_probability_table,
 )
-from fedcampaign_emhi.comparators.contracts import comparator_method_contracts
-from fedcampaign_emhi.comparators.d_vine import (
-    gaussian_h_function,
-    lexicographic_vine_order,
-)
-from fedcampaign_emhi.comparators.fedavg_autoencoder import (
+from fedcampaign_emhi.comparators.federated import (
     fedavg_weighted_mean,
     federated_autoencoder_widths,
 )
-from fedcampaign_emhi.comparators.global_factor_residual import (
-    global_factor_residual_scores,
-    selected_factor_rank,
+from fedcampaign_emhi.comparators.fusion import (
+    CompositionSelectionInputs,
+    materialize_composition_record,
+    max_rank_fusion,
+    mean_rank_fusion,
+    selection_rule_identity,
 )
-from fedcampaign_emhi.comparators.hofd_equivalence import (
-    cosine_equivalence_criterion,
-    nrmse_equivalence_criterion,
-    pfa_prerequisite_criterion,
-    stopping_time_equivalence_criterion,
-    target_coalition_for_order,
-)
-from fedcampaign_emhi.comparators.lancaster import (
-    lancaster_triple_moment,
-    lancaster_triple_nonconformity,
-)
-from fedcampaign_emhi.comparators.multistream_cusum import (
+from fedcampaign_emhi.comparators.sequential import (
     global_cusum_score,
     next_cusum_state,
 )
-from fedcampaign_emhi.comparators.pair_dependence import (
-    pair_dependence_moment,
-    pair_dependence_nonconformity,
-)
-from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
-from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
+from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
+from fedcampaign_emhi.config.validation import YamlNode
+from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
@@ -55,12 +55,42 @@ from fedcampaign_emhi.domain.types import (
     FiniteFloat,
     RankValue,
 )
-from fedcampaign_emhi.emhi.basis import tensor_representation
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
+from fedcampaign_emhi.emhi.structure import tensor_representation
 
 
 def comparator_methods_with_runtime() -> tuple[MethodName, ...]:
     return tuple(contract.method_name for contract in comparator_method_contracts())
+
+
+def resolve_comparator_scoring_method(
+    loaded: LoadedScientificConfiguration, repository: Path, method_name: MethodName
+) -> MethodName:
+    if method_name is not MethodName.SELECTED_STRONG_COMPARATOR_COMPOSITION:
+        return method_name
+    layout = build_artifact_layout(loaded, repository)
+    filename = loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
+    path = (
+        layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
+        / "artifacts"
+        / "derived"
+        / filename
+    )
+    if not path.is_file():
+        raise ValueError("selected strong comparator requires a validated composition artifact")
+    record = StrongComparatorCompositionRecord.model_validate_json(path.read_bytes())
+    payload = record.model_dump(mode="json", exclude={"dependency_fingerprint", "content_digest"})
+    if payload_digest(cast(YamlNode, payload)) != record.content_digest:
+        raise ValueError("selected strong comparator artifact content digest is invalid")
+    if record.dependency_fingerprint != material_fingerprint(
+        evidence_export_boundary_digest(loaded.values), record.source_artifact_hashes
+    ):
+        raise ValueError("selected strong comparator artifact dependency fingerprint is stale")
+    if record.selected_method not in record.eligible_candidates:
+        raise ValueError("selected strong comparator artifact selected an ineligible candidate")
+    if native_target_order(record.selected_method) is not record.selected_native_order:
+        raise ValueError("selected strong comparator artifact native-order mapping is invalid")
+    return record.selected_method
 
 
 def _rank_bin(rank: RankValue, bin_count: BinCount) -> BinIndex:

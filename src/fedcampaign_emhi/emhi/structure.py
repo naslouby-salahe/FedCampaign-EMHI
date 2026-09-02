@@ -1,0 +1,217 @@
+from itertools import combinations
+from math import ceil, comb, sqrt
+
+from scipy.stats import norm
+
+from fedcampaign_emhi.artifacts.records import (
+    ClientMarginalRankStream,
+    DetectorScoreArtifactRecord,
+    MarginalRankArtifactRecord,
+)
+from fedcampaign_emhi.domain.enums import CoalitionOrder
+from fedcampaign_emhi.domain.types import (
+    BasisSize,
+    ClientCount,
+    ClientId,
+    CoalitionCount,
+    CoalitionMembers,
+    EpochIndexValue,
+    FiniteFloat,
+    MaterialDependencyFingerprint,
+    NumericalFloor,
+    Probability,
+    RankReference,
+    RankValue,
+    TensorDimension,
+)
+
+
+def coalition_count(client_count: ClientCount, maximum_order: CoalitionOrder) -> CoalitionCount:
+    return sum(comb(client_count, order) for order in range(1, int(maximum_order) + 1))
+
+
+def required_outside_client_count(
+    complement_size: ClientCount,
+    minimum_available_outside_clients: ClientCount,
+    minimum_available_outside_fraction: Probability,
+) -> ClientCount:
+    fractional = ceil(minimum_available_outside_fraction * complement_size)
+    return max(minimum_available_outside_clients, fractional)
+
+
+def enumerate_coalitions(
+    client_ids: tuple[ClientId, ...], maximum_order: CoalitionOrder
+) -> tuple[CoalitionMembers, ...]:
+    ordered = tuple(sorted(client_ids))
+    coalitions: list[CoalitionMembers] = []
+    for order in range(1, int(maximum_order) + 1):
+        coalition_order = CoalitionOrder(order)
+        for members in combinations(ordered, order):
+            coalitions.append(CoalitionMembers(client_ids=members, order=coalition_order))
+    return tuple(coalitions)
+
+
+def complement_members(
+    selected_client_ids: tuple[ClientId, ...], coalition_client_ids: tuple[ClientId, ...]
+) -> tuple[ClientId, ...]:
+    coalition = set(coalition_client_ids)
+    return tuple(client_id for client_id in selected_client_ids if client_id not in coalition)
+
+
+def proper_subset_members(coalition: CoalitionMembers) -> tuple[CoalitionMembers, ...]:
+    subsets: list[CoalitionMembers] = []
+    for order in range(1, int(coalition.order)):
+        coalition_order = CoalitionOrder(order)
+        for members in combinations(coalition.client_ids, order):
+            subsets.append(CoalitionMembers(client_ids=members, order=coalition_order))
+    return tuple(subsets)
+
+
+def clip_rank(rank: RankValue, epsilon: NumericalFloor) -> RankValue:
+    if rank < epsilon:
+        return epsilon
+    upper = 1.0 - epsilon
+    if rank > upper:
+        return upper
+    return rank
+
+
+def midrank(score: FiniteFloat, reference: RankReference) -> RankValue:
+    observation_count = len(reference.scores)
+    if observation_count == 0:
+        raise ValueError("rank reference must contain at least one score")
+    less = sum(1 for reference_score in reference.scores if reference_score < score)
+    equal = sum(1 for reference_score in reference.scores if reference_score == score)
+    return (less + (0.5 * equal) + 0.5) / (observation_count + 1)
+
+
+def clipped_midrank(
+    score: FiniteFloat, reference: RankReference, epsilon: NumericalFloor
+) -> RankValue:
+    return clip_rank(midrank(score, reference), epsilon)
+
+
+def coalition_conditioned_residual_rank(
+    marginal_rank: RankValue, context_reference: RankReference, epsilon: NumericalFloor
+) -> RankValue:
+    return clipped_midrank(marginal_rank, context_reference, epsilon)
+
+
+def rank_at_epoch(
+    ranks: MarginalRankArtifactRecord,
+    client_id: ClientId,
+    epoch_index: EpochIndexValue,
+) -> RankValue | None:
+    stream = next(
+        (stream for stream in ranks.client_streams if stream.client_id == client_id),
+        None,
+    )
+    if stream is None:
+        return None
+    return next(
+        (
+            rank
+            for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+            if epoch == epoch_index
+        ),
+        None,
+    )
+
+
+def build_marginal_rank_artifact(
+    scores: DetectorScoreArtifactRecord,
+    reference_epochs: tuple[EpochIndexValue, ...],
+    rank_clip_epsilon: NumericalFloor,
+    dependency_fingerprint: MaterialDependencyFingerprint,
+) -> MarginalRankArtifactRecord:
+    reference_epoch_set = set(reference_epochs)
+    streams: list[ClientMarginalRankStream] = []
+    for score_stream in scores.client_streams:
+        reference_scores = tuple(
+            score
+            for epoch, score in zip(
+                score_stream.epoch_indexes,
+                score_stream.scores,
+                strict=True,
+            )
+            if epoch in reference_epoch_set
+        )
+        if not reference_scores:
+            raise ValueError(
+                f"client {score_stream.client_id} has no nuisance-fit rank reference scores"
+            )
+        reference = RankReference(scores=reference_scores)
+        ranks = tuple(
+            clipped_midrank(score, reference, rank_clip_epsilon) for score in score_stream.scores
+        )
+        streams.append(
+            ClientMarginalRankStream(
+                client_id=score_stream.client_id,
+                nuisance_reference_scores=reference_scores,
+                epoch_indexes=score_stream.epoch_indexes,
+                ranks=ranks,
+            )
+        )
+    return MarginalRankArtifactRecord(
+        dataset_name=scores.dataset_name,
+        root_seed=scores.root_seed,
+        selected_client_ids=scores.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=dependency_fingerprint,
+    )
+
+
+def shifted_legendre_phi_one(rank: RankValue) -> FiniteFloat:
+    return sqrt(3.0) * ((2.0 * rank) - 1.0)
+
+
+def shifted_legendre_phi_two(rank: RankValue) -> FiniteFloat:
+    return sqrt(5.0) * ((6.0 * (rank**2)) - (6.0 * rank) + 1.0)
+
+
+def shifted_legendre_phi_three(rank: RankValue) -> FiniteFloat:
+    return sqrt(7.0) * ((20.0 * (rank**3)) - (30.0 * (rank**2)) + (12.0 * rank) - 1.0)
+
+
+def shifted_legendre_phi_four(rank: RankValue) -> FiniteFloat:
+    return 3.0 * (
+        (70.0 * (rank**4)) - (140.0 * (rank**3)) + (90.0 * (rank**2)) - (20.0 * rank) + 1.0
+    )
+
+
+_BASIS_FUNCTIONS = (
+    shifted_legendre_phi_one,
+    shifted_legendre_phi_two,
+    shifted_legendre_phi_three,
+    shifted_legendre_phi_four,
+)
+
+
+def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[FiniteFloat, ...]:
+    if basis_size < 1 or basis_size > len(_BASIS_FUNCTIONS):
+        raise ValueError("basis_size must be between 1 and 4 inclusive")
+    return tuple(function(rank) for function in _BASIS_FUNCTIONS[:basis_size])
+
+
+def tensor_dimension(basis_size: BasisSize, coalition_order: CoalitionOrder) -> TensorDimension:
+    return basis_size ** int(coalition_order)
+
+
+def tensor_representation(
+    member_ranks: tuple[RankValue, ...], basis_size: BasisSize
+) -> tuple[FiniteFloat, ...]:
+    if not member_ranks:
+        raise ValueError("tensor representation requires at least one coalition member")
+    coordinates = [1.0]
+    for rank in member_ranks:
+        member_basis = bounded_basis(rank, basis_size)
+        expanded = []
+        for left in coordinates:
+            for right in member_basis:
+                expanded.append(left * right)
+        coordinates = expanded
+    return tuple(coordinates)
+
+
+def standard_normal_cdf(gaussian_coordinate: FiniteFloat) -> RankValue:
+    return float(norm.cdf(gaussian_coordinate))

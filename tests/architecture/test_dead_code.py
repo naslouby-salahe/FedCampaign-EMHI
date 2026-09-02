@@ -49,4 +49,4 @@ def test_dead_code_passes_on_compliant_fixture(tmp_path: Path) -> None:
 
 def test_required_modules_are_present() -> None:
     assert (SRC_ROOT / "config" / "schema.py").is_file()
-    assert (SRC_ROOT / "cli" / "main.py").is_file()
+    assert (SRC_ROOT / "cli.py").is_file()

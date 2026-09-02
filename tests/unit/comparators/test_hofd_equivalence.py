@@ -1,6 +1,6 @@
 import pytest
 
-from fedcampaign_emhi.comparators.hofd_equivalence import (
+from fedcampaign_emhi.comparators.dependence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
     paired_atom_metrics,

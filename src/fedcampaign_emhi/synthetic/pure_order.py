@@ -18,12 +18,12 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     SignedInt,
 )
-from fedcampaign_emhi.emhi.basis import shifted_legendre_phi_one, tensor_representation
-from fedcampaign_emhi.emhi.innovation_calibration import calibrate_innovations_on_nuisance_fit
+from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
-from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
-from fedcampaign_emhi.synthetic.context_boundaries import context_conditional_density
+from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one, tensor_representation
+from fedcampaign_emhi.runtime import thirty_two_bit_seed
+from fedcampaign_emhi.synthetic.feasibility import context_conditional_density
 
 
 @dataclass(frozen=True)

@@ -70,7 +70,7 @@ def test_production_has_no_manuscript_claim_or_gate_architecture() -> None:
 
 
 def test_outputs_and_results_remain_distinct() -> None:
-    text = (SRC_ROOT / "artifacts" / "paths.py").read_text(encoding="utf-8")
+    text = (SRC_ROOT / "artifacts" / "storage.py").read_text(encoding="utf-8")
     assert "outputs_root" in text
     assert "results_root" in text
 

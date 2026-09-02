@@ -6,12 +6,12 @@ from fedcampaign_emhi.domain.enums import (
     GeneratorName,
     MethodName,
 )
-from fedcampaign_emhi.execution.pure_order import (
+from fedcampaign_emhi.experiments.calibration import (
     emhi_method_settings,
     evaluate_fitted_pure_order_cell,
 )
-from fedcampaign_emhi.experiments.definitions import experiment_registry
-from fedcampaign_emhi.experiments.producers import run_synthetic_cell
+from fedcampaign_emhi.experiments.registry import experiment_registry
+from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
 from fedcampaign_emhi.synthetic.pure_order import (
     GeneratorPurityReport,
     context_dependent_pure_triple_marginals,

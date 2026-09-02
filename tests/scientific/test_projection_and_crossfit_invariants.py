@@ -2,7 +2,7 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.types import RankReference
 from fedcampaign_emhi.emhi.contexts import histogram_bin_index
 from fedcampaign_emhi.emhi.projection import blocked_fold_bounds
-from fedcampaign_emhi.emhi.ranks import clip_rank, midrank
+from fedcampaign_emhi.emhi.structure import clip_rank, midrank
 
 
 def test_blocked_folds_are_contiguous() -> None:

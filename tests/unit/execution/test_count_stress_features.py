@@ -3,7 +3,7 @@ from math import expm1, log1p
 import pytest
 
 from fedcampaign_emhi.datasets.preprocessing import shannon_entropy
-from fedcampaign_emhi.execution.runner import stress_epoch_feature_values
+from fedcampaign_emhi.experiments.robustness import stress_epoch_feature_values
 
 
 def test_stress_preserves_bucket_proportions_and_scales_total() -> None:

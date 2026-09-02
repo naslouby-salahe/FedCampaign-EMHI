@@ -46,10 +46,7 @@ def _snippet_violations(snippet: str) -> list[str]:
 
 
 def test_cli_commands_only_control_application_execution() -> None:
-    command_root = SRC_ROOT / "cli" / "commands"
-    violations = [
-        violation for path in command_root.rglob("*.py") for violation in _violations(path)
-    ]
+    violations = _violations(SRC_ROOT / "cli.py")
     assert violations == []
 
 

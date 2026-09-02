@@ -2,7 +2,7 @@ import pytest
 
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.types import BenignHorizon
-from fedcampaign_emhi.experiments.benign_robustness import (
+from fedcampaign_emhi.experiments.robustness import (
     EpochEventVolume,
     common_mode_suppression,
     detection_rate_loss_within_maximum,

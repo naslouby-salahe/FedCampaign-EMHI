@@ -4,16 +4,7 @@ from pathlib import Path
 
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder
-from fedcampaign_emhi.emhi.basis import (
-    bounded_basis,
-    shifted_legendre_phi_four,
-    shifted_legendre_phi_one,
-    shifted_legendre_phi_three,
-    shifted_legendre_phi_two,
-    tensor_dimension,
-    tensor_representation,
-)
-from fedcampaign_emhi.emhi.innovation_calibration import (
+from fedcampaign_emhi.emhi.calibration import (
     calibrate_innovations_on_nuisance_fit,
     cross_validated_ridge_penalty,
 )
@@ -29,6 +20,15 @@ from fedcampaign_emhi.emhi.projection import (
     proper_subset_design_row,
     ridge_coefficient_matrix,
     select_ridge_penalty,
+)
+from fedcampaign_emhi.emhi.structure import (
+    bounded_basis,
+    shifted_legendre_phi_four,
+    shifted_legendre_phi_one,
+    shifted_legendre_phi_three,
+    shifted_legendre_phi_two,
+    tensor_dimension,
+    tensor_representation,
 )
 
 

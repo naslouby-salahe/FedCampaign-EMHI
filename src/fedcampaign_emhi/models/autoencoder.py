@@ -15,7 +15,7 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     SolverIterationLimit,
 )
-from fedcampaign_emhi.runtime.determinism import derive_component_seed, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
 AUTOENCODER_ENCODER_WIDTH: LayerWidth = 32
 AUTOENCODER_LATENT_WIDTH: LayerWidth = 8

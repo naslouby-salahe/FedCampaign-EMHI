@@ -1,7 +1,7 @@
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import ExperimentName
-from fedcampaign_emhi.execution.finite_horizon import evaluate_finite_horizon_common_mode_seed
-from fedcampaign_emhi.experiments.producers import run_synthetic_cell
+from fedcampaign_emhi.experiments.calibration import evaluate_finite_horizon_common_mode_seed
+from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
 from fedcampaign_emhi.synthetic.sequential import (
     evaluate_signed_theorem_seed,
     signed_theorem_coordinate,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fedcampaign_emhi.comparators.composition import select_strongest_comparator
+from fedcampaign_emhi.comparators.fusion import select_strongest_comparator
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, sample_standard_deviation
 from fedcampaign_emhi.models.autoencoder import (
@@ -8,7 +8,7 @@ from fedcampaign_emhi.models.autoencoder import (
     autoencoder_layer_widths,
     batch_permutation_seed,
 )
-from fedcampaign_emhi.models.isolation_forest import isolation_forest_anomaly_scores
+from fedcampaign_emhi.models.classical import isolation_forest_anomaly_scores
 
 
 def test_autoencoder_width_contract() -> None:

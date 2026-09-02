@@ -1,6 +1,6 @@
 import pytest
 
-from fedcampaign_emhi.analysis.multiplicity import (
+from fedcampaign_emhi.analysis.statistics import (
     HolmHypothesisInput,
     primary_holm_family,
     primary_holm_family_identifiers,

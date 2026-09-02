@@ -3,11 +3,11 @@ from pathlib import Path
 from fedcampaign_emhi.artifacts.records import StrongComparatorCompositionRecord
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import MethodName
-from fedcampaign_emhi.execution.composition_calibration import (
+from fedcampaign_emhi.experiments.calibration import (
     CompositionCandidateSeedMetrics,
     evaluate_composition_candidate_seed,
 )
-from fedcampaign_emhi.execution.runner import (
+from fedcampaign_emhi.experiments.campaigns import (
     CompositionCandidateObservation,
     materialize_strong_comparator_composition_selection,
 )

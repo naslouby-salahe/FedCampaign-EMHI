@@ -3,11 +3,11 @@ from pathlib import Path
 from fedcampaign_emhi.artifacts.records import StatisticalRecord
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole
-from fedcampaign_emhi.execution.runner import (
+from fedcampaign_emhi.experiments.campaigns import (
     SelfExplanationObservation,
     materialize_self_explanation_statistics,
 )
-from fedcampaign_emhi.experiments.producers import SelfExplanationSeedMetrics
+from fedcampaign_emhi.experiments.synthetic import SelfExplanationSeedMetrics
 
 
 def test_self_explanation_statistics_are_materialized_from_confirmatory_outputs(

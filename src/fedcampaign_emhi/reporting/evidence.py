@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from fedcampaign_emhi.artifacts.boundaries import (
+from fedcampaign_emhi.artifacts.provenance import (
+    content_digest,
     evidence_export_boundary_digest,
+    material_fingerprint,
     statistical_analysis_boundary_digest,
 )
-from fedcampaign_emhi.artifacts.paths import build_artifact_layout
-from fedcampaign_emhi.artifacts.provenance import content_digest, material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     ExperimentRunRecord,
     PrimaryHolmFamilyRecord,
@@ -14,7 +14,12 @@ from fedcampaign_emhi.artifacts.records import (
     ScientificCellRecord,
     StatisticalRecord,
 )
-from fedcampaign_emhi.artifacts.storage import file_sha256, payload_digest, write_atomic_json
+from fedcampaign_emhi.artifacts.storage import (
+    build_artifact_layout,
+    file_sha256,
+    payload_digest,
+    write_atomic_json,
+)
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -24,9 +29,12 @@ from fedcampaign_emhi.domain.enums import (
     PrimaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import ConfigurationDigest
-from fedcampaign_emhi.reporting.figures import write_paired_difference_figure
-from fedcampaign_emhi.reporting.reproducibility import export_reproducibility
-from fedcampaign_emhi.reporting.tables import load_seed_summaries, write_seed_summary_table
+from fedcampaign_emhi.reporting.export import (
+    export_reproducibility,
+    load_seed_summaries,
+    write_paired_difference_figure,
+    write_seed_summary_table,
+)
 
 
 @dataclass(frozen=True)

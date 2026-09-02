@@ -1,7 +1,7 @@
 import inspect
 
 from fedcampaign_emhi.datasets.campaigns import first_activity_is_distributed
-from fedcampaign_emhi.detection.local_policy import first_local_stop_epoch
+from fedcampaign_emhi.detection import first_local_stop_epoch
 from fedcampaign_emhi.emhi.sequential import first_global_stop_epoch, next_global_state
 from fedcampaign_emhi.evaluation.metrics import strict_odi_outcome
 from fedcampaign_emhi.evaluation.records import global_detection_without_odi, odi_evaluation_record

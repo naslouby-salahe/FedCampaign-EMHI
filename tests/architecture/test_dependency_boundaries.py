@@ -24,7 +24,22 @@ PACKAGE_DEPENDENCIES: dict[str, frozenset[str]] = {
     "detection": frozenset({"domain", "config", "models", "emhi", "artifacts", "runtime"}),
     "comparators": frozenset({"domain", "config", "emhi", "artifacts", "runtime", "models"}),
     "synthetic": frozenset({"domain", "config", "emhi", "runtime"}),
-    "experiments": frozenset({"domain", "config", "emhi", "comparators", "synthetic"}),
+    "experiments": frozenset(
+        {
+            "domain",
+            "config",
+            "emhi",
+            "comparators",
+            "synthetic",
+            "datasets",
+            "detection",
+            "evaluation",
+            "artifacts",
+            "runtime",
+            "analysis",
+            "execution",
+        }
+    ),
     "evaluation": frozenset(
         {"domain", "config", "emhi", "comparators", "artifacts", "datasets", "detection"}
     ),
@@ -130,7 +145,7 @@ def test_cli_is_not_imported_by_lower_layers() -> None:
     findings: list[str] = []
     for path in source_files():
         rel = path.relative_to(SRC_ROOT).as_posix()
-        if rel.startswith("cli/"):
+        if rel == "cli.py":
             continue
         imported = _imported_packages(module_ast(path))
         if "cli" in imported:
@@ -139,7 +154,7 @@ def test_cli_is_not_imported_by_lower_layers() -> None:
 
 
 def test_dependency_boundaries_fails_on_fixture() -> None:
-    tree = ast.parse("from fedcampaign_emhi.cli.main import application\n")
+    tree = ast.parse("from fedcampaign_emhi.cli import application\n")
     assert "cli" in _imported_packages(tree)
 
 

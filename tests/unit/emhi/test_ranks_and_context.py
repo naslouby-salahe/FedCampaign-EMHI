@@ -24,7 +24,7 @@ from fedcampaign_emhi.emhi.contexts import (
     nuisance_field_is_admissible,
     outside_context_histogram,
 )
-from fedcampaign_emhi.emhi.ranks import coalition_conditioned_residual_rank, midrank
+from fedcampaign_emhi.emhi.structure import coalition_conditioned_residual_rank, midrank
 
 
 def test_midrank_matches_independent_oracle() -> None:

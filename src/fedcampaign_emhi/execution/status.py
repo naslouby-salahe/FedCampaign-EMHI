@@ -3,9 +3,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from fedcampaign_emhi.artifacts.paths import build_artifact_layout
 from fedcampaign_emhi.artifacts.records import ExperimentRunRecord, ScientificCellRecord
-from fedcampaign_emhi.artifacts.storage import file_sha256
+from fedcampaign_emhi.artifacts.storage import build_artifact_layout, file_sha256
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,

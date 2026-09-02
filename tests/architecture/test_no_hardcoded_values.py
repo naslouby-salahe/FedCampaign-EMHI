@@ -15,11 +15,11 @@ CONFIG_OWNERS = frozenset({"config/schema.py", "config/loading.py", "config/vali
 FORMULA_OWNERS = frozenset(
     {
         "config/loading.py",
-        "emhi/basis.py",
+        "emhi/structure.py",
         "emhi/evidence.py",
         "emhi/projection.py",
         "models/autoencoder.py",
-        "evaluation/smoke_validation.py",
+        "evaluation/validation.py",
     }
 )
 
@@ -59,7 +59,7 @@ def test_production_values_live_in_yaml() -> None:
 
 def test_cli_has_no_scientific_overrides() -> None:
     findings: list[str] = []
-    for path in (SRC_ROOT / "cli").rglob("*.py"):
+    for path in (SRC_ROOT / "cli.py",):
         text = path.read_text(encoding="utf-8")
         for token in (
             "--seed",

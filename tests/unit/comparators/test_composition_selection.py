@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from fedcampaign_emhi.comparators.composition import (
+from fedcampaign_emhi.comparators.contracts import native_target_order
+from fedcampaign_emhi.comparators.fusion import (
     CompositionCandidateResult,
     CompositionSelectionInputs,
     build_composition_selection_record,
@@ -12,12 +13,11 @@ from fedcampaign_emhi.comparators.composition import (
     mean_standardized_error,
     median_runtime_seconds,
 )
-from fedcampaign_emhi.comparators.contracts import native_target_order
+from fedcampaign_emhi.comparators.runtime import resolve_comparator_scoring_method
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import Boolean
-from fedcampaign_emhi.execution.runner import resolve_comparator_scoring_method
-from fedcampaign_emhi.experiments.definitions import (
+from fedcampaign_emhi.experiments.registry import (
     experiment_registry,
     resolve_experiment_name,
 )

@@ -1,8 +1,8 @@
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ExecutionRole
-from fedcampaign_emhi.synthetic.context_boundaries import generate_deterministic_context_support
 from fedcampaign_emhi.synthetic.feasibility import (
     evaluate_estimator_feasibility_condition,
     feasibility_conditions,
+    generate_deterministic_context_support,
 )
 
 

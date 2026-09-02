@@ -1,6 +1,6 @@
 import pytest
 
-from fedcampaign_emhi.comparators.composition import (
+from fedcampaign_emhi.comparators.fusion import (
     CompositionSelectionInputs,
     composition_seed_count,
     null_standard_deviation_is_usable,

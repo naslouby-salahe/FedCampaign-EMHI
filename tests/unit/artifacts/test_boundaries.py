@@ -1,4 +1,4 @@
-from fedcampaign_emhi.artifacts.boundaries import (
+from fedcampaign_emhi.artifacts.provenance import (
     calibration_threshold_boundary_digest,
     campaign_evaluation_boundary_digest,
     evidence_export_boundary_digest,

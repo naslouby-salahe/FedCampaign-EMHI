@@ -3,12 +3,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from fedcampaign_emhi.cli.commands import preprocess as preprocess_module
-from fedcampaign_emhi.cli.main import application
+import fedcampaign_emhi.cli as preprocess_module
+from fedcampaign_emhi.cli import application
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import DatasetName, DownstreamArtifactKind, PreprocessingLayer
 from fedcampaign_emhi.execution.planning import RESUME_SEQUENCE
-from fedcampaign_emhi.execution.preprocess import preprocess_must_not_regenerate
+from fedcampaign_emhi.execution.preprocessing import preprocess_must_not_regenerate
 
 
 def test_resume_sequence_is_fixed() -> None:

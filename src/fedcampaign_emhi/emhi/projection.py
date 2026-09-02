@@ -16,7 +16,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     RidgePenalty,
 )
-from fedcampaign_emhi.emhi.basis import bounded_basis, tensor_dimension, tensor_representation
+from fedcampaign_emhi.emhi.structure import bounded_basis, tensor_dimension, tensor_representation
 
 
 def proper_subset_design_column_count(

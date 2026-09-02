@@ -103,7 +103,7 @@ def test_common_backend_reads_authoritative_configuration_only() -> None:
 
 
 def test_registry_experiments_reference_declared_methods() -> None:
-    from fedcampaign_emhi.experiments.definitions import experiment_registry
+    from fedcampaign_emhi.experiments.registry import experiment_registry
 
     loaded = load_production_configuration()
     registry_names = {

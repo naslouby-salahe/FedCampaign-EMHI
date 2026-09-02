@@ -1,11 +1,11 @@
 from fedcampaign_emhi.domain.enums import DatasetName
 from fedcampaign_emhi.domain.types import SeedDerivationIdentity
-from fedcampaign_emhi.runtime.determinism import (
+from fedcampaign_emhi.runtime import (
+    assess_implementation_readiness,
     derive_component_seed,
     seed_derivation_payload,
     thirty_two_bit_seed,
 )
-from fedcampaign_emhi.runtime.monitoring import assess_implementation_readiness
 
 
 def test_readiness_probe() -> None:

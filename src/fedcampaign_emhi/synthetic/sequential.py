@@ -13,15 +13,15 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     SeedValue,
 )
-from fedcampaign_emhi.emhi.basis import shifted_legendre_phi_one
 from fedcampaign_emhi.emhi.evidence import (
     clip_statistic,
     signed_evidence_factor,
     signed_theorem_compensator,
 )
 from fedcampaign_emhi.emhi.sequential import next_global_state
+from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one
 from fedcampaign_emhi.emhi.thresholds import esr_threshold_from_arl_alpha
-from fedcampaign_emhi.runtime.determinism import thirty_two_bit_seed
+from fedcampaign_emhi.runtime import thirty_two_bit_seed
 
 
 @dataclass(frozen=True)

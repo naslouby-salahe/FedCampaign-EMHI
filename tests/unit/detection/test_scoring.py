@@ -1,6 +1,6 @@
 import pytest
 
-from fedcampaign_emhi.detection.scoring import (
+from fedcampaign_emhi.detection import (
     oriented_score_stream,
     rank_stream,
     score_stream_isolation_check,

@@ -22,13 +22,11 @@ from fedcampaign_emhi.emhi.thresholds import (
     operating_point_unavailable_outcome,
     select_calibrated_threshold,
 )
-from fedcampaign_emhi.evaluation.benign_horizons import (
-    horizons_are_nonoverlapping,
-    sequential_stop_reset_epochs,
-)
-from fedcampaign_emhi.evaluation.campaign_replay import (
+from fedcampaign_emhi.evaluation.sequential import (
     campaign_replay_plan,
+    horizons_are_nonoverlapping,
     operational_lead,
+    sequential_stop_reset_epochs,
     statistical_lead,
 )
 

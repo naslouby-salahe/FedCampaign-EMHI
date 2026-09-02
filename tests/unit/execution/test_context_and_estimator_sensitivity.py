@@ -2,7 +2,7 @@ import pytest
 
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import ContextMethodName
-from fedcampaign_emhi.execution.runner import (
+from fedcampaign_emhi.experiments.campaigns import (
     sensitivity_base_specification,
     sensitivity_cell_slug,
     sensitivity_conditions,

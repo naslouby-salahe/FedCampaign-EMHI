@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, ExperimentState
 from fedcampaign_emhi.domain.types import ArtifactFilename, ResumeStep, SeedCount
-from fedcampaign_emhi.experiments.coordinates import enumerate_experiment_plan
-from fedcampaign_emhi.experiments.definitions import resolve_experiment_name
+from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan, resolve_experiment_name
 
 RESUME_SEQUENCE: tuple[ResumeStep, ...] = (
     "validate required existing artifacts",

@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-import fedcampaign_emhi.evaluation.benign_horizons as benign_horizons
+import fedcampaign_emhi.evaluation.sequential as benign_horizons
 from fedcampaign_emhi.artifacts.records import (
     BenignHorizonRecord,
     EMHIFitArtifactRecord,
@@ -15,13 +15,13 @@ from fedcampaign_emhi.datasets.preprocessing import (
     horizon_eligibility_state,
 )
 from fedcampaign_emhi.domain.enums import SupportState
-from fedcampaign_emhi.evaluation.benign_horizons import (
+from fedcampaign_emhi.evaluation.records import SequentialTrajectory
+from fedcampaign_emhi.evaluation.sequential import (
     TrajectoryCache,
     horizon_trajectory,
     horizons_are_nonoverlapping,
     sequential_stop_reset_epochs,
 )
-from fedcampaign_emhi.evaluation.records import SequentialTrajectory
 
 
 def test_horizons_are_consecutive_nonoverlapping_and_drop_trailing() -> None:

@@ -40,8 +40,8 @@ from fedcampaign_emhi.domain.types import (
     SignedInt,
     SolverIterationLimit,
 )
-from fedcampaign_emhi.emhi.coalitions import complement_members, required_outside_client_count
-from fedcampaign_emhi.runtime.determinism import deterministic_utf8_bytes, thirty_two_bit_seed
+from fedcampaign_emhi.emhi.structure import complement_members, required_outside_client_count
+from fedcampaign_emhi.runtime import deterministic_utf8_bytes, thirty_two_bit_seed
 
 STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 

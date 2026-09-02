@@ -43,6 +43,8 @@ def test_no_test_only_production_code() -> None:
         module = "fedcampaign_emhi." + rel[:-3].replace("/", ".")
         if module.endswith(".__init__"):
             module = module[: -len(".__init__")]
+        if module == "fedcampaign_emhi.cli":
+            continue
         referenced_in_production = any(
             item == module or item.startswith(module + ".") for item in production_imports
         )

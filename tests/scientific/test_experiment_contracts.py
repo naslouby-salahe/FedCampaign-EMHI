@@ -1,5 +1,5 @@
 from fedcampaign_emhi.config.loading import load_production_configuration
-from fedcampaign_emhi.experiments.coordinates import enumerate_experiment_plan
+from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan
 
 
 def test_plan_is_derived_from_registry_and_seeds() -> None:

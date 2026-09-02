@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from fedcampaign_emhi.cli.main import application
+from fedcampaign_emhi.cli import application
 
 
 def test_doctor_plan_and_smoke(cli_runner: CliRunner) -> None:

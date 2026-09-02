@@ -1,5 +1,5 @@
 from fedcampaign_emhi.config.loading import load_smoke_configuration
-from fedcampaign_emhi.evaluation.smoke_validation import (
+from fedcampaign_emhi.evaluation.validation import (
     run_synthetic_module_validation,
     smoke_false_stop_counts,
     smoke_first_activity_epochs,

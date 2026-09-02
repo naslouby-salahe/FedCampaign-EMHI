@@ -1,8 +1,11 @@
 from pathlib import Path
 
-from fedcampaign_emhi.artifacts.dependencies import descendant_ids
-from fedcampaign_emhi.artifacts.paths import build_artifact_layout
-from fedcampaign_emhi.artifacts.storage import payload_digest, write_atomic_json
+from fedcampaign_emhi.artifacts.provenance import descendant_ids
+from fedcampaign_emhi.artifacts.storage import (
+    build_artifact_layout,
+    payload_digest,
+    write_atomic_json,
+)
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.types import ArtifactDependencyNode
 

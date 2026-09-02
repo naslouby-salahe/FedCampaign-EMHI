@@ -1,4 +1,4 @@
-from fedcampaign_emhi.detection.detector_assignment import assign_detector_families
+from fedcampaign_emhi.detection import assign_detector_families
 from fedcampaign_emhi.domain.enums import DetectorFamily
 
 

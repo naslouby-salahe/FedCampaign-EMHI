@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from fedcampaign_emhi.cli.main import application
+from fedcampaign_emhi.cli import application
 
 
 def test_status_and_report_rejects_unverified_evidence(cli_runner: CliRunner) -> None:

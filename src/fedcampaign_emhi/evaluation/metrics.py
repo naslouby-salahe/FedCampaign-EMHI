@@ -20,7 +20,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     StrictOdiOutcome,
 )
-from fedcampaign_emhi.emhi.coalitions import coalition_count
+from fedcampaign_emhi.emhi.structure import coalition_count
 
 
 def earliest_local_stop(

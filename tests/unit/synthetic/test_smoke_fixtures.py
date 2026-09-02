@@ -4,9 +4,11 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.datasets.campaigns import campaign_duration_epochs, merge_malicious_runs
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.emhi.sequential import distributed_support_predicate
-from fedcampaign_emhi.synthetic.common_mode import equally_spaced_loadings
-from fedcampaign_emhi.synthetic.controlled_campaigns import (
+from fedcampaign_emhi.synthetic.generators import (
     apply_single_client_score_shift,
+    contaminate_rank,
+    contaminated_outside_count,
+    equally_spaced_loadings,
     gaussian_copula_pair,
     marginal_campaign_targets,
     pair_relation_targets,
@@ -20,7 +22,6 @@ from fedcampaign_emhi.synthetic.pure_order import (
     sample_xor_ranks,
     xor_and_mixed_order_target_clients,
 )
-from fedcampaign_emhi.synthetic.robustness import contaminate_rank, contaminated_outside_count
 from fedcampaign_emhi.synthetic.self_explanation import analytic_direct_derivative
 
 

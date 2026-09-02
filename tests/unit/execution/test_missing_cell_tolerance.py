@@ -1,5 +1,5 @@
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.execution.runner import confirmatory_completeness_within_tolerance
+from fedcampaign_emhi.experiments.registry import confirmatory_completeness_within_tolerance
 
 
 def test_no_missing_seeds_is_within_tolerance(

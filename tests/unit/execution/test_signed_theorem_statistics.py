@@ -6,8 +6,8 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole, SupportState
-from fedcampaign_emhi.execution.finite_horizon import FiniteHorizonSeedMetrics
-from fedcampaign_emhi.execution.runner import (
+from fedcampaign_emhi.experiments.calibration import FiniteHorizonSeedMetrics
+from fedcampaign_emhi.experiments.campaigns import (
     FiniteHorizonObservation,
     SignedTheoremObservation,
     materialize_finite_horizon_statistics,

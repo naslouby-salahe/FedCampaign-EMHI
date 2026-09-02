@@ -1,29 +1,28 @@
-from fedcampaign_emhi.comparators.conditional_hofd import hofd_atom_rows
-from fedcampaign_emhi.comparators.conditional_log_linear import (
+from fedcampaign_emhi.comparators.dependence import (
+    gaussian_h_function,
+    hofd_atom_rows,
+    lancaster_triple_moment,
+    lexicographic_vine_order,
     log_linear_design_column_count,
     log_linear_includes_triple,
+    pair_dependence_moment,
+    pair_dependence_nonconformity,
+    selected_factor_rank,
+    uniform_probability_table,
 )
-from fedcampaign_emhi.comparators.connected_information import uniform_probability_table
-from fedcampaign_emhi.comparators.d_vine import gaussian_h_function, lexicographic_vine_order
-from fedcampaign_emhi.comparators.fedavg_autoencoder import (
+from fedcampaign_emhi.comparators.federated import (
     fedavg_weighted_mean,
     optimizer_state_resets_each_round,
     store_parameters_float32,
 )
-from fedcampaign_emhi.comparators.global_factor_residual import selected_factor_rank
-from fedcampaign_emhi.comparators.lancaster import lancaster_triple_moment
-from fedcampaign_emhi.comparators.multistream_cusum import (
+from fedcampaign_emhi.comparators.fusion import max_rank_fusion, mean_rank_fusion
+from fedcampaign_emhi.comparators.sequential import (
     centered_rank_increment,
     global_cusum_score,
     next_cusum_state,
 )
-from fedcampaign_emhi.comparators.pair_dependence import (
-    pair_dependence_moment,
-    pair_dependence_nonconformity,
-)
-from fedcampaign_emhi.comparators.rank_fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.domain.types import RankReference
-from fedcampaign_emhi.emhi.ranks import midrank
+from fedcampaign_emhi.emhi.structure import midrank
 
 
 def test_mean_and_max_rank_fusion() -> None:

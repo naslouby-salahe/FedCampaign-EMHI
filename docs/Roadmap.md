@@ -3524,7 +3524,7 @@ The selected method identity is immutable for downstream real-data experiments u
 **Classification:** claim-bearing feasibility plus sensitivity.  
 **Configuration:** `experiments.estimator_support_and_context_feasibility`.
 
-This experiment uses the deterministic context-support generator implemented in `synthetic/context_boundaries.py`. It is not an additional scientific generator family; it is the fully specified support substrate for this existing feasibility experiment and is derived only from the requested context-cell count and the roadmap's existing rank/context definitions.
+This experiment uses the deterministic context-support generator implemented in `synthetic/feasibility.py`. It is not an additional scientific generator family; it is the fully specified support substrate for this existing feasibility experiment and is derived only from the requested context-cell count and the roadmap's existing rank/context definitions.
 
 For a condition with requested context-cell count $C$:
 
@@ -4379,225 +4379,72 @@ project/
 │   │
 │   └── cache/                                     # Non-authoritative recomputable workspace; cached content can never establish scientific validity.
 │       ├── preprocessing/                         # Recomputable cache for deterministic raw-to-prepared transformations.
-│       ├── models/                                # Recomputable model-fitting or model-loading intermediates.
-│       ├── evaluation/                            # Recomputable campaign, horizon, scoring, and comparator evaluation intermediates.
-│       ├── analysis/                              # Recomputable statistical and aggregation intermediates such as bootstrap working arrays.
-│       └── staging/                               # Disposable atomic-write staging; incomplete content is never reusable or evidence and is promoted only after successful validation.
-│
-├── results/                                       # Terminal compact verified manuscript-facing evidence; never consumed by scientific execution.
-│   │
-│   ├── experiments/                               # Verified evidence exported independently for each scientific experiment.
-│   │   └── <descriptive-experiment-name>/
-│   │       │
-│   │       ├── figures/                           # Final compact figures generated only from completed and verified outputs.
-│   │       │   ├── main/                          # Figures intended for the principal manuscript.
-│   │       │   └── supplementary/                 # Figures intended for supplementary or supporting material.
-│   │       │
-│   │       ├── tables/                            # Final compact tabular scientific evidence.
-│   │       │   ├── main/                          # Tables intended for the principal manuscript.
-│   │       │   └── supplementary/                 # Verified supporting, robustness, ablation, or sensitivity tables.
-│   │       │
-│   │       ├── metrics/                           # Compact verified metrics selected from the complete outputs workspace.
-│   │       │   ├── primary/                       # Primary or claim-bearing predeclared experiment metrics.
-│   │       │   ├── secondary/                     # Supporting, robustness, sensitivity, or contextual metrics.
-│   │       │   └── summary/                       # Concise machine-readable experiment-level metric summaries.
-│   │       │
-│   │       ├── statistics/                        # Compact final statistical evidence suitable for manuscript use.
-│   │       │   ├── tests/                         # Final reportable predeclared statistical-test results.
-│   │       │   ├── confidence_intervals/          # Final reportable confidence and equivalence intervals.
-│   │       │   ├── effects/                       # Final reportable effect sizes, paired shifts, and materiality estimates.
-│   │       │   └── multiplicity/                  # Compact final multiplicity-adjusted inference evidence.
-│   │       │
-│   │       └── source_data/                       # Compact machine-readable rows used directly by this experiment's manuscript figures and tables.
-│   │           ├── figures/                       # Figure-specific source data with source-artifact identities.
-│   │           └── tables/                        # Table-specific source data with source-artifact identities.
-│   │
-│   └── project_summary/                           # Verified cross-experiment evidence assembled only from completed valid experiment outputs.
-│       │
-│       ├── figures/                               # Cross-experiment figures built exclusively from verified experiment evidence.
-│       │   ├── main/                              # Principal project-level manuscript figures.
-│       │   └── supplementary/                     # Supporting project-level figures.
-│       │
-│       ├── tables/                                # Cross-experiment verified manuscript tables.
-│       │   ├── main/                              # Principal project-level tables.
-│       │   └── supplementary/                     # Supporting project-level tables.
-│       │
-│       ├── metrics/                               # Compact final metrics synthesized across eligible verified experiments.
-│       │   ├── primary/                           # Final primary metrics relevant to the study's central conclusions.
-│       │   └── summary/                           # Concise machine-readable project-wide metric summaries.
-│       │
-│       ├── statistics/                            # Final cross-experiment statistical synthesis.
-│       │   ├── comparisons/                       # Compact method, ablation, generalization, and robustness comparisons.
-│       │   ├── confidence_intervals/              # Final cross-experiment confidence and equivalence intervals.
-│       │   ├── effects/                           # Final project-level effect-size and materiality summaries.
-│       │   └── multiplicity/                      # Final multiplicity-family outputs required for interpretation.
-│       │
-│       ├── source_data/                           # Compact machine-readable source rows for project-level figures and tables.
-│       │   ├── figures/                           # Project-figure source data.
-│       │   └── tables/                            # Project-table source data.
-│       │
-│       └── reproducibility/                       # Compact final metadata identifying the executed scientific configuration.
-│           ├── configuration/                     # Final configuration and protocol digests.
-│           ├── datasets/                          # Dataset release, checksum, preprocessing, and client-map identities.
-│           ├── seeds/                             # Development and confirmatory seed identities.
-│           ├── software/                          # Compact code revision and essential software/dependency identities.
-│           └── execution/                         # Compact completion, hardware, timing, and confirmatory execution metadata.
-│
-├── docs/
-│   └── Roadmap.md                                 # Authoritative repository copy of the scientific and execution roadmap; never generated by application code.
-│
-├── src/
-│   └── fedcampaign_emhi/
-│       │
-│       ├── __init__.py                            # Package identity and intentionally small public package surface.
-│       │
-│       ├── domain/
-│       │   ├── __init__.py                        # Public exports for shared strongly typed domain concepts.
-│       │   ├── enums.py                           # Finite dataset, experiment, method, policy, status, outcome, and artifact identities.
-│       │   └── types.py                           # Immutable domain values and typed scientific records shared across lower layers.
-│       │
-│       ├── config/
-│       │   ├── __init__.py                        # Public immutable configuration API.
-│       │   ├── schema.py                          # Typed models mirroring the authoritative production YAML hierarchy.
-│       │   ├── loading.py                         # Loads YAML, converts boundary primitives, and computes deterministic configuration digests.
-│       │   └── validation.py                      # Enforces unknown-field rejection and roadmap-defined cross-field constraints.
-│       │
-│       ├── datasets/
-│       │   ├── __init__.py                        # Public dataset API and supported primary and secondary dataset identities.
-│       │   ├── inventory.py                       # Raw-file discovery, checksums, release verification, population inspection, and inventory production.
-│       │   ├── preprocessing.py                   # Coordinates deterministic cross-dataset preprocessing into outputs/preprocessing/.
-│       │   ├── partitions.py                      # Implements chronological benign roles, client splits, horizons, and strict non-overlap rules.
-│       │   ├── campaigns.py                       # Implements campaign merging, eligibility, warm-up, activity, and evaluation-horizon semantics.
-│       │   │
-│       │   ├── ton_iot_network/
-│       │   │   ├── __init__.py                    # TON_IoT Network-specific implementation exports.
-│       │   │   ├── loading.py                     # Reads the configured TON_IoT Network release without modifying raw source files.
-│       │   │   ├── canonicalization.py            # Constructs canonical flow-record events, epochs, device-IP client identities, hashed features, and scaled representations.
-│       │   │   ├── ground_truth.py                # Constructs per-record malicious/benign and attack-subclass labels from the `label`/`type` columns.
-│       │   │   └── validation.py                  # Enforces TON_IoT Network schema, chronology, client eligibility, data sufficiency, and leakage invariants.
-│       │   │
-│       │   └── edge_iiotset/
-│       │       ├── __init__.py                    # Edge-IIoTset-specific implementation exports.
-│       │       ├── loading.py                     # Reads the configured Edge-IIoTset release without modifying raw source files.
-│       │       ├── canonicalization.py            # Constructs canonical epochs, features, device-IP clients, and preprocessing representations.
-│       │       ├── ground_truth.py                # Constructs per-record malicious/benign and attack-subclass labels from the `Attack_label`/`Attack_type` columns.
-│       │       └── validation.py                  # Enforces Edge-IIoTset schema, chronology, minimum-client eligibility, and leakage requirements.
-│       │
 │       ├── models/
-│       │   ├── __init__.py                        # Public local-detector model API.
-│       │   ├── isolation_forest.py                # Implements Isolation Forest construction, fitting, persistence, and anomaly-score orientation.
-│       │   ├── one_class_svm.py                   # Implements RBF One-Class SVM construction, fitting, persistence, and anomaly-score orientation.
-│       │   └── autoencoder.py                     # Implements the roadmap-defined autoencoder architecture, deterministic training, and reconstruction scoring.
-│       │
-│       ├── detection/
-│       │   ├── __init__.py                        # Public local detector fitting, scoring, assignment, and stopping-policy API.
-│       │   ├── detector_assignment.py             # Implements deterministic roadmap-defined client-to-detector-family assignment.
-│       │   ├── fitting.py                         # Fits local detectors exclusively from permitted benign detector-fit data.
-│       │   ├── scoring.py                         # Produces deterministic reusable detector score streams for downstream scientific computation.
-│       │   └── local_policy.py                    # Calibrates and evaluates primary and strong local stopping policies independently of global stopping.
-│       │
+│       │   ├── __init__.py
+│       │   ├── classical.py
+│       │   └── autoencoder.py
+│       ├── detection.py
 │       ├── emhi/
-│       │   ├── __init__.py                        # Public FedCampaign-EMHI and EMII scientific-computation API.
-│       │   ├── coalitions.py                      # Enumerates coalition orders, proper subsets, complements, active coalitions, and support membership.
-│       │   ├── ranks.py                           # Implements deterministic marginal midranks and coalition-conditioned residual-rank transformations.
-│       │   ├── contexts.py                        # Implements exact-exclusion and roadmap-defined alternative outside-context constructions.
-│       │   ├── basis.py                           # Implements bounded polynomial bases and tensor coalition representations through configured order.
-│       │   ├── projection.py                      # Builds proper-subset designs and performs float64 ridge/SVD projection with fixed tie semantics.
-│       │   ├── innovations.py                     # Computes purified hierarchical innovation atoms and their centered/scaled representations.
-│       │   ├── innovation_calibration.py          # Implements blocked nuisance cross-fitting, held-fold calibration, and complete nuisance refitting.
-│       │   ├── evidence.py                        # Implements signed-theorem and operational-norm evidence transforms and coalition aggregation.
-│       │   ├── thresholds.py                      # Implements finite-horizon threshold calibration and unavailable operating-point semantics.
-│       │   └── sequential.py                      # Implements sequential recursion, distributed support, statistical stopping, and stopping-time semantics.
-│       │
+│       │   ├── __init__.py
+│       │   ├── structure.py
+│       │   ├── contexts.py
+│       │   ├── projection.py
+│       │   ├── innovations.py
+│       │   ├── calibration.py
+│       │   ├── thresholds.py
+│       │   ├── evidence.py
+│       │   └── sequential.py
 │       ├── comparators/
-│       │   ├── __init__.py                        # Public comparator and reference-method API.
-│       │   ├── rank_fusion.py                     # Implements roadmap-defined marginal rank-fusion references.
-│       │   ├── conditional_hofd.py                # Implements exclusion-matched conditional HOFD equivalence comparison.
-│       │   ├── pair_dependence.py                 # Implements the conditional order-two dependence predecessor.
-│       │   ├── lancaster.py                       # Implements the Lancaster higher-order interaction reference.
-│       │   ├── connected_information.py           # Implements the connected-information reference.
-│       │   ├── conditional_log_linear.py          # Implements the conditional log-linear interaction reference.
-│       │   ├── d_vine.py                          # Implements the D-vine conditional-dependence reference.
-│       │   ├── global_factor_residual.py          # Implements PCA global-factor residualization and deterministic rank selection.
-│       │   ├── multistream_cusum.py               # Implements the roadmap-defined multistream CUSUM sequential baseline.
-│       │   ├── fedavg_autoencoder.py              # Implements the roadmap-required unmatched FedAvg autoencoder comparator.
-│       │   └── composition.py                     # Materializes the predeclared strongest-comparator composition using fixed selection rules.
-│       │
+│       │   ├── __init__.py
+│       │   ├── contracts.py
+│       │   ├── dependence.py
+│       │   ├── fusion.py
+│       │   ├── sequential.py
+│       │   ├── federated.py
+│       │   └── runtime.py
 │       ├── synthetic/
-│       │   ├── __init__.py                        # Public synthetic generator and controlled-validation API.
-│       │   ├── common_mode.py                     # Generates latent common-mode benign coordination and count-stress scenarios.
-│       │   ├── controlled_campaigns.py            # Generates controlled campaign alternatives and interaction structures.
-│       │   ├── self_explanation.py                # Generates exact-exclusion versus inclusive-context self-explanation experiments.
-│       │   ├── pure_order.py                      # Generates polynomial, XOR, context-dependent, and mixed pure-order alternatives.
-│       │   ├── robustness.py                      # Generates outside-contamination, dropout, and context-sparsity robustness scenarios.
-│       │   ├── context_boundaries.py              # Generates estimator-support, context-support, and numerical-feasibility boundary scenarios.
-│       │   └── validation.py                      # Validates synthetic truth, purity, boundedness, seed behavior, and generator invariants.
-│       │
+│       │   ├── __init__.py
+│       │   ├── generators.py
+│       │   ├── self_explanation.py
+│       │   ├── pure_order.py
+│       │   ├── feasibility.py
+│       │   └── sequential.py
 │       ├── experiments/
-│       │   ├── __init__.py                        # Public immutable experimental-design API.
-│       │   ├── definitions.py                     # Declares roadmap experiments, roles, grids, datasets, methods, metrics, prerequisites, and evidence.
-│       │   ├── coordinates.py                     # Deterministically enumerates all expected development and confirmatory experiment cells before execution.
-│       │   └── validation.py                      # Validates experiment contracts, prerequisites, grids, method legality, and required-cell completeness.
-│       │
+│       │   ├── __init__.py
+│       │   ├── registry.py
+│       │   ├── synthetic.py
+│       │   ├── campaigns.py
+│       │   ├── robustness.py
+│       │   └── calibration.py
 │       ├── evaluation/
-│       │   ├── __init__.py                        # Public scientific evaluation API.
-│       │   ├── records.py                         # Typed immutable campaign, horizon, stop, evidence, latency, coverage, and evaluation records.
-│       │   ├── campaign_replay.py                 # Performs campaign-anchored replay with independently reset global and local stopping state.
-│       │   ├── benign_horizons.py                 # Constructs calibration and held-out benign horizons and evaluates finite-horizon PFA.
-│       │   ├── metrics.py                         # Computes ODI, delay, lead, PFA, detection, coverage, drift, NRMSE, bias, and related metrics.
-│       │   ├── scalability.py                     # Executes client-count and reference-harness scalability and latency measurements.
-│       │   └── validation.py                      # Enforces metric eligibility, no-imputation rules, finite-value requirements, and outcome semantics.
-│       │
+│       │   ├── __init__.py
+│       │   ├── records.py
+│       │   ├── sequential.py
+│       │   ├── metrics.py
+│       │   ├── scalability.py
+│       │   └── validation.py
 │       ├── analysis/
-│       │   ├── __init__.py                        # Public verified statistical-analysis API.
-│       │   ├── summaries.py                       # Produces seed-level and condition-level aggregates while preserving the correct inferential unit.
-│       │   ├── statistics.py                      # Implements sign-flip inference, BCa intervals, Clopper-Pearson inference, effects, and equivalence procedures.
-│       │   ├── multiplicity.py                    # Implements deterministic Holm-family correction and adjusted p-value computation.
-│       │   └── claims.py                          # Mechanically evaluates roadmap support and downscope conditions without generating manuscript prose.
-│       │
+│       │   ├── __init__.py
+│       │   ├── statistics.py
+│       │   └── results.py
 │       ├── artifacts/
-│       │   ├── __init__.py                        # Public artifact identity, persistence, validation, path, and provenance API.
-│       │   ├── paths.py                           # Sole owner of deterministic outputs/ and results/ path resolution and ownership boundaries.
-│       │   ├── records.py                         # Typed artifact identities, schemas, statuses, completion records, metadata, and dependency references.
-│       │   ├── storage.py                         # Performs validated atomic JSON, Parquet, and SafeTensors persistence using disposable cache/staging work.
-│       │   ├── provenance.py                      # Computes content, configuration, data, seed, code, and environment digests and lineage compatibility.
-│       │   ├── dependencies.py                    # Maintains artifact dependency relationships and selective stale-descendant invalidation.
-│       │   └── validation.py                      # Verifies integrity, schema, provenance, expected evidence, completeness, and reuse eligibility read-only.
-│       │
+│       │   ├── __init__.py
+│       │   ├── records.py
+│       │   ├── storage.py
+│       │   └── provenance.py
 │       ├── execution/
-│       │   ├── __init__.py                        # Public artifact-first scientific execution API.
-│       │   ├── planning.py                        # Resolves prerequisites, reusable ancestors, missing work, stale descendants, and nearest resume boundaries.
-│       │   ├── runner.py                          # Executes only required scientific work and atomically publishes validated artifacts to canonical outputs/.
-│       │   ├── recovery.py                        # Handles retries, compatible checkpoints, interrupted staging, stale artifacts, and deterministic rebuilds.
-│       │   └── status.py                          # Computes read-only experiment progress, blocking prerequisites, staleness, and completion from verified outputs.
-│       │
-│       ├── runtime/
-│       │   ├── __init__.py                        # Public deterministic runtime, logging, monitoring, and readiness API.
-│       │   ├── determinism.py                     # Owns deterministic seed derivation, RNG isolation, numerical determinism, and reproducibility tolerances.
-│       │   ├── monitoring.py                      # Checks runtime and hardware readiness and records resource usage and timing telemetry.
-│       │   └── logging.py                         # Emits structured experiment, dataset, seed, stage, coordinate, reuse, status, and failure logs.
-│       │
+│       │   ├── __init__.py
+│       │   ├── preprocessing.py
+│       │   ├── planning.py
+│       │   ├── runner.py
+│       │   └── status.py
+│       ├── runtime.py
 │       ├── reporting/
-│       │   ├── __init__.py                        # Public verified outputs-to-results evidence-export API.
-│       │   ├── evidence.py                        # Selects only completed, current, provenance-valid outputs and prevents results/ from becoming computational input.
-│       │   ├── tables.py                          # Generates compact manuscript-facing tables without recomputing scientific metrics or statistics.
-│       │   ├── figures.py                         # Generates compact manuscript-facing figures from already verified machine-readable outputs.
-│       │   └── reproducibility.py                 # Exports only compact final configuration, dataset, seed, software, and execution metadata to results/.
-│       │
-│       └── cli/
-│           ├── __init__.py                        # CLI package exports without scientific implementation logic.
-│           ├── main.py                            # Defines the `fedcampaign` Typer application and registers the complete public command surface.
-│           └── commands/
-│               ├── __init__.py                    # Public command-module exports.
-│               ├── doctor.py                      # Performs read-only repository, dependency, raw-data, hardware, and runtime readiness checks.
-│               ├── preprocess.py                  # Invokes deterministic inventory, validation, preparation, feature, and split workflows.
-│               ├── plan.py                        # Displays authoritative experiments, expected cells, prerequisites, reuse decisions, and pending computation.
-│               ├── smoke.py                       # Executes the deterministic representative reduced engineering and scientific smoke workflow.
-│               ├── run.py                         # Runs one roadmap-defined experiment through its missing dependency subgraph with optional overwrite.
-│               ├── status.py                      # Displays read-only project and experiment progress, failures, invalidity, staleness, and resume points.
-│               └── report.py                      # Exports verified compact evidence from outputs/ to results/ without scientific recomputation.
-│
-└── tests/
+│       │   ├── __init__.py
+│       │   ├── evidence.py
+│       │   └── export.py
+│       └── cli.py
+│└── tests/
     ├── conftest.py
     │
     ├── architecture/

@@ -1,12 +1,12 @@
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import CoalitionMembers
-from fedcampaign_emhi.emhi.coalitions import complement_members, proper_subset_members
 from fedcampaign_emhi.emhi.contexts import exact_exclusion_members
 from fedcampaign_emhi.emhi.innovations import innovation_excludes_same_order_representation
 from fedcampaign_emhi.emhi.projection import (
     proper_subset_design_column_count,
     proper_subset_design_shape,
 )
+from fedcampaign_emhi.emhi.structure import complement_members, proper_subset_members
 
 
 def test_exact_exclusion_uses_complement_only() -> None:

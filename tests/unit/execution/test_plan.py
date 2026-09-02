@@ -1,4 +1,4 @@
-from fedcampaign_emhi.runtime.monitoring import assess_implementation_readiness
+from fedcampaign_emhi.runtime import assess_implementation_readiness
 
 
 def test_readiness_probe() -> None:
