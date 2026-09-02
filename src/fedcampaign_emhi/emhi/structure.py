@@ -181,18 +181,25 @@ def shifted_legendre_phi_four(rank: RankValue) -> BasisCoordinate:
     )
 
 
-_BASIS_FUNCTIONS = (
-    shifted_legendre_phi_one,
-    shifted_legendre_phi_two,
-    shifted_legendre_phi_three,
-    shifted_legendre_phi_four,
-)
-
-
 def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[BasisCoordinate, ...]:
-    if basis_size < 1 or basis_size > len(_BASIS_FUNCTIONS):
-        raise ValueError("basis_size must be between 1 and 4 inclusive")
-    return tuple(function(rank) for function in _BASIS_FUNCTIONS[:basis_size])
+    if basis_size == 1:
+        return (shifted_legendre_phi_one(rank),)
+    if basis_size == 2:
+        return (shifted_legendre_phi_one(rank), shifted_legendre_phi_two(rank))
+    if basis_size == 3:
+        return (
+            shifted_legendre_phi_one(rank),
+            shifted_legendre_phi_two(rank),
+            shifted_legendre_phi_three(rank),
+        )
+    if basis_size == 4:
+        return (
+            shifted_legendre_phi_one(rank),
+            shifted_legendre_phi_two(rank),
+            shifted_legendre_phi_three(rank),
+            shifted_legendre_phi_four(rank),
+        )
+    raise ValueError("basis_size must be between 1 and 4 inclusive")
 
 
 def tensor_dimension(basis_size: BasisSize, coalition_order: CoalitionOrder) -> TensorDimension:

@@ -19,8 +19,8 @@ from fedcampaign_emhi.domain.types import (
     SignedTheoremCoordinate,
 )
 from fedcampaign_emhi.emhi.evidence import (
-    clip_statistic,
     signed_evidence_factor,
+    signed_statistic,
     signed_theorem_compensator,
 )
 from fedcampaign_emhi.emhi.sequential import next_global_state
@@ -70,7 +70,7 @@ def _trajectory_restricted_stop(
             float(generator.random()),
         )
         coordinate = signed_theorem_coordinate(ranks)
-        clipped = clip_statistic(coordinate, clip_bound)
+        clipped = signed_statistic((coordinate,), (1.0,), clip_bound)
         factor: EvidenceFactor = signed_evidence_factor(clipped, clip_bound, bet_lambda)
         assumptions_hold = assumptions_hold and (
             isfinite(coordinate)

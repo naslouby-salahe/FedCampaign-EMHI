@@ -206,7 +206,11 @@ def score_fitted_client_detector(
     fitted: FittedClientDetector,
     score_rows: tuple[tuple[FeatureValue, ...], ...],
 ) -> tuple[DetectorScore, ...]:
-    return fitted.score(score_rows)
+    if isinstance(fitted, FittedIsolationForest):
+        return FittedIsolationForest.score(fitted, score_rows)
+    if isinstance(fitted, FittedOneClassSvm):
+        return FittedOneClassSvm.score(fitted, score_rows)
+    return FittedAutoencoder.score(fitted, score_rows)
 
 
 def score_stream_isolation_check(score_count: RecordCount, epoch_count: RecordCount) -> None:

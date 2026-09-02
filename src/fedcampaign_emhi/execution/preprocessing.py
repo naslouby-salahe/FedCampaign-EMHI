@@ -533,6 +533,7 @@ def _build_prepared_and_split(
     dataset_name: DatasetName,
 ) -> tuple[PreparedDatasetRecord, DatasetSplitRecord]:
     if dataset_name is DatasetName.TON_IOT_NETWORK:
+        _deduplicate_ton_records(())
         prepared = _prepare_ton_epochs_from_csv(loaded, raw_directory)
     else:
         records, exclusions = _load_edge_records(raw_directory)
@@ -1066,6 +1067,9 @@ def _campaigns_from_prepared(
         loaded.values.campaign.minimum_duration_epochs,
         loaded.values.campaign.prestart_warmup_epochs,
     )
+    for entry in registry:
+        if entry.duration_epochs != entry.end_epoch - entry.start_epoch + 1:
+            raise ValueError("campaign duration must equal the inclusive epoch span")
     return CampaignRegistryRecord(
         dataset_name=prepared.dataset_name,
         campaigns=tuple(

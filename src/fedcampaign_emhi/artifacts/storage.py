@@ -163,25 +163,23 @@ class ArtifactLayout:
         return self.roots.results_root / "experiments" / experiment_name.value
 
     def required_directories(self) -> tuple[Path, ...]:
+        outputs_root = self.roots.namespace_root(ArtifactNamespace.OUTPUTS)
+        results_root = self.roots.namespace_root(ArtifactNamespace.RESULTS)
         paths: list[Path] = [
-            self.roots.outputs_root,
-            self.roots.results_root,
-            self.roots.outputs_root / "preprocessing",
-            self.roots.outputs_root / "artifacts",
-            self.roots.outputs_root / "experiments",
-            self.roots.outputs_root / "cache",
-            self.roots.results_root / "experiments",
-            self.roots.results_root / "project_summary",
+            outputs_root,
+            results_root,
+            outputs_root / "preprocessing",
+            outputs_root / "artifacts",
+            outputs_root / "experiments",
+            outputs_root / "cache",
+            results_root / "experiments",
+            results_root / "project_summary",
         ]
         paths.extend(
-            _child_directories(
-                self.roots.outputs_root / "preprocessing", OUTPUTS_PREPROCESSING_CHILDREN
-            )
+            _child_directories(outputs_root / "preprocessing", OUTPUTS_PREPROCESSING_CHILDREN)
         )
-        paths.extend(
-            _child_directories(self.roots.outputs_root / "artifacts", OUTPUTS_ARTIFACT_CHILDREN)
-        )
-        paths.extend(_child_directories(self.roots.outputs_root / "cache", OUTPUTS_CACHE_CHILDREN))
+        paths.extend(_child_directories(outputs_root / "artifacts", OUTPUTS_ARTIFACT_CHILDREN))
+        paths.extend(_child_directories(outputs_root / "cache", OUTPUTS_CACHE_CHILDREN))
         for experiment_name in ExperimentName:
             experiment_output = self.experiment_outputs_root(experiment_name)
             paths.append(experiment_output)
@@ -189,9 +187,7 @@ class ArtifactLayout:
             experiment_result = self.experiment_results_root(experiment_name)
             paths.append(experiment_result)
             paths.extend(_nested_directories(experiment_result, EXPERIMENT_RESULTS_TREES))
-        paths.extend(
-            _nested_directories(self.roots.results_root / "project_summary", PROJECT_SUMMARY_TREES)
-        )
+        paths.extend(_nested_directories(results_root / "project_summary", PROJECT_SUMMARY_TREES))
         return tuple(paths)
 
 

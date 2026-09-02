@@ -3073,14 +3073,7 @@ def _materialize_full_method_support(
     source_paths = (*full_paths, *comparator_paths)
     source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
     source_digests = tuple(file_sha256(path) for path in source_paths)
-    all_criteria_pass = (
-        result.pfa_criterion_satisfied
-        and result.odi_rate_criterion_satisfied
-        and result.advantage_criterion_satisfied
-        and result.lead_criterion_satisfied
-        and result.directional_criterion_satisfied
-        and result.matched_operating_point_criterion_satisfied
-    )
+    all_criteria_pass = result.all_criteria_pass
     median_lead_value = None if not success_leads else median_of(success_leads)
     payload: YamlNode = {
         "experiment_name": ExperimentName.PRIMARY_STRICT_ODI_EVALUATION.value,
