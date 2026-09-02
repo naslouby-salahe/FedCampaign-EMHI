@@ -28,16 +28,19 @@ from fedcampaign_emhi.domain.types import (
     ContextTrainingRow,
     EpochCount,
     EpochIndexValue,
-    FiniteFloat,
+    HistogramBinMass,
+    KmeansFitRowLimit,
+    KmeansInertia,
+    KmeansInitializationCount,
+    LatentState,
     MaximalOutsideField,
     NumericalTolerance,
     OutsideContextHistogram,
-    PositiveInt,
+    PermutationIndex,
     Probability,
     RankValue,
     ResumeStep,
     SeedValue,
-    SignedInt,
     SolverIterationLimit,
 )
 from fedcampaign_emhi.emhi.structure import complement_members, required_outside_client_count
@@ -84,7 +87,7 @@ def partial_coalition_context_members(
 
 
 ORACLE_QUARTILE_CELL_COUNT = 4
-ORACLE_QUARTILE_BOUNDARIES: tuple[FiniteFloat, FiniteFloat, FiniteFloat] = (
+ORACLE_QUARTILE_BOUNDARIES: tuple[LatentState, LatentState, LatentState] = (
     float(norm.ppf(STANDARD_NORMAL_QUARTILE)),
     0.0,
     float(norm.ppf(3 * STANDARD_NORMAL_QUARTILE)),
@@ -92,7 +95,7 @@ ORACLE_QUARTILE_BOUNDARIES: tuple[FiniteFloat, FiniteFloat, FiniteFloat] = (
 NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
 
 
-def oracle_outside_latent_cell(latent_state: FiniteFloat) -> BinIndex:
+def oracle_outside_latent_cell(latent_state: LatentState) -> BinIndex:
     boundaries = ORACLE_QUARTILE_BOUNDARIES
     for cell_index, boundary in enumerate(boundaries):
         if latent_state <= boundary:
@@ -102,7 +105,7 @@ def oracle_outside_latent_cell(latent_state: FiniteFloat) -> BinIndex:
 
 def shuffled_context_permutation(
     row_keys: tuple[ResumeStep, ...], split_role: PartitionRole, context_seed: SeedValue
-) -> tuple[SignedInt, ...]:
+) -> tuple[PermutationIndex, ...]:
     if not row_keys:
         raise ValueError("shuffled context requires lagged outside rows")
     payload_rows = [{"split": split_role.value, "row_key": key} for key in row_keys]
@@ -172,7 +175,7 @@ def equal_width_histogram_edges(bin_count: BinCount) -> tuple[RankValue, ...]:
     return histogram_edges(bin_count)
 
 
-def histogram_one_hot(rank: RankValue, bin_count: BinCount) -> tuple[FiniteFloat, ...]:
+def histogram_one_hot(rank: RankValue, bin_count: BinCount) -> tuple[HistogramBinMass, ...]:
     assigned = histogram_bin_index(rank, bin_count)
     return tuple(1.0 if index == assigned else 0.0 for index in range(bin_count))
 
@@ -256,7 +259,7 @@ def context_row_ranking_value(row: ContextTrainingRow, context_seed: SeedValue) 
 def cap_context_training_rows(
     rows: tuple[ContextTrainingRow, ...],
     context_seed: SeedValue,
-    max_fit_rows: PositiveInt,
+    max_fit_rows: KmeansFitRowLimit,
 ) -> tuple[ContextTrainingRow, ...]:
     ranked = sorted(
         rows,
@@ -270,8 +273,8 @@ def cap_context_training_rows(
 
 
 def assign_context_cell(
-    histogram: tuple[FiniteFloat, ...],
-    centroids: tuple[tuple[FiniteFloat, ...], ...],
+    histogram: tuple[HistogramBinMass, ...],
+    centroids: tuple[tuple[HistogramBinMass, ...], ...],
     assignment_tie_tolerance: NumericalTolerance,
 ) -> BinIndex:
     distances = tuple(_euclidean_distance(histogram, centroid) for centroid in centroids)
@@ -288,7 +291,7 @@ def fit_context_centroids(
     rows: tuple[ContextTrainingRow, ...],
     identity: ContextClusterIdentity,
     cell_count: CellCount,
-    n_init: PositiveInt,
+    n_init: KmeansInitializationCount,
     max_iterations: SolverIterationLimit,
     tolerance: NumericalTolerance,
     assignment_tie_tolerance: NumericalTolerance,
@@ -332,8 +335,8 @@ def coalition_context_support_is_sufficient(
 
 
 def _euclidean_distance(
-    left: tuple[FiniteFloat, ...], right: tuple[FiniteFloat, ...]
-) -> FiniteFloat:
+    left: tuple[HistogramBinMass, ...], right: tuple[HistogramBinMass, ...]
+) -> KmeansInertia:
     return sqrt(sum((left[index] - right[index]) ** 2 for index in range(len(left))))
 
 
@@ -344,7 +347,7 @@ def _lloyd_kmeans(
     tolerance: NumericalTolerance,
     assignment_tie_tolerance: NumericalTolerance,
     generator: np.random.Generator,
-) -> tuple[NDArray[np.float64], FiniteFloat]:
+) -> tuple[NDArray[np.float64], KmeansInertia]:
     row_count = int(matrix.shape[0])
     chosen = generator.choice(row_count, size=cell_count, replace=False)
     centroids = matrix[chosen].copy()

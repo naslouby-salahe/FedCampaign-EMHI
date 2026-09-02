@@ -138,12 +138,12 @@ def required_primary_holm_statistics(
             path
             for path in evidence.statistical_record_paths
             if StatisticalRecord.model_validate_json(path.read_bytes()).hypothesis_identifier
-            == hypothesis.value
+            == hypothesis
         )
         if len(matching) != 1:
             raise FileNotFoundError(
                 "project summary is missing the required primary Holm statistical artifact "
-                f"{hypothesis.value!r} from {experiment_name.value}"
+                f"{hypothesis!s} from {experiment_name.value}"
             )
         paths.append(matching[0])
     return tuple(paths)

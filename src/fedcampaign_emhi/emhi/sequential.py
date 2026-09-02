@@ -5,21 +5,23 @@ from fedcampaign_emhi.domain.types import (
     EpochCount,
     EpochIndexValue,
     EvidenceFactor,
-    FiniteFloat,
+    GlobalEvidenceState,
     PositiveEpochCount,
     ThresholdValue,
 )
 
 
-def initial_global_state() -> FiniteFloat:
+def initial_global_state() -> GlobalEvidenceState:
     return 0.0
 
 
-def next_global_state(previous_state: FiniteFloat, evidence_factor: EvidenceFactor) -> FiniteFloat:
+def next_global_state(
+    previous_state: GlobalEvidenceState, evidence_factor: EvidenceFactor
+) -> GlobalEvidenceState:
     return (previous_state + 1.0) * evidence_factor
 
 
-def threshold_predicate(global_state: FiniteFloat, threshold: ThresholdValue) -> Boolean:
+def threshold_predicate(global_state: GlobalEvidenceState, threshold: ThresholdValue) -> Boolean:
     return global_state >= threshold
 
 
@@ -30,7 +32,7 @@ def distributed_support_predicate(
 
 
 def statistical_stop(
-    global_state: FiniteFloat,
+    global_state: GlobalEvidenceState,
     threshold: ThresholdValue,
     window_client_ids: tuple[ClientId, ...],
     minimum_clients: ClientCount,

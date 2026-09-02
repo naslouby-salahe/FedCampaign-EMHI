@@ -19,6 +19,7 @@ from fedcampaign_emhi.domain.enums import (
     SupportState,
 )
 from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
     BasisSize,
     BinIndex,
     Boolean,
@@ -28,11 +29,16 @@ from fedcampaign_emhi.domain.types import (
     ContextTrainingRow,
     CrossFittedInnovationCalibration,
     EpochIndexValue,
-    FiniteFloat,
     FoldCount,
+    HistogramBinMass,
+    InnovationCoordinate,
+    InnovationDeviation,
+    InnovationMean,
     MaterialDependencyFingerprint,
     NumericalFloor,
     NumericalTolerance,
+    OperationalNormReference,
+    ProjectionMeanSquaredError,
     RankReference,
     RankValue,
     RecordCount,
@@ -100,12 +106,14 @@ def fold_observation_indexes(
 
 
 def select_rows(
-    rows: tuple[tuple[FiniteFloat, ...], ...], indexes: tuple[RecordCount, ...]
-) -> tuple[tuple[FiniteFloat, ...], ...]:
+    rows: tuple[tuple[BasisCoordinate, ...], ...], indexes: tuple[RecordCount, ...]
+) -> tuple[tuple[BasisCoordinate, ...], ...]:
     return tuple(rows[index] for index in indexes)
 
 
-def residual_mean_square(residuals: tuple[tuple[FiniteFloat, ...], ...]) -> FiniteFloat:
+def residual_mean_square(
+    residuals: tuple[tuple[InnovationCoordinate, ...], ...],
+) -> ProjectionMeanSquaredError:
     if not residuals:
         raise ValueError("residual mean square requires held-fold observations")
     total = 0.0
@@ -115,8 +123,8 @@ def residual_mean_square(residuals: tuple[tuple[FiniteFloat, ...], ...]) -> Fini
 
 
 def cross_validated_ridge_penalty(
-    design_rows: tuple[tuple[FiniteFloat, ...], ...],
-    tensors: tuple[tuple[FiniteFloat, ...], ...],
+    design_rows: tuple[tuple[BasisCoordinate, ...], ...],
+    tensors: tuple[tuple[InnovationCoordinate, ...], ...],
     candidates: tuple[RidgePenalty, ...],
     fold_count: FoldCount,
     tie_tolerance: NumericalTolerance,
@@ -126,10 +134,10 @@ def cross_validated_ridge_penalty(
     if not blocked_fit_is_supported(observation_count, fold_count):
         return None
     splits = fold_observation_indexes(observation_count, fold_count)
-    weighted: list[FiniteFloat] = []
+    weighted: list[ProjectionMeanSquaredError] = []
     sizes = tuple(len(held) for _training, held in splits)
     for penalty in candidates:
-        fold_mses: list[FiniteFloat] = []
+        fold_mses: list[ProjectionMeanSquaredError] = []
         for training, held in splits:
             coefficients = ridge_coefficient_matrix(
                 select_rows(design_rows, training),
@@ -147,16 +155,16 @@ def cross_validated_ridge_penalty(
 
 
 def held_fold_innovations(
-    design_rows: tuple[tuple[FiniteFloat, ...], ...],
-    tensors: tuple[tuple[FiniteFloat, ...], ...],
+    design_rows: tuple[tuple[BasisCoordinate, ...], ...],
+    tensors: tuple[tuple[InnovationCoordinate, ...], ...],
     fold_count: FoldCount,
     ridge_penalty: RidgePenalty,
     svd_relative_cutoff: NumericalFloor,
-) -> tuple[tuple[FiniteFloat, ...], ...] | None:
+) -> tuple[tuple[InnovationCoordinate, ...], ...] | None:
     observation_count = len(design_rows)
     if not blocked_fit_is_supported(observation_count, fold_count):
         return None
-    collected: list[tuple[FiniteFloat, ...]] = []
+    collected: list[tuple[InnovationCoordinate, ...]] = []
     for training, held in fold_observation_indexes(observation_count, fold_count):
         coefficients = ridge_coefficient_matrix(
             select_rows(design_rows, training),
@@ -170,13 +178,13 @@ def held_fold_innovations(
 
 
 def moments_from_held_fold_innovations(
-    innovations: tuple[tuple[FiniteFloat, ...], ...],
-) -> tuple[tuple[FiniteFloat, ...], tuple[FiniteFloat, ...]] | None:
+    innovations: tuple[tuple[InnovationCoordinate, ...], ...],
+) -> tuple[tuple[InnovationMean, ...], tuple[InnovationDeviation, ...]] | None:
     if unsupported_context_observation_count(len(innovations)):
         return None
     dimension = len(innovations[0])
-    means: list[FiniteFloat] = []
-    deviations: list[FiniteFloat] = []
+    means: list[InnovationMean] = []
+    deviations: list[InnovationDeviation] = []
     for coordinate_index in range(dimension):
         series = tuple(innovation[coordinate_index] for innovation in innovations)
         means.append(sample_mean(series))
@@ -185,8 +193,8 @@ def moments_from_held_fold_innovations(
 
 
 def calibrate_innovations_on_nuisance_fit(
-    design_rows: tuple[tuple[FiniteFloat, ...], ...],
-    tensors: tuple[tuple[FiniteFloat, ...], ...],
+    design_rows: tuple[tuple[BasisCoordinate, ...], ...],
+    tensors: tuple[tuple[InnovationCoordinate, ...], ...],
     candidates: tuple[RidgePenalty, ...],
     fold_count: FoldCount,
     tie_tolerance: NumericalTolerance,
@@ -421,7 +429,7 @@ def _coalition_cell_epochs(
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
     nuisance_epochs: tuple[EpochIndexValue, ...],
-    centroids: tuple[tuple[FiniteFloat, ...], ...],
+    centroids: tuple[tuple[HistogramBinMass, ...], ...],
     context_cell: BinIndex,
     context_method: ContextMethodName,
     permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
@@ -528,7 +536,7 @@ def _conditioned_rows(
 def _design_and_tensors(
     rows: tuple[tuple[RankValue, ...], ...],
     basis_size: BasisSize,
-) -> tuple[tuple[tuple[FiniteFloat, ...], ...], tuple[tuple[FiniteFloat, ...], ...]]:
+) -> tuple[tuple[tuple[BasisCoordinate, ...], ...], tuple[tuple[InnovationCoordinate, ...], ...]]:
     return (
         tuple(proper_subset_design_row(row, basis_size) for row in rows),
         tuple(tensor_representation(row, basis_size) for row in rows),
@@ -550,12 +558,15 @@ def _cross_fitted_cell_statistics(
     ridge_candidates: tuple[RidgePenalty, ...],
     fold_rank_cache: FoldRankCache,
     order_context_cache: OrderContextCache,
-) -> tuple[tuple[FiniteFloat, ...], tuple[FiniteFloat, ...], FiniteFloat] | None:
+) -> (
+    tuple[tuple[InnovationMean, ...], tuple[InnovationDeviation, ...], OperationalNormReference]
+    | None
+):
     nuisance_epochs = split.nuisance_fit_epochs
     fold_count = config.context.nuisance_crossfit.fold_count
     if len(nuisance_epochs) < fold_count:
         return None
-    held_innovations: list[tuple[FiniteFloat, ...]] = []
+    held_innovations: list[tuple[InnovationCoordinate, ...]] = []
     for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
         held_epochs = nuisance_epochs[start:end]
         training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
@@ -714,7 +725,9 @@ def _fit_projection_cell(
     purification_enabled: Boolean,
     forced_no_abstention: Boolean,
     ridge_candidates: tuple[RidgePenalty, ...],
-    cross_fitted_statistics: tuple[tuple[FiniteFloat, ...], tuple[FiniteFloat, ...], FiniteFloat]
+    cross_fitted_statistics: tuple[
+        tuple[InnovationMean, ...], tuple[InnovationDeviation, ...], OperationalNormReference
+    ]
     | None,
 ) -> ProjectionCellFitRecord:
     references = _conditional_rank_references(ranks, coalition, context_cell, epochs)

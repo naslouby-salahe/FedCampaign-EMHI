@@ -3,6 +3,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
     ConfigurationProfile,
     ContextMethodName,
     DatasetName,
@@ -12,60 +13,93 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactFilename,
+    AttenuationDifference,
+    AutoencoderBeta,
     BasisSize,
     BatchSize,
+    BettingLambda,
     BinCount,
     Boolean,
     BootstrapReplicateCount,
     CellCount,
     ClientCount,
+    ClientLoading,
     CompensatorValue,
+    ConcurrentExperimentCellCount,
     ConditionNumberLimit,
     ConfidenceLevel,
     ConfigSourcePath,
     ConfigurationDigest,
     Correlation,
+    CosineSimilarity,
+    CusumDriftSubtraction,
+    CusumInitialState,
     DecimalPlaces,
+    DetectionRateLoss,
     EffectCoefficient,
     EpochCount,
     EpochSeconds,
     ESrThreshold,
+    EstimatorEvaluationSampleCount,
+    EstimatorSupportLevel,
+    EvidenceClipBound,
     EvidenceFactor,
+    FactorRank,
     FalseAlarmRate,
     FeatureDimension,
     FeatureFraction,
-    FiniteFloat,
+    FederatedRoundCount,
+    FiniteHorizonCalibrationCount,
+    FiniteHorizonHeldoutNullCount,
     FoldCount,
     HashBucketCount,
+    HofdEquivalenceSampleCount,
     InteractionStrength,
+    IpfIterationLimit,
+    JeffreysPseudocount,
+    KmeansFitRowLimit,
+    KmeansInitializationCount,
     LatentAutoregressiveCoefficient,
     LearningRate,
+    MaterialOdiContribution,
     MemoryMib,
+    MinimumNonoverlappingHorizonCount,
     MissingCellTolerance,
+    MixedOrderTermIndex,
     NumericalFloor,
     NumericalTolerance,
+    OdiRateAdvantage,
+    OperationalLeadEpochs,
     Percentile,
     PositiveEpochCount,
-    PositiveFloat,
-    PositiveInt,
     Probability,
+    ProjectionNrmse,
+    PureOrderEvaluationSampleCount,
     Quantile,
     RankValue,
     RecordCount,
     RelativePath,
+    RequiredExceedanceCount,
     RetryCount,
     RidgePenalty,
+    RobustnessCountMultiplier,
     RuntimeSeconds,
     SampleCap,
+    ScalabilityRepetitionCount,
     ScoreShift,
     SeedCount,
     SeedValue,
     SignFlipAssignmentCount,
     SolverIterationLimit,
     StandardDeviation,
+    StandardizedDrift,
+    StandardizedNullBias,
+    StoppingTimeDifferenceEpochs,
+    SvmCoefficientZero,
     ThresholdValue,
+    TrajectoryCount,
     TreeCount,
-    UnitInterval,
+    WeightDecay,
     WorkerCount,
 )
 
@@ -75,7 +109,7 @@ class FrozenConfigModel(BaseModel):
 
 
 class StudyConfig(FrozenConfigModel):
-    maximum_coalition_order: PositiveInt
+    maximum_coalition_order: CoalitionOrder
 
 
 class TimeConfig(FrozenConfigModel):
@@ -97,10 +131,10 @@ class DistributedSupportConfig(FrozenConfigModel):
 
 
 class ContextKmeansConfig(FrozenConfigModel):
-    n_init: PositiveInt
+    n_init: KmeansInitializationCount
     max_iterations: SolverIterationLimit
     tolerance: NumericalTolerance
-    max_fit_rows: PositiveInt
+    max_fit_rows: KmeansFitRowLimit
     assignment_tie_tolerance: NumericalTolerance
 
 
@@ -163,8 +197,8 @@ class EvidenceCalibratedFiniteHorizonConfig(FrozenConfigModel):
 
 
 class EvidenceConfig(FrozenConfigModel):
-    clip_bound: PositiveFloat
-    bet_lambda: PositiveFloat
+    clip_bound: EvidenceClipBound
+    bet_lambda: BettingLambda
     operational_norm_reference_quantile: Quantile
     signed_theorem_sequential: EvidenceSignedTheoremSequentialConfig
     calibrated_finite_horizon: EvidenceCalibratedFiniteHorizonConfig
@@ -237,7 +271,7 @@ class DetectorsIsolationForestConfig(FrozenConfigModel):
 
 class DetectorsOneClassSvmConfig(FrozenConfigModel):
     nu: Probability
-    coefficient_zero: FiniteFloat
+    coefficient_zero: SvmCoefficientZero
     solver_tolerance: NumericalTolerance
     kernel_cache_mib: MemoryMib
     max_iterations: SolverIterationLimit
@@ -245,9 +279,9 @@ class DetectorsOneClassSvmConfig(FrozenConfigModel):
 
 class DetectorsAutoencoderConfig(FrozenConfigModel):
     learning_rate: LearningRate
-    betas: tuple[UnitInterval, ...]
+    betas: tuple[AutoencoderBeta, ...]
     optimizer_epsilon: NumericalFloor
-    weight_decay: FiniteFloat
+    weight_decay: WeightDecay
     batch_size: BatchSize
     epochs: PositiveEpochCount
 
@@ -259,7 +293,7 @@ class DetectorsConfig(FrozenConfigModel):
 
 
 class LocalPolicyCandidatePersistenceConfig(FrozenConfigModel):
-    required_exceedances: PositiveInt
+    required_exceedances: RequiredExceedanceCount
     window_epochs: PositiveEpochCount
 
 
@@ -295,13 +329,13 @@ class RandomnessConfig(FrozenConfigModel):
 class SyntheticSampleSizesConfig(FrozenConfigModel):
     generic_nuisance_fit_epochs: PositiveEpochCount
     generic_cross_fitted_evaluation_epochs: PositiveEpochCount
-    finite_horizon_calibration_horizons_per_seed: PositiveInt
-    finite_horizon_heldout_null_horizons_per_seed: PositiveInt
+    finite_horizon_calibration_horizons_per_seed: FiniteHorizonCalibrationCount
+    finite_horizon_heldout_null_horizons_per_seed: FiniteHorizonHeldoutNullCount
     self_explanation_epochs_per_perturbation: PositiveEpochCount
     self_explanation_lag_settling_epochs_discarded: EpochCount
-    pure_order_independent_evaluation_samples_per_condition_seed: PositiveInt
-    hofd_equivalence_heldout_samples_per_context_seed: PositiveInt
-    estimator_evaluation_samples_per_context_seed: PositiveInt
+    pure_order_independent_evaluation_samples_per_condition_seed: PureOrderEvaluationSampleCount
+    hofd_equivalence_heldout_samples_per_context_seed: HofdEquivalenceSampleCount
+    estimator_evaluation_samples_per_context_seed: EstimatorEvaluationSampleCount
 
 
 class SyntheticConfig(FrozenConfigModel):
@@ -310,8 +344,8 @@ class SyntheticConfig(FrozenConfigModel):
 
 class GeneratorsCommonModeConfig(FrozenConfigModel):
     latent_ar_coefficient: LatentAutoregressiveCoefficient
-    client_loading_minimum: FiniteFloat
-    client_loading_maximum: FiniteFloat
+    client_loading_minimum: ClientLoading
+    client_loading_maximum: ClientLoading
     client_noise_standard_deviation: StandardDeviation
 
 
@@ -356,7 +390,7 @@ class GeneratorsXorConfig(FrozenConfigModel):
 
 
 class GeneratorsMixedOrderConfig(FrozenConfigModel):
-    enabled_term_sets: tuple[tuple[PositiveInt, ...], ...]
+    enabled_term_sets: tuple[tuple[MixedOrderTermIndex, ...], ...]
     term_coefficient: EffectCoefficient
 
 
@@ -406,8 +440,8 @@ class ComparatorsCommonCalibrationConfig(FrozenConfigModel):
 
 class ComparatorsConnectedInformationConfig(FrozenConfigModel):
     bins_per_client: BinCount
-    jeffreys_pseudocount_per_cell: PositiveFloat
-    ipf_max_iterations: PositiveInt
+    jeffreys_pseudocount_per_cell: JeffreysPseudocount
+    ipf_max_iterations: IpfIterationLimit
     maximum_marginal_absolute_error: NumericalTolerance
     probability_floor: NumericalFloor
 
@@ -425,19 +459,19 @@ class ComparatorsExclusionMatchedConditionalHofdConfig(FrozenConfigModel):
 
 
 class ComparatorsGlobalFactorResidualConfig(FrozenConfigModel):
-    candidate_ranks: tuple[PositiveInt, ...]
+    candidate_ranks: tuple[FactorRank, ...]
     cumulative_variance_target: Probability
-    fallback_rank: PositiveInt
+    fallback_rank: FactorRank
 
 
 class ComparatorsMultistreamCusumConfig(FrozenConfigModel):
     rank_center: RankValue
-    drift_subtraction: PositiveFloat
-    initial_state: FiniteFloat
+    drift_subtraction: CusumDriftSubtraction
+    initial_state: CusumInitialState
 
 
 class ComparatorsFedavgAutoencoderConfig(FrozenConfigModel):
-    rounds: PositiveInt
+    rounds: FederatedRoundCount
     local_epochs_per_round: PositiveEpochCount
     client_participation_fraction: Probability
 
@@ -467,35 +501,35 @@ class StatisticsConfig(FrozenConfigModel):
 
 class MaterialitySelfExplanationConfig(FrozenConfigModel):
     exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: Probability
-    minimum_attenuation_difference: FiniteFloat
+    minimum_attenuation_difference: AttenuationDifference
 
 
 class MaterialityPureOrderConfig(FrozenConfigModel):
-    maximum_proper_subset_standardized_drift: FiniteFloat
-    minimum_target_order_standardized_drift: FiniteFloat
+    maximum_proper_subset_standardized_drift: StandardizedDrift
+    minimum_target_order_standardized_drift: StandardizedDrift
 
 
 class MaterialityOrderThreeEstimatorConfig(FrozenConfigModel):
     minimum_mean_context_coverage: Probability
-    maximum_mean_projection_nrmse: FiniteFloat
-    maximum_mean_standardized_null_bias: FiniteFloat
+    maximum_mean_projection_nrmse: ProjectionNrmse
+    maximum_mean_standardized_null_bias: StandardizedNullBias
 
 
 class MaterialityHofdEquivalenceConfig(FrozenConfigModel):
-    atom_nrmse_upper_margin: FiniteFloat
-    minimum_cosine_similarity: UnitInterval
-    stopping_time_difference_interval_epochs: tuple[FiniteFloat, ...]
+    atom_nrmse_upper_margin: ProjectionNrmse
+    minimum_cosine_similarity: CosineSimilarity
+    stopping_time_difference_interval_epochs: tuple[StoppingTimeDifferenceEpochs, ...]
 
 
 class MaterialityPrimaryRealConfig(FrozenConfigModel):
     minimum_strict_odi_rate: Probability
-    minimum_odi_rate_advantage_over_order_at_most_two: FiniteFloat
-    minimum_median_operational_lead_epochs: FiniteFloat
+    minimum_odi_rate_advantage_over_order_at_most_two: OdiRateAdvantage
+    minimum_median_operational_lead_epochs: OperationalLeadEpochs
 
 
 class MaterialityBenignCommonModeConfig(FrozenConfigModel):
     minimum_false_campaign_suppression: Probability
-    maximum_detection_rate_loss: FiniteFloat
+    maximum_detection_rate_loss: DetectionRateLoss
 
 
 class MaterialityStrongLocalConfig(FrozenConfigModel):
@@ -503,7 +537,7 @@ class MaterialityStrongLocalConfig(FrozenConfigModel):
 
 
 class MaterialityOrderThreeRealConfig(FrozenConfigModel):
-    minimum_material_odi_contribution: FiniteFloat
+    minimum_material_odi_contribution: MaterialOdiContribution
 
 
 class MaterialityReferenceHarnessConfig(FrozenConfigModel):
@@ -524,19 +558,19 @@ class MaterialityConfig(FrozenConfigModel):
 
 
 class SupportGridsConfig(FrozenConfigModel):
-    estimator_samples_per_context: tuple[PositiveInt, ...]
-    hofd_equivalence_samples_per_context: tuple[PositiveInt, ...]
-    estimator_one_factor_sensitivity_samples_per_context: tuple[PositiveInt, ...]
+    estimator_samples_per_context: tuple[EstimatorSupportLevel, ...]
+    hofd_equivalence_samples_per_context: tuple[EstimatorSupportLevel, ...]
+    estimator_one_factor_sensitivity_samples_per_context: tuple[EstimatorSupportLevel, ...]
 
 
 class RobustnessConfig(FrozenConfigModel):
-    benign_count_multiplication_factors: tuple[PositiveFloat, ...]
+    benign_count_multiplication_factors: tuple[RobustnessCountMultiplier, ...]
     scalability_client_counts: tuple[ClientCount, ...]
 
 
 class ExperimentsSelfExplanationExclusionValidationPrimaryConditionConfig(FrozenConfigModel):
     client_count: ClientCount
-    coalition_order: PositiveInt
+    coalition_order: CoalitionOrder
     nuisance_transform: NuisanceTransformName
     comparison: tuple[ContextMethodName, ...]
 
@@ -549,7 +583,7 @@ class ExperimentsSelfExplanationExclusionValidationConfig(FrozenConfigModel):
 class ExperimentsPureOrderSeparationValidationPrimaryConditionConfig(FrozenConfigModel):
     generator: GeneratorName
     method: MethodName
-    coalition_order: PositiveInt
+    coalition_order: CoalitionOrder
 
 
 class ExperimentsPureOrderSeparationValidationConfig(FrozenConfigModel):
@@ -562,7 +596,7 @@ class ExperimentsPureOrderSeparationValidationConfig(FrozenConfigModel):
 class ExperimentsExclusionMatchedHofdEquivalenceConfig(FrozenConfigModel):
     methods: tuple[MethodName, ...]
     context_cell_count: CellCount
-    primary_support_levels: tuple[PositiveInt, ...]
+    primary_support_levels: tuple[EstimatorSupportLevel, ...]
 
 
 class ExperimentsStrongComparatorCompositionChallengeConfig(FrozenConfigModel):
@@ -583,7 +617,7 @@ class ExperimentsEstimatorSupportAndContextFeasibilityConfig(FrozenConfigModel):
 
 class ExperimentsSequentialEvidenceValidationSignedTheoremConfig(FrozenConfigModel):
     null_theta: EffectCoefficient
-    trajectories_per_seed: PositiveInt
+    trajectories_per_seed: TrajectoryCount
     maximum_trajectory_epochs: PositiveEpochCount
     restricted_arl_bootstrap_lower_bound_minimum_epochs: PositiveEpochCount
 
@@ -643,10 +677,10 @@ class ExperimentsConfig(FrozenConfigModel):
 
 
 class ScalabilityTimingConfig(FrozenConfigModel):
-    measured_repetitions_per_seed_client_count: PositiveInt
+    measured_repetitions_per_seed_client_count: ScalabilityRepetitionCount
     unmeasured_harness_warmup_epochs: EpochCount
     measured_epochs_per_repetition: PositiveEpochCount
-    concurrent_experiment_cells: PositiveInt
+    concurrent_experiment_cells: ConcurrentExperimentCellCount
     result_quantile: Percentile
 
 
@@ -718,10 +752,10 @@ class DerivedScientificValues(FrozenConfigModel):
     real_development_seed_count: SeedCount
     real_confirmatory_seed_count: SeedCount
     exact_real_sign_flip_assignment_count: SignFlipAssignmentCount
-    minimum_nonoverlapping_horizons_for_zero_false_stop: PositiveInt
+    minimum_nonoverlapping_horizons_for_zero_false_stop: MinimumNonoverlappingHorizonCount
     signed_theorem_e_sr_threshold: ESrThreshold
     signed_theorem_compensator: CompensatorValue
-    histogram_edge_count: PositiveInt
+    histogram_edge_count: BinCount
     outside_histogram_edges: tuple[RankValue, ...]
     primary_odi_table_method_order: tuple[MethodName, ...]
     context_seed: SeedValue

@@ -4,17 +4,17 @@ from numpy.typing import NDArray
 from fedcampaign_emhi.domain.types import (
     Boolean,
     FeatureDimension,
-    FiniteFloat,
     LayerWidth,
+    ModelParameter,
     RecordCount,
 )
 from fedcampaign_emhi.models.autoencoder import autoencoder_layer_widths
 
 
 def fedavg_weighted_mean(
-    client_parameters: tuple[tuple[FiniteFloat, ...], ...],
+    client_parameters: tuple[tuple[ModelParameter, ...], ...],
     sample_counts: tuple[RecordCount, ...],
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[ModelParameter, ...]:
     if not client_parameters or len(client_parameters) != len(sample_counts):
         raise ValueError("FedAvg requires aligned client parameters and sample counts")
     total = sum(sample_counts)
@@ -27,7 +27,7 @@ def fedavg_weighted_mean(
     return tuple(float(coordinate) for coordinate in averaged.tolist())
 
 
-def store_parameters_float32(parameters: tuple[FiniteFloat, ...]) -> tuple[FiniteFloat, ...]:
+def store_parameters_float32(parameters: tuple[ModelParameter, ...]) -> tuple[ModelParameter, ...]:
     stored: NDArray[np.float32] = np.asarray(parameters, dtype=np.float32)
     return tuple(float(coordinate) for coordinate in stored.tolist())
 

@@ -25,7 +25,7 @@ from fedcampaign_emhi.domain.types import (
     ConfigurationDigest,
     DeterministicUtf8Bytes,
     FalseAlarmRate,
-    PositiveInt,
+    MinimumNonoverlappingHorizonCount,
     RankValue,
 )
 
@@ -68,7 +68,7 @@ def histogram_edges(bin_count: BinCount) -> tuple[RankValue, ...]:
 
 def minimum_zero_false_stop_horizons(
     target_pfa: FalseAlarmRate, confidence: ConfidenceLevel
-) -> PositiveInt:
+) -> MinimumNonoverlappingHorizonCount:
     if target_pfa <= 0.0 or target_pfa >= 1.0:
         raise ConfigurationValidationError("target_pfa must lie in (0, 1)")
     if confidence <= 0.0 or confidence >= 1.0:

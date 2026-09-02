@@ -16,15 +16,15 @@ from fedcampaign_emhi.domain.types import (
     EpochCount,
     EpochFeatureVector,
     EpochIndexValue,
-    FiniteFloat,
+    FeatureValue,
     HashBucketCount,
+    HashBucketIndex,
     NormalizedEventToken,
     NumericalFloor,
     Probability,
     RecordCount,
     RetainedEvent,
     RobustScaler,
-    SignedInt,
     UnixTimestampSeconds,
 )
 
@@ -51,7 +51,7 @@ def chronological_partition_lengths(
 
 def event_type_hash_bucket(
     event_type: NormalizedEventToken, bucket_count: HashBucketCount
-) -> SignedInt:
+) -> HashBucketIndex:
     if bucket_count <= 0:
         raise ValueError("bucket_count must be positive")
     digest = hashlib.sha256(event_type.encode("utf-8")).digest()
@@ -111,7 +111,7 @@ def retain_first_chronological(
     )
 
 
-def shannon_entropy(bucket_counts: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def shannon_entropy(bucket_counts: tuple[FeatureValue, ...]) -> FeatureValue:
     total = sum(bucket_counts)
     if total == 0:
         return 0.0
@@ -203,7 +203,7 @@ def chronological_benign_partitions(
 
 
 def fit_robust_scaler(
-    detector_fit_values: tuple[FiniteFloat, ...], iqr_floor: NumericalFloor
+    detector_fit_values: tuple[FeatureValue, ...], iqr_floor: NumericalFloor
 ) -> RobustScaler:
     if not detector_fit_values:
         raise ValueError("robust scaling requires detector_fit values")
@@ -220,10 +220,10 @@ def fit_robust_scaler(
 
 
 def apply_robust_scaler(
-    scaler: RobustScaler, values: tuple[FiniteFloat, ...]
-) -> tuple[FiniteFloat, ...]:
+    scaler: RobustScaler, values: tuple[FeatureValue, ...]
+) -> tuple[FeatureValue, ...]:
     denominator = max(scaler.iqr, scaler.iqr_floor)
-    scaled: list[FiniteFloat] = []
+    scaled: list[FeatureValue] = []
     for sample in values:
         if not isfinite(sample):
             raise ValueError("non-finite generated features are a preprocessing failure")

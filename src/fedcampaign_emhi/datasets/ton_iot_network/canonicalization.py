@@ -4,8 +4,8 @@ import unicodedata
 from fedcampaign_emhi.domain.types import (
     ClientId,
     HashBucketCount,
+    HashBucketIndex,
     NormalizedEventToken,
-    SignedInt,
 )
 
 UNKNOWN_PROTOCOL_TOKEN = "UNKNOWN_PROTO"
@@ -38,7 +38,7 @@ def normalize_event_type(
 
 def event_type_hash_bucket(
     event_type: NormalizedEventToken, bucket_count: HashBucketCount
-) -> SignedInt:
+) -> HashBucketIndex:
     if bucket_count <= 0:
         raise ValueError("bucket_count must be positive")
     digest = hashlib.sha256(event_type.encode("utf-8")).digest()

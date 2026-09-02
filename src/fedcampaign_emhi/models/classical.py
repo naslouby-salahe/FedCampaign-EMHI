@@ -3,14 +3,16 @@ from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 
 from fedcampaign_emhi.domain.types import (
+    AnomalyScore,
     FeatureFraction,
-    FiniteFloat,
+    FeatureValue,
     MemoryMib,
     NumericalTolerance,
     Probability,
     SampleCap,
     SeedValue,
     SolverIterationLimit,
+    SvmCoefficientZero,
     TreeCount,
     WorkerCount,
 )
@@ -18,14 +20,14 @@ from fedcampaign_emhi.runtime import thirty_two_bit_seed
 
 
 def isolation_forest_anomaly_scores(
-    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     tree_count: TreeCount,
     max_samples_cap: SampleCap,
     max_features: FeatureFraction,
     jobs: WorkerCount,
     seed: SeedValue,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[AnomalyScore, ...]:
     if not fit_rows:
         raise ValueError("Isolation Forest requires a non-empty detector-fit matrix")
     fit_matrix = np.asarray(fit_rows, dtype=np.float64)
@@ -48,15 +50,15 @@ def isolation_forest_anomaly_scores(
 
 
 def one_class_svm_anomaly_scores(
-    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     nu: Probability,
-    coefficient_zero: FiniteFloat,
+    coefficient_zero: SvmCoefficientZero,
     solver_tolerance: NumericalTolerance,
     kernel_cache_mib: MemoryMib,
     max_iterations: SolverIterationLimit,
     seed: SeedValue,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[AnomalyScore, ...]:
     if not fit_rows:
         raise ValueError("One-Class SVM requires a non-empty detector-fit matrix")
     del seed

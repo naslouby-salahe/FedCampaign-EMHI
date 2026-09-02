@@ -8,11 +8,16 @@ from fedcampaign_emhi.domain.enums import (
     NuisanceTransformName,
 )
 from fedcampaign_emhi.domain.types import (
+    Attenuation,
+    AttenuationDifference,
     Boolean,
     ClientCount,
     ClientId,
     ClientIndex,
-    FiniteFloat,
+    DetectorScore,
+    EffectCoefficient,
+    InnovationCoordinate,
+    LatentState,
     Probability,
     ScoreShift,
     SeedCount,
@@ -31,28 +36,30 @@ from fedcampaign_emhi.synthetic.generators import (
 )
 
 
-def analytic_direct_derivative() -> FiniteFloat:
+def analytic_direct_derivative() -> EffectCoefficient:
     return 1.0
 
 
 def apply_persistent_perturbation(
-    baseline_scores: tuple[FiniteFloat, ...],
+    baseline_scores: tuple[DetectorScore, ...],
     target_indices: tuple[ClientIndex, ...],
     perturbation: ScoreShift,
-) -> tuple[FiniteFloat, ...]:
-    perturbed: list[FiniteFloat] = list(baseline_scores)
+) -> tuple[DetectorScore, ...]:
+    perturbed: list[DetectorScore] = list(baseline_scores)
     for index in target_indices:
         perturbed[index] = perturbed[index] + perturbation
     return tuple(perturbed)
 
 
-def coalition_mean(scores: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def coalition_mean(scores: tuple[DetectorScore, ...]) -> DetectorScore:
     if not scores:
         raise ValueError("coalition mean requires at least one client")
     return sum(scores) / len(scores)
 
 
-def transform_nuisance(statistic: FiniteFloat, transform: NuisanceTransformName) -> FiniteFloat:
+def transform_nuisance(
+    statistic: DetectorScore | LatentState, transform: NuisanceTransformName
+) -> InnovationCoordinate:
     if transform is NuisanceTransformName.LINEAR:
         return statistic
     if transform is NuisanceTransformName.TANH:
@@ -61,10 +68,10 @@ def transform_nuisance(statistic: FiniteFloat, transform: NuisanceTransformName)
 
 
 def scalar_innovation_fixture(
-    coalition_scores: tuple[FiniteFloat, ...],
-    context_scores: tuple[FiniteFloat, ...],
+    coalition_scores: tuple[DetectorScore, ...],
+    context_scores: tuple[DetectorScore, ...],
     transform: NuisanceTransformName,
-) -> FiniteFloat:
+) -> InnovationCoordinate:
     response = coalition_mean(coalition_scores)
     nuisance = transform_nuisance(coalition_mean(context_scores), transform)
     return response - nuisance
@@ -89,21 +96,21 @@ class SelfExclusionPlan:
 @dataclass(frozen=True)
 class SelfExplanationMeasurement:
     cell: SelfExclusionCell
-    response_mean: FiniteFloat
-    nuisance_mean: FiniteFloat
-    innovation_mean: FiniteFloat
-    direct_derivative: FiniteFloat
-    nuisance_derivative: FiniteFloat
-    innovation_derivative: FiniteFloat
-    attenuation: FiniteFloat
+    response_mean: DetectorScore
+    nuisance_mean: InnovationCoordinate
+    innovation_mean: InnovationCoordinate
+    direct_derivative: EffectCoefficient
+    nuisance_derivative: EffectCoefficient
+    innovation_derivative: EffectCoefficient
+    attenuation: Attenuation
 
 
 @dataclass(frozen=True)
 class PerturbationResponse:
     perturbation: ScoreShift
-    response_mean: FiniteFloat
-    nuisance_mean: FiniteFloat
-    innovation_mean: FiniteFloat
+    response_mean: DetectorScore
+    nuisance_mean: InnovationCoordinate
+    innovation_mean: InnovationCoordinate
 
 
 def _response_for(
@@ -117,8 +124,8 @@ def _response_for(
 @dataclass(frozen=True)
 class SelfExplanationSeedResult:
     measurements: tuple[SelfExplanationMeasurement, ...]
-    primary_exact_nuisance_derivative: FiniteFloat
-    primary_attenuation_contrast: FiniteFloat
+    primary_exact_nuisance_derivative: EffectCoefficient
+    primary_attenuation_contrast: AttenuationDifference
 
 
 NUISANCE_TRANSFORMS: tuple[NuisanceTransformName, ...] = (
@@ -155,14 +162,15 @@ def enumerate_self_exclusion_grid(config: ScientificConfig) -> SelfExclusionPlan
 
 
 def exact_nuisance_derivative_within_margin(
-    exact_derivative: FiniteFloat, margin_fraction_of_direct: Probability
+    exact_derivative: EffectCoefficient, margin_fraction_of_direct: Probability
 ) -> Boolean:
     direct = analytic_direct_derivative()
     return abs(exact_derivative) <= margin_fraction_of_direct * abs(direct)
 
 
 def material_attenuation_criterion(
-    attenuation_contrast: FiniteFloat, minimum_attenuation_difference: FiniteFloat
+    attenuation_contrast: AttenuationDifference,
+    minimum_attenuation_difference: AttenuationDifference,
 ) -> Boolean:
     return attenuation_contrast >= minimum_attenuation_difference
 
@@ -195,8 +203,8 @@ def _context_indices(
 
 
 def _ols_slope(
-    predictors: tuple[ScoreShift, ...], responses: tuple[FiniteFloat, ...]
-) -> FiniteFloat:
+    predictors: tuple[ScoreShift, ...], responses: tuple[InnovationCoordinate, ...]
+) -> EffectCoefficient:
     if len(predictors) != len(responses) or len(predictors) < 2:
         raise ValueError("OLS slope requires paired predictor and response values")
     predictor_mean = sum(predictors) / len(predictors)
@@ -238,8 +246,8 @@ def evaluate_self_explanation_seed(
         seed,
     )
     measurements: list[SelfExplanationMeasurement] = []
-    primary_exact_derivative: FiniteFloat | None = None
-    primary_attenuation_contrast: FiniteFloat | None = None
+    primary_exact_derivative: EffectCoefficient | None = None
+    primary_attenuation_contrast: AttenuationDifference | None = None
     primary = config.experiments.self_explanation_exclusion_validation.primary_condition
     for cell in plan.cells:
         selected_ids = client_ids[: cell.client_count]
@@ -248,9 +256,9 @@ def evaluate_self_explanation_seed(
         context_indices = _context_indices(cell.context_method, selected_ids, coalition_ids)
         perturbation_responses: list[PerturbationResponse] = []
         for perturbation in config.generators.self_explanation.perturbations:
-            responses: list[FiniteFloat] = []
-            nuisances: list[FiniteFloat] = []
-            innovations: list[FiniteFloat] = []
+            responses: list[DetectorScore] = []
+            nuisances: list[InnovationCoordinate] = []
+            innovations: list[InnovationCoordinate] = []
             for epoch in range(
                 sample_sizes.self_explanation_lag_settling_epochs_discarded + 1,
                 epoch_count,

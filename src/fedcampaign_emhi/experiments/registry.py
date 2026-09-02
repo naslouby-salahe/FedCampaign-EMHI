@@ -10,7 +10,8 @@ from fedcampaign_emhi.domain.types import (
     ClientId,
     ComponentName,
     EpochCount,
-    FiniteFloat,
+    OdiRateAdvantage,
+    OperationalLeadEpochs,
     Probability,
     RecordCount,
     SeedCount,
@@ -206,7 +207,7 @@ class PrimaryStrictOdiPlan:
     confirmatory_seed_count: SeedCount
     minimum_strict_odi_rate: Probability
     minimum_odi_advantage: Probability
-    minimum_median_operational_lead_epochs: FiniteFloat
+    minimum_median_operational_lead_epochs: OperationalLeadEpochs
 
 
 @dataclass(frozen=True)
@@ -215,10 +216,10 @@ class FullMethodSupportInputs:
     target_pfa: Probability
     mean_strict_odi_rate: Probability
     minimum_strict_odi_rate: Probability
-    paired_odi_advantage: FiniteFloat
-    minimum_odi_advantage: Probability
-    median_lead_among_successes: FiniteFloat
-    minimum_median_lead: FiniteFloat
+    paired_odi_advantage: OdiRateAdvantage
+    minimum_odi_advantage: OdiRateAdvantage
+    median_lead_among_successes: OperationalLeadEpochs
+    minimum_median_lead: OperationalLeadEpochs
     directional_adjusted_p_value: Probability
     nominal_alpha: Probability
     full_operating_point_available: Boolean
@@ -285,19 +286,19 @@ def strict_odi_rate_criterion(mean_odi_rate: Probability, minimum_rate: Probabil
 def paired_odi_advantage_criterion(
     full_odi_rate: Probability,
     comparator_odi_rate: Probability,
-    minimum_advantage: Probability,
+    minimum_advantage: OdiRateAdvantage,
 ) -> Boolean:
     return (full_odi_rate - comparator_odi_rate) >= minimum_advantage
 
 
 def median_operational_lead_criterion(
-    median_lead_epochs: FiniteFloat,
-    minimum_lead_epochs: FiniteFloat,
+    median_lead_epochs: OperationalLeadEpochs,
+    minimum_lead_epochs: OperationalLeadEpochs,
 ) -> Boolean:
     return median_lead_epochs >= minimum_lead_epochs
 
 
-def median_of(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def median_of(values: tuple[OperationalLeadEpochs, ...]) -> OperationalLeadEpochs:
     if not values:
         raise ValueError("median requires at least one value")
     return statistics.median(values)

@@ -4,21 +4,43 @@ from typing import cast
 from sklearn import metrics as sklearn_metrics
 
 from fedcampaign_emhi.domain.types import (
+    Attenuation,
+    AttenuationDifference,
     Boolean,
     CensoredPlotEpoch,
     ClientCount,
     CoalitionCount,
     CoalitionOrder,
+    CommonModeSuppression,
+    CosineSimilarity,
+    DetectionRateLoss,
+    DetectorScore,
+    EffectCoefficient,
     EpochIndexValue,
-    FiniteFloat,
+    EvidenceFactor,
+    EvidenceShare,
+    InnovationCoordinate,
+    InnovationMean,
+    LogEvidenceGrowth,
     MaybeDefinedMetric,
+    MetricRate,
     NumericalFloor,
     NumericalTolerance,
     OdiIndicator,
     PositiveEpochCount,
     Probability,
+    ProjectionNrmse,
+    RankEstimationError,
+    RankValue,
     RecordCount,
+    RuntimeSeconds,
+    StandardDeviation,
+    StandardizedAtomCoordinate,
+    StandardizedDrift,
+    StandardizedNullBias,
+    StoppingTimeDifference,
     StrictOdiOutcome,
+    ThroughputPerSecond,
 )
 from fedcampaign_emhi.emhi.structure import coalition_count
 
@@ -86,39 +108,41 @@ FALSE_CAMPAIGN_RATE_EPOCH_SCALE = 10 * 1000
 
 def false_campaigns_per_ten_thousand_benign_epochs(
     false_declarations: RecordCount, benign_epochs: RecordCount
-) -> FiniteFloat:
+) -> MetricRate:
     if benign_epochs <= 0:
         raise ValueError("false campaigns per 10k requires at least one benign epoch")
     return FALSE_CAMPAIGN_RATE_EPOCH_SCALE * false_declarations / benign_epochs
 
 
 def self_explanation_attenuation(
-    residual_derivative: FiniteFloat,
-    direct_derivative: FiniteFloat,
+    residual_derivative: EffectCoefficient,
+    direct_derivative: EffectCoefficient,
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> Attenuation:
     denominator = abs(direct_derivative) + metric_denominator_floor
     return 1.0 - abs(residual_derivative) / denominator
 
 
 def self_explanation_material_contrast(
-    inclusive_attenuation: FiniteFloat, exact_attenuation: FiniteFloat
-) -> FiniteFloat:
+    inclusive_attenuation: Attenuation, exact_attenuation: Attenuation
+) -> AttenuationDifference:
     return inclusive_attenuation - exact_attenuation
 
 
-def mean_log_evidence_growth(log_evidence_factors: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def mean_log_evidence_growth(
+    log_evidence_factors: tuple[LogEvidenceGrowth, ...],
+) -> LogEvidenceGrowth:
     if not log_evidence_factors:
         raise ValueError("mean log-evidence growth requires an attack interval")
     return sum(log_evidence_factors) / len(log_evidence_factors)
 
 
 def proper_subset_drift(
-    mean_under_alternative: tuple[FiniteFloat, ...],
-    mean_under_null: tuple[FiniteFloat, ...],
-    null_trace_sqrt: FiniteFloat,
+    mean_under_alternative: tuple[InnovationMean, ...],
+    mean_under_null: tuple[InnovationMean, ...],
+    null_trace_sqrt: StandardDeviation,
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> StandardizedDrift:
     if len(mean_under_alternative) != len(mean_under_null):
         raise ValueError("proper-subset drift means must be aligned")
     squared = sum(
@@ -129,32 +153,32 @@ def proper_subset_drift(
     return sqrt(squared) / denominator
 
 
-def maximal_proper_subset_drift(subset_drifts: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def maximal_proper_subset_drift(subset_drifts: tuple[StandardizedDrift, ...]) -> StandardizedDrift:
     if not subset_drifts:
         raise ValueError("maximal proper-subset drift requires at least one proper subset")
     return max(subset_drifts)
 
 
 def target_order_drift(
-    alternative_mean: FiniteFloat,
-    null_mean: FiniteFloat,
-    null_deviation: FiniteFloat,
+    alternative_mean: InnovationMean,
+    null_mean: InnovationMean,
+    null_deviation: StandardDeviation,
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> StandardizedDrift:
     return (alternative_mean - null_mean) / max(null_deviation, metric_denominator_floor)
 
 
 def order_evidence_share(
-    order_factor: FiniteFloat,
-    all_order_factors: tuple[FiniteFloat, ...],
+    order_factor: EvidenceFactor,
+    all_order_factors: tuple[EvidenceFactor, ...],
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> EvidenceShare:
     total = sum(all_order_factors) + metric_denominator_floor
     return order_factor / total
 
 
 def decisive_order(
-    stop_epoch_factors: tuple[tuple[CoalitionOrder, FiniteFloat], ...],
+    stop_epoch_factors: tuple[tuple[CoalitionOrder, EvidenceFactor], ...],
     deterministic_comparison_tolerance: NumericalTolerance,
 ) -> CoalitionOrder | None:
     eligible = [(order, factor) for order, factor in stop_epoch_factors if factor > 1.0]
@@ -171,10 +195,10 @@ def decisive_order(
 
 
 def atom_nrmse(
-    emhi_atoms: tuple[tuple[FiniteFloat, ...], ...],
-    hofd_atoms: tuple[tuple[FiniteFloat, ...], ...],
+    emhi_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
+    hofd_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> ProjectionNrmse:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
     if len(emhi_atoms) != len(hofd_atoms):
@@ -193,10 +217,10 @@ def atom_nrmse(
 
 
 def atom_cosine_similarity(
-    emhi_atoms: tuple[tuple[FiniteFloat, ...], ...],
-    hofd_atoms: tuple[tuple[FiniteFloat, ...], ...],
+    emhi_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
+    hofd_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> CosineSimilarity:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
     if len(emhi_atoms) != len(hofd_atoms):
@@ -214,7 +238,7 @@ def atom_cosine_similarity(
 
 def paired_stopping_time_difference(
     emhi_stop: EpochIndexValue, comparison_stop: EpochIndexValue
-) -> FiniteFloat:
+) -> StoppingTimeDifference:
     return emhi_stop - comparison_stop
 
 
@@ -224,13 +248,13 @@ def paired_detection_indicator_difference(
     return int(emhi_detected) - int(comparison_detected)
 
 
-def pfa_difference(emhi_pfa: Probability, comparison_pfa: Probability) -> FiniteFloat:
+def pfa_difference(emhi_pfa: Probability, comparison_pfa: Probability) -> MetricRate:
     return emhi_pfa - comparison_pfa
 
 
 def conditional_rank_mae(
-    estimated_ranks: tuple[FiniteFloat, ...], truth_ranks: tuple[FiniteFloat, ...]
-) -> FiniteFloat:
+    estimated_ranks: tuple[RankValue, ...], truth_ranks: tuple[RankValue, ...]
+) -> RankEstimationError:
     if len(estimated_ranks) != len(truth_ranks):
         raise ValueError("conditional-rank MAE requires aligned rank samples")
     if not estimated_ranks:
@@ -242,11 +266,11 @@ def conditional_rank_mae(
 
 
 def projection_nrmse(
-    fitted_projections: tuple[tuple[FiniteFloat, ...], ...],
-    population_projections: tuple[tuple[FiniteFloat, ...], ...],
-    tensor_rows: tuple[tuple[FiniteFloat, ...], ...],
+    fitted_projections: tuple[tuple[InnovationCoordinate, ...], ...],
+    population_projections: tuple[tuple[InnovationCoordinate, ...], ...],
+    tensor_rows: tuple[tuple[InnovationCoordinate, ...], ...],
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> ProjectionNrmse:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
     lengths = {len(fitted_projections), len(population_projections), len(tensor_rows)}
@@ -268,10 +292,10 @@ def projection_nrmse(
 
 
 def standardized_null_bias(
-    mean_atom: tuple[FiniteFloat, ...],
-    covariance_trace_sqrt: FiniteFloat,
+    mean_atom: tuple[InnovationMean, ...],
+    covariance_trace_sqrt: StandardDeviation,
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> StandardizedNullBias:
     from fedcampaign_emhi.emhi.evidence import euclidean_norm
 
     return euclidean_norm(mean_atom) / max(covariance_trace_sqrt, metric_denominator_floor)
@@ -299,17 +323,17 @@ def common_mode_suppression(
     emhi_pfa: Probability,
     raw_mean_pfa: Probability,
     metric_denominator_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> CommonModeSuppression:
     return 1.0 - emhi_pfa / (raw_mean_pfa + metric_denominator_floor)
 
 
 def outside_conditioning_power_loss(
     no_outside_context_detection_rate: Probability, emhi_detection_rate: Probability
-) -> FiniteFloat:
+) -> DetectionRateLoss:
     return no_outside_context_detection_rate - emhi_detection_rate
 
 
-def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
+def auroc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUROC requires aligned scores and labels")
     positives = sum(1 for label in labels if label)
@@ -320,7 +344,7 @@ def auroc(scores: tuple[FiniteFloat, ...], labels: tuple[Boolean, ...]) -> Maybe
     return MaybeDefinedMetric.defined(float(raw_value))
 
 
-def auprc(scores: tuple[FiniteFloat, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
+def auprc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
     if len(scores) != len(labels):
         raise ValueError("AUPRC requires aligned scores and labels")
     positives = sum(1 for label in labels if label)
@@ -343,7 +367,9 @@ def application_payload_bytes_per_epoch(client_count: ClientCount) -> RecordCoun
     return APPLICATION_PAYLOAD_BYTES_PER_CLIENT_PER_EPOCH * client_count
 
 
-def throughput(coalitions_scored: RecordCount, server_compute_seconds: FiniteFloat) -> FiniteFloat:
+def throughput(
+    coalitions_scored: RecordCount, server_compute_seconds: RuntimeSeconds
+) -> ThroughputPerSecond:
     if server_compute_seconds <= 0.0:
         raise ValueError("throughput requires a positive server compute time")
     return coalitions_scored / server_compute_seconds

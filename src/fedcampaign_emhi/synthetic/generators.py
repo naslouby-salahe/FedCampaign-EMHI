@@ -9,10 +9,13 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
     ClientId,
+    ClientLoading,
     ComponentName,
     Correlation,
-    FiniteFloat,
+    DetectorScore,
+    FractionalClientCount,
     LatentAutoregressiveCoefficient,
+    LatentState,
     NumericalFloor,
     PositiveEpochCount,
     Probability,
@@ -27,8 +30,8 @@ from fedcampaign_emhi.synthetic.pure_order import lexicographic_target_clients
 
 
 def equally_spaced_loadings(
-    client_count: ClientCount, minimum_loading: FiniteFloat, maximum_loading: FiniteFloat
-) -> tuple[FiniteFloat, ...]:
+    client_count: ClientCount, minimum_loading: ClientLoading, maximum_loading: ClientLoading
+) -> tuple[ClientLoading, ...]:
     if client_count == 1:
         return (minimum_loading,)
     span = maximum_loading - minimum_loading
@@ -40,11 +43,11 @@ def generate_unit_variance_autoregressive_latent(
     epoch_count: PositiveEpochCount,
     autoregressive_coefficient: LatentAutoregressiveCoefficient,
     seed: SeedValue,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[LatentState, ...]:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     innovation_scale = sqrt(1.0 - (autoregressive_coefficient**2))
     latent = 0.0
-    series: list[FiniteFloat] = []
+    series: list[LatentState] = []
     for _epoch in range(epoch_count):
         latent = (autoregressive_coefficient * latent) + (
             innovation_scale * float(generator.standard_normal())
@@ -54,13 +57,13 @@ def generate_unit_variance_autoregressive_latent(
 
 
 def generate_common_mode_scores(
-    latent: tuple[FiniteFloat, ...],
-    loadings: tuple[FiniteFloat, ...],
+    latent: tuple[LatentState, ...],
+    loadings: tuple[ClientLoading, ...],
     noise_standard_deviation: StandardDeviation,
     seed: SeedValue,
-) -> tuple[tuple[FiniteFloat, ...], ...]:
+) -> tuple[tuple[DetectorScore, ...], ...]:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
-    scores: list[tuple[FiniteFloat, ...]] = []
+    scores: list[tuple[DetectorScore, ...]] = []
     for value in latent:
         epoch_scores = tuple(
             (loading * value) + (noise_standard_deviation * float(generator.standard_normal()))
@@ -83,12 +86,12 @@ def single_client_target(client_ids: tuple[ClientId, ...]) -> ClientId:
 
 
 def apply_marginal_score_shift(
-    scores: tuple[FiniteFloat, ...],
+    scores: tuple[DetectorScore, ...],
     ordered_client_ids: tuple[ClientId, ...],
     score_shift: ScoreShift,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     attacked = set(marginal_campaign_targets(ordered_client_ids))
-    shifted: list[FiniteFloat] = []
+    shifted: list[DetectorScore] = []
     for client_id, score in zip(ordered_client_ids, scores, strict=True):
         if client_id in attacked:
             shifted.append(score + score_shift)
@@ -98,12 +101,12 @@ def apply_marginal_score_shift(
 
 
 def apply_single_client_score_shift(
-    scores: tuple[FiniteFloat, ...],
+    scores: tuple[DetectorScore, ...],
     ordered_client_ids: tuple[ClientId, ...],
     score_shift: ScoreShift,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     attacked = single_client_target(ordered_client_ids)
-    shifted: list[FiniteFloat] = []
+    shifted: list[DetectorScore] = []
     for client_id, score in zip(ordered_client_ids, scores, strict=True):
         if client_id == attacked:
             shifted.append(score + score_shift)
@@ -120,7 +123,7 @@ def gaussian_copula_pair(correlation: Correlation, seed: SeedValue) -> tuple[Ran
     return (standard_normal_cdf(first), standard_normal_cdf(second))
 
 
-def round_half_up(non_negative_count: FiniteFloat) -> ClientCount:
+def round_half_up(non_negative_count: FractionalClientCount) -> ClientCount:
     if non_negative_count < 0.0:
         raise ValueError("round_half_up is defined for non-negative counts")
     return floor(non_negative_count + 0.5)

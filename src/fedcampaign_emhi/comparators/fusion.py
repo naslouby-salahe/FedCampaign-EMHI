@@ -14,14 +14,19 @@ from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.domain.types import (
     ArtifactFilename,
     Boolean,
+    ConfidenceLevel,
     ConfigurationDigest,
-    FiniteFloat,
+    EffectCoefficient,
+    FalseAlarmRate,
+    NumericalFloor,
     NumericalTolerance,
     PositiveEpochCount,
     RankValue,
     RecordCount,
     RuntimeSeconds,
     SeedCount,
+    StandardDeviation,
+    StandardizedError,
 )
 from fedcampaign_emhi.emhi.thresholds import clopper_pearson_one_sided_upper_bound
 
@@ -33,7 +38,7 @@ class CompositionCandidateResult:
     calibration_succeeded: Boolean
     heldout_false_stops: RecordCount
     heldout_horizons: RecordCount
-    mean_standardized_error: FiniteFloat
+    mean_standardized_error: StandardizedError
     median_runtime_seconds: RuntimeSeconds
 
 
@@ -46,8 +51,8 @@ class StrongComparatorComposition:
 
 def candidate_is_eligible(
     candidate_result: CompositionCandidateResult,
-    confidence: FiniteFloat,
-    target_pfa: FiniteFloat,
+    confidence: ConfidenceLevel,
+    target_pfa: FalseAlarmRate,
 ) -> Boolean:
     if not candidate_result.invariants_pass or not candidate_result.calibration_succeeded:
         return False
@@ -60,8 +65,8 @@ def candidate_is_eligible(
 
 
 def mean_standardized_error(
-    per_seed_errors: tuple[FiniteFloat, ...],
-) -> FiniteFloat:
+    per_seed_errors: tuple[StandardizedError, ...],
+) -> StandardizedError:
     if not per_seed_errors:
         raise ValueError("standardized target-order error requires development seeds")
     return sum(per_seed_errors) / len(per_seed_errors)
@@ -75,7 +80,7 @@ def median_runtime_seconds(runtimes: tuple[RuntimeSeconds, ...]) -> RuntimeSecon
 
 def select_strongest_comparator(
     candidates: tuple[MethodName, ...],
-    standardized_errors: tuple[FiniteFloat, ...],
+    standardized_errors: tuple[StandardizedError, ...],
     runtimes_seconds: tuple[RuntimeSeconds, ...],
     error_tie_tolerance: NumericalTolerance,
     runtime_tie_tolerance: RuntimeSeconds,
@@ -97,7 +102,7 @@ def select_strongest_comparator(
                 continue
             if (
                 abs(runtime_delta) <= runtime_tie_tolerance
-                and candidates[index].value < candidates[selected_index].value
+                and candidates[index] < candidates[selected_index]
             ):
                 selected_index = index
     return candidates[selected_index]
@@ -120,7 +125,7 @@ def composition_seed_count(development_root_count: SeedCount) -> SeedCount:
 
 @dataclass(frozen=True)
 class CompositionSelectionInputs:
-    reference_theta: FiniteFloat
+    reference_theta: EffectCoefficient
     error_tie_tolerance: NumericalTolerance
     runtime_tie_tolerance: RuntimeSeconds
     calibration_horizons_per_seed: RecordCount
@@ -130,13 +135,13 @@ class CompositionSelectionInputs:
 
 
 def standardized_estimation_error(
-    candidate_mean_score: FiniteFloat, reference_theta: FiniteFloat
-) -> FiniteFloat:
+    candidate_mean_score: EffectCoefficient, reference_theta: EffectCoefficient
+) -> StandardizedError:
     return abs(candidate_mean_score - reference_theta)
 
 
 def null_standard_deviation_is_usable(
-    null_deviation: FiniteFloat, metric_denominator_floor: FiniteFloat
+    null_deviation: StandardDeviation, metric_denominator_floor: NumericalFloor
 ) -> Boolean:
     from math import isfinite
 
@@ -169,8 +174,8 @@ def _target_error_record(candidate: CompositionCandidateResult) -> ComparatorTar
 def build_composition_selection_record(
     candidate_results: tuple[CompositionCandidateResult, ...],
     inputs: CompositionSelectionInputs,
-    confidence: FiniteFloat,
-    target_pfa: FiniteFloat,
+    confidence: ConfidenceLevel,
+    target_pfa: FalseAlarmRate,
     material_digest: ConfigurationDigest,
     source_artifact_hashes: tuple[ConfigurationDigest, ...],
 ) -> StrongComparatorCompositionRecord:

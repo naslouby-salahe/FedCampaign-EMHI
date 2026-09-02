@@ -34,14 +34,15 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
     ComponentName,
-    FiniteFloat,
     MaterialDependencyFingerprint,
+    MetricValue,
+    PairedDifference,
     RecordCount,
     SeedValue,
 )
 
 
-def seed_mean(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def seed_mean(values: tuple[MetricValue, ...]) -> MetricValue:
     if not values:
         raise ValueError("seed summary requires at least one source value")
     return sum(values) / len(values)
@@ -54,8 +55,8 @@ def build_seed_summary(
     reference_method_name: MethodName | None,
     metric_name: ComponentName,
     seed: SeedValue,
-    method_values: tuple[FiniteFloat, ...],
-    reference_values: tuple[FiniteFloat, ...] | None,
+    method_values: tuple[MetricValue, ...],
+    reference_values: tuple[MetricValue, ...] | None,
     source_evaluation_ids: tuple[ArtifactIdentity, ...],
     dependency_fingerprint: MaterialDependencyFingerprint,
 ) -> SeedSummaryRecord:
@@ -104,8 +105,8 @@ def build_seed_summary(
 
 def paired_seed_differences(
     summaries: tuple[SeedSummaryRecord, ...],
-) -> tuple[FiniteFloat, ...]:
-    differences: list[FiniteFloat] = []
+) -> tuple[PairedDifference, ...]:
+    differences: list[PairedDifference] = []
     seen: set[SeedValue] = set()
     for summary in summaries:
         if summary.seed in seen:
@@ -170,15 +171,15 @@ def materialize_primary_holm_family(
             path
             for path in sorted(root.rglob("*.json"))
             if _verified_statistical_record(loaded, repository, path).hypothesis_identifier
-            == hypothesis.value
+            == hypothesis
         )
         if len(matching) != 1:
-            raise FileNotFoundError(f"missing verified primary Holm statistic {hypothesis.value!r}")
+            raise FileNotFoundError(f"missing verified primary Holm statistic {hypothesis!s}")
         record = _verified_statistical_record(loaded, repository, matching[0])
         paths.append(matching[0])
         inputs.append(
             HolmHypothesisInput(
-                identifier=hypothesis.value,
+                identifier=hypothesis,
                 raw_p_value=record.raw_p_value,
                 decision=record.decision,
             )

@@ -1,36 +1,46 @@
 import statistics
 
-from fedcampaign_emhi.domain.types import Boolean, FiniteFloat, NumericalFloor, RecordCount
+from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
+    Boolean,
+    InnovationCoordinate,
+    InnovationDeviation,
+    InnovationMean,
+    NuisanceCoefficient,
+    NumericalFloor,
+    RecordCount,
+    StandardizedAtomCoordinate,
+)
 
 
-def sample_mean(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def sample_mean(values: tuple[InnovationCoordinate, ...]) -> InnovationMean:
     if not values:
         raise ValueError("mean requires at least one observation")
     return statistics.fmean(values)
 
 
-def sample_standard_deviation(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def sample_standard_deviation(values: tuple[InnovationCoordinate, ...]) -> InnovationDeviation:
     if len(values) < 2:
         raise ValueError("sample standard deviation requires at least two observations")
     return statistics.stdev(values)
 
 
 def centered_scaled_coordinate(
-    coordinate: FiniteFloat,
-    mean: FiniteFloat,
-    deviation: FiniteFloat,
+    coordinate: InnovationCoordinate,
+    mean: InnovationMean,
+    deviation: InnovationDeviation,
     scale_floor: NumericalFloor,
-) -> FiniteFloat:
+) -> StandardizedAtomCoordinate:
     scale = max(deviation, scale_floor)
     return (coordinate - mean) / scale
 
 
 def center_and_scale_atom(
-    atom: tuple[FiniteFloat, ...],
-    means: tuple[FiniteFloat, ...],
-    deviations: tuple[FiniteFloat, ...],
+    atom: tuple[InnovationCoordinate, ...],
+    means: tuple[InnovationMean, ...],
+    deviations: tuple[InnovationDeviation, ...],
     scale_floor: NumericalFloor,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[StandardizedAtomCoordinate, ...]:
     if len(atom) != len(means) or len(atom) != len(deviations):
         raise ValueError("atom, means, and deviations must be aligned")
     return tuple(
@@ -40,13 +50,13 @@ def center_and_scale_atom(
 
 
 def projection_residual(
-    tensor: tuple[FiniteFloat, ...],
-    coefficients: tuple[tuple[FiniteFloat, ...], ...],
-    design_row: tuple[FiniteFloat, ...],
-) -> tuple[FiniteFloat, ...]:
+    tensor: tuple[InnovationCoordinate, ...],
+    coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    design_row: tuple[BasisCoordinate, ...],
+) -> tuple[InnovationCoordinate, ...]:
     if len(coefficients) != len(design_row):
         raise ValueError("coefficient rows must match design columns")
-    predicted: list[FiniteFloat] = []
+    predicted: list[InnovationCoordinate] = []
     dimension = len(tensor)
     for coordinate_index in range(dimension):
         total = 0.0
@@ -61,8 +71,8 @@ def unsupported_context_observation_count(observation_count: RecordCount) -> Boo
 
 
 def innovation_excludes_same_order_representation(
-    tensor: tuple[FiniteFloat, ...],
-    coefficients: tuple[tuple[FiniteFloat, ...], ...],
-    design_row: tuple[FiniteFloat, ...],
-) -> tuple[FiniteFloat, ...]:
+    tensor: tuple[InnovationCoordinate, ...],
+    coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    design_row: tuple[BasisCoordinate, ...],
+) -> tuple[InnovationCoordinate, ...]:
     return projection_residual(tensor, coefficients, design_row)

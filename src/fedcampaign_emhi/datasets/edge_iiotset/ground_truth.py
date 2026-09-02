@@ -1,11 +1,11 @@
 from fedcampaign_emhi.domain.enums import GroundTruthClass
-from fedcampaign_emhi.domain.types import AttackTypeName, GroundTruthLabel, SignedInt
+from fedcampaign_emhi.domain.types import AttackTypeName, BinaryClassLabel, GroundTruthLabel
 
 BENIGN_ATTACK_TYPE = "normal"
 
 
 def edge_iiotset_ground_truth(
-    binary_label: SignedInt, attack_type: AttackTypeName
+    binary_label: BinaryClassLabel, attack_type: AttackTypeName
 ) -> GroundTruthLabel:
     normalized_type = attack_type.strip()
     if binary_label == 0 and normalized_type.lower() == BENIGN_ATTACK_TYPE:

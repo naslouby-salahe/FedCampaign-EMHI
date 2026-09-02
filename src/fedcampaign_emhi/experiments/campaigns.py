@@ -112,18 +112,27 @@ from fedcampaign_emhi.domain.types import (
     CellCount,
     ComponentName,
     ConfigurationDigest,
+    ContextCoverage,
+    CusumState,
+    DetectorScore,
     EpochIndexValue,
     FalseAlarmRate,
-    FiniteFloat,
+    FeatureValue,
     MaterialDependencyFingerprint,
+    MetricRate,
     OdiIndicator,
+    OdiRateAdvantage,
+    OperationalLeadEpochs,
     RankValue,
     RecordCount,
     RelativePath,
     RidgePenalty,
+    RobustnessCountMultiplier,
     RobustScaler,
     RuntimeSeconds,
     SeedValue,
+    StandardizedError,
+    ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.evidence import (
@@ -802,7 +811,7 @@ def _execute_synthetic_experiment(
                             method_name=method_name,
                             seed=seed,
                             standardized_target_order_error=cast(
-                                FiniteFloat, evidence["standardized_target_order_error"]
+                                StandardizedError, evidence["standardized_target_order_error"]
                             ),
                             metric=composition_metrics,
                             diagnostic_path=diagnostic_path,
@@ -1647,9 +1656,9 @@ def _campaign_rows(
     fit: EMHIFitArtifactRecord,
     campaigns: CampaignRegistryRecord,
     calibration: OperationalCalibration,
-) -> tuple[tuple[YamlNode, ...], tuple[FiniteFloat, ...]]:
+) -> tuple[tuple[YamlNode, ...], tuple[OdiRateAdvantage, ...]]:
     rows: list[YamlNode] = []
-    odi_values: list[FiniteFloat] = []
+    odi_values: list[OdiRateAdvantage] = []
     threshold = calibration.global_operating_point.threshold
     for campaign in campaigns.campaigns:
         started = perf_counter()
@@ -2005,7 +2014,7 @@ def _comparator_epoch_scores(
     repository: Path,
     ranks: MarginalRankArtifactRecord,
     method_name: MethodName,
-) -> tuple[tuple[EpochIndexValue, FiniteFloat], ...]:
+) -> tuple[tuple[EpochIndexValue, DetectorScore], ...]:
     streams = tuple(
         (
             stream.client_id,
@@ -2030,8 +2039,8 @@ def _comparator_epoch_scores(
         MethodName.D_VINE_CONDITIONAL_REFERENCE,
         MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE,
     }
-    scores: list[tuple[EpochIndexValue, FiniteFloat]] = []
-    cusum_state: tuple[FiniteFloat, ...] = ()
+    scores: list[tuple[EpochIndexValue, DetectorScore]] = []
+    cusum_state: tuple[CusumState, ...] = ()
     for epoch in common_epochs:
         values: tuple[RankValue, ...] = tuple(
             next(rank for candidate_epoch, rank in stream if candidate_epoch == epoch)
@@ -2050,9 +2059,9 @@ def _comparator_epoch_scores(
 
 def _comparator_evidence_scores(
     loaded: LoadedScientificConfiguration,
-    raw_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    raw_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
     nuisance_epochs: tuple[EpochIndexValue, ...],
-) -> tuple[tuple[EpochIndexValue, FiniteFloat], ...]:
+) -> tuple[tuple[EpochIndexValue, DetectorScore], ...]:
     nuisance_scores = tuple(score for epoch, score in raw_scores if epoch in nuisance_epochs)
     if not nuisance_scores:
         raise ValueError("comparator evidence requires nuisance-fit scores")
@@ -2086,9 +2095,9 @@ def _comparator_evidence_scores(
 
 
 def _comparator_stop(
-    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    evidence_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
     epochs: tuple[EpochIndexValue, ...],
-    threshold: FiniteFloat | None,
+    threshold: ThresholdValue | None,
 ) -> EpochIndexValue | None:
     if threshold is None:
         return None
@@ -2108,10 +2117,10 @@ def _comparator_stop(
 
 def _calibrate_comparator_operating_point(
     loaded: LoadedScientificConfiguration,
-    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
+    evidence_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
     partitions: BenignPartitionRecord,
 ) -> tuple[
-    FiniteFloat | None, tuple[RecordCount, ...], RecordCount, RecordCount, FiniteFloat | None
+    ThresholdValue | None, tuple[RecordCount, ...], RecordCount, RecordCount, FalseAlarmRate | None
 ]:
     calibration_horizons = partitions.calibration_horizons
     heldout_horizons = partitions.heldout_horizons
@@ -2190,9 +2199,9 @@ def materialize_seed_statistics(
     ]
     if not method_groups:
         return ()
-    raw_p_values: list[FiniteFloat] = []
-    estimates: list[FiniteFloat] = []
-    intervals: list[tuple[FiniteFloat, FiniteFloat] | None] = []
+    raw_p_values: list[FalseAlarmRate] = []
+    estimates: list[MetricRate] = []
+    intervals: list[tuple[MetricRate, MetricRate] | None] = []
     sources: list[tuple[ArtifactIdentity, ...]] = []
     fingerprints: list[MaterialDependencyFingerprint] = []
     for _method_name, records in method_groups:
@@ -2370,10 +2379,10 @@ def _stress_window_false_declaration_rate(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     fit: EMHIFitArtifactRecord,
-    threshold: FiniteFloat | None,
+    threshold: ThresholdValue | None,
     stress_windows: tuple[BenignHorizon, ...],
     trajectory_cache: TrajectoryCache,
-) -> FiniteFloat | None:
+) -> MetricRate | None:
     if threshold is None or not stress_windows:
         return None
     stops = tuple(
@@ -2397,10 +2406,10 @@ def _stress_window_false_declaration_rate(
 
 
 def _comparator_stress_window_false_declaration_rate(
-    evidence_scores: tuple[tuple[EpochIndexValue, FiniteFloat], ...],
-    threshold: FiniteFloat | None,
+    evidence_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
+    threshold: ThresholdValue | None,
     stress_windows: tuple[BenignHorizon, ...],
-) -> FiniteFloat | None:
+) -> MetricRate | None:
     if threshold is None or not stress_windows:
         return None
     stops = tuple(
@@ -2416,7 +2425,7 @@ def _benign_common_mode_seed_fcr(
     dataset_name: DatasetName,
     seed: SeedValue,
     stress_windows: tuple[BenignHorizon, ...],
-) -> tuple[FiniteFloat, FiniteFloat, tuple[Path, ...]] | None:
+) -> tuple[MetricRate, MetricRate, tuple[Path, ...]] | None:
     _inventory_path, _prepared_path, split_path, partitions_path, _campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
     )
@@ -2476,7 +2485,7 @@ def _benign_common_mode_seed_difference(
     dataset_name: DatasetName,
     seed: SeedValue,
     stress_windows: tuple[BenignHorizon, ...],
-) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+) -> tuple[MetricRate, tuple[Path, ...]] | None:
     outcome = _benign_common_mode_seed_fcr(loaded, repository, dataset_name, seed, stress_windows)
     if outcome is None:
         return None
@@ -2523,7 +2532,7 @@ def materialize_benign_common_mode_statistic(
     counts = window_event_counts(all_windows, epoch_totals)
     stress_windows = select_high_volume_windows(all_windows, counts, plan.top_event_count_fraction)
     expected_confirmatory = loaded.values.randomness.real_confirmatory_roots
-    differences: list[FiniteFloat] = []
+    differences: list[MetricRate] = []
     source_paths: list[Path] = []
     covered_seeds: list[SeedValue] = []
     for seed in expected_confirmatory:
@@ -2598,8 +2607,8 @@ def materialize_benign_common_mode_statistic(
 
 
 def _apply_client_scaler(
-    scaler: ClientFeatureScalerRecord, values: tuple[FiniteFloat, ...]
-) -> tuple[FiniteFloat, ...]:
+    scaler: ClientFeatureScalerRecord, values: tuple[FeatureValue, ...]
+) -> tuple[FeatureValue, ...]:
     return tuple(
         apply_robust_scaler(
             RobustScaler(median=median, iqr=iqr, iqr_floor=scaler.iqr_floor), (value,)
@@ -2616,7 +2625,7 @@ def _stressed_detector_scores(
     dataset_name: DatasetName,
     root_seed: SeedValue,
     stress_epoch_indexes: tuple[EpochIndexValue, ...],
-    factor: FiniteFloat,
+    factor: RobustnessCountMultiplier,
 ) -> DetectorScoreArtifactRecord:
     assignments = assign_detector_families(split.selected_client_ids)
     stress_epoch_set = set(stress_epoch_indexes)
@@ -2680,8 +2689,8 @@ def _count_stress_false_declaration_rates(
     repository: Path,
     dataset_name: DatasetName,
     seed: SeedValue,
-    factor: FiniteFloat,
-) -> tuple[FiniteFloat, FiniteFloat, tuple[Path, ...]] | None:
+    factor: RobustnessCountMultiplier,
+) -> tuple[MetricRate, MetricRate, tuple[Path, ...]] | None:
     _inventory_path, prepared_path, split_path, partitions_path, _campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
     )
@@ -2816,7 +2825,7 @@ def _campaign_detection_rate_for_method(
     dataset_name: DatasetName,
     method_name: MethodName,
     seed: SeedValue,
-) -> tuple[FiniteFloat, tuple[Path, ...]] | None:
+) -> tuple[MetricRate, tuple[Path, ...]] | None:
     _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
     )
@@ -2905,8 +2914,8 @@ def materialize_benign_common_mode_positive_power_measurement(
     stress_windows = select_high_volume_windows(all_windows, counts, plan.top_event_count_fraction)
     materiality = loaded.values.materiality.benign_common_mode
     floor = loaded.values.numerics.metric_denominator_floor
-    power_losses: list[FiniteFloat] = []
-    suppressions: list[FiniteFloat] = []
+    power_losses: list[MetricRate] = []
+    suppressions: list[MetricRate] = []
     source_paths: list[Path] = []
     covered_seeds: list[SeedValue] = []
     for seed in loaded.values.randomness.real_confirmatory_roots:
@@ -3019,7 +3028,7 @@ def _evaluate_comparator_seed_cell(
         for client_id in detector_scores.selected_client_ids
     )
     campaign_rows: list[YamlNode] = []
-    odi_values: list[FiniteFloat] = []
+    odi_values: list[OdiRateAdvantage] = []
     for campaign in campaigns.campaigns:
         started = perf_counter()
         epochs = tuple(range(campaign.start_epoch, campaign.end_epoch + 1))
@@ -3389,12 +3398,12 @@ def _emhi_metrics_for_fit(
     )
     strict_odi_rate = sum(odi_values) / len(odi_values) if odi_values else 0.0
     leads = tuple(
-        cast(FiniteFloat, row["operational_lead_epochs"])
+        cast(OperationalLeadEpochs, row["operational_lead_epochs"])
         for row in rows
         if row["operational_lead_epochs"] is not None
     )
     operational_lead_mean = sum(leads) / len(leads) if leads else None
-    coverages = tuple(cast(FiniteFloat, row["context_coverage"]) for row in rows)
+    coverages = tuple(cast(ContextCoverage, row["context_coverage"]) for row in rows)
     context_coverage = sum(coverages) / len(coverages) if coverages else 0.0
     total_cells = sum(len(coalition_fit.cells) for coalition_fit in fit.coalition_fits)
     failed_cells = sum(

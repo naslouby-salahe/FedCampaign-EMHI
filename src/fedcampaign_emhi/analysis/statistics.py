@@ -6,18 +6,22 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentalUnitKind,
     PrimaryHolmHypothesis,
     SecondaryHolmHypothesis,
+    SignFlipDirection,
     SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
+    BootstrapAcceleration,
+    BootstrapBiasCorrection,
     ClientId,
     ComponentName,
-    FiniteFloat,
+    EquivalenceBoundary,
+    PairedDifference,
     PairingKey,
     Probability,
     RecordCount,
     SeedValue,
-    SignedInt,
+    StatisticValue,
 )
 
 
@@ -28,7 +32,7 @@ def sign_flip_assignment_count(confirmatory_seed_count: RecordCount) -> RecordCo
 
 
 def sign_flip_p_value(
-    observed: FiniteFloat, flipped: tuple[FiniteFloat, ...], alternative_greater: Boolean
+    observed: StatisticValue, flipped: tuple[StatisticValue, ...], alternative_greater: Boolean
 ) -> Probability:
     if not flipped:
         raise ValueError("flipped statistics must be non-empty")
@@ -40,8 +44,8 @@ def sign_flip_p_value(
 
 
 def paired_difference(
-    treatment: tuple[FiniteFloat, ...], reference: tuple[FiniteFloat, ...]
-) -> tuple[FiniteFloat, ...]:
+    treatment: tuple[StatisticValue, ...], reference: tuple[StatisticValue, ...]
+) -> tuple[PairedDifference, ...]:
     if len(treatment) != len(reference):
         raise ValueError("paired samples must have equal length")
     return tuple(left - right for left, right in zip(treatment, reference, strict=True))
@@ -59,14 +63,14 @@ def real_experimental_unit() -> ExperimentalUnitKind:
     return ExperimentalUnitKind.ALGORITHM_ROOT_SEED
 
 
-def seed_level_aggregate(campaign_level_values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def seed_level_aggregate(campaign_level_values: tuple[StatisticValue, ...]) -> StatisticValue:
     if not campaign_level_values:
         raise ValueError("seed-level aggregation requires at least one campaign-level value")
     return sum(campaign_level_values) / len(campaign_level_values)
 
 
 def two_sided_sign_flip_p_value(
-    observed_mean: FiniteFloat, flipped_means: tuple[FiniteFloat, ...]
+    observed_mean: StatisticValue, flipped_means: tuple[StatisticValue, ...]
 ) -> Probability:
     if not flipped_means:
         raise ValueError("flipped means must be non-empty")
@@ -76,7 +80,7 @@ def two_sided_sign_flip_p_value(
 
 
 def one_sided_synthetic_sign_flip_p_value(
-    differences: tuple[FiniteFloat, ...],
+    differences: tuple[PairedDifference, ...],
     maximum_exact_replicates: RecordCount,
     monte_carlo_replicates: RecordCount,
     seed: SeedValue,
@@ -91,9 +95,15 @@ def one_sided_synthetic_sign_flip_p_value(
     generator = random.Random(seed)
     extreme_count = 0
     for _replicate in range(monte_carlo_replicates):
-        pattern = tuple(generator.choice((-1, 1)) for _value in differences)
+        pattern = tuple(
+            generator.choice((SignFlipDirection.NEGATIVE, SignFlipDirection.POSITIVE))
+            for _value in differences
+        )
         while all(sign == 1 for sign in pattern):
-            pattern = tuple(generator.choice((-1, 1)) for _value in differences)
+            pattern = tuple(
+                generator.choice((SignFlipDirection.NEGATIVE, SignFlipDirection.POSITIVE))
+                for _value in differences
+            )
         if flipped_mean(differences, pattern) >= observed:
             extreme_count += 1
     return monte_carlo_sign_flip_p_value(extreme_count, monte_carlo_replicates)
@@ -112,21 +122,21 @@ def monte_carlo_sign_flip_p_value(
 
 
 def apply_sign_pattern(
-    differences: tuple[FiniteFloat, ...], pattern: tuple[SignedInt, ...]
-) -> tuple[FiniteFloat, ...]:
+    differences: tuple[PairedDifference, ...], pattern: tuple[SignFlipDirection, ...]
+) -> tuple[StatisticValue, ...]:
     if len(differences) != len(pattern):
         raise ValueError("differences and sign pattern must be aligned")
     return tuple(difference * sign for difference, sign in zip(differences, pattern, strict=True))
 
 
 def flipped_mean(
-    differences: tuple[FiniteFloat, ...], pattern: tuple[SignedInt, ...]
-) -> FiniteFloat:
+    differences: tuple[PairedDifference, ...], pattern: tuple[SignFlipDirection, ...]
+) -> StatisticValue:
     signed = apply_sign_pattern(differences, pattern)
     return sum(signed) / len(signed)
 
 
-def exact_sign_flip_means(differences: tuple[FiniteFloat, ...]) -> tuple[FiniteFloat, ...]:
+def exact_sign_flip_means(differences: tuple[PairedDifference, ...]) -> tuple[StatisticValue, ...]:
     if not differences:
         raise ValueError("exact sign-flip inference requires paired differences")
     return tuple(
@@ -135,10 +145,10 @@ def exact_sign_flip_means(differences: tuple[FiniteFloat, ...]) -> tuple[FiniteF
     )
 
 
-def hodges_lehmann_shift(differences: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def hodges_lehmann_shift(differences: tuple[PairedDifference, ...]) -> StatisticValue:
     if not differences:
         raise ValueError("Hodges-Lehmann shift requires at least one paired difference")
-    walsh: list[FiniteFloat] = []
+    walsh: list[StatisticValue] = []
     for first_index, first in enumerate(differences):
         for second in differences[first_index:]:
             walsh.append((first + second) / 2.0)
@@ -151,23 +161,29 @@ def hodges_lehmann_shift(differences: tuple[FiniteFloat, ...]) -> FiniteFloat:
 
 
 def interval_establishes_equivalence(
-    lower: FiniteFloat,
-    upper: FiniteFloat,
-    region_lower: FiniteFloat,
-    region_upper: FiniteFloat,
+    lower: StatisticValue,
+    upper: StatisticValue,
+    region_lower: EquivalenceBoundary,
+    region_upper: EquivalenceBoundary,
 ) -> Boolean:
     return lower >= region_lower and upper <= region_upper
 
 
-def degenerate_bootstrap_interval(observed: FiniteFloat) -> tuple[FiniteFloat, FiniteFloat]:
+def degenerate_bootstrap_interval(
+    observed: StatisticValue,
+) -> tuple[StatisticValue, StatisticValue]:
     return (observed, observed)
 
 
-def bootstrap_is_degenerate(observed: FiniteFloat, replicates: tuple[FiniteFloat, ...]) -> Boolean:
+def bootstrap_is_degenerate(
+    observed: StatisticValue, replicates: tuple[StatisticValue, ...]
+) -> Boolean:
     return bool(replicates) and all(statistic == observed for statistic in replicates)
 
 
-def _linear_quantile(values: tuple[FiniteFloat, ...], probability: Probability) -> FiniteFloat:
+def _linear_quantile(
+    values: tuple[StatisticValue, ...], probability: Probability
+) -> StatisticValue:
     if not values:
         raise ValueError("quantile requires observations")
     if probability < 0.0 or probability > 1.0:
@@ -182,7 +198,7 @@ def _linear_quantile(values: tuple[FiniteFloat, ...], probability: Probability) 
     return ordered[lower_index] + fraction * (ordered[upper_index] - ordered[lower_index])
 
 
-def _jackknife_acceleration(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
+def _jackknife_acceleration(values: tuple[StatisticValue, ...]) -> BootstrapAcceleration:
     if len(values) < 2:
         return 0.0
     jackknife = tuple(
@@ -200,8 +216,8 @@ def _jackknife_acceleration(values: tuple[FiniteFloat, ...]) -> FiniteFloat:
 
 def _bca_adjusted_probability(
     nominal_probability: Probability,
-    bias_correction: FiniteFloat,
-    acceleration: FiniteFloat,
+    bias_correction: BootstrapBiasCorrection,
+    acceleration: BootstrapAcceleration,
 ) -> Probability:
     normal = NormalDist()
     nominal_z = normal.inv_cdf(nominal_probability)
@@ -214,11 +230,11 @@ def _bca_adjusted_probability(
 
 
 def paired_mean_bca_interval(
-    paired_values: tuple[FiniteFloat, ...],
+    paired_values: tuple[PairedDifference, ...],
     confidence_level: Probability,
     replicate_count: RecordCount,
     seed: SeedValue,
-) -> tuple[FiniteFloat, FiniteFloat]:
+) -> tuple[StatisticValue, StatisticValue]:
     if not paired_values:
         raise ValueError("BCa interval requires independent paired seed values")
     if confidence_level <= 0.0 or confidence_level >= 1.0:
@@ -249,11 +265,11 @@ def paired_mean_bca_interval(
 
 
 def mean_bca_one_sided_lower_bound(
-    values: tuple[FiniteFloat, ...],
+    values: tuple[StatisticValue, ...],
     confidence_level: Probability,
     replicate_count: RecordCount,
     seed: SeedValue,
-) -> FiniteFloat:
+) -> StatisticValue:
     if not values:
         raise ValueError("one-sided BCa bound requires independent seed values")
     if confidence_level <= 0.0 or confidence_level >= 1.0:
@@ -284,13 +300,15 @@ def mean_bca_one_sided_lower_bound(
 
 def exact_sign_pattern(
     assignment_index: SeedValue, unit_count: RecordCount
-) -> tuple[SignedInt, ...]:
+) -> tuple[SignFlipDirection, ...]:
     if assignment_index < 0 or assignment_index >= 2**unit_count:
         raise ValueError("assignment_index is outside the exact sign-flip family")
-    pattern: list[SignedInt] = []
+    pattern: list[SignFlipDirection] = []
     remaining = assignment_index
     for _offset in range(unit_count):
-        pattern.append(1 if remaining % 2 == 0 else -1)
+        pattern.append(
+            SignFlipDirection.POSITIVE if remaining % 2 == 0 else SignFlipDirection.NEGATIVE
+        )
         remaining //= 2
     return tuple(pattern)
 

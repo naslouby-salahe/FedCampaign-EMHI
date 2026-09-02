@@ -2,15 +2,17 @@ import numpy as np
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
     BasisSize,
     Boolean,
     DesignColumnCount,
     EpochIndexValue,
-    FiniteFloat,
     FoldCount,
     GramConditionNumber,
+    NuisanceCoefficient,
     NumericalFloor,
     NumericalTolerance,
+    ProjectionMeanSquaredError,
     ProperSubsetDesignShape,
     RankValue,
     RecordCount,
@@ -31,19 +33,19 @@ def proper_subset_design_column_count(
 
 def proper_subset_design_row(
     member_ranks: tuple[RankValue, ...], basis_size: BasisSize
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[BasisCoordinate, ...]:
     order = len(member_ranks)
     if order < 1:
         raise ValueError("proper-subset design requires at least one coalition member")
     intercept = (1.0,)
     if order == 1:
         return intercept
-    singletons: list[FiniteFloat] = []
+    singletons: list[BasisCoordinate] = []
     for rank in member_ranks:
         singletons.extend(bounded_basis(rank, basis_size))
     if order == 2:
         return intercept + tuple(singletons)
-    pair_coordinates: list[FiniteFloat] = []
+    pair_coordinates: list[BasisCoordinate] = []
     for left_index in range(order):
         for right_index in range(left_index + 1, order):
             pair_coordinates.extend(
@@ -92,8 +94,8 @@ def blocked_fold_sizes(
 
 
 def fold_size_weighted_mse(
-    fold_mses: tuple[FiniteFloat, ...], fold_sizes: tuple[RecordCount, ...]
-) -> FiniteFloat:
+    fold_mses: tuple[ProjectionMeanSquaredError, ...], fold_sizes: tuple[RecordCount, ...]
+) -> ProjectionMeanSquaredError:
     if len(fold_mses) != len(fold_sizes):
         raise ValueError("fold_mses and fold_sizes must have equal length")
     total = sum(fold_sizes)
@@ -104,7 +106,7 @@ def fold_size_weighted_mse(
 
 def select_ridge_penalty(
     candidates: tuple[RidgePenalty, ...],
-    weighted_mses: tuple[FiniteFloat, ...],
+    weighted_mses: tuple[ProjectionMeanSquaredError, ...],
     tie_tolerance: NumericalTolerance,
 ) -> RidgePenalty:
     if not candidates or len(candidates) != len(weighted_mses):
@@ -123,7 +125,7 @@ def select_ridge_penalty(
 
 
 def unregularized_gram_condition_number(
-    design_columns: tuple[tuple[FiniteFloat, ...], ...],
+    design_columns: tuple[tuple[BasisCoordinate, ...], ...],
 ) -> GramConditionNumber:
     matrix = np.asarray(design_columns, dtype=np.float64)
     if matrix.ndim != 2:
@@ -141,11 +143,11 @@ def unregularized_gram_condition_number(
 
 
 def ridge_coefficient_matrix(
-    design_columns: tuple[tuple[FiniteFloat, ...], ...],
-    responses: tuple[tuple[FiniteFloat, ...], ...],
+    design_columns: tuple[tuple[BasisCoordinate, ...], ...],
+    responses: tuple[tuple[BasisCoordinate, ...], ...],
     ridge_penalty: RidgePenalty,
     svd_relative_cutoff: NumericalFloor,
-) -> tuple[tuple[FiniteFloat, ...], ...]:
+) -> tuple[tuple[NuisanceCoefficient, ...], ...]:
     design = np.asarray(design_columns, dtype=np.float64)
     target = np.asarray(responses, dtype=np.float64)
     if design.ndim != 2 or target.ndim != 2:

@@ -32,17 +32,21 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientId,
     CoalitionMembers,
+    DetectorScore,
     EpochIndexValue,
     EpochSeconds,
     EvidenceFactor,
     FalseAlarmRate,
-    FiniteFloat,
     LocalPolicyArtifact,
     MaterialDependencyFingerprint,
+    OperationalLeadEpochs,
+    OperationalNormReference,
     PositiveEpochCount,
     Probability,
     RankReference,
     RankValue,
+    RuntimeSeconds,
+    StandardizedAtomCoordinate,
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import context_seed_for_order
@@ -405,16 +409,16 @@ def campaign_replay_plan(
 
 def statistical_lead(
     earliest_local_stop_epoch: EpochIndexValue, global_stop_epoch: EpochIndexValue
-) -> FiniteFloat:
+) -> OperationalLeadEpochs:
     return earliest_local_stop_epoch - global_stop_epoch
 
 
 def operational_lead(
     earliest_local_stop_epoch: EpochIndexValue,
     global_stop_epoch: EpochIndexValue,
-    detection_delay_seconds: FiniteFloat,
+    detection_delay_seconds: RuntimeSeconds,
     real_data_epoch_seconds: EpochSeconds,
-) -> FiniteFloat:
+) -> OperationalLeadEpochs:
     delay_in_epochs = detection_delay_seconds / real_data_epoch_seconds
     return earliest_local_stop_epoch - (global_stop_epoch + delay_in_epochs)
 
@@ -423,7 +427,7 @@ def score_at_epoch(
     scores: DetectorScoreArtifactRecord,
     client_id: ClientId,
     epoch_index: EpochIndexValue,
-) -> FiniteFloat | None:
+) -> DetectorScore | None:
     stream = next(
         (stream for stream in scores.client_streams if stream.client_id == client_id),
         None,
@@ -444,8 +448,8 @@ def scores_for_epochs(
     scores: DetectorScoreArtifactRecord,
     client_id: ClientId,
     epochs: tuple[EpochIndexValue, ...],
-) -> tuple[FiniteFloat, ...]:
-    resolved: list[FiniteFloat] = []
+) -> tuple[DetectorScore, ...]:
+    resolved: list[DetectorScore] = []
     for epoch in epochs:
         score = score_at_epoch(scores, client_id, epoch)
         if score is None:
@@ -591,7 +595,7 @@ def _coalition_standardized_atom_and_norm_at_epoch(
     epoch_index: EpochIndexValue,
     *,
     shuffled_lag_epoch: EpochIndexValue | None = None,
-) -> tuple[tuple[FiniteFloat, ...], FiniteFloat] | None:
+) -> tuple[tuple[StandardizedAtomCoordinate, ...], OperationalNormReference] | None:
     if coalition_fit.state is not SupportState.SUPPORTED:
         return None
     order_context = _order_context(fit, coalition_fit.coalition_order)
@@ -650,7 +654,7 @@ def coalition_standardized_atom_at_epoch(
     epoch_index: EpochIndexValue,
     *,
     shuffled_lag_epoch: EpochIndexValue | None = None,
-) -> tuple[FiniteFloat, ...] | None:
+) -> tuple[StandardizedAtomCoordinate, ...] | None:
     resolved = _coalition_standardized_atom_and_norm_at_epoch(
         config, ranks, fit, coalition_fit, epoch_index, shuffled_lag_epoch=shuffled_lag_epoch
     )

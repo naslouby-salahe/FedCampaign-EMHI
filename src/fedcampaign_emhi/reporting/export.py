@@ -10,7 +10,7 @@ from fedcampaign_emhi.artifacts.storage import build_artifact_layout, file_sha25
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import ExperimentName
-from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, FiniteFloat
+from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, MetricValue, SvgCoordinate
 
 
 def load_seed_summaries(paths: tuple[Path, ...]) -> tuple[SeedSummaryRecord, ...]:
@@ -59,7 +59,9 @@ def write_seed_summary_table(destination: Path, records: tuple[SeedSummaryRecord
     staging.replace(destination)
 
 
-def _scaled_y(metric_value: FiniteFloat, minimum: FiniteFloat, maximum: FiniteFloat) -> FiniteFloat:
+def _scaled_y(
+    metric_value: MetricValue, minimum: MetricValue, maximum: MetricValue
+) -> SvgCoordinate:
     if maximum == minimum:
         return 50
     return 90 - (80 * (metric_value - minimum) / (maximum - minimum))

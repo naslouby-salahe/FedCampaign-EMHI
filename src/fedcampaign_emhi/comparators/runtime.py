@@ -52,7 +52,8 @@ from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
     ClientId,
-    FiniteFloat,
+    CusumState,
+    DetectorScore,
     RankValue,
 )
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
@@ -99,7 +100,7 @@ def _rank_bin(rank: RankValue, bin_count: BinCount) -> BinIndex:
 
 def _connected_information_score(
     ranks: tuple[RankValue, ...], config: ScientificConfig
-) -> FiniteFloat:
+) -> DetectorScore:
     if len(ranks) != 3:
         raise ValueError("connected information requires three ranks")
     bin_count = config.comparators.connected_information.bins_per_client
@@ -129,7 +130,7 @@ def _connected_information_score(
     return abs(log(numerator / denominator))
 
 
-def _hofd_score(ranks: tuple[RankValue, ...], config: ScientificConfig) -> FiniteFloat:
+def _hofd_score(ranks: tuple[RankValue, ...], config: ScientificConfig) -> DetectorScore:
     tensor = tensor_representation(ranks, config.basis.primary_size)
     design = proper_subset_design_row(ranks, config.basis.primary_size)
     residual = hofd_atom_rows(
@@ -145,8 +146,8 @@ def score_comparator_ranks(
     method_name: MethodName,
     ranks: tuple[RankValue, ...],
     config: ScientificConfig,
-    previous_cusum_state: tuple[FiniteFloat, ...] = (),
-) -> tuple[FiniteFloat, tuple[FiniteFloat, ...]]:
+    previous_cusum_state: tuple[CusumState, ...] = (),
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     if not ranks:
         raise ValueError("comparator scoring requires at least one rank")
     if method_name is MethodName.RAW_MEAN_RANK_FUSION:

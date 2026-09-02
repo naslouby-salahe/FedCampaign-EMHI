@@ -4,6 +4,7 @@ from fedcampaign_emhi.domain.enums import (
     ContextMethodName,
     ExperimentName,
     GeneratorName,
+    LatentMarkovState,
     MethodName,
 )
 from fedcampaign_emhi.experiments.calibration import (
@@ -137,7 +138,9 @@ def test_mixed_order_grid_cells_preserve_declared_enabled_orders() -> None:
 
 
 def test_context_dependent_and_mixed_order_samplers_emit_declared_population_rows() -> None:
-    context_dependent = sample_context_dependent_pure_triple_ranks(0.1, 1, 9, 11)
+    context_dependent = sample_context_dependent_pure_triple_ranks(
+        0.1, LatentMarkovState.POSITIVE, 9, 11
+    )
     mixed = sample_mixed_order_ranks(
         frozenset((CoalitionOrder.ONE, CoalitionOrder.THREE)),
         0.05,

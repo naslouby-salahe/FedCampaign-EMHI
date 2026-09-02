@@ -20,13 +20,16 @@ from fedcampaign_emhi.domain.enums import (
     MethodName,
 )
 from fedcampaign_emhi.domain.types import (
+    AttenuationDifference,
     ClientCount,
     ClientId,
     ComponentName,
-    FiniteFloat,
+    DetectorScore,
+    EffectCoefficient,
     RankValue,
     RecordCount,
     SeedValue,
+    StandardizedDrift,
 )
 from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
 from fedcampaign_emhi.emhi.innovations import projection_residual
@@ -88,14 +91,14 @@ class EstimatorFeasibilityObservation:
 
 @dataclass(frozen=True)
 class SelfExplanationSeedMetrics:
-    primary_exact_nuisance_derivative: FiniteFloat
-    primary_attenuation_contrast: FiniteFloat
+    primary_exact_nuisance_derivative: EffectCoefficient
+    primary_attenuation_contrast: AttenuationDifference
 
 
 @dataclass(frozen=True)
 class PureOrderSeedMetrics:
-    maximum_proper_subset_standardized_drift: FiniteFloat
-    target_order_standardized_drift: FiniteFloat
+    maximum_proper_subset_standardized_drift: StandardizedDrift
+    target_order_standardized_drift: StandardizedDrift
 
 
 @dataclass(frozen=True)
@@ -106,7 +109,7 @@ class EstimatorFeasibilitySeedMetrics:
 @dataclass(frozen=True)
 class SyntheticCellOutcome:
     failed_checks: tuple[ComponentName, ...]
-    method_score: FiniteFloat | None
+    method_score: DetectorScore | None
     evidence: YamlNode = None
     self_explanation_metrics: SelfExplanationSeedMetrics | None = None
     pure_order_metrics: PureOrderSeedMetrics | None = None

@@ -12,10 +12,10 @@ from fedcampaign_emhi.datasets.edge_iiotset.validation import (
 )
 from fedcampaign_emhi.domain.enums import RecordExclusionReason
 from fedcampaign_emhi.domain.types import (
+    BinaryClassLabel,
     ClientId,
     EdgeIiotsetFlowRecord,
     ExcludedRecord,
-    FiniteFloat,
     NormalizedEventToken,
     UnixTimestampSeconds,
 )
@@ -28,7 +28,7 @@ def load_edge_iiotset_csv(path: Path) -> tuple[EdgeIiotsetFlowRecord, ...]:
 
 def _parse_row_fields(
     row: Mapping[NormalizedEventToken, NormalizedEventToken | None],
-) -> tuple[FiniteFloat, ClientId, FiniteFloat, NormalizedEventToken] | ExcludedRecord:
+) -> tuple[UnixTimestampSeconds, ClientId, BinaryClassLabel, NormalizedEventToken] | ExcludedRecord:
     source_host = (row.get("ip.src_host") or "").strip()
     if not source_host:
         return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
@@ -48,7 +48,7 @@ def _parse_row_fields(
     attack_type = (row.get("Attack_type") or "").strip()
     if not attack_type:
         return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
-    return (timestamp_seconds, source_host, float(binary_label), attack_type)
+    return (timestamp_seconds, source_host, binary_label, attack_type)
 
 
 def load_edge_iiotset_csv_with_exclusions(
@@ -86,7 +86,7 @@ def iter_edge_iiotset_csv_entries(
                     timestamp_seconds=timestamp_seconds,
                     source_host=source_host,
                     protocol_group=dominant_protocol_group_for_row(fields),
-                    binary_label=int(binary_label),
+                    binary_label=binary_label,
                     attack_type=attack_type,
                 )
             )

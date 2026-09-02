@@ -31,13 +31,17 @@ from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
     ComponentName,
-    FiniteFloat,
+    CusumState,
+    DetectorScore,
+    FalseAlarmRate,
     PositiveEpochCount,
     RecordCount,
     RuntimeSeconds,
     SeedCoordinate,
     SeedDerivationIdentity,
     SeedValue,
+    StandardizedDrift,
+    StandardizedError,
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
@@ -68,11 +72,11 @@ from fedcampaign_emhi.synthetic.sequential import SignedTheoremSeedMetrics
 
 @dataclass(frozen=True)
 class FiniteHorizonSeedMetrics:
-    calibrated_threshold: FiniteFloat | None
+    calibrated_threshold: ThresholdValue | None
     calibration_horizon_count: RecordCount
     heldout_horizon_count: RecordCount
     heldout_false_stop_count: RecordCount
-    heldout_upper_pfa: FiniteFloat | None
+    heldout_upper_pfa: FalseAlarmRate | None
 
 
 @dataclass(frozen=True)
@@ -101,7 +105,7 @@ class FiniteHorizonObservation:
 class CompositionCandidateObservation:
     method_name: MethodName
     seed: SeedValue
-    standardized_target_order_error: FiniteFloat
+    standardized_target_order_error: StandardizedError
     metric: CompositionCandidateSeedMetrics
     diagnostic_path: Path
 
@@ -124,7 +128,7 @@ def _block(
     client_count: ClientCount,
     epoch_count: PositiveEpochCount,
     seed: SeedValue,
-) -> tuple[tuple[FiniteFloat, ...], ...]:
+) -> tuple[tuple[DetectorScore, ...], ...]:
     latent = generate_unit_variance_autoregressive_latent(
         epoch_count, config.generators.common_mode.latent_ar_coefficient, _seed(seed, "latent", 0)
     )
@@ -267,9 +271,9 @@ def _horizon_scores(
     client_count: ClientCount,
     config: ScientificConfig,
     horizon_epoch_seeds: tuple[SeedValue, ...],
-) -> tuple[FiniteFloat, ...]:
-    cusum_state: tuple[FiniteFloat, ...] = ()
-    scores: list[FiniteFloat] = []
+) -> tuple[DetectorScore, ...]:
+    cusum_state: tuple[CusumState, ...] = ()
+    scores: list[DetectorScore] = []
     for epoch_seed in horizon_epoch_seeds:
         row = sample_independent_uniform_ranks(client_count, epoch_seed)
         score, cusum_state = score_comparator_ranks(
@@ -280,7 +284,7 @@ def _horizon_scores(
 
 
 def _horizon_stop_indicators(
-    scores: tuple[FiniteFloat, ...], thresholds: tuple[ThresholdValue, ...]
+    scores: tuple[DetectorScore, ...], thresholds: tuple[ThresholdValue, ...]
 ) -> tuple[Boolean, ...]:
     return tuple(
         any(score_exceeds_threshold(score, threshold) for score in scores)
@@ -513,7 +517,7 @@ def evaluate_fitted_pure_order_cell(
         fingerprint,
     )
 
-    def standardized_drift(coalition_ids: tuple[ClientId, ...]) -> FiniteFloat | None:
+    def standardized_drift(coalition_ids: tuple[ClientId, ...]) -> StandardizedDrift | None:
         coalition_fit = next(
             (
                 candidate

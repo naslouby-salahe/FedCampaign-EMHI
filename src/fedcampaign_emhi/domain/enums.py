@@ -234,6 +234,16 @@ class CoalitionOrder(IntEnum):
     THREE = 3
 
 
+class SignFlipDirection(IntEnum):
+    NEGATIVE = -1
+    POSITIVE = 1
+
+
+class LatentMarkovState(IntEnum):
+    NEGATIVE = -1
+    POSITIVE = 1
+
+
 class DetectorFamilyRemainder(IntEnum):
     ISOLATION_FOREST = 0
     ONE_CLASS_SVM = 1

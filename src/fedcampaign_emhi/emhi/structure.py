@@ -10,13 +10,15 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
     BasisSize,
     ClientCount,
     ClientId,
     CoalitionCount,
     CoalitionMembers,
+    DetectorScore,
     EpochIndexValue,
-    FiniteFloat,
+    GaussianCoordinate,
     MaterialDependencyFingerprint,
     NumericalFloor,
     Probability,
@@ -76,7 +78,7 @@ def clip_rank(rank: RankValue, epsilon: NumericalFloor) -> RankValue:
     return rank
 
 
-def midrank(score: FiniteFloat, reference: RankReference) -> RankValue:
+def midrank(score: DetectorScore, reference: RankReference) -> RankValue:
     observation_count = len(reference.scores)
     if observation_count == 0:
         raise ValueError("rank reference must contain at least one score")
@@ -86,7 +88,7 @@ def midrank(score: FiniteFloat, reference: RankReference) -> RankValue:
 
 
 def clipped_midrank(
-    score: FiniteFloat, reference: RankReference, epsilon: NumericalFloor
+    score: DetectorScore, reference: RankReference, epsilon: NumericalFloor
 ) -> RankValue:
     return clip_rank(midrank(score, reference), epsilon)
 
@@ -161,19 +163,19 @@ def build_marginal_rank_artifact(
     )
 
 
-def shifted_legendre_phi_one(rank: RankValue) -> FiniteFloat:
+def shifted_legendre_phi_one(rank: RankValue) -> BasisCoordinate:
     return sqrt(3.0) * ((2.0 * rank) - 1.0)
 
 
-def shifted_legendre_phi_two(rank: RankValue) -> FiniteFloat:
+def shifted_legendre_phi_two(rank: RankValue) -> BasisCoordinate:
     return sqrt(5.0) * ((6.0 * (rank**2)) - (6.0 * rank) + 1.0)
 
 
-def shifted_legendre_phi_three(rank: RankValue) -> FiniteFloat:
+def shifted_legendre_phi_three(rank: RankValue) -> BasisCoordinate:
     return sqrt(7.0) * ((20.0 * (rank**3)) - (30.0 * (rank**2)) + (12.0 * rank) - 1.0)
 
 
-def shifted_legendre_phi_four(rank: RankValue) -> FiniteFloat:
+def shifted_legendre_phi_four(rank: RankValue) -> BasisCoordinate:
     return 3.0 * (
         (70.0 * (rank**4)) - (140.0 * (rank**3)) + (90.0 * (rank**2)) - (20.0 * rank) + 1.0
     )
@@ -187,7 +189,7 @@ _BASIS_FUNCTIONS = (
 )
 
 
-def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[FiniteFloat, ...]:
+def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[BasisCoordinate, ...]:
     if basis_size < 1 or basis_size > len(_BASIS_FUNCTIONS):
         raise ValueError("basis_size must be between 1 and 4 inclusive")
     return tuple(function(rank) for function in _BASIS_FUNCTIONS[:basis_size])
@@ -199,7 +201,7 @@ def tensor_dimension(basis_size: BasisSize, coalition_order: CoalitionOrder) -> 
 
 def tensor_representation(
     member_ranks: tuple[RankValue, ...], basis_size: BasisSize
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[BasisCoordinate, ...]:
     if not member_ranks:
         raise ValueError("tensor representation requires at least one coalition member")
     coordinates = [1.0]
@@ -213,5 +215,5 @@ def tensor_representation(
     return tuple(coordinates)
 
 
-def standard_normal_cdf(gaussian_coordinate: FiniteFloat) -> RankValue:
+def standard_normal_cdf(gaussian_coordinate: GaussianCoordinate) -> RankValue:
     return float(norm.cdf(gaussian_coordinate))

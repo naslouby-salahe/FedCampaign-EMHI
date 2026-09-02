@@ -15,34 +15,38 @@ from fedcampaign_emhi.domain.enums import (
     PartitionRole,
 )
 from fedcampaign_emhi.domain.types import (
+    AutoencoderBeta,
     BatchSize,
     Boolean,
     ClientId,
     ConfidenceLevel,
     DetectorFamilyAssignment,
+    DetectorScore,
     EpochCount,
     EpochIndexValue,
     FalseAlarmRate,
     FeatureFraction,
-    FiniteFloat,
+    FeatureValue,
     LearningRate,
     LocalPolicyArtifact,
     MaterialDependencyFingerprint,
     MemoryMib,
     NumericalFloor,
     NumericalTolerance,
-    PositiveInt,
     Probability,
     Quantile,
     RankReference,
     RankValue,
     RecordCount,
+    RequiredExceedanceCount,
     SampleCap,
     SeedDerivationIdentity,
     SeedValue,
     SolverIterationLimit,
+    SvmCoefficientZero,
     ThresholdValue,
     TreeCount,
+    WeightDecay,
     WorkerCount,
 )
 from fedcampaign_emhi.emhi.structure import clip_rank, midrank
@@ -83,14 +87,14 @@ def permitted_fitting_partitions() -> tuple[PartitionRole, ...]:
 
 
 def score_isolation_forest(
-    detector_fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    detector_fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     tree_count: TreeCount,
     max_samples_cap: SampleCap,
     max_features: FeatureFraction,
     jobs: WorkerCount,
     seed: SeedValue,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     return isolation_forest_anomaly_scores(
         detector_fit_rows,
         score_rows,
@@ -103,15 +107,15 @@ def score_isolation_forest(
 
 
 def score_one_class_svm(
-    detector_fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    detector_fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     nu: Probability,
-    coefficient_zero: FiniteFloat,
+    coefficient_zero: SvmCoefficientZero,
     solver_tolerance: NumericalTolerance,
     kernel_cache_mib: MemoryMib,
     max_iterations: SolverIterationLimit,
     seed: SeedValue,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     return one_class_svm_anomaly_scores(
         detector_fit_rows,
         score_rows,
@@ -125,18 +129,18 @@ def score_one_class_svm(
 
 
 def score_autoencoder(
-    detector_fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    detector_fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     learning_rate: LearningRate,
-    beta_one: FiniteFloat,
-    beta_two: FiniteFloat,
-    optimizer_epsilon: FiniteFloat,
-    weight_decay: FiniteFloat,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
     batch_size: BatchSize,
     epoch_count: SolverIterationLimit,
     root_seed: SeedValue,
     client_id: ClientId,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     return autoencoder_anomaly_scores(
         detector_fit_rows,
         score_rows,
@@ -160,7 +164,7 @@ def family_uses_detector_fit_only(family: DetectorFamily) -> Boolean:
     }
 
 
-def oriented_score_stream(scores: tuple[FiniteFloat, ...]) -> tuple[FiniteFloat, ...]:
+def oriented_score_stream(scores: tuple[DetectorScore, ...]) -> tuple[DetectorScore, ...]:
     if not scores:
         raise ValueError("score stream must contain at least one epoch")
     return scores
@@ -172,8 +176,8 @@ def score_stream_isolation_check(score_count: RecordCount, epoch_count: RecordCo
 
 
 def rank_stream(
-    scores: tuple[FiniteFloat, ...],
-    benign_reference_scores: tuple[FiniteFloat, ...],
+    scores: tuple[DetectorScore, ...],
+    benign_reference_scores: tuple[DetectorScore, ...],
     rank_clip_epsilon: NumericalFloor,
 ) -> tuple[RankValue, ...]:
     if not benign_reference_scores:
@@ -202,11 +206,11 @@ def detector_seed(
 def score_client(
     config: ScientificConfig,
     detector_family: DetectorFamily,
-    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     seed: SeedValue,
     client_id: ClientId,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[DetectorScore, ...]:
     if detector_family is DetectorFamily.ISOLATION_FOREST:
         detector = config.detectors.isolation_forest
         return score_isolation_forest(
@@ -300,7 +304,7 @@ def build_detector_score_artifact(
 
 def persistence_is_triggered(
     exceedances: tuple[Boolean, ...],
-    required_exceedances: PositiveInt,
+    required_exceedances: RequiredExceedanceCount,
     window_epochs: EpochCount,
 ) -> Boolean:
     if window_epochs <= 0:
@@ -311,13 +315,13 @@ def persistence_is_triggered(
     return sum(1 for exceeded in examined if exceeded) >= required_exceedances
 
 
-def score_exceeds_threshold(score: FiniteFloat, threshold: FiniteFloat) -> Boolean:
+def score_exceeds_threshold(score: DetectorScore, threshold: ThresholdValue) -> Boolean:
     return score >= threshold
 
 
 def first_local_stop_epoch(
     exceedances: tuple[Boolean, ...],
-    required_exceedances: PositiveInt,
+    required_exceedances: RequiredExceedanceCount,
     window_epochs: EpochCount,
 ) -> EpochIndexValue | None:
     for end_index in range(1, len(exceedances) + 1):
@@ -327,7 +331,7 @@ def first_local_stop_epoch(
 
 
 def candidate_thresholds_from_nuisance_scores(
-    nuisance_scores: tuple[FiniteFloat, ...],
+    nuisance_scores: tuple[DetectorScore, ...],
     quantiles: tuple[Quantile, ...],
 ) -> tuple[ThresholdValue, ...]:
     if not nuisance_scores:
@@ -358,7 +362,7 @@ def select_immutable_local_policy(
 
 def heldout_false_stop_count(
     heldout_exceedance_horizons: tuple[tuple[Boolean, ...], ...],
-    required_exceedances: PositiveInt,
+    required_exceedances: RequiredExceedanceCount,
     window_epochs: EpochCount,
 ) -> RecordCount:
     stops = 0

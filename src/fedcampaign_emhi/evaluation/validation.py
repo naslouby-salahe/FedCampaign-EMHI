@@ -18,7 +18,9 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ConfigurationDigest,
     EpochIndexValue,
-    FiniteFloat,
+    MetricValue,
+    NumericalFloor,
+    OperationalNormReference,
     OwnershipStatement,
     RankReference,
     RecordCount,
@@ -87,7 +89,7 @@ def required_record_completeness(
     return ExperimentState.COMPLETED
 
 
-def metric_is_finite(metric_value: FiniteFloat) -> ExperimentState:
+def metric_is_finite(metric_value: MetricValue) -> ExperimentState:
     return ExperimentState.COMPLETED if isfinite(metric_value) else ExperimentState.INVALID
 
 
@@ -109,7 +111,7 @@ def benign_horizon_records_state(
     return ExperimentState.COMPLETED
 
 
-def no_imputation(metric_values: tuple[FiniteFloat | None, ...]) -> ExperimentState:
+def no_imputation(metric_values: tuple[MetricValue | None, ...]) -> ExperimentState:
     if any(metric_value is None for metric_value in metric_values):
         return ExperimentState.INVALID
     return ExperimentState.COMPLETED
@@ -353,5 +355,7 @@ def smoke_first_activity_epochs() -> tuple[EpochIndexValue, ...]:
     return (300, 302)
 
 
-def smoke_operational_norm_scale(norm_quantile: FiniteFloat, floor: FiniteFloat) -> FiniteFloat:
+def smoke_operational_norm_scale(
+    norm_quantile: OperationalNormReference, floor: NumericalFloor
+) -> OperationalNormReference:
     return max(norm_quantile, floor)

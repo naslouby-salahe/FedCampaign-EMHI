@@ -22,22 +22,38 @@ from fedcampaign_emhi.domain.types import (
     ByteCount,
     CellCount,
     ClientId,
+    CommonModeSuppression,
     ComponentName,
     ConfigurationDigest,
+    DetectionRateLoss,
+    DetectorScore,
     EpochIndexValue,
     FalseAlarmRate,
-    FiniteFloat,
+    FeatureValue,
+    InnovationCoordinate,
+    InnovationDeviation,
+    InnovationMean,
     MaterialDependencyFingerprint,
+    MetricValue,
+    NuisanceCoefficient,
     NumericalFloor,
+    OperationalLeadEpochs,
+    OperationalNormReference,
+    PairedDifference,
     Probability,
+    ProjectionNrmse,
     RankValue,
     RecordCount,
     RelativePath,
     ResumeStep,
     RidgePenalty,
+    RobustnessCountMultiplier,
     RuntimeSeconds,
     SeedCount,
     SeedValue,
+    StandardizedError,
+    StandardizedNullBias,
+    StatisticValue,
 )
 
 
@@ -131,8 +147,8 @@ class PreparedEpochRecord(FrozenConfigModel):
     dataset_name: DatasetName
     client_id: ClientId
     epoch_index: EpochIndexValue
-    unscaled_feature_values: tuple[FiniteFloat, ...] = ()
-    feature_values: tuple[FiniteFloat, ...]
+    unscaled_feature_values: tuple[FeatureValue, ...] = ()
+    feature_values: tuple[FeatureValue, ...]
     ground_truth: GroundTruthClass
     raw_event_count: RecordCount
     ambiguous_event_count: RecordCount
@@ -140,8 +156,8 @@ class PreparedEpochRecord(FrozenConfigModel):
 
 class ClientFeatureScalerRecord(FrozenConfigModel):
     client_id: ClientId
-    medians: tuple[FiniteFloat, ...]
-    iqrs: tuple[FiniteFloat, ...]
+    medians: tuple[FeatureValue, ...]
+    iqrs: tuple[FeatureValue, ...]
     iqr_floor: NumericalFloor
 
 
@@ -196,7 +212,7 @@ class ClientDetectorScoreStream(FrozenConfigModel):
     detector_family: DetectorFamily
     detector_seed: SeedValue
     epoch_indexes: tuple[EpochIndexValue, ...]
-    scores: tuple[FiniteFloat, ...]
+    scores: tuple[DetectorScore, ...]
 
 
 class DetectorScoreArtifactRecord(FrozenConfigModel):
@@ -209,7 +225,7 @@ class DetectorScoreArtifactRecord(FrozenConfigModel):
 
 class ClientMarginalRankStream(FrozenConfigModel):
     client_id: ClientId
-    nuisance_reference_scores: tuple[FiniteFloat, ...]
+    nuisance_reference_scores: tuple[DetectorScore, ...]
     epoch_indexes: tuple[EpochIndexValue, ...]
     ranks: tuple[RankValue, ...]
 
@@ -225,7 +241,7 @@ class MarginalRankArtifactRecord(FrozenConfigModel):
 class OrderContextFitRecord(FrozenConfigModel):
     coalition_order: CoalitionOrder
     context_method: ContextMethodName
-    centroids: tuple[tuple[FiniteFloat, ...], ...]
+    centroids: tuple[tuple[InnovationCoordinate, ...], ...]
     state: SupportState
 
 
@@ -239,10 +255,10 @@ class ProjectionCellFitRecord(FrozenConfigModel):
     context_cell: BinIndex
     conditional_rank_references: tuple[ConditionalRankReferenceRecord, ...]
     selected_ridge_penalty: RidgePenalty | None
-    complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
-    coordinate_means: tuple[FiniteFloat, ...]
-    coordinate_deviations: tuple[FiniteFloat, ...]
-    operational_norm_reference: FiniteFloat | None
+    complete_nuisance_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...]
+    coordinate_means: tuple[InnovationMean, ...]
+    coordinate_deviations: tuple[InnovationDeviation, ...]
+    operational_norm_reference: OperationalNormReference | None
     state: SupportState
     numerical_failure: Boolean
 
@@ -274,9 +290,9 @@ class SeedSummaryRecord(FrozenConfigModel):
     reference_method_name: MethodName | None
     metric_name: ComponentName
     seed: SeedValue
-    method_value: FiniteFloat
-    reference_value: FiniteFloat | None
-    paired_difference: FiniteFloat | None
+    method_value: MetricValue
+    reference_value: MetricValue | None
+    paired_difference: PairedDifference | None
     campaign_count: RecordCount
     source_evaluation_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -288,12 +304,12 @@ class StatisticalRecord(FrozenConfigModel):
     metric_name: ComponentName
     method_name: ComponentName
     independent_unit_count: RecordCount
-    estimate: FiniteFloat
+    estimate: StatisticValue
     raw_p_value: Probability | None
     adjusted_p_value: Probability | None
     confidence_level: Probability | None
-    confidence_lower: FiniteFloat | None
-    confidence_upper: FiniteFloat | None
+    confidence_lower: StatisticValue | None
+    confidence_upper: StatisticValue | None
     decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -304,8 +320,8 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     independent_unit_count: RecordCount
     mean_context_coverage: Probability
-    mean_projection_nrmse: FiniteFloat
-    mean_standardized_null_bias: FiniteFloat
+    mean_projection_nrmse: ProjectionNrmse
+    mean_standardized_null_bias: StandardizedNullBias
     numerical_failure_count: RecordCount
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
@@ -319,7 +335,7 @@ class ContextEstimatorSensitivityMetrics(FrozenConfigModel):
     heldout_pfa: FalseAlarmRate | None
     campaign_detection_rate: Probability
     strict_odi_rate: Probability
-    operational_lead_mean: FiniteFloat | None
+    operational_lead_mean: OperationalLeadEpochs | None
     context_coverage: Probability
     abstention_rate: Probability
     numerical_failure_rate: Probability
@@ -340,7 +356,7 @@ class ContextEstimatorSensitivityCellRecord(FrozenConfigModel):
 
 class CountStressDiagnosticRecord(FrozenConfigModel):
     seed: SeedValue
-    multiplication_factor: FiniteFloat
+    multiplication_factor: RobustnessCountMultiplier
     emhi_false_declaration_rate: Probability
     raw_mean_false_declaration_rate: Probability
     source_result_ids: tuple[ArtifactIdentity, ...]
@@ -350,9 +366,9 @@ class CountStressDiagnosticRecord(FrozenConfigModel):
 
 class BenignCommonModePositivePowerMeasurementRecord(FrozenConfigModel):
     independent_unit_count: RecordCount
-    mean_detection_rate_power_loss: FiniteFloat
+    mean_detection_rate_power_loss: DetectionRateLoss
     detection_rate_loss_within_maximum: Boolean
-    mean_common_mode_suppression: FiniteFloat
+    mean_common_mode_suppression: CommonModeSuppression
     false_campaign_suppression_meets_minimum: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -364,7 +380,7 @@ class FiniteHorizonAggregationRecord(FrozenConfigModel):
     independent_unit_count: RecordCount
     operating_point_unavailable_count: RecordCount
     target_pfa: Probability
-    maximum_heldout_upper_pfa: FiniteFloat | None
+    maximum_heldout_upper_pfa: FalseAlarmRate | None
     decision: SupportState
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -375,14 +391,14 @@ class ComparatorNullPfaRecord(FrozenConfigModel):
     method_name: MethodName
     heldout_false_stops: RecordCount
     heldout_horizons: RecordCount
-    heldout_upper_pfa: FiniteFloat | None
+    heldout_upper_pfa: FalseAlarmRate | None
     eligible: Boolean
 
 
 class ComparatorTargetErrorRecord(FrozenConfigModel):
     method_name: MethodName
     native_target_order: CoalitionOrder
-    mean_standardized_error: FiniteFloat
+    mean_standardized_error: StandardizedError
 
 
 class ComparatorRuntimeTiebreakRecord(FrozenConfigModel):

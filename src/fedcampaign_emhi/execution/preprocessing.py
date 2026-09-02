@@ -99,6 +99,7 @@ from fedcampaign_emhi.domain.types import (
     ExcludedRecord,
     FileInventoryEntry,
     HashBucketCount,
+    HashBucketIndex,
     MaterialDependencyFingerprint,
     NormalizedEventToken,
     PreprocessExecutionRecord,
@@ -106,7 +107,6 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     RetainedEvent,
     RobustScaler,
-    SignedInt,
     TonIotNetworkFlowRecord,
 )
 
@@ -712,7 +712,7 @@ def _payload_identity(parts: tuple[NormalizedEventToken, ...]) -> NormalizedEven
 
 
 def _increment_bucket(
-    counts: tuple[RecordCount, ...], bucket_index: SignedInt
+    counts: tuple[RecordCount, ...], bucket_index: HashBucketIndex
 ) -> tuple[RecordCount, ...]:
     return tuple(
         count + 1 if index == bucket_index else count for index, count in enumerate(counts)

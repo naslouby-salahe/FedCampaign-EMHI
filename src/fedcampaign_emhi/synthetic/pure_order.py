@@ -5,18 +5,29 @@ from math import isfinite, isnan, sqrt
 import numpy as np
 
 from fedcampaign_emhi.config.schema import ScientificConfig
-from fedcampaign_emhi.domain.enums import CoalitionOrder, GeneratorName, MethodName
+from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
+    GeneratorName,
+    LatentMarkovState,
+    MethodName,
+)
 from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
+    BinaryClassLabel,
     Boolean,
     ClientCount,
     ClientId,
     ClientIndex,
     EffectCoefficient,
-    FiniteFloat,
+    InnovationCoordinate,
     NumericalTolerance,
+    PolynomialDensity,
+    Probability,
     RankValue,
     SeedValue,
-    SignedInt,
+    StandardDeviation,
+    StandardizedDrift,
+    XorInteractionStrength,
 )
 from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
@@ -37,8 +48,8 @@ class PureOrderCell:
 
 @dataclass(frozen=True)
 class PureOrderDriftMetrics:
-    maximum_proper_subset_standardized_drift: FiniteFloat
-    target_order_standardized_drift: FiniteFloat
+    maximum_proper_subset_standardized_drift: StandardizedDrift
+    target_order_standardized_drift: StandardizedDrift
     proper_subset_scoring_available: Boolean
 
 
@@ -55,7 +66,10 @@ def sample_generator_row(
     if cell.generator is GeneratorName.XOR_PARITY_TRIPLE:
         return sample_xor_ranks(cell.effect, remaining, seed)
     if cell.generator is GeneratorName.CONTEXT_DEPENDENT_PURE_TRIPLE:
-        return sample_context_dependent_pure_triple_ranks(cell.effect, seed % 2, remaining, seed)
+        latent_state = LatentMarkovState.NEGATIVE if seed % 2 else LatentMarkovState.POSITIVE
+        return sample_context_dependent_pure_triple_ranks(
+            cell.effect, latent_state, remaining, seed
+        )
     return sample_mixed_order_ranks(cell.enabled_orders, cell.effect, remaining, seed)
 
 
@@ -82,7 +96,7 @@ def _fitted_emhi_score(
     order: CoalitionOrder,
     null_rows: tuple[tuple[RankValue, ...], ...],
     rows: tuple[tuple[RankValue, ...], ...],
-) -> tuple[FiniteFloat, ...] | None:
+) -> tuple[InnovationCoordinate, ...] | None:
     enabled_orders = _emhi_enabled_orders(method)
     if enabled_orders is None or order not in enabled_orders:
         return None
@@ -140,7 +154,7 @@ def fitted_method_pure_order_metrics(
     null_scores, alternative_scores = emhi_scores, alternative_emhi_scores
     null_mean = sum(null_scores) / len(null_scores)
     null_deviation = sqrt(sum((value - null_mean) ** 2 for value in null_scores) / len(null_scores))
-    subset_drifts: list[FiniteFloat] = []
+    subset_drifts: list[StandardizedDrift] = []
     for subset_order in CoalitionOrder:
         if subset_order >= cell.target_order:
             continue
@@ -240,7 +254,7 @@ def enumerate_pure_order_grid(config: ScientificConfig) -> tuple[PureOrderCell, 
     )
 
 
-def polynomial_scale(order: CoalitionOrder) -> FiniteFloat:
+def polynomial_scale(order: CoalitionOrder) -> BasisCoordinate:
     return sqrt(3) ** int(order)
 
 
@@ -248,11 +262,11 @@ def polynomial_density_is_valid(theta: EffectCoefficient, order: CoalitionOrder)
     return abs(theta) <= (1.0 / polynomial_scale(order))
 
 
-def polynomial_envelope(theta: EffectCoefficient, order: CoalitionOrder) -> FiniteFloat:
+def polynomial_envelope(theta: EffectCoefficient, order: CoalitionOrder) -> PolynomialDensity:
     return 1.0 + (abs(theta) * polynomial_scale(order))
 
 
-def polynomial_density(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -> FiniteFloat:
+def polynomial_density(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -> PolynomialDensity:
     product = 1.0
     for rank in ranks:
         product *= shifted_legendre_phi_one(rank)
@@ -261,7 +275,7 @@ def polynomial_density(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -
 
 def first_order_tensor_coordinate(
     ranks: tuple[RankValue, ...], indices: tuple[ClientIndex, ...]
-) -> FiniteFloat:
+) -> InnovationCoordinate:
     if not indices:
         raise ValueError("tensor coordinate requires at least one member")
     coordinate = 1.0
@@ -271,20 +285,20 @@ def first_order_tensor_coordinate(
 
 
 def _standardized_scalar_drift(
-    alternative_mean: FiniteFloat,
-    null_mean: FiniteFloat,
-    null_deviation: FiniteFloat,
+    alternative_mean: InnovationCoordinate,
+    null_mean: InnovationCoordinate,
+    null_deviation: StandardDeviation,
     metric_denominator_floor: NumericalTolerance,
-) -> FiniteFloat:
+) -> StandardizedDrift:
     return abs(alternative_mean - null_mean) / max(null_deviation, metric_denominator_floor)
 
 
 def _signed_standardized_scalar_drift(
-    alternative_mean: FiniteFloat,
-    null_mean: FiniteFloat,
-    null_deviation: FiniteFloat,
+    alternative_mean: InnovationCoordinate,
+    null_mean: InnovationCoordinate,
+    null_deviation: StandardDeviation,
     metric_denominator_floor: NumericalTolerance,
-) -> FiniteFloat:
+) -> StandardizedDrift:
     return (alternative_mean - null_mean) / max(null_deviation, metric_denominator_floor)
 
 
@@ -307,7 +321,7 @@ def pure_order_drift_metrics(
     target_null_deviation = sqrt(
         sum((value - target_null_mean) ** 2 for value in target_null) / len(target_null)
     )
-    subset_drifts: list[FiniteFloat] = []
+    subset_drifts: list[StandardizedDrift] = []
     for size in range(1, len(target_indices)):
         for indices in combinations(target_indices, size):
             alternative = tuple(
@@ -375,11 +389,15 @@ def xor_and_mixed_order_target_clients(client_ids: tuple[ClientId, ...]) -> tupl
     return lexicographic_target_clients(client_ids, 3)
 
 
-def pure_order_one_response(ranks: tuple[RankValue, ...], theta: EffectCoefficient) -> FiniteFloat:
+def pure_order_one_response(
+    ranks: tuple[RankValue, ...], theta: EffectCoefficient
+) -> InnovationCoordinate:
     return theta * sum(shifted_legendre_phi_one(rank) for rank in ranks)
 
 
-def xor_parity_response(bits: tuple[SignedInt, ...], strength: FiniteFloat) -> FiniteFloat:
+def xor_parity_response(
+    bits: tuple[BinaryClassLabel, ...], strength: XorInteractionStrength
+) -> InnovationCoordinate:
     parity = 0
     for bit in bits:
         parity = (parity + bit) % 2
@@ -417,7 +435,7 @@ def sample_pure_polynomial_ranks(
 
 
 def sample_xor_ranks(
-    strength: FiniteFloat, remaining_client_count: ClientCount, seed: SeedValue
+    strength: XorInteractionStrength, remaining_client_count: ClientCount, seed: SeedValue
 ) -> tuple[RankValue, ...]:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     first = 1 if float(generator.random()) < 0.5 else 0
@@ -435,7 +453,7 @@ def sample_xor_ranks(
 
 def sample_context_dependent_pure_triple_ranks(
     theta: EffectCoefficient,
-    latent_state: SignedInt,
+    latent_state: LatentMarkovState,
     remaining_client_count: ClientCount,
     seed: SeedValue,
 ) -> tuple[RankValue, ...]:
@@ -459,7 +477,7 @@ def sample_context_dependent_pure_triple_ranks(
             return target_ranks + remainder
 
 
-def mixed_order_terms(ranks: tuple[RankValue, RankValue, RankValue]) -> tuple[FiniteFloat, ...]:
+def mixed_order_terms(ranks: tuple[RankValue, RankValue, RankValue]) -> tuple[BasisCoordinate, ...]:
     first = shifted_legendre_phi_one(ranks[0])
     second = first * shifted_legendre_phi_one(ranks[1])
     third = second * shifted_legendre_phi_one(ranks[2])
@@ -468,7 +486,7 @@ def mixed_order_terms(ranks: tuple[RankValue, RankValue, RankValue]) -> tuple[Fi
 
 def mixed_order_envelope(
     enabled_orders: frozenset[CoalitionOrder], coefficient: EffectCoefficient
-) -> FiniteFloat:
+) -> PolynomialDensity:
     bound = 0.0
     if CoalitionOrder.ONE in enabled_orders:
         bound += polynomial_scale(CoalitionOrder.ONE)
@@ -483,7 +501,7 @@ def mixed_order_density(
     ranks: tuple[RankValue, RankValue, RankValue],
     enabled_orders: frozenset[CoalitionOrder],
     coefficient: EffectCoefficient,
-) -> FiniteFloat:
+) -> InnovationCoordinate:
     terms = mixed_order_terms(ranks)
     total = 0.0
     if CoalitionOrder.ONE in enabled_orders:
@@ -542,10 +560,10 @@ def pure_polynomial_marginalizes_to_uniform(
     )
 
 
-def xor_exact_marginals(strength: FiniteFloat, tolerance: NumericalTolerance) -> Boolean:
+def xor_exact_marginals(strength: XorInteractionStrength, tolerance: NumericalTolerance) -> Boolean:
     if not isfinite(strength) or strength < 0.0 or strength > 1.0:
         return False
-    probabilities: list[FiniteFloat] = []
+    probabilities: list[Probability] = []
     for state in range(XOR_BINARY_STATE_COUNT):
         bits = (state & 1, (state >> 1) & 1, (state >> 2) & 1)
         parity = (bits[0] ^ bits[1]) == bits[2]
@@ -585,7 +603,7 @@ def mixed_order_absent_terms_integrate_to_zero(
 def validate_generator_purity(
     generator: GeneratorName,
     theta: EffectCoefficient,
-    strength: FiniteFloat,
+    strength: XorInteractionStrength,
     enabled_orders: frozenset[CoalitionOrder],
     comparison_tolerance: NumericalTolerance,
 ) -> GeneratorPurityReport:

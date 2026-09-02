@@ -5,13 +5,18 @@ import numpy as np
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.types import (
+    BettingLambda,
     Boolean,
+    CompensatorValue,
     ESrThreshold,
+    EvidenceClipBound,
     EvidenceFactor,
-    FiniteFloat,
     PositiveEpochCount,
+    RankValue,
     RecordCount,
+    RestrictedAverageRunLength,
     SeedValue,
+    SignedTheoremCoordinate,
 )
 from fedcampaign_emhi.emhi.evidence import (
     clip_statistic,
@@ -26,12 +31,12 @@ from fedcampaign_emhi.runtime import thirty_two_bit_seed
 
 @dataclass(frozen=True)
 class SignedTheoremSeedMetrics:
-    restricted_arl: FiniteFloat
+    restricted_arl: RestrictedAverageRunLength
     stopped_trajectory_count: RecordCount
     trajectory_count: RecordCount
     maximum_trajectory_epochs: PositiveEpochCount
     threshold: ESrThreshold
-    compensator: FiniteFloat
+    compensator: CompensatorValue
 
 
 @dataclass(frozen=True)
@@ -40,7 +45,9 @@ class SignedTheoremSeedResult:
     assumptions_hold: Boolean
 
 
-def signed_theorem_coordinate(ranks: tuple[FiniteFloat, FiniteFloat, FiniteFloat]) -> FiniteFloat:
+def signed_theorem_coordinate(
+    ranks: tuple[RankValue, RankValue, RankValue],
+) -> SignedTheoremCoordinate:
     coordinate = 1.0
     for rank in ranks:
         coordinate *= shifted_legendre_phi_one(rank)
@@ -50,8 +57,8 @@ def signed_theorem_coordinate(ranks: tuple[FiniteFloat, FiniteFloat, FiniteFloat
 def _trajectory_restricted_stop(
     generator: np.random.Generator,
     maximum_epochs: PositiveEpochCount,
-    clip_bound: FiniteFloat,
-    bet_lambda: FiniteFloat,
+    clip_bound: EvidenceClipBound,
+    bet_lambda: BettingLambda,
     threshold: ESrThreshold,
 ) -> tuple[RecordCount, Boolean, Boolean]:
     state = 0.0

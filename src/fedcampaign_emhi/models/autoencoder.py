@@ -4,16 +4,21 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fedcampaign_emhi.domain.types import (
+    AnomalyScore,
+    AutoencoderBeta,
     BatchSize,
     ClientId,
     FeatureDimension,
-    FiniteFloat,
+    FeatureValue,
     LayerWidth,
     LearningRate,
+    NumericalFloor,
     SeedCoordinate,
     SeedDerivationIdentity,
     SeedValue,
     SolverIterationLimit,
+    WeightDecay,
+    XavierGain,
 )
 from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
@@ -54,7 +59,7 @@ def _xavier_uniform(
     generator: np.random.Generator,
     fan_in: FeatureDimension,
     fan_out: FeatureDimension,
-    gain: FiniteFloat,
+    gain: XavierGain,
 ) -> NDArray[np.float32]:
     bound = gain * math.sqrt(6.0 / (fan_in + fan_out))
     return generator.uniform(-bound, bound, size=(fan_in, fan_out)).astype(np.float32)
@@ -65,18 +70,18 @@ def _relu(values: NDArray[np.float32]) -> NDArray[np.float32]:
 
 
 def autoencoder_anomaly_scores(
-    fit_rows: tuple[tuple[FiniteFloat, ...], ...],
-    score_rows: tuple[tuple[FiniteFloat, ...], ...],
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    score_rows: tuple[tuple[FeatureValue, ...], ...],
     learning_rate: LearningRate,
-    beta_one: FiniteFloat,
-    beta_two: FiniteFloat,
-    optimizer_epsilon: FiniteFloat,
-    weight_decay: FiniteFloat,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
     batch_size: BatchSize,
     epoch_count: SolverIterationLimit,
     root_seed: SeedValue,
     client_id: ClientId,
-) -> tuple[FiniteFloat, ...]:
+) -> tuple[AnomalyScore, ...]:
     if not fit_rows:
         raise ValueError("autoencoder requires a non-empty detector-fit matrix")
     fit_matrix = np.asarray(fit_rows, dtype=np.float32)
@@ -154,10 +159,10 @@ def _adam_step(
     bias_first: tuple[NDArray[np.float32], ...],
     bias_second: tuple[NDArray[np.float32], ...],
     learning_rate: LearningRate,
-    beta_one: FiniteFloat,
-    beta_two: FiniteFloat,
-    optimizer_epsilon: FiniteFloat,
-    weight_decay: FiniteFloat,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
     step: SolverIterationLimit,
 ) -> tuple[
     tuple[NDArray[np.float32], ...],

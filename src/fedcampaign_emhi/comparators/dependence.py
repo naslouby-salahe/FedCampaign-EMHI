@@ -6,21 +6,34 @@ from scipy.stats import norm
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
+    BasisCoordinate,
     BasisSize,
     BinCount,
     Boolean,
     ClientCount,
     ClientId,
     Correlation,
+    CosineSimilarity,
+    DependenceMoment,
     DesignColumnCount,
-    FiniteFloat,
+    FactorRank,
+    GaussianCoordinate,
+    InnovationCoordinate,
+    IpfIterationLimit,
+    JeffreysPseudocount,
+    NonconformityScore,
     NumericalFloor,
     NumericalTolerance,
-    PositiveInt,
     Probability,
+    ProbabilityMass,
+    ProjectionNrmse,
     RankValue,
     RecordCount,
     RidgePenalty,
+    SingularValue,
+    StandardDeviation,
+    StandardizedAtomCoordinate,
+    StoppingTimeDifferenceEpochs,
 )
 from fedcampaign_emhi.emhi.innovations import centered_scaled_coordinate, projection_residual
 from fedcampaign_emhi.emhi.projection import (
@@ -31,30 +44,30 @@ from fedcampaign_emhi.emhi.structure import standard_normal_cdf
 
 
 def hofd_atom_rows(
-    tensor_rows: tuple[tuple[FiniteFloat, ...], ...],
-    design_rows: tuple[tuple[FiniteFloat, ...], ...],
+    tensor_rows: tuple[tuple[InnovationCoordinate, ...], ...],
+    design_rows: tuple[tuple[BasisCoordinate, ...], ...],
     ridge_penalty: RidgePenalty,
     relative_singular_cutoff: NumericalFloor,
-) -> tuple[tuple[FiniteFloat, ...], ...]:
+) -> tuple[tuple[InnovationCoordinate, ...], ...]:
     coefficients = ridge_coefficient_matrix(
         design_rows, tensor_rows, ridge_penalty, relative_singular_cutoff
     )
-    residuals: list[tuple[FiniteFloat, ...]] = []
+    residuals: list[tuple[InnovationCoordinate, ...]] = []
     for tensor_row, design_row in zip(tensor_rows, design_rows, strict=True):
         residuals.append(projection_residual(tensor_row, coefficients, design_row))
     return tuple(residuals)
 
 
-def pair_dependence_moment(left_rank: RankValue, right_rank: RankValue) -> FiniteFloat:
+def pair_dependence_moment(left_rank: RankValue, right_rank: RankValue) -> DependenceMoment:
     return ((2.0 * left_rank) - 1.0) * ((2.0 * right_rank) - 1.0)
 
 
 def pair_dependence_nonconformity(
-    moment: FiniteFloat,
-    benign_mean: FiniteFloat,
-    benign_deviation: FiniteFloat,
-    scale_floor: FiniteFloat,
-) -> FiniteFloat:
+    moment: DependenceMoment,
+    benign_mean: DependenceMoment,
+    benign_deviation: StandardDeviation,
+    scale_floor: NumericalFloor,
+) -> NonconformityScore:
     standardized = centered_scaled_coordinate(moment, benign_mean, benign_deviation, scale_floor)
     if standardized < 0.0:
         return -standardized
@@ -63,16 +76,16 @@ def pair_dependence_nonconformity(
 
 def lancaster_triple_moment(
     first_rank: RankValue, second_rank: RankValue, third_rank: RankValue
-) -> FiniteFloat:
+) -> DependenceMoment:
     return ((2.0 * first_rank) - 1.0) * ((2.0 * second_rank) - 1.0) * ((2.0 * third_rank) - 1.0)
 
 
 def lancaster_triple_nonconformity(
-    moment: FiniteFloat,
-    benign_mean: FiniteFloat,
-    benign_deviation: FiniteFloat,
-    scale_floor: FiniteFloat,
-) -> FiniteFloat:
+    moment: DependenceMoment,
+    benign_mean: DependenceMoment,
+    benign_deviation: StandardDeviation,
+    scale_floor: NumericalFloor,
+) -> NonconformityScore:
     standardized = centered_scaled_coordinate(moment, benign_mean, benign_deviation, scale_floor)
     if standardized < 0.0:
         return -standardized
@@ -81,7 +94,7 @@ def lancaster_triple_nonconformity(
 
 def uniform_probability_table(
     bin_count: BinCount,
-) -> tuple[tuple[tuple[FiniteFloat, ...], ...], ...]:
+) -> tuple[tuple[tuple[ProbabilityMass, ...], ...], ...]:
     cell = 1.0 / (bin_count**3)
     return tuple(
         tuple(tuple(cell for _i in range(bin_count)) for _j in range(bin_count))
@@ -90,13 +103,13 @@ def uniform_probability_table(
 
 
 def jeffreys_smoothed_probabilities(
-    counts: tuple[tuple[tuple[FiniteFloat, ...], ...], ...],
-    pseudocount: FiniteFloat,
-) -> tuple[tuple[tuple[FiniteFloat, ...], ...], ...]:
+    counts: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...],
+    pseudocount: JeffreysPseudocount,
+) -> tuple[tuple[tuple[ProbabilityMass, ...], ...], ...]:
     total = 0.0
-    smoothed: list[tuple[tuple[FiniteFloat, ...], ...]] = []
+    smoothed: list[tuple[tuple[ProbabilityMass, ...], ...]] = []
     for first in counts:
-        first_rows: list[tuple[FiniteFloat, ...]] = []
+        first_rows: list[tuple[ProbabilityMass, ...]] = []
         for second in first:
             row = tuple(cell + pseudocount for cell in second)
             first_rows.append(row)
@@ -108,9 +121,9 @@ def jeffreys_smoothed_probabilities(
 
 
 def iterative_proportional_fitting_step(
-    table: tuple[tuple[tuple[FiniteFloat, ...], ...], ...],
-    target_pair_ij: tuple[tuple[FiniteFloat, ...], ...],
-) -> tuple[tuple[tuple[FiniteFloat, ...], ...], ...]:
+    table: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...],
+    target_pair_ij: tuple[tuple[ProbabilityMass, ...], ...],
+) -> tuple[tuple[tuple[ProbabilityMass, ...], ...], ...]:
     bin_count = len(table)
     updated = [[list(row) for row in layer] for layer in table]
     for i_index in range(bin_count):
@@ -125,8 +138,8 @@ def iterative_proportional_fitting_step(
 
 
 def ipf_converged(
-    table: tuple[tuple[tuple[FiniteFloat, ...], ...], ...],
-    target_pair_ij: tuple[tuple[FiniteFloat, ...], ...],
+    table: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...],
+    target_pair_ij: tuple[tuple[ProbabilityMass, ...], ...],
     maximum_marginal_absolute_error: NumericalTolerance,
 ) -> Boolean:
     bin_count = len(table)
@@ -138,7 +151,7 @@ def ipf_converged(
     return True
 
 
-def maximum_ipf_iterations_bound(configured_limit: PositiveInt) -> PositiveInt:
+def maximum_ipf_iterations_bound(configured_limit: IpfIterationLimit) -> IpfIterationLimit:
     return configured_limit
 
 
@@ -169,7 +182,9 @@ def lexicographic_vine_order(client_ids: tuple[ClientId, ...]) -> tuple[ClientId
     return ordered
 
 
-def standard_normal_quantile(rank: RankValue, rank_clip_epsilon: NumericalFloor) -> FiniteFloat:
+def standard_normal_quantile(
+    rank: RankValue, rank_clip_epsilon: NumericalFloor
+) -> GaussianCoordinate:
     lower = rank_clip_epsilon
     upper = 1.0 - rank_clip_epsilon
     clipped = min(max(rank, lower), upper)
@@ -189,11 +204,11 @@ def gaussian_h_function(
 
 
 def selected_factor_rank(
-    singular_values: tuple[FiniteFloat, ...],
+    singular_values: tuple[SingularValue, ...],
     cumulative_variance_target: Probability,
-    fallback_rank: PositiveInt,
-    candidate_ranks: tuple[PositiveInt, ...],
-) -> PositiveInt:
+    fallback_rank: FactorRank,
+    candidate_ranks: tuple[FactorRank, ...],
+) -> FactorRank:
     total = sum(value * value for value in singular_values)
     if total <= 0.0:
         return fallback_rank
@@ -208,9 +223,9 @@ def selected_factor_rank(
 
 
 def global_factor_residual_scores(
-    rank_matrix: tuple[tuple[FiniteFloat, ...], ...],
-    factor_rank: PositiveInt,
-) -> tuple[FiniteFloat, ...]:
+    rank_matrix: tuple[tuple[RankValue, ...], ...],
+    factor_rank: FactorRank,
+) -> tuple[NonconformityScore, ...]:
     matrix = np.asarray(rank_matrix, dtype=np.float64)
     if matrix.ndim != 2:
         raise ValueError("rank_matrix must be two-dimensional")
@@ -225,13 +240,13 @@ def global_factor_residual_scores(
 
 @dataclass(frozen=True)
 class PairedAtomMetrics:
-    nrmse: FiniteFloat
-    cosine_similarity: FiniteFloat
+    nrmse: ProjectionNrmse
+    cosine_similarity: CosineSimilarity
 
 
 def paired_atom_metrics(
-    emhi_atoms: tuple[tuple[FiniteFloat, ...], ...],
-    hofd_atoms: tuple[tuple[FiniteFloat, ...], ...],
+    emhi_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
+    hofd_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
     denominator_floor: NumericalFloor,
 ) -> PairedAtomMetrics:
     if not emhi_atoms or len(emhi_atoms) != len(hofd_atoms):
@@ -264,19 +279,21 @@ def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount)
     return target
 
 
-def nrmse_equivalence_criterion(nrmse_upper: FiniteFloat, margin: FiniteFloat) -> Boolean:
+def nrmse_equivalence_criterion(nrmse_upper: ProjectionNrmse, margin: ProjectionNrmse) -> Boolean:
     return nrmse_upper < margin
 
 
-def cosine_equivalence_criterion(mean_cosine: FiniteFloat, minimum: FiniteFloat) -> Boolean:
+def cosine_equivalence_criterion(
+    mean_cosine: CosineSimilarity, minimum: CosineSimilarity
+) -> Boolean:
     return mean_cosine >= minimum
 
 
 def stopping_time_equivalence_criterion(
-    ci_lower: FiniteFloat,
-    ci_upper: FiniteFloat,
-    interval_lower: FiniteFloat,
-    interval_upper: FiniteFloat,
+    ci_lower: StoppingTimeDifferenceEpochs,
+    ci_upper: StoppingTimeDifferenceEpochs,
+    interval_lower: StoppingTimeDifferenceEpochs,
+    interval_upper: StoppingTimeDifferenceEpochs,
 ) -> Boolean:
     return ci_lower >= interval_lower and ci_upper <= interval_upper
 

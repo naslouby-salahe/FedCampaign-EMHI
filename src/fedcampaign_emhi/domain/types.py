@@ -73,6 +73,9 @@ DesignColumnCount = PositiveInt
 TensorDimension = PositiveInt
 RecordCount = NonNegativeInt
 HashBucketCount = PositiveInt
+HashBucketIndex = NonNegativeInt
+PermutationIndex = NonNegativeInt
+BinaryClassLabel = Annotated[int, Field(ge=0, le=1)]
 OdiIndicator = Annotated[int, Field(ge=0, le=1)]
 GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
 BinIndex = NonNegativeInt
@@ -93,9 +96,95 @@ ThresholdValue = PositiveFloat
 LatencySeconds = NonNegativeFloat
 RuntimeSeconds = NonNegativeFloat
 CompensatorValue = NonNegativeFloat
+GlobalEvidenceState = NonNegativeFloat
 ESrThreshold = PositiveFloat
 GramConditionNumber = NonNegativeFloat
 Percentile = UnitInterval
+MinimumNonoverlappingHorizonCount = PositiveInt
+KmeansInitializationCount = PositiveInt
+KmeansFitRowLimit = PositiveInt
+EvidenceClipBound = PositiveFloat
+BettingLambda = PositiveFloat
+RequiredExceedanceCount = PositiveInt
+FactorRank = PositiveInt
+FederatedRoundCount = PositiveInt
+SvmCoefficientZero = FiniteFloat
+AutoencoderBeta = UnitInterval
+WeightDecay = FiniteFloat
+FiniteHorizonCalibrationCount = PositiveInt
+FiniteHorizonHeldoutNullCount = PositiveInt
+PureOrderEvaluationSampleCount = PositiveInt
+HofdEquivalenceSampleCount = PositiveInt
+EstimatorEvaluationSampleCount = PositiveInt
+ClientLoading = FiniteFloat
+MixedOrderTermIndex = PositiveInt
+JeffreysPseudocount = PositiveFloat
+IpfIterationLimit = PositiveInt
+CusumDriftSubtraction = PositiveFloat
+CusumInitialState = FiniteFloat
+AttenuationDifference = FiniteFloat
+StandardizedDrift = FiniteFloat
+ProjectionNrmse = FiniteFloat
+StandardizedNullBias = FiniteFloat
+CosineSimilarity = UnitInterval
+StoppingTimeDifferenceEpochs = FiniteFloat
+OdiRateAdvantage = FiniteFloat
+OperationalLeadEpochs = FiniteFloat
+DetectionRateLoss = FiniteFloat
+MaterialOdiContribution = FiniteFloat
+EstimatorSupportLevel = PositiveInt
+RobustnessCountMultiplier = PositiveFloat
+TrajectoryCount = PositiveInt
+ScalabilityRepetitionCount = PositiveInt
+ConcurrentExperimentCellCount = PositiveInt
+EvidenceStatistic = FiniteFloat
+StandardizedAtomCoordinate = FiniteFloat
+OperationalNormReference = FiniteFloat
+SignedDirectionCoordinate = FiniteFloat
+CusumIncrement = FiniteFloat
+CusumState = NonNegativeFloat
+CusumScore = NonNegativeFloat
+ModelParameter = FiniteFloat
+LatentState = FiniteFloat
+DetectorScore = FiniteFloat
+FractionalClientCount = NonNegativeFloat
+FeatureValue = FiniteFloat
+AnomalyScore = FiniteFloat
+SvgCoordinate = FiniteFloat
+XavierGain = PositiveFloat
+StandardizedError = FiniteFloat
+PairedDifference = FiniteFloat
+StatisticValue = FiniteFloat
+BootstrapBiasCorrection = FiniteFloat
+BootstrapAcceleration = FiniteFloat
+EquivalenceBoundary = FiniteFloat
+NuisanceCoefficient = FiniteFloat
+InnovationCoordinate = FiniteFloat
+InnovationMean = FiniteFloat
+InnovationDeviation = FiniteFloat
+CommonModeSuppression = FiniteFloat
+BasisCoordinate = FiniteFloat
+ProjectionMeanSquaredError = FiniteFloat
+GaussianCoordinate = FiniteFloat
+HistogramBinMass = UnitInterval
+KmeansInertia = NonNegativeFloat
+MetricRate = FiniteFloat
+Attenuation = FiniteFloat
+LogEvidenceGrowth = FiniteFloat
+EvidenceShare = FiniteFloat
+StoppingTimeDifference = FiniteFloat
+RankEstimationError = FiniteFloat
+ThroughputPerSecond = PositiveFloat
+RestrictedAverageRunLength = FiniteFloat
+SignedTheoremCoordinate = FiniteFloat
+ContextCoverage = UnitInterval
+PolynomialDensity = FiniteFloat
+XorInteractionStrength = UnitInterval
+StressBucketCount = NonNegativeFloat
+ProbabilityMass = UnitInterval
+DependenceMoment = FiniteFloat
+NonconformityScore = NonNegativeFloat
+SingularValue = NonNegativeFloat
 
 ClientId = Annotated[
     str,
@@ -245,7 +334,7 @@ class BenignHorizon:
 @dataclass(frozen=True)
 class LocalPolicyArtifact:
     threshold: ThresholdValue
-    required_exceedances: PositiveInt
+    required_exceedances: RequiredExceedanceCount
     window_epochs: EpochCount
 
 
@@ -316,7 +405,7 @@ class TonIotNetworkFlowRecord:
     source_ip: ClientId
     protocol_token: NormalizedEventToken
     service_token: NormalizedEventToken
-    binary_label: SignedInt
+    binary_label: BinaryClassLabel
     attack_type: AttackTypeName
 
 
@@ -325,7 +414,7 @@ class EdgeIiotsetFlowRecord:
     timestamp_seconds: UnixTimestampSeconds
     source_host: ClientId
     protocol_group: NormalizedEventToken
-    binary_label: SignedInt
+    binary_label: BinaryClassLabel
     attack_type: AttackTypeName
 
 

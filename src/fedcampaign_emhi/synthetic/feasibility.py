@@ -12,6 +12,7 @@ from fedcampaign_emhi.domain.enums import (
     ContextMethodName,
     DatasetName,
     ExecutionRole,
+    LatentMarkovState,
 )
 from fedcampaign_emhi.domain.types import (
     BasisSize,
@@ -20,16 +21,23 @@ from fedcampaign_emhi.domain.types import (
     CellCount,
     ClientId,
     ComponentName,
-    FiniteFloat,
-    PositiveInt,
+    ContextCoverage,
+    EffectCoefficient,
+    EstimatorSupportLevel,
+    GramConditionNumber,
+    HistogramBinMass,
+    InnovationCoordinate,
+    NumericalFloor,
     Probability,
+    ProjectionNrmse,
+    RankEstimationError,
     RankReference,
     RankValue,
     RidgePenalty,
     SeedCoordinate,
     SeedDerivationIdentity,
     SeedValue,
-    SignedInt,
+    StandardizedNullBias,
 )
 from fedcampaign_emhi.emhi.calibration import calibrate_innovations_on_nuisance_fit
 from fedcampaign_emhi.emhi.contexts import (
@@ -54,12 +62,12 @@ from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
 @dataclass(frozen=True)
 class EstimatorFeasibilityMetrics:
-    conditional_rank_mae: FiniteFloat
-    projection_nrmse: FiniteFloat
-    standardized_null_bias: FiniteFloat
-    context_coverage: FiniteFloat
-    abstention_rate: FiniteFloat
-    condition_number: FiniteFloat | None
+    conditional_rank_mae: RankEstimationError
+    projection_nrmse: ProjectionNrmse
+    standardized_null_bias: StandardizedNullBias
+    context_coverage: ContextCoverage
+    abstention_rate: Probability
+    condition_number: GramConditionNumber | None
     numerical_failure: Boolean
 
 
@@ -67,7 +75,7 @@ class EstimatorFeasibilityMetrics:
 class EstimatorFeasibilityCondition:
     identifier: ComponentName
     order: CoalitionOrder
-    support_per_context: PositiveInt
+    support_per_context: EstimatorSupportLevel
     basis_size: BasisSize
     cell_count: CellCount
     ridge_candidates: tuple[RidgePenalty, ...] | None
@@ -187,7 +195,7 @@ def evaluate_estimator_feasibility_seed(
 
 
 def _numerical_failure_metrics(
-    condition_number: FiniteFloat | None = None,
+    condition_number: GramConditionNumber | None = None,
 ) -> EstimatorFeasibilityMetrics:
     return EstimatorFeasibilityMetrics(0.0, 0.0, 0.0, 0.0, 1.0, condition_number, True)
 
@@ -197,7 +205,7 @@ def _component_seed(
     root_seed: SeedValue,
     component: ComponentName,
     order: CoalitionOrder,
-    support_per_context: PositiveInt,
+    support_per_context: EstimatorSupportLevel,
     basis_size: BasisSize,
     cell_count: CellCount,
 ) -> SeedValue:
@@ -219,8 +227,8 @@ def _component_seed(
 
 
 def _conditional_rank_mae(
-    estimated_ranks: tuple[FiniteFloat, ...], truth_ranks: tuple[FiniteFloat, ...]
-) -> FiniteFloat:
+    estimated_ranks: tuple[RankValue, ...], truth_ranks: tuple[RankValue, ...]
+) -> RankEstimationError:
     if len(estimated_ranks) != len(truth_ranks) or not estimated_ranks:
         raise ValueError("conditional-rank MAE requires aligned nonempty samples")
     return sum(
@@ -229,10 +237,10 @@ def _conditional_rank_mae(
 
 
 def _projection_nrmse(
-    projections: tuple[tuple[FiniteFloat, ...], ...],
-    tensor_rows: tuple[tuple[FiniteFloat, ...], ...],
-    floor: FiniteFloat,
-) -> FiniteFloat:
+    projections: tuple[tuple[InnovationCoordinate, ...], ...],
+    tensor_rows: tuple[tuple[InnovationCoordinate, ...], ...],
+    floor: NumericalFloor,
+) -> ProjectionNrmse:
     if not projections or len(projections) != len(tensor_rows):
         raise ValueError("projection NRMSE requires aligned nonempty evaluation rows")
     residual = sqrt(sum(euclidean_norm(row) ** 2 for row in projections) / len(projections))
@@ -244,11 +252,11 @@ def _histogram_rows(
     config: ScientificConfig,
     sequence: DeterministicContextSupportSequence,
     order: CoalitionOrder,
-) -> tuple[tuple[FiniteFloat, ...] | None, ...]:
+) -> tuple[tuple[HistogramBinMass, ...] | None, ...]:
     target = sequence.target_client_ids
     complement = tuple(client for client in sequence.client_ids if client not in target)
     indexes = {client: index for index, client in enumerate(sequence.client_ids)}
-    rows: list[tuple[FiniteFloat, ...] | None] = [None]
+    rows: list[tuple[HistogramBinMass, ...] | None] = [None]
     for _ranks in sequence.ranks[1:]:
         previous = sequence.ranks[len(rows) - 1]
         histogram = outside_context_histogram(
@@ -268,9 +276,9 @@ def _centroids(
     sequence: DeterministicContextSupportSequence,
     order: CoalitionOrder,
     cell_count: CellCount,
-    histograms: tuple[tuple[FiniteFloat, ...] | None, ...],
+    histograms: tuple[tuple[HistogramBinMass, ...] | None, ...],
     seed: SeedValue,
-) -> tuple[tuple[FiniteFloat, ...], ...] | None:
+) -> tuple[tuple[HistogramBinMass, ...], ...] | None:
     from fedcampaign_emhi.domain.types import ContextTrainingRow
 
     rows = tuple(
@@ -305,8 +313,8 @@ def _centroids(
 def _residual_ranks(
     config: ScientificConfig,
     sequence: DeterministicContextSupportSequence,
-    histograms: tuple[tuple[FiniteFloat, ...] | None, ...],
-    centroids: tuple[tuple[FiniteFloat, ...], ...],
+    histograms: tuple[tuple[HistogramBinMass, ...] | None, ...],
+    centroids: tuple[tuple[HistogramBinMass, ...], ...],
 ) -> tuple[tuple[tuple[RankValue, ...], BinIndex] | None, ...]:
     assignments = tuple(
         None
@@ -351,7 +359,7 @@ def evaluate_estimator_feasibility_condition(
     config: ScientificConfig,
     seed: SeedValue,
     order: CoalitionOrder,
-    support_per_context: PositiveInt,
+    support_per_context: EstimatorSupportLevel,
     basis_size: BasisSize,
     cell_count: CellCount,
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
@@ -493,7 +501,7 @@ def generate_deterministic_context_support(
     client_ids: tuple[ClientId, ...],
     target_order: CoalitionOrder,
     context_cell_count: CellCount,
-    support_per_context: PositiveInt,
+    support_per_context: EstimatorSupportLevel,
     seed: SeedValue,
 ) -> DeterministicContextSupportSequence:
     ordered_clients = tuple(sorted(client_ids))
@@ -538,20 +546,24 @@ def primary_feasibility_context_support(
     )
 
 
-def initial_markov_state(negative_probability: Probability, seed: SeedValue) -> SignedInt:
+def initial_markov_state(negative_probability: Probability, seed: SeedValue) -> LatentMarkovState:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     if float(generator.random()) < negative_probability:
-        return -1
-    return 1
+        return LatentMarkovState.NEGATIVE
+    return LatentMarkovState.POSITIVE
 
 
 def next_markov_state(
-    current_state: SignedInt, same_state_probability: Probability, seed: SeedValue
-) -> SignedInt:
+    current_state: LatentMarkovState, same_state_probability: Probability, seed: SeedValue
+) -> LatentMarkovState:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     if float(generator.random()) < same_state_probability:
         return current_state
-    return -current_state
+    return (
+        LatentMarkovState.POSITIVE
+        if current_state is LatentMarkovState.NEGATIVE
+        else LatentMarkovState.NEGATIVE
+    )
 
 
 def outside_rank_from_interval(lower: RankValue, upper: RankValue, seed: SeedValue) -> RankValue:
@@ -560,8 +572,8 @@ def outside_rank_from_interval(lower: RankValue, upper: RankValue, seed: SeedVal
 
 
 def context_conditional_density(
-    ranks: tuple[RankValue, ...], theta: FiniteFloat, latent_state: SignedInt
-) -> FiniteFloat:
+    ranks: tuple[RankValue, ...], theta: EffectCoefficient, latent_state: LatentMarkovState
+) -> InnovationCoordinate:
     product = 1.0
     for rank in ranks:
         product *= shifted_legendre_phi_one(rank)

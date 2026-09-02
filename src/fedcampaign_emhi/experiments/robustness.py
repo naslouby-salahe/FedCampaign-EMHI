@@ -9,12 +9,17 @@ from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
     ClientId,
+    CommonModeSuppression,
+    DetectionRateLoss,
     EpochCount,
     EpochIndexValue,
-    FiniteFloat,
+    FeatureValue,
+    NumericalFloor,
     Probability,
     RecordCount,
+    RobustnessCountMultiplier,
     SeedCount,
+    StressBucketCount,
 )
 
 
@@ -117,31 +122,31 @@ def select_high_volume_windows(
 
 def paired_false_campaign_difference(
     raw_mean_fcr: Probability, emhi_fcr: Probability
-) -> FiniteFloat:
+) -> DetectionRateLoss:
     return raw_mean_fcr - emhi_fcr
 
 
 def synthetic_count_stress_multiplier(
-    bucket_counts: tuple[FiniteFloat, ...], factor: FiniteFloat
-) -> tuple[FiniteFloat, ...]:
+    bucket_counts: tuple[StressBucketCount, ...], factor: RobustnessCountMultiplier
+) -> tuple[StressBucketCount, ...]:
     if factor <= 0.0:
         raise ValueError("benign count multiplication factors must be positive")
     if not bucket_counts:
         raise ValueError("count stress requires at least one raw event-count bucket")
-    return tuple(float(count) * factor for count in bucket_counts)
+    return tuple(count * factor for count in bucket_counts)
 
 
 def seed_level_power_loss(
     no_outside_detection_rate: Probability, emhi_detection_rate: Probability
-) -> FiniteFloat:
+) -> DetectionRateLoss:
     return no_outside_detection_rate - emhi_detection_rate
 
 
 def common_mode_suppression(
     emhi_false_campaign_rate: Probability,
     raw_mean_false_campaign_rate: Probability,
-    metric_denominator_floor: FiniteFloat,
-) -> FiniteFloat:
+    metric_denominator_floor: NumericalFloor,
+) -> CommonModeSuppression:
     return 1.0 - emhi_false_campaign_rate / (
         raw_mean_false_campaign_rate + metric_denominator_floor
     )
@@ -154,15 +159,15 @@ def false_campaign_suppression_meets_minimum(
 
 
 def detection_rate_loss_within_maximum(
-    mean_loss: FiniteFloat, maximum_loss: Probability
+    mean_loss: DetectionRateLoss, maximum_loss: DetectionRateLoss
 ) -> Boolean:
     return mean_loss <= maximum_loss
 
 
 def stress_epoch_feature_values(
-    unscaled_feature_values: tuple[FiniteFloat, ...],
-    factor: FiniteFloat,
-) -> tuple[FiniteFloat, ...]:
+    unscaled_feature_values: tuple[FeatureValue, ...],
+    factor: RobustnessCountMultiplier,
+) -> tuple[FeatureValue, ...]:
     if len(unscaled_feature_values) < 2:
         raise ValueError(
             "count stress requires at least one bucket plus the total/entropy dimensions"
