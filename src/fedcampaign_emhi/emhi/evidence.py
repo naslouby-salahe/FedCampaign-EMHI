@@ -16,9 +16,6 @@ from fedcampaign_emhi.domain.types import (
 )
 
 OPERATIONAL_EVIDENCE_COMPENSATOR = 0.125
-LOCKED_SIGNED_CLIP_BOUND = 1.0
-LOCKED_SIGNED_BET_LAMBDA = 0.5
-SIGNED_NULL_EXPECTATION_UPPER_BOUND = 0.0
 
 
 def clip_statistic(
