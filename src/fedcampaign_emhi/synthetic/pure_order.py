@@ -38,6 +38,7 @@ class PureOrderCell:
     method: MethodName
     target_order: CoalitionOrder
     enabled_orders: frozenset[CoalitionOrder]
+    context_negative_state_probability: Probability = 0.5
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,12 @@ def sample_generator_row(
     if cell.generator is GeneratorName.XOR_PARITY_TRIPLE:
         return sample_xor_ranks(cell.effect, remaining, seed)
     if cell.generator is GeneratorName.CONTEXT_DEPENDENT_PURE_TRIPLE:
-        latent_state = LatentMarkovState.NEGATIVE if seed % 2 else LatentMarkovState.POSITIVE
+        state_draw = np.random.default_rng(thirty_two_bit_seed(seed))
+        latent_state = (
+            LatentMarkovState.NEGATIVE
+            if float(state_draw.random()) < cell.context_negative_state_probability
+            else LatentMarkovState.POSITIVE
+        )
         return sample_context_dependent_pure_triple_ranks(
             cell.effect, latent_state, remaining, seed
         )
@@ -116,6 +122,9 @@ def generator_effects(
 
 def enumerate_pure_order_grid(config: ScientificConfig) -> tuple[PureOrderCell, ...]:
     experiment = config.experiments.pure_order_separation_validation
+    negative_state_probability = (
+        config.generators.context_dependent_triple.initial_state_probabilities.negative_one
+    )
     return tuple(
         PureOrderCell(
             generator=generator,
@@ -123,6 +132,7 @@ def enumerate_pure_order_grid(config: ScientificConfig) -> tuple[PureOrderCell, 
             method=method,
             target_order=generator_target_order(generator),
             enabled_orders=generator_enabled_orders(generator),
+            context_negative_state_probability=negative_state_probability,
         )
         for generator in experiment.generators
         for effect in generator_effects(config, generator)

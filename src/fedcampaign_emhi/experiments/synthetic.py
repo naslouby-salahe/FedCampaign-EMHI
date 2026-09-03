@@ -569,13 +569,18 @@ def _synthetic_robustness_client_ids(client_count: ClientCount) -> tuple[ClientI
     return scalability_client_ids(client_count)
 
 
-def _context_dependent_triple_cell(effect: EffectCoefficient) -> PureOrderCell:
+def _context_dependent_triple_cell(
+    config: ScientificConfig, effect: EffectCoefficient
+) -> PureOrderCell:
     return PureOrderCell(
         generator=GeneratorName.CONTEXT_DEPENDENT_PURE_TRIPLE,
         effect=effect,
         method=MethodName.FULL_FEDCAMPAIGN_EMHI,
         target_order=CoalitionOrder.THREE,
         enabled_orders=frozenset((CoalitionOrder.THREE,)),
+        context_negative_state_probability=(
+            config.generators.context_dependent_triple.initial_state_probabilities.negative_one
+        ),
     )
 
 
@@ -699,7 +704,7 @@ def _evaluate_outside_contamination_seed(
     client_ids = _synthetic_robustness_client_ids(specification.client_count)
     target = outside_contamination_targets(client_ids)
     outside = tuple(client_id for client_id in client_ids if client_id not in set(target))
-    cell = _context_dependent_triple_cell(specification.target_triple_theta)
+    cell = _context_dependent_triple_cell(config, specification.target_triple_theta)
     nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
     evaluation_count = (
         config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
@@ -818,7 +823,9 @@ def _evaluate_dropout_sparsity_seed(
     loaded: LoadedScientificConfiguration, seed: SeedValue
 ) -> SyntheticCellOutcome:
     config = loaded.values
-    cell = _context_dependent_triple_cell(config.generators.context_dependent_triple.primary_theta)
+    cell = _context_dependent_triple_cell(
+        config, config.generators.context_dependent_triple.primary_theta
+    )
     nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
     warmup = config.campaign.prestart_warmup_epochs
     horizon = config.campaign.evaluation_horizon_epochs
