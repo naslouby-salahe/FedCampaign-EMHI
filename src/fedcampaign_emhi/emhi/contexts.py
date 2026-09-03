@@ -364,9 +364,5 @@ def _lloyd_kmeans(
         centroids = updated
         if shift <= tolerance:
             break
-    inertia = 0.0
-    for row_index in range(row_count):
-        centroid = np.asarray(centroids[int(assignments[row_index])], dtype=np.float64)
-        residual = np.asarray(matrix[row_index] - centroid, dtype=np.float64)
-        inertia += float(np.sum(np.square(residual)))
+    inertia = float(np.sum(np.square(matrix - centroids[assignments])))
     return centroids, inertia
