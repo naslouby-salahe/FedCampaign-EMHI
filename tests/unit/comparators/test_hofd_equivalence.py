@@ -3,13 +3,13 @@ import pytest
 from fedcampaign_emhi.comparators.dependence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
-    paired_atom_metrics,
     pfa_prerequisite_criterion,
     stopping_time_equivalence_criterion,
     target_coalition_for_order,
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder
+from fedcampaign_emhi.evaluation.metrics import atom_cosine_similarity, atom_nrmse
 
 
 def test_target_coalition_sizes() -> None:
@@ -65,8 +65,8 @@ def test_all_coalition_orders_covered_by_target_rule() -> None:
     assert sizes == {1, 2, 3}
 
 
-def test_paired_atom_metrics_use_aligned_vector_geometry() -> None:
-    metrics = paired_atom_metrics(((1.0, 0.0), (0.0, 1.0)), ((1.0, 0.0), (0.0, 1.0)), 1e-12)
-
-    assert metrics.nrmse == 0.0
-    assert metrics.cosine_similarity == pytest.approx(1.0)
+def test_atom_metrics_use_aligned_vector_geometry() -> None:
+    emhi = ((1.0, 0.0), (0.0, 1.0))
+    hofd = ((1.0, 0.0), (0.0, 1.0))
+    assert atom_nrmse(emhi, hofd, 1e-12) == 0.0
+    assert atom_cosine_similarity(emhi, hofd, 1e-12) == pytest.approx(1.0)

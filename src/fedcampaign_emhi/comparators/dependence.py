@@ -31,7 +31,6 @@ from fedcampaign_emhi.domain.types import (
     SingularValue,
     SolverIterationLimit,
     StandardDeviation,
-    StandardizedAtomCoordinate,
     StoppingTimeDifferenceEpochs,
 )
 from fedcampaign_emhi.emhi.innovations import (
@@ -512,39 +511,6 @@ def global_factor_residual_score(
     projection = centered @ factors.T @ factors
     residual = centered - projection
     return float(np.linalg.norm(residual))
-
-
-@dataclass(frozen=True)
-class PairedAtomMetrics:
-    nrmse: ProjectionNrmse
-    cosine_similarity: CosineSimilarity
-
-
-def paired_atom_metrics(
-    emhi_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
-    hofd_atoms: tuple[tuple[StandardizedAtomCoordinate, ...], ...],
-    denominator_floor: NumericalFloor,
-) -> PairedAtomMetrics:
-    if not emhi_atoms or len(emhi_atoms) != len(hofd_atoms):
-        raise ValueError("paired atom metrics require aligned nonempty rows")
-    if any(len(emhi) != len(hofd) for emhi, hofd in zip(emhi_atoms, hofd_atoms, strict=True)):
-        raise ValueError("paired atom vectors must have equal dimensions")
-    squared_error = sum(
-        sum((emhi - hofd) ** 2 for emhi, hofd in zip(left, right, strict=True))
-        for left, right in zip(emhi_atoms, hofd_atoms, strict=True)
-    )
-    squared_reference = sum(sum(value * value for value in row) for row in emhi_atoms)
-    inner_product = sum(
-        sum(emhi * hofd for emhi, hofd in zip(left, right, strict=True))
-        for left, right in zip(emhi_atoms, hofd_atoms, strict=True)
-    )
-    squared_hofd = sum(sum(value * value for value in row) for row in hofd_atoms)
-    return PairedAtomMetrics(
-        nrmse=sqrt(squared_error / len(emhi_atoms))
-        / max(sqrt(squared_reference / len(emhi_atoms)), denominator_floor),
-        cosine_similarity=inner_product
-        / max(sqrt(squared_reference) * sqrt(squared_hofd), denominator_floor),
-    )
 
 
 def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount) -> RecordCount:

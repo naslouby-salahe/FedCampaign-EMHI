@@ -19,7 +19,6 @@ from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.dependence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
-    paired_atom_metrics,
     pfa_prerequisite_criterion,
 )
 from fedcampaign_emhi.comparators.runtime import fit_comparator_state, score_comparator_ranks
@@ -396,17 +395,10 @@ def _evaluate_hofd_equivalence_seed(
                 projection_residual(tensor, hofd_coefficients, design)
                 for tensor, design in zip(heldout_tensors, heldout_design, strict=True)
             )
-            paired_atoms = paired_atom_metrics(
-                emhi_atoms,
-                hofd_atoms,
-                config.numerics.metric_denominator_floor,
-            )
             nrmse = atom_nrmse(emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor)
             cosine = atom_cosine_similarity(
                 emhi_atoms, hofd_atoms, config.numerics.metric_denominator_floor
             )
-            if paired_atoms.nrmse != nrmse or paired_atoms.cosine_similarity != cosine:
-                raise ValueError("paired atom metrics must match atom NRMSE and cosine formulas")
             nrmse_passes = nrmse_equivalence_criterion(
                 nrmse,
                 materiality.atom_nrmse_upper_margin,
@@ -548,8 +540,8 @@ def _evaluate_hofd_equivalence_seed(
                     "coalition_order": width,
                     "support_per_context": support,
                     "heldout_samples": heldout_count,
-                    "atom_nrmse": paired_atoms.nrmse,
-                    "atom_cosine_similarity": paired_atoms.cosine_similarity,
+                    "atom_nrmse": nrmse,
+                    "atom_cosine_similarity": cosine,
                     "nrmse_equivalence_passes": nrmse_passes,
                     "cosine_equivalence_passes": cosine_passes,
                     "emhi_null_pfa": emhi_pfa,
