@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from fedcampaign_emhi.analysis.results import SECONDARY_HOLM_STATISTICS
+from fedcampaign_emhi.analysis.results import PRIMARY_HOLM_STATISTICS, SECONDARY_HOLM_STATISTICS
 from fedcampaign_emhi.artifacts.provenance import (
     content_digest,
     evidence_export_boundary_digest,
@@ -28,7 +28,6 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
     OverwritePolicy,
-    PrimaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import ConfigurationDigest
 from fedcampaign_emhi.reporting.export import (
@@ -52,30 +51,6 @@ class VerifiedExperimentEvidence:
 class ReportMaterialization:
     experiment_name: ExperimentName
     output_paths: tuple[Path, ...]
-
-
-PRIMARY_HOLM_STATISTICS = (
-    (
-        ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION,
-        PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION,
-    ),
-    (
-        ExperimentName.PURE_ORDER_SEPARATION_VALIDATION,
-        PrimaryHolmHypothesis.PURE_ORDER_TARGET_DRIFT,
-    ),
-    (
-        ExperimentName.PRIMARY_STRICT_ODI_EVALUATION,
-        PrimaryHolmHypothesis.PRIMARY_ODI_ADVANTAGE_OVER_ORDER_AT_MOST_TWO_EMHI,
-    ),
-    (
-        ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS,
-        PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION,
-    ),
-    (
-        ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE,
-        PrimaryHolmHypothesis.STRONG_LOCAL_ODI_ABOVE_MINIMUM,
-    ),
-)
 
 
 def _json_files(root: Path) -> tuple[Path, ...]:
