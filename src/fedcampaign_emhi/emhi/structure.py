@@ -1,3 +1,4 @@
+from bisect import bisect_left, bisect_right
 from collections import OrderedDict
 from collections.abc import Mapping
 from itertools import combinations
@@ -101,6 +102,22 @@ def coalition_conditioned_residual_rank(
     return clipped_midrank(marginal_rank, context_reference, epsilon)
 
 
+def batch_clipped_midrank(
+    scores: tuple[DetectorScore, ...], reference: RankReference, epsilon: NumericalFloor
+) -> tuple[RankValue, ...]:
+    observation_count = len(reference.scores)
+    if observation_count == 0:
+        raise ValueError("rank reference must contain at least one score")
+    sorted_reference = sorted(reference.scores)
+    ranks: list[RankValue] = []
+    for score in scores:
+        less = bisect_left(sorted_reference, score)
+        equal = bisect_right(sorted_reference, score) - less
+        rank = (less + (0.5 * equal) + 0.5) / (observation_count + 1)
+        ranks.append(clip_rank(rank, epsilon))
+    return tuple(ranks)
+
+
 _CLIENT_EPOCH_RANK_MAP_CACHE_LIMIT = 64
 _client_epoch_rank_map_cache: OrderedDict[
     tuple[MaterialDependencyFingerprint, ClientId], Mapping[EpochIndexValue, RankValue]
@@ -161,9 +178,7 @@ def build_marginal_rank_artifact(
                 f"client {score_stream.client_id} has no nuisance-fit rank reference scores"
             )
         reference = RankReference(scores=reference_scores)
-        ranks = tuple(
-            clipped_midrank(score, reference, rank_clip_epsilon) for score in score_stream.scores
-        )
+        ranks = batch_clipped_midrank(score_stream.scores, reference, rank_clip_epsilon)
         streams.append(
             ClientMarginalRankStream(
                 client_id=score_stream.client_id,
