@@ -22,7 +22,7 @@ from fedcampaign_emhi.comparators.dependence import (
     paired_atom_metrics,
     pfa_prerequisite_criterion,
 )
-from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
+from fedcampaign_emhi.comparators.runtime import fit_comparator_state, score_comparator_ranks
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -1067,11 +1067,16 @@ def run_synthetic_cell(
             for index in range(sample_count)
         )
         alternatives = composition_reference_rows(cell, client_count, seed, sample_count)
+        fitted_state = fit_comparator_state(
+            method_name, tuple(row[:order] for row in nuisance), config
+        )
         null_scores = tuple(
-            score_comparator_ranks(method_name, row[:order], config)[0] for row in nuisance
+            score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
+            for row in nuisance
         )
         alternative_scores = tuple(
-            score_comparator_ranks(method_name, row[:order], config)[0] for row in alternatives
+            score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
+            for row in alternatives
         )
         mean = sum(null_scores) / len(null_scores)
         deviation = (sum((value - mean) ** 2 for value in null_scores) / len(null_scores)) ** 0.5
@@ -1093,7 +1098,9 @@ def run_synthetic_cell(
                 remaining,
                 seed + sample_count + term_index,
             )
-            mixed_score, _state = score_comparator_ranks(method_name, row[:order], config)
+            mixed_score, _state = score_comparator_ranks(
+                method_name, row[:order], config, (), fitted_state
+            )
             finite = isfinite(mixed_score)
             mixed_diagnostics.append(
                 {

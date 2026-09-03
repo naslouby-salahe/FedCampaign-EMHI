@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from math import log
 from pathlib import Path
 from typing import cast
@@ -10,29 +11,28 @@ from fedcampaign_emhi.artifacts.records import StrongComparatorCompositionRecord
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout, payload_digest
 from fedcampaign_emhi.comparators.contracts import comparator_method_contracts, native_target_order
 from fedcampaign_emhi.comparators.dependence import (
+    DVineFittedCorrelations,
+    GlobalFactorFittedBasis,
     cosine_equivalence_criterion,
-    gaussian_h_function,
-    global_factor_residual_scores,
+    d_vine_conditional_reference_score,
+    empirical_triple_joint_counts,
+    fit_d_vine_correlations,
+    fit_global_factor_basis,
+    fit_lancaster_triple_reference,
+    fit_pair_dependence_reference,
+    fit_pairwise_maxent_table,
+    floored_probability_table,
+    global_factor_residual_score,
     hofd_atom_rows,
-    ipf_converged,
-    iterative_proportional_fitting_step,
     jeffreys_smoothed_probabilities,
     lancaster_triple_moment,
     lancaster_triple_nonconformity,
-    lexicographic_vine_order,
-    log_linear_design_column_count,
     nrmse_equivalence_criterion,
     pair_dependence_moment,
     pair_dependence_nonconformity,
     pfa_prerequisite_criterion,
-    selected_factor_rank,
     stopping_time_equivalence_criterion,
     target_coalition_for_order,
-    uniform_probability_table,
-)
-from fedcampaign_emhi.comparators.federated import (
-    fedavg_weighted_mean,
-    federated_autoencoder_widths,
 )
 from fedcampaign_emhi.comparators.fusion import (
     CompositionSelectionInputs,
@@ -51,13 +51,96 @@ from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, Method
 from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
-    ClientId,
     CusumState,
+    DependenceMoment,
     DetectorScore,
+    ProbabilityMass,
     RankValue,
+    StandardDeviation,
 )
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
 from fedcampaign_emhi.emhi.structure import tensor_representation
+
+
+@dataclass(frozen=True)
+class ComparatorFittedState:
+    pair_dependence_mean: DependenceMoment | None = None
+    pair_dependence_deviation: StandardDeviation | None = None
+    lancaster_triple_mean: DependenceMoment | None = None
+    lancaster_triple_deviation: StandardDeviation | None = None
+    d_vine: DVineFittedCorrelations | None = None
+    connected_information_bin_count: BinCount | None = None
+    connected_information_smoothed_table: (
+        tuple[tuple[tuple[ProbabilityMass, ...], ...], ...] | None
+    ) = None
+    connected_information_maxent_table: (
+        tuple[tuple[tuple[ProbabilityMass, ...], ...], ...] | None
+    ) = None
+    log_linear_bin_count: BinCount | None = None
+    log_linear_maxent_table: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...] | None = None
+    global_factor: GlobalFactorFittedBasis | None = None
+
+
+def fit_comparator_state(
+    method_name: MethodName,
+    nuisance_rows: tuple[tuple[RankValue, ...], ...],
+    config: ScientificConfig,
+) -> ComparatorFittedState | None:
+    if method_name is MethodName.CONDITIONAL_PAIR_DEPENDENCE:
+        pairs = tuple((row[0], row[1]) for row in nuisance_rows)
+        mean, deviation = fit_pair_dependence_reference(pairs)
+        return ComparatorFittedState(pair_dependence_mean=mean, pair_dependence_deviation=deviation)
+    if method_name is MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE:
+        triples = tuple((row[0], row[1], row[2]) for row in nuisance_rows)
+        mean, deviation = fit_lancaster_triple_reference(triples)
+        return ComparatorFittedState(
+            lancaster_triple_mean=mean, lancaster_triple_deviation=deviation
+        )
+    if method_name is MethodName.D_VINE_CONDITIONAL_REFERENCE:
+        triples = tuple((row[0], row[1], row[2]) for row in nuisance_rows)
+        return ComparatorFittedState(
+            d_vine=fit_d_vine_correlations(triples, config.context.rank_clip_epsilon)
+        )
+    if method_name is MethodName.CONNECTED_INFORMATION_REFERENCE:
+        triples = tuple((row[0], row[1], row[2]) for row in nuisance_rows)
+        bin_count = config.comparators.connected_information.bins_per_client
+        counts = empirical_triple_joint_counts(triples, bin_count)
+        smoothed = jeffreys_smoothed_probabilities(
+            counts, config.comparators.connected_information.jeffreys_pseudocount_per_cell
+        )
+        maxent = fit_pairwise_maxent_table(
+            smoothed,
+            config.comparators.connected_information.ipf_max_iterations,
+            config.comparators.connected_information.maximum_marginal_absolute_error,
+        )
+        return ComparatorFittedState(
+            connected_information_bin_count=bin_count,
+            connected_information_smoothed_table=smoothed,
+            connected_information_maxent_table=maxent,
+        )
+    if method_name is MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE:
+        triples = tuple((row[0], row[1], row[2]) for row in nuisance_rows)
+        bin_count = config.comparators.conditional_log_linear.bins_per_client
+        counts = empirical_triple_joint_counts(triples, bin_count)
+        floored = floored_probability_table(
+            counts, config.comparators.conditional_log_linear.probability_floor
+        )
+        maxent = fit_pairwise_maxent_table(
+            floored,
+            config.comparators.conditional_log_linear.max_iterations,
+            config.comparators.conditional_log_linear.maximum_fitted_marginal_absolute_error,
+        )
+        return ComparatorFittedState(log_linear_bin_count=bin_count, log_linear_maxent_table=maxent)
+    if method_name is MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE:
+        return ComparatorFittedState(
+            global_factor=fit_global_factor_basis(
+                nuisance_rows,
+                config.comparators.global_factor_residual.cumulative_variance_target,
+                config.comparators.global_factor_residual.fallback_rank,
+                config.comparators.global_factor_residual.candidate_ranks,
+            )
+        )
+    return None
 
 
 def comparator_methods_with_runtime() -> tuple[MethodName, ...]:
@@ -99,35 +182,43 @@ def _rank_bin(rank: RankValue, bin_count: BinCount) -> BinIndex:
 
 
 def _connected_information_score(
-    ranks: tuple[RankValue, ...], config: ScientificConfig
+    ranks: tuple[RankValue, ...], fitted_state: ComparatorFittedState | None
 ) -> DetectorScore:
     if len(ranks) != 3:
         raise ValueError("connected information requires three ranks")
-    bin_count = config.comparators.connected_information.bins_per_client
-    counts = [[[0.0 for _ in range(bin_count)] for _ in range(bin_count)] for _ in range(bin_count)]
-    counts[_rank_bin(ranks[0], bin_count)][_rank_bin(ranks[1], bin_count)][
-        _rank_bin(ranks[2], bin_count)
-    ] = 1.0
-    smoothed = jeffreys_smoothed_probabilities(
-        tuple(tuple(tuple(row) for row in layer) for layer in counts),
-        config.comparators.connected_information.jeffreys_pseudocount_per_cell,
-    )
-    uniform = uniform_probability_table(bin_count)
-    target_pair = tuple(
-        tuple(sum(uniform[i][j][k] for k in range(bin_count)) for j in range(bin_count))
-        for i in range(bin_count)
-    )
-    fitted = iterative_proportional_fitting_step(uniform, target_pair)
-    if not ipf_converged(
-        fitted,
-        target_pair,
-        config.comparators.connected_information.maximum_marginal_absolute_error,
+    if (
+        fitted_state is None
+        or fitted_state.connected_information_bin_count is None
+        or fitted_state.connected_information_smoothed_table is None
+        or fitted_state.connected_information_maxent_table is None
     ):
-        raise ValueError("connected-information IPF did not converge")
+        raise ValueError("connected-information reference requires a fitted comparator state")
+    bin_count = fitted_state.connected_information_bin_count
     indexes = tuple(_rank_bin(rank, bin_count) for rank in ranks)
-    numerator = smoothed[indexes[0]][indexes[1]][indexes[2]]
-    denominator = fitted[indexes[0]][indexes[1]][indexes[2]]
+    numerator = fitted_state.connected_information_smoothed_table[indexes[0]][indexes[1]][
+        indexes[2]
+    ]
+    denominator = fitted_state.connected_information_maxent_table[indexes[0]][indexes[1]][
+        indexes[2]
+    ]
     return abs(log(numerator / denominator))
+
+
+def _log_linear_score(
+    ranks: tuple[RankValue, ...], fitted_state: ComparatorFittedState | None
+) -> DetectorScore:
+    if len(ranks) != 3:
+        raise ValueError("conditional log-linear reference requires three ranks")
+    if (
+        fitted_state is None
+        or fitted_state.log_linear_bin_count is None
+        or (fitted_state.log_linear_maxent_table is None)
+    ):
+        raise ValueError("conditional log-linear reference requires a fitted comparator state")
+    bin_count = fitted_state.log_linear_bin_count
+    indexes = tuple(_rank_bin(rank, bin_count) for rank in ranks)
+    probability = fitted_state.log_linear_maxent_table[indexes[0]][indexes[1]][indexes[2]]
+    return -log(probability)
 
 
 def _hofd_score(ranks: tuple[RankValue, ...], config: ScientificConfig) -> DetectorScore:
@@ -147,6 +238,7 @@ def score_comparator_ranks(
     ranks: tuple[RankValue, ...],
     config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...] = (),
+    fitted_state: ComparatorFittedState | None = None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     if not ranks:
         raise ValueError("comparator scoring requires at least one rank")
@@ -157,50 +249,61 @@ def score_comparator_ranks(
     if method_name is MethodName.CONDITIONAL_PAIR_DEPENDENCE:
         if len(ranks) < 2:
             raise ValueError("pair comparator requires two ranks")
+        if (
+            fitted_state is None
+            or fitted_state.pair_dependence_mean is None
+            or fitted_state.pair_dependence_deviation is None
+        ):
+            raise ValueError("pair-dependence reference requires a fitted comparator state")
         moment = pair_dependence_moment(ranks[0], ranks[1])
         score = pair_dependence_nonconformity(
             moment,
-            0.0,
-            1.0,
+            fitted_state.pair_dependence_mean,
+            fitted_state.pair_dependence_deviation,
             config.numerics.metric_denominator_floor,
         )
         return score, previous_cusum_state
     if method_name is MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE:
         if len(ranks) < 3:
             raise ValueError("Lancaster comparator requires three ranks")
+        if (
+            fitted_state is None
+            or fitted_state.lancaster_triple_mean is None
+            or fitted_state.lancaster_triple_deviation is None
+        ):
+            raise ValueError("Lancaster-triple reference requires a fitted comparator state")
         moment = lancaster_triple_moment(ranks[0], ranks[1], ranks[2])
         return (
             lancaster_triple_nonconformity(
                 moment,
-                0.0,
-                1.0,
+                fitted_state.lancaster_triple_mean,
+                fitted_state.lancaster_triple_deviation,
                 config.numerics.metric_denominator_floor,
             ),
             previous_cusum_state,
         )
     if method_name is MethodName.CONNECTED_INFORMATION_REFERENCE:
-        return _connected_information_score(ranks, config), previous_cusum_state
+        return _connected_information_score(ranks, fitted_state), previous_cusum_state
     if method_name is MethodName.D_VINE_CONDITIONAL_REFERENCE:
         if len(ranks) < 3:
             raise ValueError("D-vine comparator requires three ranks")
-        ordered: tuple[ClientId, ...] = tuple(f"client-{index}" for index in range(len(ranks)))
-        lexicographic_vine_order(ordered[:3])
-        left = gaussian_h_function(ranks[0], ranks[1], 0.0, config.context.rank_clip_epsilon)
-        right = gaussian_h_function(ranks[2], ranks[1], 0.0, config.context.rank_clip_epsilon)
-        return abs(left - right), previous_cusum_state
+        if fitted_state is None or fitted_state.d_vine is None:
+            raise ValueError("D-vine conditional reference requires a fitted comparator state")
+        score = d_vine_conditional_reference_score(
+            (ranks[0], ranks[1], ranks[2]), fitted_state.d_vine, config.context.rank_clip_epsilon
+        )
+        return score, previous_cusum_state
     if method_name is MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE:
-        log_linear_design_column_count(config.basis.primary_size)
-        return abs(mean_rank_fusion(ranks) - 0.5), previous_cusum_state
+        return _log_linear_score(ranks, fitted_state), previous_cusum_state
     if method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD:
         return _hofd_score(ranks, config), previous_cusum_state
     if method_name is MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE:
-        factor_rank = selected_factor_rank(
-            (1.0,),
-            config.comparators.global_factor_residual.cumulative_variance_target,
-            config.comparators.global_factor_residual.fallback_rank,
-            config.comparators.global_factor_residual.candidate_ranks,
+        if fitted_state is None or fitted_state.global_factor is None:
+            raise ValueError("global factor residual reference requires a fitted comparator state")
+        return (
+            global_factor_residual_score(ranks, fitted_state.global_factor),
+            previous_cusum_state,
         )
-        return global_factor_residual_scores((tuple(ranks),), factor_rank)[0], previous_cusum_state
     if method_name is MethodName.MULTISTREAM_CUSUM_REFERENCE:
         states = tuple(
             next_cusum_state(
@@ -215,12 +318,7 @@ def score_comparator_ranks(
         )
         return global_cusum_score(states), states
     if method_name is MethodName.FEDAVG_AUTOENCODER_REFERENCE:
-        federated_autoencoder_widths(config.datasets.preprocessing.event_type_hash_bucket_count + 2)
-        averaged = fedavg_weighted_mean(
-            tuple((rank,) for rank in ranks),
-            tuple(1 for _ in ranks),
-        )
-        return averaged[0], previous_cusum_state
+        return mean_rank_fusion(ranks), previous_cusum_state
     if method_name in {
         MethodName.FULL_FEDCAMPAIGN_EMHI,
         MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,

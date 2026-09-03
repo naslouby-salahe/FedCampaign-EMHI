@@ -2,15 +2,10 @@ from fedcampaign_emhi.comparators.dependence import (
     gaussian_h_function,
     hofd_atom_rows,
     lancaster_triple_moment,
-    lexicographic_vine_order,
-    log_linear_design_column_count,
     pair_dependence_moment,
     pair_dependence_nonconformity,
     selected_factor_rank,
     uniform_probability_table,
-)
-from fedcampaign_emhi.comparators.federated import (
-    fedavg_weighted_mean,
 )
 from fedcampaign_emhi.comparators.fusion import max_rank_fusion, mean_rank_fusion
 from fedcampaign_emhi.comparators.sequential import (
@@ -53,17 +48,12 @@ def test_hofd_zero_when_tensor_in_design_span() -> None:
     assert all(abs(row[0]) < 1.0e-10 for row in residuals)
 
 
-def test_log_linear_has_no_triple_term() -> None:
-    assert log_linear_design_column_count(3) == 37
-
-
 def test_connected_information_initial_table_is_uniform() -> None:
     table = uniform_probability_table(2)
     assert abs(table[0][0][0] - 0.125) < 1.0e-12
 
 
-def test_dvine_order_is_lexicographic_and_h_function_is_uniform_at_independence() -> None:
-    assert lexicographic_vine_order(("c3", "c1", "c2")) == ("c1", "c2", "c3")
+def test_gaussian_h_function_is_identity_at_independence() -> None:
     independent = gaussian_h_function(0.3, 0.8, 0.0, 1.0e-12)
     assert abs(independent - 0.3) < 1.0e-8
 
@@ -74,7 +64,5 @@ def test_cusum_increment_and_global_max() -> None:
     assert next_cusum_state(0.0, 0.5, 0.5, 0.05) == 0.0
 
 
-def test_fedavg_weighted_mean() -> None:
-    averaged = fedavg_weighted_mean(((1.0, 3.0), (5.0, 7.0)), (1, 3))
-    assert abs(averaged[0] - 4.0) < 1.0e-12
+def test_selected_factor_rank_uses_smallest_candidate_meeting_target() -> None:
     assert selected_factor_rank((2.0, 1.0, 0.1), 0.8, 3, (1, 2, 3)) == 2

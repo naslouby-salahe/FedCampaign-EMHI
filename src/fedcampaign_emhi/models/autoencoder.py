@@ -88,22 +88,9 @@ class FittedAutoencoder:
         return tuple(float(value) for value in per_sample.tolist())
 
 
-def fit_autoencoder(
-    fit_rows: tuple[tuple[FeatureValue, ...], ...],
-    learning_rate: LearningRate,
-    beta_one: AutoencoderBeta,
-    beta_two: AutoencoderBeta,
-    optimizer_epsilon: NumericalFloor,
-    weight_decay: WeightDecay,
-    batch_size: BatchSize,
-    epoch_count: SolverIterationLimit,
-    root_seed: SeedValue,
-    client_id: ClientId,
-) -> FittedAutoencoder:
-    if not fit_rows:
-        raise ValueError("autoencoder requires a non-empty detector-fit matrix")
-    fit_matrix = np.asarray(fit_rows, dtype=np.float32)
-    input_dimension = int(fit_matrix.shape[1])
+def _xavier_initial_parameters(
+    input_dimension: FeatureDimension, root_seed: SeedValue
+) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
     widths = autoencoder_layer_widths(input_dimension)
     init_generator = np.random.default_rng(thirty_two_bit_seed(root_seed))
     weights = (
@@ -113,6 +100,24 @@ def fit_autoencoder(
         _xavier_uniform(init_generator, widths[3], widths[4], OUTPUT_XAVIER_GAIN),
     )
     biases = tuple(np.zeros((width,), dtype=np.float32) for width in widths[1:])
+    return weights, biases
+
+
+def _train_epochs(
+    fit_matrix: NDArray[np.float32],
+    weights: tuple[NDArray[np.float32], ...],
+    biases: tuple[NDArray[np.float32], ...],
+    learning_rate: LearningRate,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
+    batch_size: BatchSize,
+    epoch_count: SolverIterationLimit,
+    permutation_seed_root: SeedValue,
+    client_id: ClientId,
+    epoch_offset: SolverIterationLimit,
+) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
     first_moments = tuple(np.zeros_like(weight) for weight in weights)
     second_moments = tuple(np.zeros_like(weight) for weight in weights)
     bias_first = tuple(np.zeros_like(bias) for bias in biases)
@@ -121,8 +126,10 @@ def fit_autoencoder(
     step = 0
     trained_weights = weights
     trained_biases = biases
-    for epoch_index in range(epoch_count):
-        permutation_seed = batch_permutation_seed(root_seed, client_id, epoch_index)
+    for local_epoch_index in range(epoch_count):
+        permutation_seed = batch_permutation_seed(
+            permutation_seed_root, client_id, epoch_offset + local_epoch_index
+        )
         order = np.random.default_rng(thirty_two_bit_seed(permutation_seed)).permutation(row_count)
         shuffled = fit_matrix[order]
         for start in range(0, row_count, batch_size):
@@ -150,7 +157,80 @@ def fit_autoencoder(
                 weight_decay,
                 step,
             )
+    return trained_weights, trained_biases
+
+
+def fit_autoencoder(
+    fit_rows: tuple[tuple[FeatureValue, ...], ...],
+    learning_rate: LearningRate,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
+    batch_size: BatchSize,
+    epoch_count: SolverIterationLimit,
+    root_seed: SeedValue,
+    client_id: ClientId,
+) -> FittedAutoencoder:
+    if not fit_rows:
+        raise ValueError("autoencoder requires a non-empty detector-fit matrix")
+    fit_matrix = np.asarray(fit_rows, dtype=np.float32)
+    input_dimension = int(fit_matrix.shape[1])
+    weights, biases = _xavier_initial_parameters(input_dimension, root_seed)
+    trained_weights, trained_biases = _train_epochs(
+        fit_matrix,
+        weights,
+        biases,
+        learning_rate,
+        beta_one,
+        beta_two,
+        optimizer_epsilon,
+        weight_decay,
+        batch_size,
+        epoch_count,
+        root_seed,
+        client_id,
+        0,
+    )
     return FittedAutoencoder(trained_weights, trained_biases)
+
+
+def initial_xavier_autoencoder_parameters(
+    input_dimension: FeatureDimension, root_seed: SeedValue
+) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
+    return _xavier_initial_parameters(input_dimension, root_seed)
+
+
+def train_client_autoencoder_epochs(
+    fit_matrix: NDArray[np.float32],
+    weights: tuple[NDArray[np.float32], ...],
+    biases: tuple[NDArray[np.float32], ...],
+    learning_rate: LearningRate,
+    beta_one: AutoencoderBeta,
+    beta_two: AutoencoderBeta,
+    optimizer_epsilon: NumericalFloor,
+    weight_decay: WeightDecay,
+    batch_size: BatchSize,
+    epoch_count: SolverIterationLimit,
+    permutation_seed_root: SeedValue,
+    client_id: ClientId,
+    epoch_offset: SolverIterationLimit,
+) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
+    return _train_epochs(
+        fit_matrix,
+        weights,
+        biases,
+        learning_rate,
+        beta_one,
+        beta_two,
+        optimizer_epsilon,
+        weight_decay,
+        batch_size,
+        epoch_count,
+        permutation_seed_root,
+        client_id,
+        epoch_offset,
+    )
 
 
 def autoencoder_anomaly_scores(

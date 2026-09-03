@@ -178,6 +178,7 @@ XorInteractionStrength = UnitInterval
 StressBucketCount = NonNegativeFloat
 ProbabilityMass = UnitInterval
 DependenceMoment = FiniteFloat
+LogDensity = FiniteFloat
 NonconformityScore = NonNegativeFloat
 SingularValue = NonNegativeFloat
 

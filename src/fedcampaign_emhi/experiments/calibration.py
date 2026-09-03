@@ -14,7 +14,11 @@ from fedcampaign_emhi.artifacts.records import (
     DetectorScoreArtifactRecord,
 )
 from fedcampaign_emhi.comparators.contracts import native_target_order
-from fedcampaign_emhi.comparators.runtime import score_comparator_ranks
+from fedcampaign_emhi.comparators.runtime import (
+    ComparatorFittedState,
+    fit_comparator_state,
+    score_comparator_ranks,
+)
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.detection import score_exceeds_threshold
 from fedcampaign_emhi.domain.enums import (
@@ -276,12 +280,15 @@ def _horizon_scores(
     client_count: ClientCount,
     config: ScientificConfig,
     horizon_epoch_seeds: tuple[SeedValue, ...],
+    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, ...]:
     cusum_state: tuple[CusumState, ...] = ()
     scores: list[DetectorScore] = []
     for epoch_seed in horizon_epoch_seeds:
         row = sample_independent_uniform_ranks(client_count, epoch_seed)
-        score, cusum_state = score_comparator_ranks(method_name, row[:order], config, cusum_state)
+        score, cusum_state = score_comparator_ranks(
+            method_name, row[:order], config, cusum_state, fitted_state
+        )
         scores.append(score)
     return tuple(scores)
 
@@ -313,6 +320,11 @@ def evaluate_composition_candidate_seed(
         config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
     )
     thresholds = config.evidence.calibrated_finite_horizon.threshold_candidates
+    nuisance_rows = tuple(
+        sample_independent_uniform_ranks(client_count, seed + index)[:order]
+        for index in range(sample_count)
+    )
+    fitted_state = fit_comparator_state(method_name, nuisance_rows, config)
     epoch_offset = 2 * sample_count
     calibration_scores = tuple(
         _horizon_scores(
@@ -324,6 +336,7 @@ def evaluate_composition_candidate_seed(
                 seed + epoch_offset + horizon_index * horizon_length + epoch_index
                 for epoch_index in range(horizon_length)
             ),
+            fitted_state,
         )
         for horizon_index in range(calibration_horizon_count)
     )
@@ -352,16 +365,17 @@ def evaluate_composition_candidate_seed(
                     seed + epoch_offset + horizon_index * horizon_length + epoch_index
                     for epoch_index in range(horizon_length)
                 ),
+                fitted_state,
             )
             if any(score_exceeds_threshold(score, selected) for score in horizon_scores):
                 heldout_false_stop_count += 1
     reference_cell = composition_reference_cell(method_name, order, config)
     reference_rows = composition_reference_rows(reference_cell, client_count, seed, sample_count)
     for row in reference_rows:
-        score_comparator_ranks(method_name, row[:order], config)
+        score_comparator_ranks(method_name, row[:order], config, (), fitted_state)
     started = perf_counter()
     for row in reference_rows:
-        score_comparator_ranks(method_name, row[:order], config)
+        score_comparator_ranks(method_name, row[:order], config, (), fitted_state)
     elapsed = perf_counter() - started
     return CompositionCandidateSeedMetrics(
         calibrated_threshold=selected,
@@ -396,12 +410,17 @@ def evaluate_comparator_pure_order_cell(
     alternative_rows = tuple(
         sample_generator_row(cell, client_count, seed + count + index) for index in range(count)
     )
+    fitted_state = fit_comparator_state(
+        cell.method,
+        tuple(row[: cell.target_order] for row in null_rows),
+        config,
+    )
     null_scores = tuple(
-        score_comparator_ranks(cell.method, row[: cell.target_order], config)[0]
+        score_comparator_ranks(cell.method, row[: cell.target_order], config, (), fitted_state)[0]
         for row in null_rows
     )
     alternative_scores = tuple(
-        score_comparator_ranks(cell.method, row[: cell.target_order], config)[0]
+        score_comparator_ranks(cell.method, row[: cell.target_order], config, (), fitted_state)[0]
         for row in alternative_rows
     )
     null_mean = sum(null_scores) / len(null_scores)

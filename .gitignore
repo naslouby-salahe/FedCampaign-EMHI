@@ -231,3 +231,4 @@ docs/.audit-temp/
 
 # Local Graphify AST/HTML artifacts
 graphify-out/
+docs/.graphify-audit/

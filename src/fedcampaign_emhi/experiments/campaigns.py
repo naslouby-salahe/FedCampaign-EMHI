@@ -82,6 +82,7 @@ from fedcampaign_emhi.comparators.dependence import (
     nrmse_equivalence_criterion,
     stopping_time_equivalence_criterion,
 )
+from fedcampaign_emhi.comparators.federated import fit_federated_autoencoder
 from fedcampaign_emhi.comparators.fusion import (
     CompositionCandidateResult,
     CompositionSelectionInputs,
@@ -90,6 +91,7 @@ from fedcampaign_emhi.comparators.fusion import (
     median_runtime_seconds,
 )
 from fedcampaign_emhi.comparators.runtime import (
+    fit_comparator_state,
     resolve_comparator_scoring_method,
     score_comparator_ranks,
     validate_comparator_runtime_contracts,
@@ -102,11 +104,14 @@ from fedcampaign_emhi.detection import (
     build_detector_score_artifact,
     detector_seed,
     score_client,
+    score_fitted_client_detector,
+    score_stream_isolation_check,
 )
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
+    DetectorFamily,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
@@ -146,6 +151,7 @@ from fedcampaign_emhi.domain.types import (
     RobustnessCountMultiplier,
     RobustScaler,
     RuntimeSeconds,
+    SeedDerivationIdentity,
     SeedValue,
     StandardizedError,
     ThresholdValue,
@@ -257,6 +263,7 @@ from fedcampaign_emhi.experiments.synthetic import (
     run_synthetic_cell,
     synthetic_role_seeds,
 )
+from fedcampaign_emhi.runtime import derive_component_seed
 from fedcampaign_emhi.synthetic.generators import validate_synthetic_generators
 from fedcampaign_emhi.synthetic.pure_order import enumerate_pure_order_grid
 from fedcampaign_emhi.synthetic.self_explanation import (
@@ -2327,11 +2334,110 @@ def _materialize_not_tested_real_cell(
     return cell_path
 
 
+def _fedavg_autoencoder_ranks(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName,
+    seed: SeedValue,
+    split: DatasetSplitRecord,
+    detector_scores: DetectorScoreArtifactRecord,
+) -> MarginalRankArtifactRecord:
+    _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
+        _preprocessing_paths(loaded, repository, dataset_name)
+    )
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    client_fit_rows: list[tuple[tuple[FeatureValue, ...], ...]] = []
+    client_all_rows: list[tuple[tuple[FeatureValue, ...], ...]] = []
+    client_epoch_indexes: list[tuple[EpochIndexValue, ...]] = []
+    for client_id in split.selected_client_ids:
+        client_rows = tuple(row for row in prepared.epochs if row.client_id == client_id)
+        fit_rows = tuple(
+            row.feature_values
+            for row in client_rows
+            if row.epoch_index in split.detector_fit_epochs
+        )
+        if not fit_rows:
+            raise ValueError(f"selected client {client_id} has no benign detector-fit rows")
+        client_fit_rows.append(fit_rows)
+        client_all_rows.append(tuple(row.feature_values for row in client_rows))
+        client_epoch_indexes.append(tuple(row.epoch_index for row in client_rows))
+    fedavg_seed = derive_component_seed(
+        SeedDerivationIdentity(
+            base_seed=seed,
+            component_name="fedavg-autoencoder-fit",
+            dataset=dataset_name,
+            client_ids=split.selected_client_ids,
+            coalition_ids=(),
+            condition_coordinates=(),
+        )
+    )
+    fedavg_config = loaded.values.comparators.fedavg_autoencoder
+    detector_config = loaded.values.detectors.autoencoder
+    if len(detector_config.betas) != 2:
+        raise ValueError("autoencoder requires exactly two Adam beta coefficients")
+    fitted = fit_federated_autoencoder(
+        tuple(client_fit_rows),
+        split.selected_client_ids,
+        fedavg_config.rounds,
+        fedavg_config.local_epochs_per_round,
+        fedavg_config.client_participation_fraction,
+        detector_config.learning_rate,
+        detector_config.betas[0],
+        detector_config.betas[1],
+        detector_config.optimizer_epsilon,
+        detector_config.weight_decay,
+        detector_config.batch_size,
+        fedavg_seed,
+    )
+    streams: list[ClientDetectorScoreStream] = []
+    for client_id, all_rows, epoch_indexes in zip(
+        split.selected_client_ids, client_all_rows, client_epoch_indexes, strict=True
+    ):
+        scores = score_fitted_client_detector(fitted, all_rows)
+        score_stream_isolation_check(len(scores), len(epoch_indexes))
+        streams.append(
+            ClientDetectorScoreStream(
+                client_id=client_id,
+                detector_family=DetectorFamily.AUTOENCODER,
+                detector_seed=fedavg_seed,
+                epoch_indexes=epoch_indexes,
+                scores=scores,
+            )
+        )
+    fedavg_scores = DetectorScoreArtifactRecord(
+        dataset_name=dataset_name,
+        root_seed=seed,
+        selected_client_ids=split.selected_client_ids,
+        client_streams=tuple(streams),
+        dependency_fingerprint=material_fingerprint(
+            payload_digest(
+                cast(
+                    YamlNode,
+                    {
+                        "component": "fedavg-autoencoder-scores",
+                        "dataset": dataset_name.value,
+                        "seed": seed,
+                        "selected_client_ids": list(split.selected_client_ids),
+                    },
+                )
+            ),
+            (detector_scores.dependency_fingerprint,),
+        ),
+    )
+    return build_marginal_rank_artifact(
+        fedavg_scores,
+        split.nuisance_fit_epochs,
+        loaded.values.context.rank_clip_epsilon,
+        fedavg_scores.dependency_fingerprint,
+    )
+
+
 def _comparator_epoch_scores(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     ranks: MarginalRankArtifactRecord,
     method_name: MethodName,
+    nuisance_fit_epochs: tuple[EpochIndexValue, ...],
 ) -> tuple[tuple[EpochIndexValue, DetectorScore], ...]:
     streams = tuple(
         (
@@ -2357,19 +2463,33 @@ def _comparator_epoch_scores(
         MethodName.D_VINE_CONDITIONAL_REFERENCE,
         MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE,
     }
-    scores: list[tuple[EpochIndexValue, DetectorScore]] = []
-    cusum_state: tuple[CusumState, ...] = ()
-    for epoch in common_epochs:
+
+    def _row_for_epoch(epoch: EpochIndexValue) -> tuple[RankValue, ...]:
         values: tuple[RankValue, ...] = tuple(
             next(rank for candidate_epoch, rank in stream if candidate_epoch == epoch)
             for _client_id, stream in streams
         )
-        inputs = values[:3] if scoring_method in triple_methods else values
+        return values[:3] if scoring_method in triple_methods else values
+
+    nuisance_epoch_set = set(nuisance_fit_epochs)
+    nuisance_rows = tuple(
+        _row_for_epoch(epoch) for epoch in common_epochs if epoch in nuisance_epoch_set
+    )
+    fitted_state = (
+        fit_comparator_state(scoring_method, nuisance_rows, loaded.values)
+        if nuisance_rows
+        else None
+    )
+    scores: list[tuple[EpochIndexValue, DetectorScore]] = []
+    cusum_state: tuple[CusumState, ...] = ()
+    for epoch in common_epochs:
+        inputs = _row_for_epoch(epoch)
         score, cusum_state = score_comparator_ranks(
             scoring_method,
             inputs,
             loaded.values,
             cusum_state,
+            fitted_state,
         )
         scores.append((epoch, score))
     return tuple(scores)
@@ -3237,7 +3357,7 @@ def _benign_common_mode_seed_fcr(
         trajectory_cache,
     )
     raw_scores = _comparator_epoch_scores(
-        loaded, repository, ranks, MethodName.RAW_MEAN_RANK_FUSION
+        loaded, repository, ranks, MethodName.RAW_MEAN_RANK_FUSION, split.nuisance_fit_epochs
     )
     comparator_scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
     comparator_threshold, *_rest = _calibrate_comparator_operating_point(
@@ -3521,7 +3641,11 @@ def _count_stress_false_declaration_rates(
         trajectory_cache,
     )
     raw_scores = _comparator_epoch_scores(
-        loaded, repository, stressed_ranks, MethodName.RAW_MEAN_RANK_FUSION
+        loaded,
+        repository,
+        stressed_ranks,
+        MethodName.RAW_MEAN_RANK_FUSION,
+        split.nuisance_fit_epochs,
     )
     comparator_scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
     comparator_threshold, *_rest = _calibrate_comparator_operating_point(
@@ -3771,7 +3895,14 @@ def _evaluate_comparator_seed_cell(
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
-    raw_scores = _comparator_epoch_scores(loaded, repository, ranks, method_name)
+    scoring_ranks = (
+        _fedavg_autoencoder_ranks(loaded, repository, dataset_name, seed, split, detector_scores)
+        if method_name is MethodName.FEDAVG_AUTOENCODER_REFERENCE
+        else ranks
+    )
+    raw_scores = _comparator_epoch_scores(
+        loaded, repository, scoring_ranks, method_name, split.nuisance_fit_epochs
+    )
     scores = _comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
     (
         threshold,

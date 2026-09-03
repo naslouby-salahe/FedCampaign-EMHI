@@ -303,6 +303,39 @@ def _euclidean_distance(
     return sqrt(sum((left[index] - right[index]) ** 2 for index in range(len(left))))
 
 
+def _kmeans_plus_plus_initial_centroids(
+    matrix: NDArray[np.float64],
+    cell_count: CellCount,
+    generator: np.random.Generator,
+) -> NDArray[np.float64]:
+    row_count = int(matrix.shape[0])
+    first_index = int(generator.integers(0, row_count))
+    chosen_indices = [first_index]
+    nearest_squared_distance: NDArray[np.float64] = _squared_distances_to_row(
+        matrix, matrix[first_index : first_index + 1]
+    )
+    for _remaining_center in range(cell_count - 1):
+        total = float(np.sum(nearest_squared_distance))
+        if total <= 0.0:
+            next_index = int(generator.integers(0, row_count))
+        else:
+            probabilities: NDArray[np.float64] = nearest_squared_distance / total
+            next_index = int(generator.choice(row_count, p=probabilities))
+        chosen_indices.append(next_index)
+        candidate_squared_distance = _squared_distances_to_row(
+            matrix, matrix[next_index : next_index + 1]
+        )
+        nearest_squared_distance = np.minimum(nearest_squared_distance, candidate_squared_distance)
+    return matrix[np.asarray(chosen_indices)].copy()
+
+
+def _squared_distances_to_row(
+    matrix: NDArray[np.float64], row: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    distances = cdist(matrix, row)[:, 0]
+    return np.square(distances)
+
+
 def _lloyd_kmeans(
     matrix: NDArray[np.float64],
     cell_count: CellCount,
@@ -312,8 +345,7 @@ def _lloyd_kmeans(
     generator: np.random.Generator,
 ) -> tuple[NDArray[np.float64], KmeansInertia]:
     row_count = int(matrix.shape[0])
-    chosen = generator.choice(row_count, size=cell_count, replace=False)
-    centroids = matrix[chosen].copy()
+    centroids = _kmeans_plus_plus_initial_centroids(matrix, cell_count, generator)
     assignments = np.zeros(row_count, dtype=np.int64)
     for _iteration in range(max_iterations):
         distances = cdist(matrix, centroids)
