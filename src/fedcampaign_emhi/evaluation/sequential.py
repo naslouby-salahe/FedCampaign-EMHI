@@ -1,10 +1,12 @@
-from collections import UserDict
+from collections import OrderedDict, UserDict
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from fedcampaign_emhi.artifacts.records import (
     BenignHorizonRecord,
     BenignPartitionRecord,
     CampaignRecord,
+    ClientDetectorScoreStream,
     CoalitionFitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
@@ -424,6 +426,28 @@ def operational_lead(
     return earliest_local_stop_epoch - (global_stop_epoch + delay_in_epochs)
 
 
+_CLIENT_EPOCH_SCORE_MAP_CACHE_LIMIT = 64
+_client_epoch_score_map_cache: OrderedDict[
+    tuple[MaterialDependencyFingerprint, ClientId], Mapping[EpochIndexValue, DetectorScore]
+] = OrderedDict()
+
+
+def _client_epoch_score_map(
+    stream: ClientDetectorScoreStream, dependency_fingerprint: MaterialDependencyFingerprint
+) -> Mapping[EpochIndexValue, DetectorScore]:
+    cache_key = (dependency_fingerprint, stream.client_id)
+    cached = _client_epoch_score_map_cache.get(cache_key)
+    if cached is not None:
+        _client_epoch_score_map_cache.move_to_end(cache_key)
+        return cached
+    built = dict(zip(stream.epoch_indexes, stream.scores, strict=True))
+    _client_epoch_score_map_cache[cache_key] = built
+    _client_epoch_score_map_cache.move_to_end(cache_key)
+    if len(_client_epoch_score_map_cache) > _CLIENT_EPOCH_SCORE_MAP_CACHE_LIMIT:
+        _client_epoch_score_map_cache.popitem(last=False)
+    return built
+
+
 def score_at_epoch(
     scores: DetectorScoreArtifactRecord,
     client_id: ClientId,
@@ -435,14 +459,8 @@ def score_at_epoch(
     )
     if stream is None:
         return None
-    return next(
-        (
-            score
-            for epoch, score in zip(stream.epoch_indexes, stream.scores, strict=True)
-            if epoch == epoch_index
-        ),
-        None,
-    )
+    index = _client_epoch_score_map(stream, scores.dependency_fingerprint)
+    return index.get(epoch_index)
 
 
 def scores_for_epochs(

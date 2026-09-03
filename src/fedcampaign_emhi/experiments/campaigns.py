@@ -2473,14 +2473,14 @@ def _comparator_epoch_scores(
     streams = tuple(
         (
             stream.client_id,
-            tuple(zip(stream.epoch_indexes, stream.ranks, strict=True)),
+            dict(zip(stream.epoch_indexes, stream.ranks, strict=True)),
         )
         for stream in ranks.client_streams
     )
     if not streams:
         return ()
     epoch_sets: tuple[set[EpochIndexValue], ...] = tuple(
-        {epoch for epoch, _rank in stream} for _client_id, stream in streams
+        set(epoch_rank_map) for _client_id, epoch_rank_map in streams
     )
     common_epoch_set: set[EpochIndexValue] = set(epoch_sets[0])
     for epoch_set in epoch_sets[1:]:
@@ -2497,8 +2497,7 @@ def _comparator_epoch_scores(
 
     def _row_for_epoch(epoch: EpochIndexValue) -> tuple[RankValue, ...]:
         values: tuple[RankValue, ...] = tuple(
-            next(rank for candidate_epoch, rank in stream if candidate_epoch == epoch)
-            for _client_id, stream in streams
+            epoch_rank_map[epoch] for _client_id, epoch_rank_map in streams
         )
         return values[:3] if scoring_method in triple_methods else values
 
