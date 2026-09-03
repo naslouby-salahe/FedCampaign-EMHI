@@ -2569,12 +2569,10 @@ def _comparator_stop(
 ) -> EpochIndexValue | None:
     if threshold is None:
         return None
+    epoch_scores = dict(evidence_scores)
     state = 0.0
     for epoch in epochs:
-        factor = next(
-            (score for score_epoch, score in evidence_scores if score_epoch == epoch),
-            None,
-        )
+        factor = epoch_scores.get(epoch)
         if factor is None:
             continue
         state = next_global_state(state, factor)
