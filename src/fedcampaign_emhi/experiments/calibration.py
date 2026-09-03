@@ -281,9 +281,7 @@ def _horizon_scores(
     scores: list[DetectorScore] = []
     for epoch_seed in horizon_epoch_seeds:
         row = sample_independent_uniform_ranks(client_count, epoch_seed)
-        score, cusum_state = score_comparator_ranks(
-            method_name, row[: int(order)], config, cusum_state
-        )
+        score, cusum_state = score_comparator_ranks(method_name, row[:order], config, cusum_state)
         scores.append(score)
     return tuple(scores)
 
@@ -360,10 +358,10 @@ def evaluate_composition_candidate_seed(
     reference_cell = composition_reference_cell(method_name, order, config)
     reference_rows = composition_reference_rows(reference_cell, client_count, seed, sample_count)
     for row in reference_rows:
-        score_comparator_ranks(method_name, row[: int(order)], config)
+        score_comparator_ranks(method_name, row[:order], config)
     started = perf_counter()
     for row in reference_rows:
-        score_comparator_ranks(method_name, row[: int(order)], config)
+        score_comparator_ranks(method_name, row[:order], config)
     elapsed = perf_counter() - started
     return CompositionCandidateSeedMetrics(
         calibrated_threshold=selected,
@@ -399,11 +397,11 @@ def evaluate_comparator_pure_order_cell(
         sample_generator_row(cell, client_count, seed + count + index) for index in range(count)
     )
     null_scores = tuple(
-        score_comparator_ranks(cell.method, row[: int(cell.target_order)], config)[0]
+        score_comparator_ranks(cell.method, row[: cell.target_order], config)[0]
         for row in null_rows
     )
     alternative_scores = tuple(
-        score_comparator_ranks(cell.method, row[: int(cell.target_order)], config)[0]
+        score_comparator_ranks(cell.method, row[: cell.target_order], config)[0]
         for row in alternative_rows
     )
     null_mean = sum(null_scores) / len(null_scores)
@@ -554,7 +552,7 @@ def evaluate_fitted_pure_order_cell(
             config.numerics.metric_denominator_floor,
         )
 
-    target_ids = client_ids[: int(cell.target_order)]
+    target_ids = client_ids[: cell.target_order]
     target_drift = standardized_drift(target_ids)
     subset_drifts = tuple(
         drift

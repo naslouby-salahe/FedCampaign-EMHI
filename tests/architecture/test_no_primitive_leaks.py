@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 from tests.architecture.ast_scans import (
+    CANONICAL_TYPES_FILE,
     LOCAL_LEAK_CONTAINER_NAMES,
     SRC_ROOT,
     annotation_primitives,
@@ -76,6 +77,8 @@ def _report(findings: list[tuple[str, int, str, str, str]]) -> str:
 
 @parametrize_source_files
 def test_no_primitive_leaks(path: Path) -> None:
+    if path == CANONICAL_TYPES_FILE:
+        return
     findings = _scan_file(path)
     assert not findings, _report(findings)
 
@@ -112,6 +115,16 @@ def test_no_primitive_leaks_fails_on_fixture() -> None:
     assert "int" in findings
     assert "Any" in findings
     assert "list" in findings
+
+
+def test_no_primitive_leaks_rejects_annotated_bypass() -> None:
+    tree = ast.parse(
+        "from typing import Annotated\n"
+        "def work(count: Annotated[int, 'positive']) -> Annotated[float, 'rate']: ...\n"
+    )
+    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef))
+    assert annotation_primitives(function.args.args[0].annotation) == ["int"]
+    assert annotation_primitives(function.returns) == ["float"]
 
 
 def test_no_primitive_leaks_passes_on_compliant_fixture() -> None:

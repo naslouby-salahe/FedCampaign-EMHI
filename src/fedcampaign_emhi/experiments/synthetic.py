@@ -324,7 +324,7 @@ def _evaluate_hofd_equivalence_seed(
         config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
     )
     orders = tuple(
-        order for order in CoalitionOrder if int(order) <= int(config.study.maximum_coalition_order)
+        order for order in CoalitionOrder if order <= config.study.maximum_coalition_order
     )
     supports = tuple(
         sorted(
@@ -339,7 +339,7 @@ def _evaluate_hofd_equivalence_seed(
     failures: list[ComponentName] = []
     offset = 0
     for order in orders:
-        width = int(order)
+        width = order
         cell = PureOrderCell(
             generator=_pure_polynomial_generator(order),
             effect=config.generators.pure_polynomial.primary_reference_theta,
@@ -1031,7 +1031,7 @@ def run_synthetic_cell(
                 "condition_evaluations": [
                     {
                         "identifier": evaluation.condition.identifier,
-                        "order": int(evaluation.condition.order),
+                        "order": evaluation.condition.order,
                         "support_per_context": evaluation.condition.support_per_context,
                         "basis_size": evaluation.condition.basis_size,
                         "cell_count": evaluation.condition.cell_count,
@@ -1068,11 +1068,10 @@ def run_synthetic_cell(
         )
         alternatives = composition_reference_rows(cell, client_count, seed, sample_count)
         null_scores = tuple(
-            score_comparator_ranks(method_name, row[: int(order)], config)[0] for row in nuisance
+            score_comparator_ranks(method_name, row[:order], config)[0] for row in nuisance
         )
         alternative_scores = tuple(
-            score_comparator_ranks(method_name, row[: int(order)], config)[0]
-            for row in alternatives
+            score_comparator_ranks(method_name, row[:order], config)[0] for row in alternatives
         )
         mean = sum(null_scores) / len(null_scores)
         deviation = (sum((value - mean) ** 2 for value in null_scores) / len(null_scores)) ** 0.5
@@ -1085,7 +1084,7 @@ def run_synthetic_cell(
         standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
         mixed_diagnostics: list[YamlNode] = []
         mixed_failures: list[ComponentName] = []
-        remaining = client_count - int(CoalitionOrder.THREE)
+        remaining = client_count - CoalitionOrder.THREE
         for term_index, term_set in enumerate(config.generators.mixed_order.enabled_term_sets):
             enabled = frozenset(CoalitionOrder(term) for term in term_set)
             row = sample_mixed_order_ranks(
@@ -1094,25 +1093,23 @@ def run_synthetic_cell(
                 remaining,
                 seed + sample_count + term_index,
             )
-            mixed_score, _state = score_comparator_ranks(method_name, row[: int(order)], config)
+            mixed_score, _state = score_comparator_ranks(method_name, row[:order], config)
             finite = isfinite(mixed_score)
             mixed_diagnostics.append(
                 {
-                    "enabled_orders": [int(item) for item in sorted(enabled)],
+                    "enabled_orders": list(sorted(enabled)),
                     "finite_native_order_score": finite,
                     "native_order_score": mixed_score,
                 }
             )
             if not finite:
-                mixed_failures.append(
-                    f"mixed-order diagnostic {sorted(int(item) for item in enabled)}"
-                )
+                mixed_failures.append(f"mixed-order diagnostic {sorted(enabled)}")
         return SyntheticCellOutcome(
             tuple(mixed_failures),
             standardized_score,
             {
                 "implementation_state": "native_order_score_complete",
-                "native_target_order": int(order),
+                "native_target_order": order,
                 "standardized_target_order_score": standardized_score,
                 "standardized_target_order_error": abs(
                     standardized_score - config.generators.pure_polynomial.primary_reference_theta
@@ -1166,7 +1163,7 @@ def run_synthetic_cell(
                 "measurements": [
                     {
                         "client_count": measurement.cell.client_count,
-                        "coalition_order": int(measurement.cell.coalition_order),
+                        "coalition_order": measurement.cell.coalition_order,
                         "perturbation": measurement.cell.perturbation,
                         "nuisance_transform": measurement.cell.nuisance_transform.value,
                         "context_method": measurement.cell.context_method.value,
@@ -1216,8 +1213,8 @@ def run_synthetic_cell(
                     "generator": cell.generator.value,
                     "effect": cell.effect,
                     "method": cell.method.value,
-                    "target_order": int(cell.target_order),
-                    "enabled_orders": [int(order) for order in sorted(cell.enabled_orders)],
+                    "target_order": cell.target_order,
+                    "enabled_orders": list(sorted(cell.enabled_orders)),
                     "purity_valid": report.is_valid,
                     "scoring_state": "execution-layer-fitted-grid",
                 }

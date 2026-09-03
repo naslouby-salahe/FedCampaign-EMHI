@@ -619,7 +619,7 @@ def _execute_synthetic_experiment(
                                 {
                                     "generator": cell.generator.value,
                                     "effect": cell.effect,
-                                    "target_order": int(cell.target_order),
+                                    "target_order": cell.target_order,
                                     "maximum_proper_subset_standardized_drift": fitted.metrics.maximum_proper_subset_standardized_drift,
                                     "target_order_standardized_drift": fitted.metrics.target_order_standardized_drift,
                                 }
@@ -687,13 +687,13 @@ def _execute_synthetic_experiment(
                                 {
                                     "generator": cell.generator.value,
                                     "effect": cell.effect,
-                                    "target_order": int(cell.target_order),
+                                    "target_order": cell.target_order,
                                     "target_order_standardized_drift": metrics.target_order_standardized_drift,
                                 }
                                 for cell, metrics in comparator_completed
                             ]
                             evidence["native_comparator_grid"] = {
-                                "native_target_order": int(native_order)
+                                "native_target_order": native_order
                                 if native_order is not None
                                 else None,
                                 "expected_cell_count": len(expected_comparator_cells),
@@ -1178,7 +1178,7 @@ def materialize_hofd_equivalence_statistics(
         loaded.values.experiments.exclusion_matched_hofd_equivalence.primary_support_levels
     )
     for order in CoalitionOrder:
-        if int(order) > int(loaded.values.study.maximum_coalition_order):
+        if order > loaded.values.study.maximum_coalition_order:
             continue
         for support in primary_supports:
             matched = tuple(
@@ -1191,7 +1191,7 @@ def materialize_hofd_equivalence_statistics(
                 all_supported = False
                 conditions.append(
                     {
-                        "coalition_order": int(order),
+                        "coalition_order": order,
                         "support_per_context": support,
                         "decision": SupportState.NOT_TESTED.value,
                     }
@@ -1232,7 +1232,7 @@ def materialize_hofd_equivalence_statistics(
             all_supported = all_supported and supported
             conditions.append(
                 {
-                    "coalition_order": int(order),
+                    "coalition_order": order,
                     "support_per_context": support,
                     "nrmse_estimate": nrmse_estimate,
                     "nrmse_confidence_lower": nrmse_interval[0],
@@ -1764,7 +1764,7 @@ def _materialize_emhi_fit(
             {
                 "method_name": method_name.value,
                 "context_method": specification.context_method.value,
-                "maximum_order": int(specification.maximum_order),
+                "maximum_order": specification.maximum_order,
                 "basis_size": loaded.values.basis.primary_size,
                 "cell_count": loaded.values.context.primary_cell_count,
                 "purification_enabled": specification.purification_enabled,
@@ -1985,7 +1985,7 @@ def _campaign_rows(
                 "paired_detection_indicator_difference": paired_detection_indicator_difference(
                     bool(odi.global_detection_indicator), earliest_local is not None
                 ),
-                "decisive_order": None if decisive is None else int(decisive),
+                "decisive_order": decisive,
                 "order_evidence_share": order_share,
                 "mean_log_evidence_growth": log_growth,
                 "context_coverage": coverage,

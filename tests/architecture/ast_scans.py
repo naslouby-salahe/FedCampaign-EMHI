@@ -7,6 +7,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "fedcampaign_emhi"
+CANONICAL_TYPES_FILE = SRC_ROOT / "domain" / "types.py"
 PRIMITIVE_NAMES = frozenset({"str", "int", "float", "bool", "object", "Any", "bytes"})
 LEAK_CONTAINER_NAMES = frozenset({"dict", "list", "set", "Dict", "List", "Set"})
 LOCAL_LEAK_CONTAINER_NAMES = frozenset({"dict", "Dict"})
@@ -45,8 +46,12 @@ def annotation_primitives(
             return [f"typing.{attr}"]
         return []
     if isinstance(node, ast.Subscript):
-        if isinstance(node.value, ast.Name) and node.value.id in {"Annotated", "Literal"}:
+        if isinstance(node.value, ast.Name) and node.value.id == "Literal":
             return []
+        if isinstance(node.value, ast.Name) and node.value.id == "Annotated":
+            slice_node = node.slice
+            annotated_type = slice_node.elts[0] if isinstance(slice_node, ast.Tuple) else slice_node
+            return annotation_primitives(annotated_type, leak_containers=leak_containers)
         container = node.value.id if isinstance(node.value, ast.Name) else None
         found: list[str] = []
         if container in leak_containers or container in PRIMITIVE_NAMES:

@@ -50,7 +50,7 @@ class PureOrderDriftMetrics:
 def sample_generator_row(
     cell: PureOrderCell, client_count: ClientCount, seed: SeedValue
 ) -> tuple[RankValue, ...]:
-    remaining = client_count - int(cell.target_order)
+    remaining = client_count - cell.target_order
     if cell.generator in {
         GeneratorName.PURE_ORDER_ONE,
         GeneratorName.PURE_ORDER_TWO,
@@ -131,7 +131,7 @@ def enumerate_pure_order_grid(config: ScientificConfig) -> tuple[PureOrderCell, 
 
 
 def polynomial_scale(order: CoalitionOrder) -> BasisCoordinate:
-    return sqrt(3) ** int(order)
+    return sqrt(3) ** order
 
 
 def polynomial_density_is_valid(theta: EffectCoefficient, order: CoalitionOrder) -> Boolean:
@@ -191,7 +191,7 @@ def sample_pure_polynomial_ranks(
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     envelope = polynomial_envelope(theta, order)
     while True:
-        target_ranks = tuple(float(generator.random()) for _member in range(int(order)))
+        target_ranks = tuple(float(generator.random()) for _member in range(order))
         density = polynomial_density(target_ranks, theta)
         if density <= 0.0 or isnan(density):
             raise ValueError("pure polynomial density invariant violated")
@@ -390,9 +390,9 @@ def validate_generator_purity(
         )
         analytic = pure_polynomial_marginalizes_to_uniform(theta, order)
         values = (
-            polynomial_density((0.0,) * int(order), theta),
-            polynomial_density((0.5,) * int(order), theta),
-            polynomial_density((1.0,) * int(order), theta),
+            polynomial_density((0.0,) * order, theta),
+            polynomial_density((0.5,) * order, theta),
+            polynomial_density((1.0,) * order, theta),
         )
         numeric_check = isclose(values[1], 1.0, abs_tol=comparison_tolerance)
         finite_ok = all(not isnan(value) and value >= 0.0 for value in values)

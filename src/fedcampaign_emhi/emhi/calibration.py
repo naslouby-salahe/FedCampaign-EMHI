@@ -278,7 +278,7 @@ def context_seed_for_order(
     return derive_component_seed(
         SeedDerivationIdentity(
             base_seed=config.randomness.context_base_seed,
-            component_name=f"{context_method.value}-order-{int(coalition_order)}-root-{ranks.root_seed}",
+            component_name=f"{context_method.value}-order-{coalition_order}-root-{ranks.root_seed}",
             dataset=ranks.dataset_name,
             client_ids=(),
             coalition_ids=(),
@@ -531,7 +531,7 @@ def _conditioned_rows(
     epochs: tuple[EpochIndexValue, ...],
     references: tuple[ConditionalRankReferenceRecord, ...],
 ) -> tuple[tuple[RankValue, ...], ...]:
-    if int(coalition.order) > 1 and not proper_subset_members(coalition):
+    if coalition.order > 1 and not proper_subset_members(coalition):
         raise ValueError("purification requires nonempty proper subsets")
     return tuple(
         conditioned

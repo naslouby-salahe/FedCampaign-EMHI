@@ -29,7 +29,7 @@ from fedcampaign_emhi.domain.types import (
 
 
 def coalition_count(client_count: ClientCount, maximum_order: CoalitionOrder) -> CoalitionCount:
-    return sum(comb(client_count, order) for order in range(1, int(maximum_order) + 1))
+    return sum(comb(client_count, order) for order in range(1, maximum_order + 1))
 
 
 def required_outside_client_count(
@@ -46,7 +46,7 @@ def enumerate_coalitions(
 ) -> tuple[CoalitionMembers, ...]:
     ordered = tuple(sorted(client_ids))
     coalitions: list[CoalitionMembers] = []
-    for order in range(1, int(maximum_order) + 1):
+    for order in range(1, maximum_order + 1):
         coalition_order = CoalitionOrder(order)
         for members in combinations(ordered, order):
             coalitions.append(CoalitionMembers(client_ids=members, order=coalition_order))
@@ -62,7 +62,7 @@ def complement_members(
 
 def proper_subset_members(coalition: CoalitionMembers) -> tuple[CoalitionMembers, ...]:
     subsets: list[CoalitionMembers] = []
-    for order in range(1, int(coalition.order)):
+    for order in range(1, coalition.order):
         coalition_order = CoalitionOrder(order)
         for members in combinations(coalition.client_ids, order):
             subsets.append(CoalitionMembers(client_ids=members, order=coalition_order))
@@ -203,7 +203,7 @@ def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[BasisCoordina
 
 
 def tensor_dimension(basis_size: BasisSize, coalition_order: CoalitionOrder) -> TensorDimension:
-    return basis_size ** int(coalition_order)
+    return basis_size**coalition_order
 
 
 def tensor_representation(

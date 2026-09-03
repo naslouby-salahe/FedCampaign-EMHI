@@ -606,7 +606,7 @@ def _prepare_ton_epochs_from_csv(
         [epoch_seconds],
     ).fetchall()
     tallies = tuple(
-        ClientBenignTally(row[0], row[1], tuple(range(int(row[2])))) for row in eligibility_rows
+        ClientBenignTally(row[0], row[1], tuple(range(row[2]))) for row in eligibility_rows
     )
     selection = select_primary_clients_from_tallies(
         tallies,
@@ -625,12 +625,12 @@ def _prepare_ton_epochs_from_csv(
             [epoch_seconds, *selection.selected_client_ids],
         ).fetchall()
         for row in grouped_rows:
-            key = (row[0], int(row[1]))
+            key = (row[0], row[1])
             current = counts.get(key, tuple(0 for _index in range(bucket_count)))
             bucket = ton_event_type_hash_bucket(
                 ton_normalize_event_type(row[2], row[3]), bucket_count
             )
-            count = int(row[6])
+            count = row[6]
             counts[key] = tuple(
                 value + count if index == bucket else value for index, value in enumerate(current)
             )

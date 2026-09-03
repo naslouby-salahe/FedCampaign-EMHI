@@ -115,7 +115,7 @@ def feasibility_conditions(
         for support in config.support_grids.estimator_samples_per_context:
             conditions.append(
                 EstimatorFeasibilityCondition(
-                    f"primary-support-order-{int(order)}-n-{support}",
+                    f"primary-support-order-{order}-n-{support}",
                     order,
                     support,
                     config.basis.primary_size,
@@ -233,7 +233,7 @@ def _component_seed(
             client_ids=(),
             coalition_ids=(),
             condition_coordinates=(
-                SeedCoordinate(name="coalition_order", scalar=int(order)),
+                SeedCoordinate(name="coalition_order", scalar=order),
                 SeedCoordinate(name="support_per_context", scalar=support_per_context),
                 SeedCoordinate(name="basis_size", scalar=basis_size),
                 SeedCoordinate(name="context_cell_count", scalar=cell_count),
@@ -499,8 +499,8 @@ def generate_deterministic_context_support(
     seed: SeedValue,
 ) -> DeterministicContextSupportSequence:
     ordered_clients = tuple(sorted(client_ids))
-    target_client_ids = ordered_clients[: int(target_order)]
-    if len(target_client_ids) != int(target_order):
+    target_client_ids = ordered_clients[:target_order]
+    if len(target_client_ids) != target_order:
         raise ValueError("target coalition exceeds supplied client IDs")
     if len(ordered_clients) == len(target_client_ids):
         raise ValueError("context-support sequence requires outside clients")

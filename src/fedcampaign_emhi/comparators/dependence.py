@@ -251,7 +251,7 @@ def paired_atom_metrics(
 
 
 def target_coalition_for_order(order: CoalitionOrder, client_count: ClientCount) -> RecordCount:
-    order_size = int(order)
+    order_size = order
     if order_size > client_count:
         raise ValueError("target coalition exceeds the selected client count")
     target: RecordCount = order_size

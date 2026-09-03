@@ -245,7 +245,7 @@ def evaluate_self_explanation_seed(
     primary = config.experiments.self_explanation_exclusion_validation.primary_condition
     for cell in plan.cells:
         selected_ids = client_ids[: cell.client_count]
-        coalition_ids = selected_ids[: int(cell.coalition_order)]
+        coalition_ids = selected_ids[: cell.coalition_order]
         coalition_indices = tuple(selected_ids.index(member) for member in coalition_ids)
         context_indices = _context_indices(cell.context_method, selected_ids, coalition_ids)
         perturbation_responses: list[PerturbationResponse] = []
@@ -327,7 +327,7 @@ def evaluate_self_explanation_seed(
         measurement
         for measurement in measurements
         if measurement.cell.client_count == primary.client_count
-        and int(measurement.cell.coalition_order) == primary.coalition_order
+        and measurement.cell.coalition_order == primary.coalition_order
         and measurement.cell.nuisance_transform is primary.nuisance_transform
         and measurement.cell.perturbation == 0.0
     ]

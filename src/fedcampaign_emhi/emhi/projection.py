@@ -44,7 +44,7 @@ def proper_subset_design_shape(
 ) -> ProperSubsetDesignShape:
     return ProperSubsetDesignShape(
         design_column_count=proper_subset_design_column_count(coalition_order, basis_size),
-        tensor_dimension=basis_size ** int(coalition_order),
+        tensor_dimension=basis_size**coalition_order,
     )
 
 

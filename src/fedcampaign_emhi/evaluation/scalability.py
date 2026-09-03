@@ -250,7 +250,7 @@ def summarize_scalability(
 def expected_scalability_coalitions(
     config: ScientificConfig, client_count: ClientCount
 ) -> RecordCount:
-    maximum_order = int(config.study.maximum_coalition_order)
+    maximum_order = config.study.maximum_coalition_order
     if maximum_order > client_count:
         raise ValueError("maximum coalition order cannot exceed the client count")
     return sum(math.comb(client_count, order) for order in range(1, maximum_order + 1))

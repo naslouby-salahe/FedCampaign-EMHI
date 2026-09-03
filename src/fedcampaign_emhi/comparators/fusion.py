@@ -207,7 +207,7 @@ def build_composition_selection_record(
     )
     payload = {
         "selected_method": selected_method.value,
-        "selected_native_order": int(selected_order),
+        "selected_native_order": selected_order,
         "eligible_candidates": [result.method_name.value for result in eligible],
         "candidate_native_orders": [record.model_dump(mode="json") for record in target_errors],
         "null_pfa_results": [record.model_dump(mode="json") for record in null_pfa],
