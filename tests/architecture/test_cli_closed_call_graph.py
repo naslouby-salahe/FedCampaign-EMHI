@@ -188,7 +188,7 @@ def _build_call_graph(functions: dict[str, tuple[str, int]]) -> dict[str, set[st
                             calls,
                         )
                         if (
-                            func.attr == "getsource"
+                            func.attr in {"getsource", "map"}
                             and node.args
                             and isinstance(node.args[0], ast.Name)
                         ):

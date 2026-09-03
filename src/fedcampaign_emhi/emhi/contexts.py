@@ -1,5 +1,7 @@
 import hashlib
+import os
 from collections import UserDict
+from concurrent.futures import ProcessPoolExecutor
 from math import sqrt
 
 import numpy as np
@@ -37,11 +39,18 @@ from fedcampaign_emhi.domain.types import (
     Probability,
     RankValue,
     ResumeStep,
+    SeedCoordinate,
+    SeedDerivationIdentity,
     SeedValue,
     SolverIterationLimit,
 )
 from fedcampaign_emhi.emhi.structure import complement_members, required_outside_client_count
-from fedcampaign_emhi.runtime import deterministic_utf8_bytes, log_stage, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import (
+    derive_component_seed,
+    deterministic_utf8_bytes,
+    log_stage,
+    thirty_two_bit_seed,
+)
 
 STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 
@@ -256,6 +265,43 @@ def assign_context_cell(
     return tied[0]
 
 
+_kmeans_restart_pool_instance: ProcessPoolExecutor | None = None
+
+
+def _kmeans_restart_pool() -> ProcessPoolExecutor:
+    global _kmeans_restart_pool_instance
+    if _kmeans_restart_pool_instance is None:
+        _kmeans_restart_pool_instance = ProcessPoolExecutor(max_workers=os.cpu_count())
+    return _kmeans_restart_pool_instance
+
+
+def _restart_seed(base_seed: SeedValue, restart_index: KmeansInitializationCount) -> SeedValue:
+    return derive_component_seed(
+        SeedDerivationIdentity(
+            base_seed=base_seed,
+            component_name="kmeans-restart",
+            dataset=None,
+            client_ids=(),
+            coalition_ids=(),
+            condition_coordinates=(SeedCoordinate(name="restart_index", scalar=restart_index),),
+        )
+    )
+
+
+def _lloyd_kmeans_restart(
+    matrix: NDArray[np.float64],
+    cell_count: CellCount,
+    max_iterations: SolverIterationLimit,
+    tolerance: NumericalTolerance,
+    assignment_tie_tolerance: NumericalTolerance,
+    restart_seed: SeedValue,
+) -> tuple[NDArray[np.float64], KmeansInertia]:
+    generator = np.random.default_rng(thirty_two_bit_seed(restart_seed))
+    return _lloyd_kmeans(
+        matrix, cell_count, max_iterations, tolerance, assignment_tie_tolerance, generator
+    )
+
+
 @log_stage("emhi.contexts")
 def fit_context_centroids(
     rows: tuple[ContextTrainingRow, ...],
@@ -270,13 +316,21 @@ def fit_context_centroids(
     if len(rows) < cell_count:
         return None
     matrix = np.asarray([row.histogram for row in rows], dtype=np.float64)
-    generator = np.random.default_rng(thirty_two_bit_seed(seed))
+    restart_seeds = tuple(_restart_seed(seed, restart_index) for restart_index in range(n_init))
+    results = tuple(
+        _kmeans_restart_pool().map(
+            _lloyd_kmeans_restart,
+            (matrix,) * n_init,
+            (cell_count,) * n_init,
+            (max_iterations,) * n_init,
+            (tolerance,) * n_init,
+            (assignment_tie_tolerance,) * n_init,
+            restart_seeds,
+        )
+    )
     best_centroids: NDArray[np.float64] | None = None
     best_inertia = None
-    for _restart in range(n_init):
-        centroids, inertia = _lloyd_kmeans(
-            matrix, cell_count, max_iterations, tolerance, assignment_tie_tolerance, generator
-        )
+    for centroids, inertia in results:
         if best_inertia is None or inertia < best_inertia:
             best_inertia = inertia
             best_centroids = centroids
