@@ -26,6 +26,7 @@ from fedcampaign_emhi.emhi.contexts import (
     histogram_bin_index,
     inclusive_context_members,
     leave_one_out_context_members,
+    minimum_support_epochs_for_order,
     partial_coalition_context_members,
 )
 from fedcampaign_emhi.emhi.evidence import (
@@ -41,6 +42,7 @@ from fedcampaign_emhi.emhi.projection import (
 )
 from fedcampaign_emhi.emhi.sequential import trailing_support_window_client_ids
 from fedcampaign_emhi.emhi.structure import bounded_basis, clip_rank, midrank, tensor_dimension
+from fedcampaign_emhi.emhi.thresholds import select_calibrated_threshold
 from fedcampaign_emhi.evaluation.metrics import censored_plot_value, strict_odi_outcome
 
 
@@ -184,9 +186,16 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         failures,
     )
 
-    order_three_minimum = context.minimum_support_epochs.order_three
+    order_three_minimum = minimum_support_epochs_for_order(
+        CoalitionOrder.THREE,
+        context.minimum_support_epochs.order_one,
+        context.minimum_support_epochs.order_two,
+        context.minimum_support_epochs.order_three,
+    )
     _check(
-        ABSTENTION_BOUNDARY, order_three_minimum in (399, 400) or order_three_minimum > 0, failures
+        ABSTENTION_BOUNDARY,
+        399 < order_three_minimum <= 400,
+        failures,
     )
 
     folds = blocked_fold_sizes(11, 5)
@@ -228,9 +237,19 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     )
     _check(SUPPORT_UNION, window_union == ("c1", "c2", "c3"), failures)
 
+    finite_horizon_candidates = evidence.calibrated_finite_horizon.threshold_candidates[:4]
+    exact_fixture_false_stop_counts = (20, 15, 5, 0)
+    exact_fixture_observed_horizons = 200
+    finite_horizon_selected = select_calibrated_threshold(
+        finite_horizon_candidates,
+        exact_fixture_false_stop_counts,
+        exact_fixture_observed_horizons,
+        evidence.calibrated_finite_horizon.calibration_confidence,
+        evidence.calibrated_finite_horizon.target_pfa,
+    )
     _check(
         FINITE_HORIZON_CANDIDATES,
-        evidence.calibrated_finite_horizon.threshold_candidates[:4] == (2.0, 3.0, 5.0, 10.0),
+        finite_horizon_candidates == (2.0, 3.0, 5.0, 10.0) and finite_horizon_selected == 10.0,
         failures,
     )
 
