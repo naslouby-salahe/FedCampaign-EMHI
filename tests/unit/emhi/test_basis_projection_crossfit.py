@@ -99,6 +99,8 @@ def test_ridge_does_not_penalize_intercept_or_rescale_columns() -> None:
     assert len(regularized) == 2
     selected = select_ridge_penalty((0.0, 0.1, 1.0), (1.0, 1.0, 2.0), 1.0e-12)
     assert selected == 0.1
+    unsorted_selected = select_ridge_penalty((1.0, 0.0, 0.1), (2.0, 1.0, 1.0), 1.0e-12)
+    assert unsorted_selected == 0.1
 
 
 def test_blocked_folds_and_n_less_than_k_abstain() -> None:

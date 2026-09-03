@@ -126,9 +126,9 @@ def select_ridge_penalty(
 ) -> RidgePenalty:
     if not candidates or len(candidates) != len(weighted_mses):
         raise ValueError("candidates and weighted_mses must be non-empty and aligned")
-    selected = candidates[0]
-    selected_mse = weighted_mses[0]
-    for penalty, mse in list(zip(candidates, weighted_mses, strict=True))[1:]:
+    ordered = sorted(zip(candidates, weighted_mses, strict=True), key=lambda pair: pair[0])
+    selected, selected_mse = ordered[0]
+    for penalty, mse in ordered[1:]:
         if mse + tie_tolerance < selected_mse:
             selected = penalty
             selected_mse = mse
