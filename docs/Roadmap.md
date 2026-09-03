@@ -93,7 +93,7 @@ raw inputs
 → sequential calibration/threshold artifacts
 → campaign and benign-horizon evaluations
 → seed-level summaries and statistical analysis
-→ tables/figures/claim registry/reporting
+→ tables/figures/reporting
 ```
 
 An artifact remains valid after a later experiment fails, after a technical retry, or after an unrelated code change unless one of that artifact's material dependencies changes. Invalidation is therefore selective: an invalidated artifact invalidates only its downstream descendants, never unrelated ancestors, siblings, or completed experiments.
@@ -179,7 +179,7 @@ The study does not claim novelty for:
 
 ## 2.3 Manuscript claims
 
-The exact permitted claims, mandatory evidence, and claim-state rules are defined once in Section 21.
+The exact permitted claims and their mandatory evidence are defined once in Section 21.
 
 ## 2.4 Forbidden extrapolations
 
@@ -4679,7 +4679,7 @@ Read-only. Project mode reports each experiment and its state/progress. Experime
 
 ## 16.7 `report`
 
-Performs no new scientific computation or statistical analysis. It materializes verified evidence from active machine-readable scientific and statistical artifacts. A claim-bearing experiment is ineligible for claim-state materialization until every mandatory confirmatory cell required by its claim contract is complete and valid.
+Performs no new scientific computation or statistical analysis. It materializes verified evidence from active machine-readable scientific and statistical artifacts. A claim-bearing experiment's evidence is not eligible for manuscript use until every mandatory confirmatory cell required by Section 21's evidence table is complete and valid.
 
 `--overwrite` replaces the same manuscript export rather than creating another scientific result. Reporting changes, figure cosmetics, table formatting, prose templates, or export-library changes may invalidate report artifacts but must not invalidate evaluation, scoring, fitting, or preprocessing artifacts.
 
@@ -4868,7 +4868,7 @@ Invalidation follows dependency edges, not repository-wide provenance equality.
 | campaign or benign-horizon evaluation                                                     | score/evidence streams; thresholds; campaign registry; local/global stopping definitions; evaluation horizon and metric definitions required at this layer            | statistical test implementation; bootstrap/permutation settings; figure/report formatting |
 | seed summary / statistical analysis                                                       | completed evaluation/result records; statistical formulas; pairing keys; analysis seeds; multiplicity/equivalence/materiality rules                                   | plotting style; report prose/templates; unrelated experiment code                         |
 | figure/table/verified-evidence export                                                     | source analysis identities; figure/table specification; formatting/rendering code                                                                                     | any upstream scientific artifact unless its own dependency changes                        |
-| report/project summary                                                                    | verified figure/table/metric/statistical identities; claim-registry/report specification                                                                              | upstream fitting/scoring/evaluation merely because report code changed                    |
+| report/project summary                                                                    | verified figure/table/metric/statistical identities; report specification                                                                                             | upstream fitting/scoring/evaluation merely because report code changed                    |
 | timing/scalability measurements                                                           | loaded fitted-artifact identities; timing harness code; common timing environment/hardware/software fields required by Section 19.3                                   | report-only changes; unrelated scientific modules not executed in the harness             |
 
 When a parent artifact changes material identity, every active descendant whose dependency record references the old parent identity becomes stale. Staleness is propagated transitively. Unrelated siblings and ancestors remain valid.
@@ -5107,7 +5107,7 @@ Every reusable artifact has exactly one producer contract even when several expe
 | context/projection/cross-fit fit            | method-fit producer invoked by `run`       | evidence generation, sequential evaluation, scalability                      | reused wherever method/config/input identity matches              |
 | threshold/calibration/local-policy artifact | calibration producer invoked by `run`      | benign and campaign evaluation                                               | reused across evaluations with identical calibration dependencies |
 | evaluation record                           | evaluation producer invoked by `run`       | summaries and statistical analysis                                           | immutable for its evaluation dependency identity                  |
-| seed summary/statistical record             | analysis producer invoked by `run`         | claim registry, tables, figures, project synthesis                           | recomputed only when source evaluations or analysis rules change  |
+| seed summary/statistical record             | analysis producer invoked by `run`         | tables, figures, project synthesis                                           | recomputed only when source evaluations or analysis rules change  |
 | figure/table/verified-evidence package      | `report`                                   | manuscript/project summary                                                   | report-only descendant; never an upstream scientific dependency   |
 
 Artifact ownership is by producer contract, not by the first experiment that happens to request the artifact. A manifest still records the requesting/producing experiment cell for traceability.
@@ -5264,7 +5264,7 @@ Statistical records retain the claim/hypothesis/comparison/metric identity; test
 
 A statistical-code change invalidates only the statistical records whose material analysis component changed and their report descendants. It does not invalidate the source evaluation records unless evaluation logic also changed.
 
-## 18.7 Figure/table sources and claim registry artifacts
+## 18.7 Figure/table sources
 
 Every manuscript table or figure has exactly one machine-readable source artifact in verified `outputs/`. The source record contains:
 
@@ -5278,27 +5278,7 @@ source_artifact_hashes
 
 Manuscript figures/tables never read diagnostic logs directly and no console value is manually copied into manuscript evidence. Reporting may export compact selected metrics or statistics into the corresponding `results/experiments/<descriptive-experiment-name>/metrics/` or `statistics/` subtree, but those exports are terminal descendants and never become scientific inputs.
 
-The machine-readable claim registry records, for each claim:
-
-```text
-claim_identifier
-exact_claim
-supporting_experiments
-primary_metric
-secondary_metrics
-statistical_rule
-materiality_gate
-failure_condition
-valid_scope
-forbidden_extrapolation
-supporting_table
-supporting_figure
-state
-state_reason
-source_artifact_hashes
-```
-
-The project-level claim registry is materialized as a machine-readable summary artifact under `results/project_summary/metrics/summary/`. It is a reporting descendant of verified outputs and is never consumed by scientific execution.
+There is no separate machine-readable claim registry artifact. Section 21 defines the exact permitted claims and their mandatory evidence as manuscript-writing guidance; a claim's support is assessed directly from the verified statistical, materiality, and evaluation artifacts this roadmap already requires (Sections 13–15, 18), not from a computed or persisted claim-state field. Implementation must not add claim-registry infrastructure (claim IDs, claim state enums, claim gate/evidence-store artifacts, or similar) beyond the scientific computations already mandated elsewhere in this roadmap.
 
 A reporting or visualization change may regenerate figure/table/metric-summary artifacts without changing the fixed scientific result or analysis identities they cite.
 
@@ -5317,7 +5297,7 @@ Project-wide `report` materializes reproducibility evidence under:
   execution/
 ```
 
-The exact public CLI sequence, resolved experiment-plan snapshot, semantic-cell index, artifact dependency index, environment/hardware/runtime metadata, and completion/confirmatory execution metadata are stored under `execution/`; dataset checksum, release, preprocessing, and client-map identities under `datasets/`; seed identities under `seeds/`; dependency-lock copy and source-revision identities under `software/`; and the authoritative scientific configuration plus its material configuration digest under `configuration/`. The claim registry is stored as a machine-readable summary artifact under `results/project_summary/metrics/summary/`.
+The exact public CLI sequence, resolved experiment-plan snapshot, semantic-cell index, artifact dependency index, environment/hardware/runtime metadata, and completion/confirmatory execution metadata are stored under `execution/`; dataset checksum, release, preprocessing, and client-map identities under `datasets/`; seed identities under `seeds/`; dependency-lock copy and source-revision identities under `software/`; and the authoritative scientific configuration plus its material configuration digest under `configuration/`.
 
 The reproducibility export may contain multiple producer commits when a scientifically unchanged campaign was resumed after implementation fixes. Each scientific artifact remains traceable to the exact code and material dependency fingerprint that produced it; the existence of multiple commits does not imply that unaffected artifacts were recomputed.
 
@@ -5414,7 +5394,6 @@ all source artifacts current and provenance-valid
 all primary and secondary Holm families complete for their eligible hypotheses
 all required BCa and exact-binomial intervals present
 all materiality/equivalence gates evaluable or explicitly Not Tested
-all claim-state rules from Section 21 evaluated mechanically
 no results/ artifact used as computational input
 ```
 
@@ -5424,567 +5403,17 @@ A reporting command cannot repair a missing statistical or evaluation artifact. 
 
 # 20. Manuscript evidence materialization
 
-## 20.1 Source-data rule
+Manuscript tables and figures are produced directly from the verified artifacts this roadmap already requires elsewhere: seed-level summaries and statistical records under `outputs/experiments/<descriptive-experiment-name>/metrics/` and `statistics/`, the primary/secondary Holm-family artifacts (Section 14), and the reproducibility export (Section 18.8). `report` exports a compact, verified, machine-readable slice of those artifacts into `results/experiments/<descriptive-experiment-name>/` and `results/project_summary/` (source data, plus reshaped/rounded tables and figures for presentation); it may select, sort, reshape, label, and round, but it may not recompute a scientific metric, confidence interval, p-value, or materiality/equivalence decision, and it may not read diagnostic logs or accept manually copied console values as manuscript evidence.
 
-Every manuscript table and figure is generated from a compact machine-readable source-data export beneath the corresponding `results/.../source_data/` subtree. Source-data exports contain only verified rows derived from current `outputs/` artifacts. `report` may select, sort, reshape, label, and round for presentation; it may not recompute a scientific metric, confidence interval, p-value, materiality/equivalence decision, or claim state.
+This roadmap does not mandate a fixed catalog of specifically named table/figure files, column schemas, or per-experiment export paths beyond what `report` already produces from those verified artifacts. Manuscript authors work directly from the `outputs/`/`results/` artifacts; report tooling may be extended to export additional reshaped tables/figures from that same verified source data as needed, without introducing a separate mandated file catalog or new computed quantities.
 
-Every source-data file records:
-
-```text
-artifact_name
-source_artifact_hashes
-source_analysis_hash nullable
-report_dependency_fingerprint
-row_count
-column_schema
-```
-
-Machine-readable values retain full precision. Display rounding follows `reporting.precision`.
-
-## 20.2 Dataset and evidence roles table
-
-Rows:
-
-```text
-controlled generator suite
-TON_IoT Network
-Edge-IIoTset
-```
-
-Columns:
-
-```text
-dataset
-scientific_role
-documented_expected_structure
-observed_raw_structure
-client_definition
-observed_client_count
-epoch_seconds
-benign_reference_source
-campaign_ground_truth
-allowed_claims
-forbidden_claims
-dataset_hash
-```
-
-Source: `results/project_summary/source_data/tables/dataset-and-evidence-roles.csv`.
-
-Rendered table: `results/project_summary/tables/main/dataset-and-evidence-roles.csv`.
-
-Observed values are populated from the validated raw/preprocessing manifests rather than literature counts.
-
-## 20.3 Authoritative numerical protocol table
-
-Generated directly from the Authoritative Configuration Contract with:
-
-```text
-parameter
-authority_type
-value
-unit
-primary_or_sensitivity
-scientific_role
-```
-
-Source: `results/project_summary/source_data/tables/numerical-protocol.csv`.
-
-Rendered table: `results/project_summary/tables/main/numerical-protocol.csv`.
-
-No manually duplicated numerical registry is maintained elsewhere.
-
-## 20.4 Local detector and policy configuration table
-
-Rows:
-
-```text
-Isolation Forest
-One-Class SVM
-Autoencoder
-primary local policy
-strong local policy
-```
-
-Columns:
-
-```text
-method_or_policy
-fit_partition
-algorithm_or_architecture
-fixed_settings
-score_orientation
-threshold_source
-calibration_source
-PFA_target
-selection_rule
-```
-
-Source: `results/project_summary/source_data/tables/local-detector-policy-configuration.csv`.
-
-Rendered table: `results/project_summary/tables/main/local-detector-policy-configuration.csv`.
-
-## 20.5 Baseline fairness contract table
-
-Rows: every method reported from Primary Strict ODI Evaluation plus every publication-critical synthetic comparator.
-
-Columns:
-
-```text
-method
-information_access
-outside_exclusion
-maximum_order
-proper_subset_purification
-collaborative_training
-score_calibration_source
-sequential_backend
-PFA_calibration
-matched_status
-```
-
-Source: `results/project_summary/source_data/tables/baseline-fairness-contract.csv`.
-
-Rendered table: `results/project_summary/tables/main/baseline-fairness-contract.csv`.
-
-The selected-comparator challenge additionally exports `results/experiments/strong-comparator-composition-challenge/source_data/tables/strong-comparator-selection.csv` and rendered `results/experiments/strong-comparator-composition-challenge/tables/supplementary/strong-comparator-selection.csv` with candidate, native order, eligibility, held-out PFA/UCB, target error, runtime tiebreak value, and selected indicator.
-
-## 20.6 Self-explanation results table
-
-Rows:
-
-```text
-client_count
-coalition_order
-nuisance_family
-context_method
-```
-
-Columns:
-
-```text
-nuisance_derivative
-innovation_residual_derivative
-atom_derivative_if_applicable
-attenuation
-paired_primary_effect_if_applicable
-95%_CI
-Holm_raw_p_if_applicable
-Holm_adjusted_p_if_applicable
-equivalence_state
-```
-
-Source: `results/experiments/self-explanation-exclusion-validation/source_data/tables/self-explanation-results.csv`.
-
-Rendered table: `results/experiments/self-explanation-exclusion-validation/tables/main/self-explanation-results.csv`.
-
-## 20.7 Pure-order and HOFD results table
-
-Rows:
-
-```text
-experiment
-generator
-effect
-support_per_context
-order
-method
-```
-
-Columns as applicable:
-
-```text
-maximum_proper_subset_drift
-target_order_drift
-order_specific_stopping_probability
-purity_state
-projection_or_atom_NRMSE
-projection_or_atom_NRMSE_95%_CI
-HOFD_cosine_similarity_if_applicable
-stopping_time_difference
-stopping_time_difference_95%_CI
-heldout_PFA
-heldout_PFA_95%_upper
-Holm_adjusted_p_if_applicable
-```
-
-Experiment-local sources and rendered tables are:
-
-```text
-results/experiments/pure-order-separation-validation/source_data/tables/pure-order-separation.csv
-results/experiments/pure-order-separation-validation/tables/main/pure-order-separation.csv
-results/experiments/exclusion-matched-hofd-equivalence/source_data/tables/hofd-equivalence.csv
-results/experiments/exclusion-matched-hofd-equivalence/tables/main/hofd-equivalence.csv
-```
-
-Project-summary source: `results/project_summary/source_data/tables/pure-order-and-hofd-results.csv`, built only from those current completed experiment exports.
-
-Rendered project-summary table: `results/project_summary/tables/main/pure-order-and-hofd-results.csv`.
-
-## 20.8 Estimator feasibility and sequential validation tables
-
-Estimator table source: `results/experiments/estimator-support-and-context-feasibility/source_data/tables/order-three-feasibility.csv`.
-
-Rendered estimator table: `results/experiments/estimator-support-and-context-feasibility/tables/main/order-three-feasibility.csv`.
-
-Columns:
-
-```text
-support_per_context
-order
-basis_size
-context_cell_count
-ridge
-coverage
-projection_NRMSE
-standardized_null_bias
-numerical_failure_rate
-criterion_state
-```
-
-Sequential table source: `results/experiments/sequential-evidence-validation/source_data/tables/sequential-validation.csv`.
-
-Rendered sequential table: `results/experiments/sequential-evidence-validation/tables/main/sequential-validation.csv`.
-
-Columns as applicable:
-
-```text
-route
-seed_role
-threshold_semantics
-restricted_ARL
-restricted_ARL_95%_lower
-assumption_check_state
-calibration_horizon_count
-heldout_horizon_count
-heldout_PFA
-heldout_PFA_95%_upper
-route_state
-```
-
-## 20.9 Primary strict-ODI results table
-
-Rows use the exact method order in `experiments.primary_strict_odi_evaluation.methods`.
-
-Columns:
-
-```text
-heldout_PFA
-heldout_PFA_95%_upper
-mean_ODI_success_rate
-ODI_rate_95%_CI
-campaign_detection_rate
-median_global_stop_epoch
-median_local_min_stop_epoch
-median_statistical_lead
-median_operational_lead
-context_coverage
-abstention_rate
-paired_ODI_difference_vs_order_at_most_two
-paired_difference_95%_CI
-Holm_adjusted_p
-matched_status
-operating_point_state
-```
-
-Source: `results/experiments/primary-strict-odi-evaluation/source_data/tables/primary-strict-odi-results.csv`.
-
-Rendered table: `results/experiments/primary-strict-odi-evaluation/tables/main/primary-strict-odi-results.csv`.
-
-## 20.10 Ablation, robustness, generalization, and boundary tables
-
-### Exclusion and order ablations
-
-Experiment-local sources and rendered tables are:
-
-```text
-results/experiments/exclusion-mechanism-ablation/source_data/tables/exclusion-ablation.csv
-results/experiments/exclusion-mechanism-ablation/tables/main/exclusion-ablation.csv
-results/experiments/purification-and-order-ablation/source_data/tables/purification-order-ablation.csv
-results/experiments/purification-and-order-ablation/tables/main/purification-order-ablation.csv
-```
-
-Project-summary source: `results/project_summary/source_data/tables/ablation-results.csv`.
-
-Rendered project-summary table: `results/project_summary/tables/main/ablation-results.csv`.
-
-Rows: Full FedCampaign-EMHI plus every predeclared exclusion, purification, and lower-order ablation.
-
-Columns:
-
-```text
-experiment
-method
-heldout_PFA
-heldout_PFA_95%_upper
-ODI_rate
-campaign_detection_rate
-operational_lead
-context_coverage
-paired_ODI_difference_vs_full
-Holm_adjusted_p
-```
-
-### Context and estimator sensitivity
-
-Source: `results/experiments/context-and-estimator-sensitivity/source_data/tables/context-estimator-sensitivity.csv`.
-
-Rendered table: `results/experiments/context-and-estimator-sensitivity/tables/supplementary/context-estimator-sensitivity.csv`.
-
-Columns:
-
-```text
-changed_factor
-changed_value
-seed
-heldout_PFA
-campaign_detection_rate
-ODI_rate
-operational_lead
-context_coverage
-abstention_rate
-numerical_failure_rate
-```
-
-### Benign common-mode robustness
-
-Source: `results/experiments/benign-common-mode-robustness/source_data/tables/benign-common-mode-results.csv`.
-
-Rendered table: `results/experiments/benign-common-mode-robustness/tables/main/benign-common-mode-results.csv`.
-
-Columns:
-
-```text
-condition
-method
-false_campaign_rate
-common_mode_suppression
-campaign_detection_rate
-power_loss
-context_coverage
-Holm_adjusted_p_if_applicable
-support_state
-```
-
-### Strong-local and secondary controlled trace
-
-Experiment-local sources and rendered tables are:
-
-```text
-results/experiments/strong-local-policy-challenge/source_data/tables/strong-local-challenge.csv
-results/experiments/strong-local-policy-challenge/tables/main/strong-local-challenge.csv
-results/experiments/secondary-controlled-trace-generalization/source_data/tables/secondary-controlled-trace.csv
-results/experiments/secondary-controlled-trace-generalization/tables/supplementary/secondary-controlled-trace.csv
-```
-
-Project-summary source: `results/project_summary/source_data/tables/generalization-and-strong-local-results.csv`.
-
-Rendered project-summary table: `results/project_summary/tables/main/generalization-and-strong-local-results.csv`.
-
-Rows:
-
-```text
-TON_IoT Network primary local policy
-TON_IoT Network strong local policy
-Edge-IIoTset
-```
-
-Columns:
-
-```text
-observed_client_count
-campaign_count
-heldout_PFA
-heldout_PFA_95%_upper
-ODI_rate
-campaign_detection_rate
-operational_lead
-coverage
-claim_state
-```
-
-### Failure boundaries and scalability
-
-Experiment-local sources and rendered tables are:
-
-```text
-results/experiments/outside-campaign-contamination-boundary/source_data/tables/outside-contamination-boundary.csv
-results/experiments/outside-campaign-contamination-boundary/tables/supplementary/outside-contamination-boundary.csv
-results/experiments/client-dropout-and-context-sparsity-boundary/source_data/tables/dropout-context-boundary.csv
-results/experiments/client-dropout-and-context-sparsity-boundary/tables/supplementary/dropout-context-boundary.csv
-results/experiments/coalition-scalability/source_data/tables/scalability.csv
-results/experiments/coalition-scalability/tables/main/scalability.csv
-```
-
-Project-summary source: `results/project_summary/source_data/tables/failure-boundaries-and-scalability.csv`.
-
-Rendered project-summary table: `results/project_summary/tables/main/failure-boundaries-and-scalability.csv`.
-
-Columns as applicable:
-
-```text
-client_count
-dropout_fraction
-outside_contamination_fraction
-coalition_count
-coverage
-abstention_rate
-numerical_failure_rate
-campaign_detection_rate
-median_server_latency
-p95_server_latency
-median_reference_harness_latency
-p95_reference_harness_latency
-peak_RSS
-throughput
-payload_bytes
-timing_operating_point_state
-environment_identity
-```
-
-## 20.11 Self-explanation derivative curves
-
-* x: perturbation;
-* y: nuisance, innovation-residual, or atom mean as identified in the source data;
-* group: context method;
-* facets: order and nuisance family;
-* uncertainty: 95% seed-level CI.
-
-Source: `results/experiments/self-explanation-exclusion-validation/source_data/figures/self-explanation-derivatives.csv`.
-
-Rendered figures: `results/experiments/self-explanation-exclusion-validation/figures/main/self-explanation-derivatives.{pdf,svg,png}`.
-
-## 20.12 Pure-order separation figure
-
-* x: legal generator effect;
-* y: standardized drift;
-* groups: proper-subset maximum and target order;
-* facets: continuous triple, XOR, context-dependent triple;
-* reference lines: configured proper-subset and target-order criteria.
-
-Source: `results/experiments/pure-order-separation-validation/source_data/figures/pure-order-drift.csv`.
-
-Rendered figures: `results/experiments/pure-order-separation-validation/figures/main/pure-order-drift.{pdf,svg,png}`.
-
-## 20.13 EMHI-HOFD atom equivalence figures
-
-Primary figure:
-
-* x: benign support per context, log2 scale;
-* y: atom NRMSE;
-* uncertainty: paired 95% CI;
-* reference: configured NRMSE equivalence margin.
-
-A separate figure reports cosine similarity with its configured reference line.
-
-Source: `results/experiments/exclusion-matched-hofd-equivalence/source_data/figures/hofd-equivalence.csv`.
-
-Rendered figures: `results/experiments/exclusion-matched-hofd-equivalence/figures/main/hofd-atom-nrmse.{pdf,svg,png}` and `results/experiments/exclusion-matched-hofd-equivalence/figures/main/hofd-cosine-similarity.{pdf,svg,png}`.
-
-## 20.14 Primary ODI paired seed effects
-
-* x: method;
-* y: seed-level ODI rate;
-* one point per confirmatory real seed;
-* paired lines by seed;
-* method ordering: `experiments.primary_strict_odi_evaluation.methods`.
-
-Source: `results/experiments/primary-strict-odi-evaluation/source_data/figures/odi-seed-rates.csv`.
-
-Rendered figures: `results/experiments/primary-strict-odi-evaluation/figures/main/odi-seed-rates.{pdf,svg,png}`.
-
-## 20.15 Operational lead ECDF
-
-Methods:
-
-```text
-Full FedCampaign-EMHI
-Exclusion-Matched Order-at-Most-Two EMHI
-Exclusion-Matched Conditional HOFD
-Selected Strong Comparator Composition
-```
-
-Include only finite strict-ODI operational-lead values and display the denominator for every method.
-
-Source: `results/experiments/primary-strict-odi-evaluation/source_data/figures/operational-lead-ecdf.csv`.
-
-Rendered figures: `results/experiments/primary-strict-odi-evaluation/figures/main/operational-lead-ecdf.{pdf,svg,png}`.
-
-## 20.16 Benign common-mode robustness figure
-
-* x: benign stress condition;
-* y: false-campaign rate;
-* groups: configured common-mode methods;
-* uncertainty: seed-level interval from existing statistical artifacts.
-
-Source: `results/experiments/benign-common-mode-robustness/source_data/figures/common-mode-pfa.csv`.
-
-Rendered figures: `results/experiments/benign-common-mode-robustness/figures/main/common-mode-pfa.{pdf,svg,png}`.
-
-## 20.17 Outside-contamination boundary figures
-
-Primary figure:
-
-* x: configured outside-contamination fraction;
-* y: detection rate.
-
-Separate figure: context coverage on the y-axis.
-
-Source: `results/experiments/outside-campaign-contamination-boundary/source_data/figures/outside-contamination-boundary.csv`.
-
-Rendered figures: `results/experiments/outside-campaign-contamination-boundary/figures/supplementary/outside-contamination-detection.{pdf,svg,png}` and `results/experiments/outside-campaign-contamination-boundary/figures/supplementary/outside-contamination-coverage.{pdf,svg,png}`.
-
-## 20.18 Scalability figures
-
-Primary figure:
-
-* x: client count;
-* y: p95 reference-harness latency;
-* annotate derived coalition count;
-* reference line: configured latency maximum.
-
-Separate figure: peak RSS versus client count.
-
-Source: `results/experiments/coalition-scalability/source_data/figures/scalability.csv`.
-
-Rendered figures: `results/experiments/coalition-scalability/figures/main/scalability-latency.{pdf,svg,png}` and `results/experiments/coalition-scalability/figures/main/scalability-peak-rss.{pdf,svg,png}`.
-
-Manuscript vector figures are generated as PDF and SVG; PNG previews may also be emitted. PDF/SVG values must be sourced from the same source-data export and may not differ numerically.
-
-## 20.19 Project-summary evidence
-
-Project-wide reporting creates:
-
-```text
-results/project_summary/tables/main/claim-summary.csv
-results/project_summary/tables/main/primary-evidence.csv
-results/project_summary/source_data/tables/claim-summary-source.csv
-results/project_summary/source_data/tables/primary-evidence-source.csv
-results/project_summary/metrics/summary/claim-registry.json
-```
-
-`claim-summary.csv` contains exactly one row per Section 21 claim with claim identifier, exact permitted claim, state, state reason, primary metric result, materiality/equivalence result, adjusted p-value where applicable, and supporting table/figure paths.
-
-`primary-evidence.csv` contains only the central claim-bearing quantities required by Section 21 and creates no new aggregate statistic.
-
-The claim registry JSON is the machine-readable authority for manuscript claim state. Manuscript prose may not exceed the exact permitted claim, valid scope, or forbidden-extrapolation boundary recorded there.
+Machine-readable values retain full precision; display rounding follows `reporting.precision` where `report` renders a table for presentation.
 
 ---
 
-# 21. Claim and evidence registry
+# 21. Manuscript claims
 
-Allowed states:
-
-```text
-SUPPORTED
-PARTIALLY_SUPPORTED
-MECHANISM_ONLY
-CONDITIONAL
-NULL_RESULT
-NOT_SUPPORTED
-NOT_TESTED
-```
-
-A claim state is computed only from current verified artifacts. A technical/provenance defect blocks the affected result until repaired; it is not converted into a scientific claim state. `NOT_TESTED` is reserved for a predeclared scientific/data eligibility condition that makes required evidence unavailable without changing this roadmap. A valid unfavorable result is retained and receives the state defined below.
+This section defines the exact permitted claims and their mandatory supporting evidence. It is manuscript-writing guidance: a claim's support is assessed by directly reading the verified statistical, materiality, and evaluation artifacts this roadmap already requires (Sections 3, 13–15, 18) — the exact Holm-adjusted p-values, materiality-gate comparisons, PFA/ODI/lead values, and equivalence intervals already computed and persisted there. The implementation must not compute, store, or expose a separate claim-state field, claim registry artifact, or other claim-specific infrastructure; the underlying scientific criteria below are already fully specified and enforced by the sections they cite.
 
 | Claim identifier | Exact permitted claim | Mandatory evidence |
 | --- | --- | --- |
@@ -5996,21 +5425,15 @@ A claim state is computed only from current verified artifacts. A technical/prov
 | `CLAIM_ORDER_THREE_SCOPE` | Order 3 is a scientifically separable and empirically estimable interaction order within the declared support regime and materially contributes to the primary real-data result only when its predeclared real contribution criterion passes. | pure-order evidence, estimator feasibility, purification/order ablation |
 | `CLAIM_OPERATIONAL_FEASIBILITY` | At the tested client counts, the complete in-process reference harness satisfies the declared numerical-failure and computational-latency criteria; practical early-warning wording additionally requires positive protocol-adjusted operational lead on the primary trace. | Coalition Scalability, common timing-environment provenance, Primary Strict ODI operational-lead evidence |
 
-The numerical support, materiality, equivalence, PFA, and latency values are those in the Authoritative Configuration Contract and Sections 3, 13–15; this registry does not redefine them.
+The numerical support, materiality, equivalence, PFA, and latency values are those in the Authoritative Configuration Contract and Sections 3, 13–15; this table does not redefine them.
 
 ## 21.1 `CLAIM_EMII_ADMISSIBLE_INFORMATION`
 
-`SUPPORTED` when all of the following are true:
+Fully supported when: the Section 4 admissibility specification and exact-complement identity tests pass; provenance for every claim-bearing exact-exclusion artifact records context membership exactly equal to the selected-client complement of the coalition; no current-epoch target-coalition observation enters exact-exclusion nuisance/context construction; the exact-exclusion smoke fixtures pass; and the real Exclusion Mechanism Ablation is eligible with at least one predeclared insufficient-exclusion contrast showing a positive seed-level ODI advantage for Full FedCampaign-EMHI at a secondary Holm-adjusted p-value below `statistics.nominal_significance_alpha`.
 
-* the Section 4 admissibility specification and exact-complement identity tests pass;
-* provenance for every claim-bearing exact-exclusion artifact records context membership exactly equal to the selected-client complement of the coalition;
-* no current-epoch target-coalition observation enters exact-exclusion nuisance/context construction;
-* the exact-exclusion smoke fixtures pass;
-* the real Exclusion Mechanism Ablation is eligible and at least one of the predeclared insufficient-exclusion contrasts shows a positive seed-level ODI advantage for Full FedCampaign-EMHI with its secondary Holm-adjusted p-value below `statistics.nominal_significance_alpha`.
+The mechanism-only claim (admissibility established mathematically and in controlled tests, but the real operational consequence not yet demonstrated) applies when the mathematical/provenance/controlled-mechanism requirements pass but either no predeclared real insufficient-exclusion contrast meets that directional operational criterion, or the primary real trace is scientifically ineligible under Section 6.
 
-`MECHANISM_ONLY` when the mathematical/provenance/controlled-mechanism requirements pass but either no predeclared real insufficient-exclusion contrast meets that directional operational criterion or the primary real trace is scientifically ineligible under Section 6 and the real exclusion-ablation consequence therefore cannot be evaluated.
-
-`NOT_SUPPORTED` when a valid implementation/theory result contradicts the stated complement restriction.
+The claim is contradicted only by a valid implementation/theory result that violates the stated complement restriction.
 
 ## 21.2 `CLAIM_SELF_EXPLANATION`
 
@@ -6020,63 +5443,29 @@ At the primary self-explanation condition, define the exact-exclusion nuisance-d
 m=\texttt{claim＿materiality.self＿explanation.exact＿exclusion＿nuisance＿derivative＿equivalence＿fraction＿of＿direct}\,|D_{direct}|.
 \]
 
-`SUPPORTED` when:
+Fully supported when: the analytic direct-response fixture passes; the complete 95% BCa CI for exact-exclusion seed-level $D_\eta$ lies inside $[-m,m]$; mean confirmatory $\Delta A_{self}=A_{self,inclusive}-A_{self,exact}$ is at least `claim_materiality.self_explanation.minimum_attenuation_difference`; and the primary Holm-adjusted `Self-Explanation Material Attenuation` p-value is below `statistics.nominal_significance_alpha`.
 
-* the analytic direct-response fixture passes;
-* the complete 95% BCa CI for exact-exclusion seed-level $D_\eta$ lies inside $[-m,m]$;
-* mean confirmatory $\Delta A_{self}=A_{self,inclusive}-A_{self,exact}$ is at least `claim_materiality.self_explanation.minimum_attenuation_difference`;
-* the primary Holm-adjusted `Self-Explanation Material Attenuation` p-value is below `statistics.nominal_significance_alpha`.
-
-`NULL_RESULT` when the experiment is valid and the analytic exact-exclusion identity is not contradicted but the material attenuation criterion and/or directional inference does not pass.
-
-`NOT_SUPPORTED` when the exact-exclusion analytic mechanism is contradicted by a valid controlled implementation, including failure of the exact derivative identity beyond its equivalence region for reasons other than a technical defect.
+A null result (valid experiment, exact-exclusion identity not contradicted, but the material attenuation criterion and/or directional inference does not pass) must be reported as such, not as support. The claim is contradicted only by a valid controlled implementation that violates the exact derivative identity beyond its equivalence region for reasons other than a technical defect.
 
 ## 21.3 `CLAIM_PURE_ORDER_SEPARATION`
 
-`SUPPORTED` when, for the primary Pure Continuous Triple condition at `generators.pure_polynomial.primary_reference_theta` over confirmatory synthetic seeds:
+Fully supported when, for the primary Pure Continuous Triple condition at `generators.pure_polynomial.primary_reference_theta` over confirmatory synthetic seeds: analytic generator-purity invariants pass; mean maximum proper-subset standardized drift is no greater than `claim_materiality.pure_order.maximum_proper_subset_standardized_drift`; mean target-order standardized drift is at least `claim_materiality.pure_order.minimum_target_order_standardized_drift`; and the primary Holm-adjusted `Pure-Order Target Drift` p-value is below `statistics.nominal_significance_alpha`.
 
-* analytic generator-purity invariants pass;
-* mean maximum proper-subset standardized drift is no greater than `claim_materiality.pure_order.maximum_proper_subset_standardized_drift`;
-* mean target-order standardized drift is at least `claim_materiality.pure_order.minimum_target_order_standardized_drift`;
-* the primary Holm-adjusted `Pure-Order Target Drift` p-value is below `statistics.nominal_significance_alpha`.
-
-`MECHANISM_ONLY` when the pure-order conditions above pass but the Section 13.6 order-3 estimator feasibility criterion does not pass; the existence/separation mechanism is retained while practical order-3 use is downscoped.
-
-`NOT_SUPPORTED` when a mathematically valid declared pure-order generator fails the target-order movement criterion or violates the proper-subset invariance criterion after technical defects have been excluded.
-
-Other generator/effect rows remain scope and failure-boundary evidence and cannot replace the primary condition.
+The mechanism-only claim applies when those pure-order conditions pass but the Section 13.6 order-3 estimator feasibility criterion does not — the existence/separation mechanism is retained while practical order-3 use is downscoped. Other generator/effect rows remain scope and failure-boundary evidence and cannot replace the primary condition. The claim is contradicted only when a mathematically valid declared pure-order generator fails the target-order movement criterion or violates the proper-subset invariance criterion after technical defects have been excluded.
 
 ## 21.4 `CLAIM_SEQUENTIAL_CONSEQUENCE`
 
-`CONDITIONAL` when:
+Supported, conditional on the declared conditional-null contract, when: every Signed-Theorem Sequential Route assumption check in Section 13.7 passes; the implemented e-factor, e-SR recursion, and threshold exactly match Sections 4.11 and 4.17; and the confirmatory one-sided BCa lower bound for restricted ARL meets `experiments.sequential_evidence_validation.signed_theorem.restricted_arl_bootstrap_lower_bound_minimum_epochs`.
 
-* every Signed-Theorem Sequential Route assumption check in Section 13.7 passes;
-* the implemented e-factor, e-SR recursion, and threshold exactly match Sections 4.11 and 4.17;
-* the confirmatory one-sided BCa lower bound for restricted ARL meets `experiments.sequential_evidence_validation.signed_theorem.restricted_arl_bootstrap_lower_bound_minimum_epochs`.
-
-`NOT_SUPPORTED` when a valid controlled execution contradicts a required theorem assumption or the inherited sequential implementation contract.
-
-This roadmap does not provide a theorem-quality real-data conditional-null argument, so the claim cannot be promoted here to an unconditional real-data `SUPPORTED` statement. Empirical benign averages and the separate finite-horizon PFA experiment are insufficient for that promotion.
+This roadmap does not provide a theorem-quality real-data conditional-null argument, so the claim cannot be promoted to an unconditional real-data statement. Empirical benign averages and the separate finite-horizon PFA experiment are insufficient for that promotion. The claim is contradicted only by a valid controlled execution that violates a required theorem assumption or the inherited sequential implementation contract.
 
 ## 21.5 `CLAIM_STRICT_ODI`
 
 Let the primary paired comparison be Full FedCampaign-EMHI minus Exclusion-Matched Order-at-Most-Two EMHI on `randomness.real_confirmatory_roots`.
 
-`SUPPORTED` only when all are true:
+Fully supported only when all are true: (1) both methods have eligible calibrated finite-horizon operating points and held-out PFA one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`; (2) mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `claim_materiality.primary_real.minimum_strict_odi_rate`; (3) mean paired ODI-rate advantage is at least `claim_materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`; (4) pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`; (5) the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
 
-1. both methods have eligible calibrated finite-horizon operating points and held-out PFA one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`;
-2. mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `claim_materiality.primary_real.minimum_strict_odi_rate`;
-3. mean paired ODI-rate advantage is at least `claim_materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`;
-4. pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`;
-5. the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
-
-`PARTIALLY_SUPPORTED` when both methods satisfy the matched held-out PFA requirement and Full FedCampaign-EMHI meets the minimum strict-ODI-rate criterion, but one or more of the paired-advantage, operational-lead, or adjusted-inference criteria does not pass. The manuscript must then state exactly which materiality component did not pass and may not use the full permitted claim wording.
-
-`NULL_RESULT` when both methods satisfy the matched held-out PFA requirement but Full FedCampaign-EMHI mean strict-ODI rate is below `claim_materiality.primary_real.minimum_strict_odi_rate`.
-
-`NOT_SUPPORTED` when Full FedCampaign-EMHI has no eligible calibrated operating point or its held-out PFA UCB exceeds the target.
-
-`NOT_TESTED` when the observed TON_IoT Network release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
+Partial support applies when both methods satisfy the matched held-out PFA requirement and Full FedCampaign-EMHI meets the minimum strict-ODI-rate criterion, but one or more of the paired-advantage, operational-lead, or adjusted-inference criteria does not pass — the manuscript must then state exactly which materiality component did not pass and may not use the full permitted claim wording. A null result applies when both methods satisfy the matched held-out PFA requirement but Full FedCampaign-EMHI mean strict-ODI rate is below the minimum. The claim is not supported when Full FedCampaign-EMHI has no eligible calibrated operating point or its held-out PFA UCB exceeds the target. The claim is not tested when the observed TON_IoT Network release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
 
 ## 21.6 `CLAIM_ORDER_THREE_SCOPE`
 
@@ -6089,41 +5478,17 @@ Define the confirmatory real order-3 contribution as the mean paired difference
 \mathcal S=\texttt{randomness.real＿confirmatory＿roots}.
 \]
 
-`SUPPORTED` when:
+Fully supported when: `CLAIM_PURE_ORDER_SEPARATION` is supported; the Section 13.6 order-3 estimator feasibility criterion passes; and the real order-3 contribution is at least `claim_materiality.order_three_real.minimum_material_odi_contribution`.
 
-* `CLAIM_PURE_ORDER_SEPARATION` is `SUPPORTED`;
-* the Section 13.6 order-3 estimator feasibility criterion passes;
-* the real order-3 contribution is at least `claim_materiality.order_three_real.minimum_material_odi_contribution`.
-
-`MECHANISM_ONLY` when controlled pure-order separation and estimator feasibility pass but the valid real contribution is below the configured materiality threshold.
-
-`NOT_SUPPORTED` when pure order-3 separation fails or order-3 estimator feasibility fails.
-
-`NOT_TESTED` when the primary real experiment is scientifically Not Tested in a way that prevents calculating the contribution.
-
-The claim is restricted to order 3; no behavior above `study.maximum_coalition_order` is implied.
+The mechanism-only claim applies when controlled pure-order separation and estimator feasibility pass but the valid real contribution is below the configured materiality threshold. The claim is not supported when pure order-3 separation fails or order-3 estimator feasibility fails, and not tested when the primary real experiment is scientifically not tested in a way that prevents calculating the contribution. The claim is restricted to order 3; no behavior above `study.maximum_coalition_order` is implied.
 
 ## 21.7 `CLAIM_OPERATIONAL_FEASIBILITY`
 
 For every K in `robustness.scalability_client_counts`, compute the pooled numerical-failure rate and the reported p95 reference-harness latency exactly as Section 13.17 defines. Separately use the Primary Strict ODI Evaluation operational-lead metric without recomputing it.
 
-`SUPPORTED` when:
+Fully supported when: every required K/confirmatory timing cell is valid under one common Section 19.3 environment identity; pooled numerical-failure rate at every K is no greater than `claim_materiality.maximum_pooled_numerical_failure_rate`; reported p95 reference-harness latency at every K is no greater than `claim_materiality.reference_harness.p95_latency_maximum_seconds`; every K uses valid primary local and global timing operating points rather than timing-only fallbacks; and the primary pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`.
 
-* every required K/confirmatory timing cell is valid under one common Section 19.3 environment identity;
-* pooled numerical-failure rate at every K is no greater than `claim_materiality.maximum_pooled_numerical_failure_rate`;
-* reported p95 reference-harness latency at every K is no greater than `claim_materiality.reference_harness.p95_latency_maximum_seconds`;
-* every K uses valid primary local and global timing operating points rather than timing-only fallbacks;
-* the primary pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`.
-
-`CONDITIONAL` when the numerical-failure and latency criteria pass at every K under one common valid environment but the practical lead requirement is campaign-dependent, below its configured criterion, or one or more K cells require a timing-only local/global operating-point fallback. In that state the manuscript may report the measured computational feasibility within the tested harness, but may not make an unqualified practical early-warning statement.
-
-`NOT_SUPPORTED` when an observed valid K cell exceeds either numerical-failure or latency criterion.
-
-`NOT_TESTED` when a common valid timing environment, a required K cell, or the primary real operational-lead evidence is scientifically unavailable without changing the roadmap.
-
-The claim is restricted to the tested client-count grid and the recorded in-process reference environment. It does not imply real network latency, production-SOC throughput, or universal scalability.
-
----
+A conditional claim applies when the numerical-failure and latency criteria pass at every K under one common valid environment but the practical lead requirement is campaign-dependent, below its configured criterion, or one or more K cells require a timing-only local/global operating-point fallback — the manuscript may then report the measured computational feasibility within the tested harness, but may not make an unqualified practical early-warning statement. The claim is not supported when an observed valid K cell exceeds either numerical-failure or latency criterion, and not tested when a common valid timing environment, a required K cell, or the primary real operational-lead evidence is scientifically unavailable without changing the roadmap. The claim is restricted to the tested client-count grid and the recorded in-process reference environment; it does not imply real network latency, production-SOC throughput, or universal scalability.
 
 # 22. Research grounding
 
