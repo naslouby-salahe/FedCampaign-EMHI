@@ -14,6 +14,7 @@ from fedcampaign_emhi.domain.types import (
     ClientCount,
     ClientId,
     ClientIndex,
+    ComponentName,
     DetectorScore,
     EffectCoefficient,
     InnovationCoordinate,
@@ -21,6 +22,7 @@ from fedcampaign_emhi.domain.types import (
     Probability,
     ScoreShift,
     SeedCount,
+    SeedDerivationIdentity,
     SeedValue,
 )
 from fedcampaign_emhi.emhi.contexts import (
@@ -33,11 +35,25 @@ from fedcampaign_emhi.evaluation.metrics import (
     self_explanation_attenuation,
     self_explanation_material_contrast,
 )
+from fedcampaign_emhi.runtime import derive_component_seed
 from fedcampaign_emhi.synthetic.generators import (
     equally_spaced_loadings,
     generate_common_mode_scores,
     generate_unit_variance_autoregressive_latent,
 )
+
+
+def _component_seed(seed: SeedValue, component: ComponentName) -> SeedValue:
+    return derive_component_seed(
+        SeedDerivationIdentity(
+            base_seed=seed,
+            component_name=component,
+            dataset=None,
+            client_ids=(),
+            coalition_ids=(),
+            condition_coordinates=(),
+        )
+    )
 
 
 def analytic_direct_derivative() -> EffectCoefficient:
@@ -226,7 +242,9 @@ def evaluate_self_explanation_seed(
     client_count_maximum = max(config.robustness.scalability_client_counts)
     client_ids = tuple(f"synthetic-client-{index}" for index in range(client_count_maximum))
     latent = generate_unit_variance_autoregressive_latent(
-        epoch_count, config.generators.common_mode.latent_ar_coefficient, seed
+        epoch_count,
+        config.generators.common_mode.latent_ar_coefficient,
+        _component_seed(seed, "latent"),
     )
     loadings = equally_spaced_loadings(
         client_count_maximum,
@@ -237,7 +255,7 @@ def evaluate_self_explanation_seed(
         latent,
         loadings,
         config.generators.common_mode.client_noise_standard_deviation,
-        seed,
+        _component_seed(seed, "noise"),
     )
     measurements: list[SelfExplanationMeasurement] = []
     primary_exact_derivative: EffectCoefficient | None = None
