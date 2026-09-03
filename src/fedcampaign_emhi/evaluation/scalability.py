@@ -112,9 +112,7 @@ def scalability_client_ids(client_count: ClientCount) -> tuple[ClientId, ...]:
 def latency_quantile(latencies: tuple[LatencySeconds, ...], quantile: Percentile) -> LatencySeconds:
     if not latencies:
         raise ValueError("latency quantile requires at least one measurement")
-    ordered = sorted(latencies)
-    rank = max(1, math.ceil(quantile * len(ordered)))
-    return ordered[rank - 1]
+    return float(np.quantile(np.asarray(latencies, dtype=np.float64), quantile))
 
 
 def seed_level_latency_quantiles(

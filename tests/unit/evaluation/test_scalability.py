@@ -16,10 +16,10 @@ def test_scalability_client_ids_are_lexicographic() -> None:
     assert client_ids == tuple(sorted(client_ids))
 
 
-def test_latency_quantile_uses_configured_fraction() -> None:
+def test_latency_quantile_uses_linear_interpolation() -> None:
     values = (1.0, 2.0, 3.0, 4.0)
     assert latency_quantile(values, 1.0) == 4.0
-    assert latency_quantile(values, 0.5) == 2.0
+    assert latency_quantile(values, 0.5) == 2.5
 
 
 def test_scalability_feature_rows_are_deterministic_and_full_rank() -> None:
