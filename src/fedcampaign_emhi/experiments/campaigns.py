@@ -170,8 +170,6 @@ from fedcampaign_emhi.emhi.thresholds import (
 )
 from fedcampaign_emhi.evaluation.metrics import (
     application_payload_bytes_per_epoch,
-    auprc,
-    auroc,
     campaign_detection_rate,
     common_mode_suppression,
     decisive_order,
@@ -1968,7 +1966,7 @@ def _campaign_rows(
             None
             if not trajectory.epochs
             else mean_log_evidence_growth(
-                tuple(log(max(item.global_evidence_factor, 1.0)) for item in trajectory.epochs)
+                tuple(log(item.global_evidence_factor) for item in trajectory.epochs)
             )
         )
         scored_coalitions = 0 if stop_row is None else stop_row.scored_coalition_count
@@ -2125,7 +2123,6 @@ def _evaluate_emhi_seed_cell(
     )
     heldout_rows = _heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
     heldout_maps = tuple(_as_mapping(row) for row in heldout_rows)
-    campaign_maps = tuple(_as_mapping(row) for row in campaign_rows)
     heldout_false_stops = sum(int(cast(Boolean, row["false_campaign"])) for row in heldout_maps)
     heldout_epochs = sum(len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons)
     false_campaign_rate = (
@@ -2133,21 +2130,6 @@ def _evaluate_emhi_seed_cell(
         if heldout_epochs <= 0
         else false_campaigns_per_ten_thousand_benign_epochs(heldout_false_stops, heldout_epochs)
     )
-    positive_scores = tuple(
-        cast(DetectorScore, row["mean_log_evidence_growth"])
-        for row in campaign_maps
-        if row["mean_log_evidence_growth"] is not None
-    )
-    negative_scores = tuple(
-        log(max(cast(DetectorScore, row["global_evidence_factor"]), 1.0)) for row in heldout_maps
-    )
-    ranking_scores = (*positive_scores, *negative_scores)
-    ranking_labels = (
-        *(True for _score in positive_scores),
-        *(False for _score in negative_scores),
-    )
-    ranking_auroc = None if not ranking_scores else auroc(ranking_scores, ranking_labels)
-    ranking_auprc = None if not ranking_scores else auprc(ranking_scores, ranking_labels)
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
@@ -2174,12 +2156,6 @@ def _evaluate_emhi_seed_cell(
         "campaigns": list(campaign_rows),
         "seed_strict_odi_rate": None if not odi_values else seed_level_odi_rate(odi_values),
         "false_campaigns_per_ten_thousand_benign_epochs": false_campaign_rate,
-        "campaign_versus_heldout_auroc": (
-            None if ranking_auroc is None else ranking_auroc.metric_value
-        ),
-        "campaign_versus_heldout_auprc": (
-            None if ranking_auprc is None else ranking_auprc.metric_value
-        ),
     }
     raw_hash = write_atomic_json(raw_path, raw_payload, staging)
     output_paths = [raw_path.relative_to(repository).as_posix()]

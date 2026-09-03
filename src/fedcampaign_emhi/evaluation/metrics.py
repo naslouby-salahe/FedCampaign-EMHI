@@ -1,7 +1,4 @@
 from math import log, sqrt
-from typing import cast
-
-from sklearn import metrics as sklearn_metrics
 
 from fedcampaign_emhi.domain.types import (
     Attenuation,
@@ -14,7 +11,6 @@ from fedcampaign_emhi.domain.types import (
     CommonModeSuppression,
     CosineSimilarity,
     DetectionRateLoss,
-    DetectorScore,
     EffectCoefficient,
     EpochIndexValue,
     EvidenceFactor,
@@ -22,7 +18,6 @@ from fedcampaign_emhi.domain.types import (
     InnovationCoordinate,
     InnovationMean,
     LogEvidenceGrowth,
-    MaybeDefinedMetric,
     MetricRate,
     NumericalFloor,
     NumericalTolerance,
@@ -327,28 +322,6 @@ def outside_conditioning_power_loss(
     no_outside_context_detection_rate: Probability, emhi_detection_rate: Probability
 ) -> DetectionRateLoss:
     return no_outside_context_detection_rate - emhi_detection_rate
-
-
-def auroc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
-    if len(scores) != len(labels):
-        raise ValueError("AUROC requires aligned scores and labels")
-    positives = sum(labels)
-    if positives == 0 or positives == len(labels):
-        return MaybeDefinedMetric.not_defined()
-    return MaybeDefinedMetric.defined(
-        float(cast(float, sklearn_metrics.roc_auc_score(list(labels), list(scores))))
-    )
-
-
-def auprc(scores: tuple[DetectorScore, ...], labels: tuple[Boolean, ...]) -> MaybeDefinedMetric:
-    if len(scores) != len(labels):
-        raise ValueError("AUPRC requires aligned scores and labels")
-    positives = sum(labels)
-    if positives == 0 or positives == len(labels):
-        return MaybeDefinedMetric.not_defined()
-    return MaybeDefinedMetric.defined(
-        float(cast(float, sklearn_metrics.average_precision_score(list(labels), list(scores))))
-    )
 
 
 def registry_coalition_count(

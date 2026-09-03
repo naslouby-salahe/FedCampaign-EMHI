@@ -472,20 +472,6 @@ MetricValue = FiniteFloat
 CensoredPlotEpoch = PositiveEpochCount
 
 
-@dataclass(frozen=True)
-class MaybeDefinedMetric:
-    metric_value: MetricValue | None
-    is_not_defined: Boolean
-
-    @classmethod
-    def defined(cls, metric_value: MetricValue) -> "MaybeDefinedMetric":
-        return cls(metric_value=metric_value, is_not_defined=False)
-
-    @classmethod
-    def not_defined(cls) -> "MaybeDefinedMetric":
-        return cls(metric_value=None, is_not_defined=True)
-
-
 def deterministic_registry_payload(
     registry_entry: "CampaignRegistryEntry",
 ) -> DeterministicUtf8Bytes:
