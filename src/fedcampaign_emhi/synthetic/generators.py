@@ -44,11 +44,13 @@ def generate_unit_variance_autoregressive_latent(
     autoregressive_coefficient: LatentAutoregressiveCoefficient,
     seed: SeedValue,
 ) -> tuple[LatentState, ...]:
+    if epoch_count <= 0:
+        raise ValueError("autoregressive latent generation requires a positive epoch count")
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     innovation_scale = sqrt(1.0 - (autoregressive_coefficient**2))
-    latent = 0.0
-    series: list[LatentState] = []
-    for _epoch in range(epoch_count):
+    latent = float(generator.standard_normal())
+    series: list[LatentState] = [latent]
+    for _epoch in range(epoch_count - 1):
         latent = (autoregressive_coefficient * latent) + (
             innovation_scale * float(generator.standard_normal())
         )
