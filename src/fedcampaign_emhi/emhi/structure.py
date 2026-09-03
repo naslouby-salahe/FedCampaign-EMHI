@@ -1,3 +1,5 @@
+from collections import OrderedDict
+from collections.abc import Mapping
 from itertools import combinations
 from math import ceil, comb, sqrt
 
@@ -99,6 +101,28 @@ def coalition_conditioned_residual_rank(
     return clipped_midrank(marginal_rank, context_reference, epsilon)
 
 
+_CLIENT_EPOCH_RANK_MAP_CACHE_LIMIT = 64
+_client_epoch_rank_map_cache: OrderedDict[
+    tuple[MaterialDependencyFingerprint, ClientId], Mapping[EpochIndexValue, RankValue]
+] = OrderedDict()
+
+
+def _client_epoch_rank_map(
+    stream: ClientMarginalRankStream, dependency_fingerprint: MaterialDependencyFingerprint
+) -> Mapping[EpochIndexValue, RankValue]:
+    cache_key = (dependency_fingerprint, stream.client_id)
+    cached = _client_epoch_rank_map_cache.get(cache_key)
+    if cached is not None:
+        _client_epoch_rank_map_cache.move_to_end(cache_key)
+        return cached
+    built = dict(zip(stream.epoch_indexes, stream.ranks, strict=True))
+    _client_epoch_rank_map_cache[cache_key] = built
+    _client_epoch_rank_map_cache.move_to_end(cache_key)
+    if len(_client_epoch_rank_map_cache) > _CLIENT_EPOCH_RANK_MAP_CACHE_LIMIT:
+        _client_epoch_rank_map_cache.popitem(last=False)
+    return built
+
+
 def rank_at_epoch(
     ranks: MarginalRankArtifactRecord,
     client_id: ClientId,
@@ -110,14 +134,8 @@ def rank_at_epoch(
     )
     if stream is None:
         return None
-    return next(
-        (
-            rank
-            for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
-            if epoch == epoch_index
-        ),
-        None,
-    )
+    index = _client_epoch_rank_map(stream, ranks.dependency_fingerprint)
+    return index.get(epoch_index)
 
 
 def build_marginal_rank_artifact(

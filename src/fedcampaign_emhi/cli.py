@@ -37,7 +37,7 @@ from fedcampaign_emhi.execution.runner import execute_experiment, publish_plan_a
 from fedcampaign_emhi.execution.status import project_status
 from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_experiment
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
-from fedcampaign_emhi.runtime import assess_implementation_readiness
+from fedcampaign_emhi.runtime import assess_implementation_readiness, configure_structured_logging
 
 application = typer.Typer(
     add_completion=False,
@@ -72,6 +72,7 @@ def _lock_digest(repository: Path) -> ConfigurationDigest:
 
 
 def doctor_command() -> None:
+    configure_structured_logging()
     emit: Callable[[str], None] = typer.echo
     repository, loaded = production_configuration_context()
     readiness = assess_implementation_readiness(loaded, repository)
@@ -127,6 +128,7 @@ def preprocess_command(
     dataset_name: DatasetName | None = _DATASET_ARGUMENT,
     overwrite: Boolean = _PREPROCESS_OVERWRITE_OPTION,
 ) -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     selected = dataset_name
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
@@ -158,6 +160,7 @@ def preprocess_command(
 
 
 def plan_command() -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     plan_path = publish_plan_artifact(loaded, repository)
     typer.echo(f"material_digest={loaded.material_digest}")
@@ -178,6 +181,7 @@ _SMOKE_OVERWRITE_OPTION: Boolean = typer.Option(False, "--overwrite")
 def smoke_command(
     overwrite: Boolean = _SMOKE_OVERWRITE_OPTION,
 ) -> None:
+    configure_structured_logging()
     repository = repository_root()
     loaded = load_smoke_configuration(repository)
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
@@ -212,6 +216,7 @@ def run_command(
     overwrite: Boolean = _RUN_OVERWRITE_OPTION,
     dry_run: Boolean = _DRY_RUN_OPTION,
 ) -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     resolved = resolve_requested_experiment(requested.value)
     assert_known_experiment(loaded.values, resolved)
@@ -243,6 +248,7 @@ _STATUS_EXPERIMENT_ARGUMENT: ExperimentName | None = typer.Argument(default=None
 def status_command(
     experiment_name: ExperimentName | None = _STATUS_EXPERIMENT_ARGUMENT,
 ) -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     typer.echo(f"material_digest={loaded.material_digest}")
     for item in project_status(loaded, repository):
@@ -265,6 +271,7 @@ def report_command(
     experiment_name: ExperimentName | None = _REPORT_EXPERIMENT_ARGUMENT,
     overwrite: Boolean = _REPORT_OVERWRITE_OPTION,
 ) -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
     reports = materialize_report_scope(loaded, repository, experiment_name, policy)
@@ -281,6 +288,7 @@ def report_command(
 
 
 def analyze_command() -> None:
+    configure_structured_logging()
     repository, loaded = production_configuration_context()
     primary_holm_path = materialize_primary_holm_family(loaded, repository)
     secondary_holm_path = materialize_secondary_holm_family(loaded, repository)

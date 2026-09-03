@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from math import log
@@ -262,13 +263,17 @@ from fedcampaign_emhi.experiments.synthetic import (
     run_synthetic_cell,
     synthetic_role_seeds,
 )
-from fedcampaign_emhi.runtime import derive_component_seed
+from fedcampaign_emhi.runtime import component_logger, derive_component_seed
 from fedcampaign_emhi.synthetic.generators import validate_synthetic_generators
 from fedcampaign_emhi.synthetic.pure_order import enumerate_pure_order_grid
 from fedcampaign_emhi.synthetic.self_explanation import (
     analytic_direct_derivative,
     primary_directional_test_passes,
 )
+
+
+def _campaigns_logger() -> logging.Logger:
+    return component_logger("experiments.campaigns")
 
 
 def campaign_dataset(
@@ -580,6 +585,13 @@ def _execute_synthetic_experiment(
         for seed in synthetic_role_seeds(loaded, role):
             for method_name in methods:
                 started = perf_counter()
+                _campaigns_logger().info(
+                    "cell_started experiment=%s role=%s seed=%s method=%s",
+                    experiment_name.value,
+                    role.value,
+                    seed,
+                    "coordinate-validation" if method_name is None else method_name.value,
+                )
                 finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
                 composition_metrics: CompositionCandidateSeedMetrics | None = None
                 technical_failure = False
@@ -915,6 +927,16 @@ def _execute_synthetic_experiment(
                     / f"cell-{role.value}-{method_slug}-seed-{seed}.json"
                 )
                 write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+                _campaigns_logger().info(
+                    "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
+                    " elapsed_seconds=%.3f",
+                    experiment_name.value,
+                    role.value,
+                    seed,
+                    "coordinate-validation" if method_name is None else method_name.value,
+                    state.value,
+                    perf_counter() - started,
+                )
                 if state is ExperimentState.COMPLETED:
                     completed += 1
                 else:
@@ -1663,7 +1685,17 @@ def _materialize_detector_scores(
         except ValueError:
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
+            _campaigns_logger().info(
+                "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=reused",
+                dataset_name.value,
+                root_seed,
+            )
             return destination
+    _campaigns_logger().info(
+        "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=rebuilt",
+        dataset_name.value,
+        root_seed,
+    )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     record = build_detector_score_artifact(
@@ -1721,7 +1753,17 @@ def _materialize_marginal_ranks(
         except ValueError:
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
+            _campaigns_logger().info(
+                "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=reused",
+                dataset_name.value,
+                root_seed,
+            )
             return destination
+    _campaigns_logger().info(
+        "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=rebuilt",
+        dataset_name.value,
+        root_seed,
+    )
     record = build_marginal_rank_artifact(
         scores,
         split.nuisance_fit_epochs,
@@ -1799,7 +1841,19 @@ def _materialize_emhi_fit(
         except ValueError:
             existing = None
         if existing is not None and existing.dependency_fingerprint == fingerprint:
+            _campaigns_logger().info(
+                "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=reused",
+                dataset_name.value,
+                root_seed,
+                method_name.value,
+            )
             return destination
+    _campaigns_logger().info(
+        "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=rebuilt",
+        dataset_name.value,
+        root_seed,
+        method_name.value,
+    )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
@@ -4215,6 +4269,14 @@ def _execute_real_emhi_methods(
         return completed, ()
     for role in contract.execution_roles:
         for seed in _role_seeds(loaded, role):
+            seed_started = perf_counter()
+            _campaigns_logger().info(
+                "seed_started experiment=%s role=%s dataset=%s seed=%s",
+                experiment_name.value,
+                role.value,
+                dataset_name.value,
+                seed,
+            )
             score_path = materialize_detector_scores_with_retry(
                 loaded, repository, dataset_name, seed
             )
@@ -4243,6 +4305,13 @@ def _execute_real_emhi_methods(
                     fit_path,
                 )
                 completed += 1
+                _campaigns_logger().info(
+                    "method_cell_completed experiment=%s role=%s seed=%s method=%s",
+                    experiment_name.value,
+                    role.value,
+                    seed,
+                    method_name.value,
+                )
             for method_name in missing:
                 evaluate_comparator_seed_cell_with_retry(
                     loaded,
@@ -4255,6 +4324,20 @@ def _execute_real_emhi_methods(
                     rank_path,
                 )
                 completed += 1
+                _campaigns_logger().info(
+                    "method_cell_completed experiment=%s role=%s seed=%s method=%s",
+                    experiment_name.value,
+                    role.value,
+                    seed,
+                    method_name.value,
+                )
+            _campaigns_logger().info(
+                "seed_completed experiment=%s role=%s seed=%s elapsed_seconds=%.3f",
+                experiment_name.value,
+                role.value,
+                seed,
+                perf_counter() - seed_started,
+            )
     return completed, ()
 
 
@@ -4670,6 +4753,11 @@ def execute_campaign_experiment(
     experiment_name: ExperimentName,
     overwrite_policy: OverwritePolicy,
 ) -> ExperimentExecutionResult:
+    _campaigns_logger().info(
+        "experiment_started experiment=%s overwrite_policy=%s",
+        experiment_name.value,
+        overwrite_policy.value,
+    )
     validate_scientific_implementation_registry(loaded.values, experiment_name)
     reusable = _existing_completed_run(
         loaded,

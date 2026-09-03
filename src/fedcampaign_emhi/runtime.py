@@ -1,4 +1,6 @@
 import hashlib
+import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,6 +11,7 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.types import (
     Boolean,
+    ComponentName,
     ConfigurationDigest,
     DeterministicUtf8Bytes,
     ScientificChoiceCount,
@@ -71,3 +74,24 @@ def assess_implementation_readiness(
         material_digest=configuration.material_digest,
         unspecified_scientific_choice_count=0,
     )
+
+
+STRUCTURED_LOG_ROOT_LOGGER_NAME = "fedcampaign_emhi"
+_structured_logging_configured = False
+
+
+def configure_structured_logging() -> None:
+    global _structured_logging_configured
+    if _structured_logging_configured:
+        return
+    root = logging.getLogger(STRUCTURED_LOG_ROOT_LOGGER_NAME)
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler(stream=sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    root.addHandler(handler)
+    root.propagate = False
+    _structured_logging_configured = True
+
+
+def component_logger(component_name: ComponentName) -> logging.Logger:
+    return logging.getLogger(f"{STRUCTURED_LOG_ROOT_LOGGER_NAME}.{component_name}")

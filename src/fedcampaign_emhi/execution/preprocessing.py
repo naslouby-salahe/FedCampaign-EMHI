@@ -1,5 +1,6 @@
 import hashlib
 import inspect
+import logging
 from collections.abc import MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -110,6 +111,12 @@ from fedcampaign_emhi.domain.types import (
     RobustScaler,
     TonIotNetworkFlowRecord,
 )
+from fedcampaign_emhi.runtime import component_logger
+
+
+def _preprocessing_logger() -> logging.Logger:
+    return component_logger("execution.preprocessing")
+
 
 PREPROCESSING_LAYER_ORDER: tuple[PreprocessingLayer, ...] = (
     PreprocessingLayer.INVENTORY,
@@ -300,6 +307,13 @@ def _execute_dataset(
                     reconstructed and (changed or ancestor_changed),
                 ),
             )
+        )
+    for decision in decisions:
+        _preprocessing_logger().info(
+            "reuse_decision layer=%s dataset=%s decision=%s",
+            decision.layer.value,
+            decision.dataset_name.value,
+            "reconstructed" if decision.reconstructed else "reused",
         )
     return start_layer, tuple(decisions)
 
