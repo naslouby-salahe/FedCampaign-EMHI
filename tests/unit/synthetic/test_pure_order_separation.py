@@ -247,6 +247,50 @@ def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
     assert result.artifact_path_complete
 
 
+def test_order_one_target_has_no_proper_subsets_and_reports_zero_drift() -> None:
+    loaded = load_production_configuration()
+    sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
+        update={
+            "generic_nuisance_fit_epochs": 100,
+            "pure_order_independent_evaluation_samples_per_condition_seed": 5,
+        }
+    )
+    support = loaded.values.context.minimum_support_epochs.model_copy(
+        update={"order_one": 1, "order_two": 1, "order_three": 1}
+    )
+    pure_order = loaded.values.experiments.pure_order_separation_validation.model_copy(
+        update={
+            "primary_client_count": 5,
+            "generators": (GeneratorName.PURE_ORDER_ONE,),
+            "methods": (MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,),
+        }
+    )
+    config = loaded.values.model_copy(
+        update={
+            "synthetic": loaded.values.synthetic.model_copy(update={"sample_sizes": sample_sizes}),
+            "context": loaded.values.context.model_copy(
+                update={"primary_cell_count": 1, "minimum_support_epochs": support}
+            ),
+            "experiments": loaded.values.experiments.model_copy(
+                update={"pure_order_separation_validation": pure_order}
+            ),
+        }
+    )
+    cell = next(
+        cell
+        for cell in enumerate_pure_order_grid(config)
+        if cell.method is MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI
+        and cell.generator is GeneratorName.PURE_ORDER_ONE
+    )
+    assert cell.target_order is CoalitionOrder.ONE
+
+    result = evaluate_fitted_pure_order_cell(config, cell, 17)
+
+    assert result is not None
+    assert result.artifact_path_complete
+    assert result.metrics.maximum_proper_subset_standardized_drift == 0.0
+
+
 def test_native_comparator_producer_describes_the_execution_layer_grid() -> None:
     loaded = load_production_configuration()
 

@@ -587,19 +587,24 @@ def evaluate_fitted_pure_order_cell(
     expected_subset_count = (2 ** len(target_ids)) - 2
     if target_drift is None or len(subset_drifts) != expected_subset_count:
         return FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, False), False)
+    maximum_subset_drift = (
+        0.0
+        if not subset_drifts
+        else maximal_proper_subset_drift(
+            tuple(
+                proper_subset_drift(
+                    (drift,),
+                    (0.0,),
+                    1.0,
+                    config.numerics.metric_denominator_floor,
+                )
+                for drift in subset_drifts
+            )
+        )
+    )
     return FittedPureOrderResult(
         PureOrderDriftMetrics(
-            maximal_proper_subset_drift(
-                tuple(
-                    proper_subset_drift(
-                        (drift,),
-                        (0.0,),
-                        1.0,
-                        config.numerics.metric_denominator_floor,
-                    )
-                    for drift in subset_drifts
-                )
-            ),
+            maximum_subset_drift,
             target_drift,
             True,
         ),
