@@ -62,8 +62,8 @@ def one_sided_synthetic_sign_flip_p_value(
     if monte_carlo_replicates <= 0:
         raise ValueError("Monte Carlo sign-flip inference requires positive replicate count")
     generator = random.Random(seed)
-    extreme_count = 0
-    for _replicate in range(monte_carlo_replicates):
+    extreme_count = 1
+    for _replicate in range(monte_carlo_replicates - 1):
         pattern = tuple(
             generator.choice((SignFlipDirection.NEGATIVE, SignFlipDirection.POSITIVE))
             for _value in differences

@@ -49,6 +49,10 @@ def test_one_sided_synthetic_sign_flip_is_deterministic_when_monte_carlo_is_requ
     assert 0.0 < first <= 1.0
 
 
+def test_monte_carlo_sign_flip_includes_the_all_positive_assignment_exactly_once() -> None:
+    assert one_sided_synthetic_sign_flip_p_value((1.0,) * 5, 4, 1, 7) == 1.0
+
+
 def test_one_sided_bca_lower_bound_uses_the_declared_confidence_tail() -> None:
     lower = mean_bca_one_sided_lower_bound((1.0, 2.0, 3.0), 0.95, 1000, 11)
 
