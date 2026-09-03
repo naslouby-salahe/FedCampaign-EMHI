@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from fedcampaign_emhi.analysis.results import PRIMARY_HOLM_STATISTICS, SECONDARY_HOLM_STATISTICS
+from fedcampaign_emhi.analysis.results import (
+    PRIMARY_HOLM_STATISTICS,
+    SECONDARY_HOLM_STATISTICS,
+    materialize_primary_holm_family,
+    materialize_secondary_holm_family,
+)
 from fedcampaign_emhi.artifacts.provenance import (
     content_digest,
     evidence_export_boundary_digest,
@@ -129,18 +134,7 @@ def required_primary_holm_statistics(
 def _verified_primary_holm_family(
     loaded: LoadedScientificConfiguration, repository: Path, paths: tuple[Path, ...]
 ) -> PrimaryHolmFamilyRecord:
-    layout = build_artifact_layout(loaded, repository)
-    path = (
-        layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "primary-holm.json"
-    )
-    if not path.is_file():
-        raise FileNotFoundError(
-            "project summary requires the verified primary Holm analysis artifact"
-        )
+    path = materialize_primary_holm_family(loaded, repository)
     record = PrimaryHolmFamilyRecord.model_validate_json(path.read_bytes())
     if record.material_digest != loaded.material_digest:
         raise ValueError("primary Holm analysis artifact is stale")
@@ -186,18 +180,7 @@ def required_secondary_holm_statistics(
 def _verified_secondary_holm_family(
     loaded: LoadedScientificConfiguration, repository: Path, paths: tuple[Path, ...]
 ) -> SecondaryHolmFamilyRecord:
-    layout = build_artifact_layout(loaded, repository)
-    path = (
-        layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "secondary-holm.json"
-    )
-    if not path.is_file():
-        raise FileNotFoundError(
-            "project summary requires the verified secondary Holm analysis artifact"
-        )
+    path = materialize_secondary_holm_family(loaded, repository)
     record = SecondaryHolmFamilyRecord.model_validate_json(path.read_bytes())
     if record.material_digest != loaded.material_digest:
         raise ValueError("secondary Holm analysis artifact is stale")
