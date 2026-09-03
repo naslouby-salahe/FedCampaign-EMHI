@@ -64,7 +64,7 @@ from fedcampaign_emhi.experiments.synthetic import (
     composition_reference_cell,
     composition_reference_rows,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, deterministic_digest
+from fedcampaign_emhi.runtime import derive_component_seed, deterministic_digest, log_stage
 from fedcampaign_emhi.synthetic.generators import (
     equally_spaced_loadings,
     generate_common_mode_scores,
@@ -153,6 +153,7 @@ def _block(
     )
 
 
+@log_stage("experiments.calibration")
 def evaluate_finite_horizon_common_mode_seed(
     config: ScientificConfig, seed: SeedValue
 ) -> FiniteHorizonSeedResult:
@@ -302,6 +303,7 @@ def _horizon_stop_indicators(
     )
 
 
+@log_stage("experiments.calibration")
 def evaluate_composition_candidate_seed(
     config: ScientificConfig, method_name: MethodName, seed: SeedValue
 ) -> CompositionCandidateSeedMetrics:
@@ -392,6 +394,7 @@ class FittedPureOrderResult:
     artifact_path_complete: Boolean
 
 
+@log_stage("experiments.calibration")
 def evaluate_comparator_pure_order_cell(
     config: ScientificConfig, cell: PureOrderCell, seed: SeedValue
 ) -> PureOrderDriftMetrics | None:
@@ -457,6 +460,7 @@ def emhi_method_settings(
     return None
 
 
+@log_stage("experiments.calibration")
 def evaluate_fitted_pure_order_cell(
     config: ScientificConfig, cell: PureOrderCell, seed: SeedValue
 ) -> FittedPureOrderResult | None:

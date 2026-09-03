@@ -16,7 +16,7 @@ from fedcampaign_emhi.domain.types import (
     TreeCount,
     WorkerCount,
 )
-from fedcampaign_emhi.runtime import thirty_two_bit_seed
+from fedcampaign_emhi.runtime import log_stage, thirty_two_bit_seed
 
 
 class FittedIsolationForest:
@@ -31,6 +31,7 @@ class FittedIsolationForest:
         return tuple((-scored).tolist())
 
 
+@log_stage("models.classical")
 def fit_isolation_forest(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
     tree_count: TreeCount,
@@ -83,6 +84,7 @@ class FittedOneClassSvm:
         return tuple((-scored).tolist())
 
 
+@log_stage("models.classical")
 def fit_one_class_svm(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
     nu: Probability,

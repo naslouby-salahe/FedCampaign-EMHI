@@ -52,7 +52,7 @@ PACKAGE_DEPENDENCIES: dict[str, frozenset[str]] = {
             "runtime",
         }
     ),
-    "analysis": frozenset({"domain", "config", "evaluation", "artifacts"}),
+    "analysis": frozenset({"domain", "config", "evaluation", "artifacts", "runtime"}),
     "execution": frozenset(
         {
             "domain",

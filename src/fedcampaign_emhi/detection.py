@@ -59,7 +59,7 @@ from fedcampaign_emhi.models.classical import (
     isolation_forest_anomaly_scores,
     one_class_svm_anomaly_scores,
 )
-from fedcampaign_emhi.runtime import derive_component_seed
+from fedcampaign_emhi.runtime import derive_component_seed, log_stage
 
 type FittedClientDetector = FittedIsolationForest | FittedOneClassSvm | FittedAutoencoder
 
@@ -157,6 +157,7 @@ def score_autoencoder(
     )
 
 
+@log_stage("detection")
 def fit_client_detector(
     config: ScientificConfig,
     detector_family: DetectorFamily,
@@ -284,6 +285,7 @@ def score_client(
     )
 
 
+@log_stage("detection")
 def build_detector_score_artifact(
     config: ScientificConfig,
     prepared: PreparedDatasetRecord,

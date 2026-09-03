@@ -21,7 +21,7 @@ from fedcampaign_emhi.models.autoencoder import (
     initial_xavier_autoencoder_parameters,
     train_client_autoencoder_epochs,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import derive_component_seed, log_stage, thirty_two_bit_seed
 
 
 def fedavg_participant_indexes(
@@ -68,6 +68,7 @@ def fedavg_sample_weighted_layer_mean(
     return (accumulated / total_samples).astype(np.float32)
 
 
+@log_stage("comparators.federated")
 def fit_federated_autoencoder(
     client_fit_rows: tuple[tuple[tuple[FeatureValue, ...], ...], ...],
     client_ids: tuple[ClientId, ...],

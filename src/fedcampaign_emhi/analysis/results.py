@@ -43,6 +43,7 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
     SeedValue,
 )
+from fedcampaign_emhi.runtime import log_stage
 
 
 def seed_mean(values: tuple[MetricValue, ...]) -> MetricValue:
@@ -198,6 +199,7 @@ def _verified_statistical_record(
     return record
 
 
+@log_stage("analysis.results")
 def materialize_primary_holm_family(
     loaded: LoadedScientificConfiguration, repository: Path
 ) -> Path:
@@ -272,6 +274,7 @@ def materialize_primary_holm_family(
     return path
 
 
+@log_stage("analysis.results")
 def materialize_secondary_holm_family(
     loaded: LoadedScientificConfiguration, repository: Path
 ) -> Path:

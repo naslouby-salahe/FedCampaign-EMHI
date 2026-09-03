@@ -86,7 +86,7 @@ from fedcampaign_emhi.emhi.structure import (
     rank_at_epoch,
     tensor_representation,
 )
-from fedcampaign_emhi.runtime import derive_component_seed
+from fedcampaign_emhi.runtime import derive_component_seed, log_stage
 
 type FoldRankCache = UserDict[tuple[RecordCount, RecordCount], MarginalRankArtifactRecord]
 type OrderContextCache = UserDict[
@@ -124,6 +124,7 @@ def residual_mean_square(
     return total / len(residuals)
 
 
+@log_stage("emhi.calibration")
 def cross_validated_ridge_penalty(
     design_rows: tuple[tuple[BasisCoordinate, ...], ...],
     tensors: tuple[tuple[InnovationCoordinate, ...], ...],
@@ -200,6 +201,7 @@ def moments_from_held_fold_innovations(
     return tuple(means), tuple(deviations)
 
 
+@log_stage("emhi.calibration")
 def calibrate_innovations_on_nuisance_fit(
     design_rows: tuple[tuple[BasisCoordinate, ...], ...],
     tensors: tuple[tuple[InnovationCoordinate, ...], ...],
@@ -354,6 +356,7 @@ def _minimum_support(config: ScientificConfig, coalition_order: CoalitionOrder) 
     )
 
 
+@log_stage("emhi.calibration")
 def _fit_order_context(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -558,6 +561,7 @@ def _design_and_tensors(
     )
 
 
+@log_stage("emhi.calibration")
 def _cross_fitted_cell_statistics(
     config: ScientificConfig,
     scores: DetectorScoreArtifactRecord,
@@ -730,6 +734,7 @@ def _cross_fitted_cell_statistics(
     return means, deviations, norm_reference
 
 
+@log_stage("emhi.calibration")
 def _fit_projection_cell(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -801,6 +806,7 @@ def _fit_projection_cell(
     )
 
 
+@log_stage("emhi.calibration")
 def build_emhi_fit_artifact(
     config: ScientificConfig,
     scores: DetectorScoreArtifactRecord,

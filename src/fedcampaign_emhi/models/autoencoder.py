@@ -20,7 +20,7 @@ from fedcampaign_emhi.domain.types import (
     WeightDecay,
     XavierGain,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import derive_component_seed, log_stage, thirty_two_bit_seed
 
 AUTOENCODER_ENCODER_WIDTH: LayerWidth = 32
 AUTOENCODER_LATENT_WIDTH: LayerWidth = 8
@@ -160,6 +160,7 @@ def _train_epochs(
     return trained_weights, trained_biases
 
 
+@log_stage("models.autoencoder")
 def fit_autoencoder(
     fit_rows: tuple[tuple[FeatureValue, ...], ...],
     learning_rate: LearningRate,
@@ -201,6 +202,7 @@ def initial_xavier_autoencoder_parameters(
     return _xavier_initial_parameters(input_dimension, root_seed)
 
 
+@log_stage("models.autoencoder")
 def train_client_autoencoder_epochs(
     fit_matrix: NDArray[np.float32],
     weights: tuple[NDArray[np.float32], ...],

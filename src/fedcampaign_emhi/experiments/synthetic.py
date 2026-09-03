@@ -100,7 +100,7 @@ from fedcampaign_emhi.evaluation.sequential import (
     sequential_trajectory,
     trajectory_context_coverage,
 )
-from fedcampaign_emhi.runtime import deterministic_digest
+from fedcampaign_emhi.runtime import deterministic_digest, log_stage
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
     evaluate_estimator_feasibility_seed,
@@ -308,6 +308,7 @@ def _calibrate_eprocess_threshold(
     return selected, upper, heldout_false_stops
 
 
+@log_stage("experiments.synthetic")
 def _evaluate_hofd_equivalence_seed(
     loaded: LoadedScientificConfiguration,
     seed: SeedValue,
@@ -696,6 +697,7 @@ def _target_order_standardized_drift(
     )
 
 
+@log_stage("experiments.synthetic")
 def _evaluate_outside_contamination_seed(
     loaded: LoadedScientificConfiguration, seed: SeedValue
 ) -> SyntheticCellOutcome:
@@ -819,6 +821,7 @@ def _evaluate_outside_contamination_seed(
     )
 
 
+@log_stage("experiments.synthetic")
 def _evaluate_dropout_sparsity_seed(
     loaded: LoadedScientificConfiguration, seed: SeedValue
 ) -> SyntheticCellOutcome:
@@ -984,6 +987,7 @@ def synthetic_role_seeds(
     return loaded.values.randomness.synthetic_development_roots
 
 
+@log_stage("experiments.synthetic")
 def run_synthetic_cell(
     loaded: LoadedScientificConfiguration,
     experiment_name: ExperimentName,

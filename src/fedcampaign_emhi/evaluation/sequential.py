@@ -93,6 +93,7 @@ from fedcampaign_emhi.evaluation.records import (
     OperationalCalibration,
     SequentialTrajectory,
 )
+from fedcampaign_emhi.runtime import log_stage
 
 type TrajectoryCacheKey = tuple[
     MaterialDependencyFingerprint,
@@ -144,6 +145,7 @@ def _trajectory_stops(
     return global_stop_epoch(trajectory, threshold) is not None
 
 
+@log_stage("evaluation.sequential")
 def calibrate_global_operating_point(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -228,6 +230,7 @@ def _horizon_exceedances(
     )
 
 
+@log_stage("evaluation.sequential")
 def calibrate_client_local_operating_point(
     config: ScientificConfig,
     scores: DetectorScoreArtifactRecord,
@@ -323,6 +326,7 @@ def calibrate_client_local_operating_point(
     )
 
 
+@log_stage("evaluation.sequential")
 def calibrate_operating_points(
     config: ScientificConfig,
     scores: DetectorScoreArtifactRecord,

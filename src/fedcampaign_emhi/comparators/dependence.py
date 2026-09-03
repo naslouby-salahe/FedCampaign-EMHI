@@ -43,6 +43,7 @@ from fedcampaign_emhi.emhi.projection import (
     ridge_coefficient_matrix,
 )
 from fedcampaign_emhi.emhi.structure import standard_normal_cdf
+from fedcampaign_emhi.runtime import log_stage
 
 
 def hofd_atom_rows(
@@ -94,6 +95,7 @@ def lancaster_triple_nonconformity(
     return standardized
 
 
+@log_stage("comparators.dependence")
 def fit_pair_dependence_reference(
     nuisance_pairs: tuple[tuple[RankValue, RankValue], ...],
 ) -> tuple[DependenceMoment, StandardDeviation]:
@@ -103,6 +105,7 @@ def fit_pair_dependence_reference(
     return sample_mean(moments), sample_standard_deviation(moments)
 
 
+@log_stage("comparators.dependence")
 def fit_lancaster_triple_reference(
     nuisance_triples: tuple[tuple[RankValue, RankValue, RankValue], ...],
 ) -> tuple[DependenceMoment, StandardDeviation]:
@@ -286,6 +289,7 @@ def pairwise_marginals(
     return target_ij, target_ik, target_jk
 
 
+@log_stage("comparators.dependence")
 def fit_pairwise_maxent_table(
     empirical_joint: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...],
     maximum_iterations: SolverIterationLimit,
@@ -405,6 +409,7 @@ class DVineFittedCorrelations:
     second_tree_correlation: Correlation
 
 
+@log_stage("comparators.dependence")
 def fit_d_vine_correlations(
     nuisance_triples: tuple[tuple[RankValue, RankValue, RankValue], ...],
     rank_clip_epsilon: NumericalFloor,
@@ -475,6 +480,7 @@ class GlobalFactorFittedBasis:
     factor_loadings: tuple[tuple[RankValue, ...], ...]
 
 
+@log_stage("comparators.dependence")
 def fit_global_factor_basis(
     nuisance_rank_matrix: tuple[tuple[RankValue, ...], ...],
     cumulative_variance_target: Probability,

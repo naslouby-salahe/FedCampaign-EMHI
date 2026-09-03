@@ -60,6 +60,7 @@ from fedcampaign_emhi.domain.types import (
 )
 from fedcampaign_emhi.emhi.projection import proper_subset_design_row
 from fedcampaign_emhi.emhi.structure import tensor_representation
+from fedcampaign_emhi.runtime import log_stage
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ class ComparatorFittedState:
     global_factor: GlobalFactorFittedBasis | None = None
 
 
+@log_stage("comparators.runtime")
 def fit_comparator_state(
     method_name: MethodName,
     nuisance_rows: tuple[tuple[RankValue, ...], ...],

@@ -111,7 +111,7 @@ from fedcampaign_emhi.domain.types import (
     RobustScaler,
     TonIotNetworkFlowRecord,
 )
-from fedcampaign_emhi.runtime import component_logger
+from fedcampaign_emhi.runtime import component_logger, log_stage
 
 
 def _preprocessing_logger() -> logging.Logger:
@@ -193,6 +193,7 @@ def nearest_reconstruction_layer(
     return None
 
 
+@log_stage("execution.preprocessing")
 def execute_preprocess(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -215,6 +216,7 @@ def execute_preprocess(
     )
 
 
+@log_stage("execution.preprocessing")
 def _execute_dataset(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -527,6 +529,7 @@ def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
     )
 
 
+@log_stage("execution.preprocessing")
 def _load_edge_records(
     raw_directory: Path,
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
@@ -541,6 +544,7 @@ def _load_edge_records(
     return tuple(records), tuple(exclusions)
 
 
+@log_stage("execution.preprocessing")
 def _build_prepared_and_split(
     loaded: LoadedScientificConfiguration,
     raw_directory: Path,
@@ -580,6 +584,7 @@ def _build_prepared_and_split(
     return _scale_prepared(loaded, prepared, split), split
 
 
+@log_stage("execution.preprocessing")
 def _prepare_ton_epochs_from_csv(
     loaded: LoadedScientificConfiguration, raw_directory: Path
 ) -> PreparedDatasetRecord:
@@ -682,6 +687,7 @@ def _duckdb_count(
     return int(cast(tuple[int], result)[0])
 
 
+@log_stage("execution.preprocessing")
 def _deduplicate_ton_records(
     records: tuple[TonIotNetworkFlowRecord, ...],
 ) -> tuple[tuple[TonIotNetworkFlowRecord, ...], RecordCount]:
@@ -704,6 +710,7 @@ def _deduplicate_ton_records(
     return tuple(records[index] for index in retained_indexes), outcome.duplicate_count
 
 
+@log_stage("execution.preprocessing")
 def _deduplicate_edge_records(
     records: tuple[EdgeIiotsetFlowRecord, ...],
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], RecordCount]:
@@ -966,6 +973,7 @@ def _empty_split(prepared: PreparedDatasetRecord) -> DatasetSplitRecord:
     )
 
 
+@log_stage("execution.preprocessing")
 def _scale_prepared(
     loaded: LoadedScientificConfiguration,
     prepared: PreparedDatasetRecord,

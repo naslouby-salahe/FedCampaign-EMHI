@@ -6,6 +6,7 @@ from fedcampaign_emhi.domain.enums import DatasetName
 from fedcampaign_emhi.domain.types import (
     FileInventoryEntry,
 )
+from fedcampaign_emhi.runtime import log_stage
 
 
 def discover_raw_paths(raw_directory: Path) -> tuple[Path, ...]:
@@ -33,6 +34,7 @@ def configured_raw_directory(
     return (repository / relative).resolve()
 
 
+@log_stage("datasets.inventory")
 def inventory_raw_directory(
     raw_directory: Path, repository: Path
 ) -> tuple[FileInventoryEntry, ...]:

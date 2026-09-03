@@ -41,7 +41,7 @@ from fedcampaign_emhi.domain.types import (
     SolverIterationLimit,
 )
 from fedcampaign_emhi.emhi.structure import complement_members, required_outside_client_count
-from fedcampaign_emhi.runtime import deterministic_utf8_bytes, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import deterministic_utf8_bytes, log_stage, thirty_two_bit_seed
 
 STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 
@@ -256,6 +256,7 @@ def assign_context_cell(
     return tied[0]
 
 
+@log_stage("emhi.contexts")
 def fit_context_centroids(
     rows: tuple[ContextTrainingRow, ...],
     identity: ContextClusterIdentity,

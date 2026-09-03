@@ -12,8 +12,10 @@ from fedcampaign_emhi.experiments.campaigns import (
     execute_campaign_experiment,
 )
 from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_experiment
+from fedcampaign_emhi.runtime import log_stage
 
 
+@log_stage("execution.runner")
 def execute_experiment(
     loaded: LoadedScientificConfiguration,
     repository: Path,

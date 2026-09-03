@@ -11,6 +11,7 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import ExperimentName
 from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, MetricValue, SvgCoordinate
+from fedcampaign_emhi.runtime import log_stage
 
 
 def load_seed_summaries(paths: tuple[Path, ...]) -> tuple[SeedSummaryRecord, ...]:
@@ -100,6 +101,7 @@ def write_paired_difference_figure(
     staging.replace(destination)
 
 
+@log_stage("reporting.export")
 def export_reproducibility(
     loaded: LoadedScientificConfiguration,
     repository: Path,

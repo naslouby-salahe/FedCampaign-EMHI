@@ -67,6 +67,7 @@ from fedcampaign_emhi.evaluation.sequential import (
 from fedcampaign_emhi.runtime import (
     derive_component_seed,
     deterministic_digest,
+    log_stage,
     thirty_two_bit_seed,
 )
 
@@ -333,6 +334,7 @@ def _stringent_local_policy(config: ScientificConfig) -> LocalPolicyArtifact:
     )
 
 
+@log_stage("evaluation.scalability")
 def collect_scalability_measurements(
     loaded: LoadedScientificConfiguration,
     client_count: ClientCount,

@@ -41,6 +41,7 @@ from fedcampaign_emhi.reporting.export import (
     write_paired_difference_figure,
     write_seed_summary_table,
 )
+from fedcampaign_emhi.runtime import log_stage
 
 
 @dataclass(frozen=True)
@@ -264,6 +265,7 @@ def select_verified_evidence(
     )
 
 
+@log_stage("reporting.evidence")
 def materialize_verified_experiment_report(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -306,6 +308,7 @@ def materialize_verified_experiment_report(
     return ReportMaterialization(experiment_name=experiment_name, output_paths=tuple(output_paths))
 
 
+@log_stage("reporting.evidence")
 def materialize_report_scope(
     loaded: LoadedScientificConfiguration,
     repository: Path,

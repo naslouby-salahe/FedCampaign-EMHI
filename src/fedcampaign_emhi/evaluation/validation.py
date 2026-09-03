@@ -44,6 +44,7 @@ from fedcampaign_emhi.emhi.sequential import trailing_support_window_client_ids
 from fedcampaign_emhi.emhi.structure import bounded_basis, clip_rank, midrank, tensor_dimension
 from fedcampaign_emhi.emhi.thresholds import select_calibrated_threshold
 from fedcampaign_emhi.evaluation.metrics import censored_plot_value, strict_odi_outcome
+from fedcampaign_emhi.runtime import log_stage
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ class SemanticIdempotencyRecord:
         }
 
 
+@log_stage("evaluation.validation")
 def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> SmokeValidationResult:
     context = loaded.values.context
     projection = loaded.values.projection

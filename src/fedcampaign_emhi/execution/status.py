@@ -14,6 +14,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import SeedCount
 from fedcampaign_emhi.execution.planning import plan_experiments
+from fedcampaign_emhi.runtime import log_stage
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ def _run_record_state(
     return record.state, lifecycle
 
 
+@log_stage("execution.status")
 def project_status(
     loaded: LoadedScientificConfiguration, repository: Path
 ) -> tuple[ExperimentStatus, ...]:

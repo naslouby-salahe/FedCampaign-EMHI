@@ -1,8 +1,12 @@
 import hashlib
 import logging
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import wraps
 from pathlib import Path
+from time import perf_counter
+from typing import ParamSpec, TypeVar
 
 import rfc8785
 
@@ -95,3 +99,40 @@ def configure_structured_logging() -> None:
 
 def component_logger(component_name: ComponentName) -> logging.Logger:
     return logging.getLogger(f"{STRUCTURED_LOG_ROOT_LOGGER_NAME}.{component_name}")
+
+
+_StageParams = ParamSpec("_StageParams")
+_StageResult = TypeVar("_StageResult")
+
+
+def log_stage(
+    component_name: ComponentName,
+) -> Callable[[Callable[_StageParams, _StageResult]], Callable[_StageParams, _StageResult]]:
+    def decorator(
+        func: Callable[_StageParams, _StageResult],
+    ) -> Callable[_StageParams, _StageResult]:
+        @wraps(func)
+        def wrapper(*args: _StageParams.args, **kwargs: _StageParams.kwargs) -> _StageResult:
+            logger = component_logger(component_name)
+            started = perf_counter()
+            logger.info("stage_started function=%s", func.__qualname__)
+            try:
+                result = func(*args, **kwargs)
+            except Exception as error:
+                logger.info(
+                    "stage_failed function=%s elapsed_seconds=%.6f error=%s",
+                    func.__qualname__,
+                    perf_counter() - started,
+                    error,
+                )
+                raise
+            logger.info(
+                "stage_completed function=%s elapsed_seconds=%.6f",
+                func.__qualname__,
+                perf_counter() - started,
+            )
+            return result
+
+        return wrapper
+
+    return decorator
