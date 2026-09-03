@@ -197,6 +197,7 @@ from fedcampaign_emhi.evaluation.scalability import (
     ScalabilityMeasurement,
     collect_scalability_measurements,
     expected_scalability_coalitions,
+    resident_set_bytes,
     summarize_scalability,
 )
 from fedcampaign_emhi.evaluation.sequential import (
@@ -506,7 +507,7 @@ def _execute_synthetic_module_validation(
         upstream_artifact_ids=(),
         dependency_fingerprint=fingerprint,
         runtime_seconds=elapsed,
-        peak_rss_bytes=0,
+        peak_rss_bytes=resident_set_bytes(),
         application_payload_bytes=len(diagnostic_path.read_bytes()),
         completion_record=completion,
     )
@@ -905,7 +906,7 @@ def _execute_synthetic_experiment(
                     upstream_artifact_ids=(),
                     dependency_fingerprint=fingerprint,
                     runtime_seconds=perf_counter() - started,
-                    peak_rss_bytes=0,
+                    peak_rss_bytes=resident_set_bytes(),
                     application_payload_bytes=len(diagnostic_path.read_bytes()),
                     completion_record=completion,
                 )
@@ -2237,7 +2238,7 @@ def _evaluate_emhi_seed_cell(
         upstream_artifact_ids=upstream_ids,
         dependency_fingerprint=fingerprint,
         runtime_seconds=elapsed,
-        peak_rss_bytes=0,
+        peak_rss_bytes=resident_set_bytes(),
         application_payload_bytes=len(raw_path.read_bytes()),
         completion_record=completion,
     )
@@ -3886,6 +3887,7 @@ def _evaluate_comparator_seed_cell(
     score_path: Path,
     rank_path: Path,
 ) -> Path:
+    cell_started = perf_counter()
     dataset_name = campaign_dataset(loaded, experiment_name)
     _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
         _preprocessing_paths(loaded, repository, dataset_name)
@@ -4090,8 +4092,8 @@ def _evaluate_comparator_seed_cell(
             layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY),
         ),
         dependency_fingerprint=fingerprint,
-        runtime_seconds=0.0,
-        peak_rss_bytes=0,
+        runtime_seconds=perf_counter() - cell_started,
+        peak_rss_bytes=resident_set_bytes(),
         application_payload_bytes=len(raw_path.read_bytes()),
         completion_record=CompletionRecord(
             state=ExperimentState.COMPLETED,
