@@ -313,7 +313,10 @@ def score_comparator_ranks(
                 config.comparators.multistream_cusum.drift_subtraction,
             )
             for previous, rank in zip(
-                previous_cusum_state or tuple(0.0 for _ in ranks), ranks, strict=True
+                previous_cusum_state
+                or tuple(config.comparators.multistream_cusum.initial_state for _ in ranks),
+                ranks,
+                strict=True,
             )
         )
         return global_cusum_score(states), states
