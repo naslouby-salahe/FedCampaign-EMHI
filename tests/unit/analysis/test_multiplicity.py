@@ -31,10 +31,12 @@ def test_primary_holm_retains_fixed_family_size_for_not_tested_hypotheses() -> N
 
 
 def test_fixed_holm_family_rejects_missing_or_duplicate_identifiers() -> None:
+    missing = primary_inputs()[:-1]
     with pytest.raises(ValueError):
-        primary_holm_family(primary_inputs()[:-1])
+        primary_holm_family(missing)
+    duplicate = (*primary_inputs(), primary_inputs()[0])
     with pytest.raises(ValueError):
-        primary_holm_family((*primary_inputs(), primary_inputs()[0]))
+        primary_holm_family(duplicate)
 
 
 def secondary_inputs() -> tuple[HolmHypothesisInput, ...]:
@@ -58,7 +60,9 @@ def test_secondary_holm_retains_fixed_family_size_for_not_tested_hypotheses() ->
 
 
 def test_secondary_holm_family_rejects_missing_or_duplicate_identifiers() -> None:
+    missing_secondary = secondary_inputs()[:-1]
     with pytest.raises(ValueError):
-        secondary_holm_family(secondary_inputs()[:-1])
+        secondary_holm_family(missing_secondary)
+    duplicate_secondary = (*secondary_inputs(), secondary_inputs()[0])
     with pytest.raises(ValueError):
-        secondary_holm_family((*secondary_inputs(), secondary_inputs()[0]))
+        secondary_holm_family(duplicate_secondary)

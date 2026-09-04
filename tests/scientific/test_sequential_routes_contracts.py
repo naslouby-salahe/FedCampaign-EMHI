@@ -54,7 +54,7 @@ def test_support_predicate_requires_minimum_distinct_clients_and_can_delay() -> 
 
 
 def test_support_predicate_never_lowers_threshold() -> None:
-    assert distributed_support_predicate(("a", "b", "c"), 3) is True
+    assert distributed_support_predicate(("a", "b", "c"), 3)
 
 
 def test_signed_theorem_route_threshold_is_reciprocal_of_arl_alpha() -> None:

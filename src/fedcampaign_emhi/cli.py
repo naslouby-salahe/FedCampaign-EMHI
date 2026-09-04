@@ -39,6 +39,8 @@ from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
 from fedcampaign_emhi.runtime import assess_implementation_readiness, configure_structured_logging
 
+RESUME_SEQUENCE_PREFIX = "resume_sequence="
+
 application = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
@@ -117,7 +119,7 @@ def doctor_command() -> None:
             f" confirmatory_seeds={status.confirmatory_seed_count}"
         )
     emit(f"next_action={next_action}")
-    emit("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+    emit(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
 
 
 _DATASET_ARGUMENT: DatasetName | None = typer.Argument(default=None)
@@ -165,7 +167,7 @@ def plan_command() -> None:
     plan_path = publish_plan_artifact(loaded, repository)
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"plan_artifact={plan_path}")
-    typer.echo("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+    typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
     for planned in plan_experiments(loaded):
         typer.echo(
             f"{planned.experiment_name.value}"
@@ -200,7 +202,7 @@ def smoke_command(
     typer.echo(f"state={result.state.value}")
     typer.echo(f"completed_cells={result.completed_cell_count}")
     typer.echo(f"detail={result.detail}")
-    typer.echo("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+    typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
     typer.echo("must_not_invalidate=real-data scientific artifacts")
     if result.state is not ExperimentState.COMPLETED:
         raise typer.Exit(code=1)
@@ -225,7 +227,7 @@ def run_command(
         typer.echo(f"material_digest={loaded.material_digest}")
         typer.echo("scientific_configuration_overrides=rejected")
         typer.echo("dry_run=true")
-        typer.echo("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+        typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
         return
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
     result = execute_experiment(loaded, repository, resolved, policy)
@@ -237,7 +239,7 @@ def run_command(
     typer.echo(f"state={result.state.value}")
     typer.echo(f"completed_cells={result.completed_cell_count}")
     typer.echo(f"detail={result.detail}")
-    typer.echo("resume_sequence=" + " -> ".join(RESUME_SEQUENCE))
+    typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
     if result.state in {ExperimentState.FAILED, ExperimentState.INVALID}:
         raise typer.Exit(code=1)
 

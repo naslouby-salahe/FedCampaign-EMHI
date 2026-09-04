@@ -43,6 +43,8 @@ from fedcampaign_emhi.reporting.export import (
 )
 from fedcampaign_emhi.runtime import log_stage
 
+RUN_RECORD_FILENAME = "run-record.json"
+
 
 @dataclass(frozen=True)
 class VerifiedExperimentEvidence:
@@ -75,7 +77,7 @@ def _completed_experiments(
             layout.experiment_outputs_root(experiment_name)
             / "provenance"
             / "dependencies"
-            / "run-record.json"
+            / RUN_RECORD_FILENAME
         )
         if not run_record_path.is_file():
             continue
@@ -210,7 +212,7 @@ def select_verified_evidence(
 ) -> VerifiedExperimentEvidence:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    run_record_path = root / "provenance" / "dependencies" / "run-record.json"
+    run_record_path = root / "provenance" / "dependencies" / RUN_RECORD_FILENAME
     if not run_record_path.is_file():
         raise FileNotFoundError(f"missing run record for {experiment_name.value}")
     run_record = ExperimentRunRecord.model_validate_json(run_record_path.read_bytes())
@@ -233,7 +235,7 @@ def select_verified_evidence(
     cell_paths = tuple(
         path
         for path in _json_files(root / "provenance" / "dependencies")
-        if path.name != "run-record.json"
+        if path.name != RUN_RECORD_FILENAME
     )
     required = seed_paths + statistical_paths + cell_paths
     if not cell_paths:

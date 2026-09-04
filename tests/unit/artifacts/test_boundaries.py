@@ -17,7 +17,9 @@ def test_boundary_digests_are_deterministic() -> None:
         statistical_analysis_boundary_digest,
         evidence_export_boundary_digest,
     ):
-        assert boundary(loaded.values) == boundary(loaded.values)
+        first = boundary(loaded.values)
+        second = boundary(loaded.values)
+        assert first == second
 
 
 def test_reporting_change_does_not_alter_statistical_analysis_boundary() -> None:

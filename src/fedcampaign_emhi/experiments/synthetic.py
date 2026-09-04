@@ -1107,7 +1107,7 @@ def run_synthetic_cell(
             finite = isfinite(mixed_score)
             mixed_diagnostics.append(
                 {
-                    "enabled_orders": list(sorted(enabled)),
+                    "enabled_orders": sorted(enabled),
                     "finite_native_order_score": finite,
                     "native_order_score": mixed_score,
                 }
@@ -1224,7 +1224,7 @@ def run_synthetic_cell(
                     "effect": cell.effect,
                     "method": cell.method.value,
                     "target_order": cell.target_order,
-                    "enabled_orders": list(sorted(cell.enabled_orders)),
+                    "enabled_orders": sorted(cell.enabled_orders),
                     "purity_valid": report.is_valid,
                     "scoring_state": "execution-layer-fitted-grid",
                 }
