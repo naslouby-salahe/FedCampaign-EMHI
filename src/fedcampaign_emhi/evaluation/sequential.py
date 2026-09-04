@@ -484,8 +484,7 @@ def _order_context(
         (
             context
             for context in fit.order_contexts
-            if context.coalition_order is coalition_order
-            and context.state is FitStatus.FITTED
+            if context.coalition_order is coalition_order and context.state is FitStatus.FITTED
         ),
         None,
     )
