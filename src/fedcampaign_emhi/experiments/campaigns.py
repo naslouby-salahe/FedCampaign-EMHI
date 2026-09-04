@@ -4515,8 +4515,8 @@ def materialize_coalition_scalability_summaries(
             "global_timing_operating_point_available": (
                 summary.global_timing_operating_point_available
             ),
-            "latency_criterion_state": summary.latency_criterion_state.value,
-            "numerical_criterion_state": summary.numerical_criterion_state.value,
+            "latency_within_target": summary.latency_within_target,
+            "numerical_failure_rate_within_bound": summary.numerical_failure_rate_within_bound,
             "artifact_fit_seconds": summary.artifact_fit_seconds,
             "state": summary.state.value,
         }
