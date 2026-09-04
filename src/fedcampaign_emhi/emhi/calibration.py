@@ -14,9 +14,9 @@ from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
+    FitStatus,
     MethodName,
     PartitionRole,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     BasisCoordinate,
@@ -372,7 +372,7 @@ def _fit_order_context(
             coalition_order=coalition_order,
             context_method=context_method,
             centroids=((1.0,),),
-            state=SupportState.SUPPORTED,
+            state=FitStatus.FITTED,
         )
     context_seed = context_seed_for_order(config, ranks, coalition_order, context_method)
     lag_lookup = (
@@ -425,13 +425,13 @@ def _fit_order_context(
             coalition_order=coalition_order,
             context_method=context_method,
             centroids=(),
-            state=SupportState.NOT_TESTED,
+            state=FitStatus.INSUFFICIENT_DATA,
         )
     return OrderContextFitRecord(
         coalition_order=coalition_order,
         context_method=context_method,
         centroids=centroids.centroids,
-        state=SupportState.SUPPORTED,
+        state=FitStatus.FITTED,
     )
 
 
@@ -613,7 +613,7 @@ def _cross_fitted_cell_statistics(
                 training_epochs,
             )
             order_context_cache[order_context_key] = order_context
-        if order_context.state is not SupportState.SUPPORTED:
+        if order_context.state is not FitStatus.FITTED:
             continue
         if context_cell >= len(order_context.centroids):
             continue
@@ -760,7 +760,7 @@ def _fit_projection_cell(
             coordinate_means=(),
             coordinate_deviations=(),
             operational_norm_reference=None,
-            state=SupportState.NOT_TESTED,
+            state=FitStatus.INSUFFICIENT_DATA,
             numerical_failure=False,
         )
     rows = _conditioned_rows(config, ranks, coalition, epochs, references)
@@ -785,7 +785,7 @@ def _fit_projection_cell(
             coordinate_means=(),
             coordinate_deviations=(),
             operational_norm_reference=None,
-            state=SupportState.NOT_TESTED,
+            state=FitStatus.INSUFFICIENT_DATA,
             numerical_failure=True,
         )
     means, deviations, norm_reference = cross_fitted_statistics
@@ -801,7 +801,7 @@ def _fit_projection_cell(
         coordinate_means=means,
         coordinate_deviations=deviations,
         operational_norm_reference=norm_reference,
-        state=SupportState.SUPPORTED,
+        state=FitStatus.FITTED,
         numerical_failure=False,
     )
 
@@ -852,13 +852,13 @@ def build_emhi_fit_artifact(
         order_context = next(
             context for context in order_contexts if context.coalition_order is coalition.order
         )
-        if order_context.state is not SupportState.SUPPORTED:
+        if order_context.state is not FitStatus.FITTED:
             coalition_fits.append(
                 CoalitionFitRecord(
                     coalition_client_ids=coalition.client_ids,
                     coalition_order=coalition.order,
                     cells=(),
-                    state=SupportState.NOT_TESTED,
+                    state=FitStatus.INSUFFICIENT_DATA,
                 )
             )
             continue
@@ -912,9 +912,9 @@ def build_emhi_fit_artifact(
                 coalition_order=coalition.order,
                 cells=tuple(cells),
                 state=(
-                    SupportState.SUPPORTED
-                    if any(cell.state is SupportState.SUPPORTED for cell in cells)
-                    else SupportState.NOT_TESTED
+                    FitStatus.FITTED
+                    if any(cell.state is FitStatus.FITTED for cell in cells)
+                    else FitStatus.INSUFFICIENT_DATA
                 ),
             )
         )
