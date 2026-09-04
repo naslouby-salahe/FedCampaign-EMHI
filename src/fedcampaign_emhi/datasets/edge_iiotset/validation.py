@@ -2,13 +2,13 @@ import hashlib
 from pathlib import Path
 
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
+from fedcampaign_emhi.datasets.eligibility import build_eligibility_records
 from fedcampaign_emhi.datasets.partitions import epoch_index
 from fedcampaign_emhi.domain.enums import GroundTruthClass, SupportState
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientBenignTally,
     ClientCount,
-    ClientEligibilityRecord,
     ClientId,
     ConfigurationDigest,
     EdgeIiotsetFlowRecord,
@@ -124,21 +124,9 @@ def select_secondary_clients_from_tallies(
     target_client_count: ClientCount,
     minimum_eligible_client_count: ClientCount,
 ) -> SecondaryClientSelection:
-    eligibility: list[ClientEligibilityRecord] = []
-    for tally in sorted(tallies, key=lambda tally: tally.client_id):
-        nonempty_epochs = len(tally.observed_epoch_indexes)
-        eligible = (
-            tally.benign_event_count >= minimum_benign_event_records
-            and nonempty_epochs >= minimum_nonempty_benign_epochs
-        )
-        eligibility.append(
-            ClientEligibilityRecord(
-                client_id=tally.client_id,
-                benign_event_count=tally.benign_event_count,
-                benign_nonempty_epoch_count=nonempty_epochs,
-                is_eligible=eligible,
-            )
-        )
+    eligibility = build_eligibility_records(
+        tallies, minimum_benign_event_records, minimum_nonempty_benign_epochs
+    )
     ranked = sorted(
         (candidate for candidate in eligibility if candidate.is_eligible),
         key=lambda candidate: (-candidate.benign_event_count, candidate.client_id),
@@ -148,19 +136,19 @@ def select_secondary_clients_from_tallies(
         return SecondaryClientSelection(
             selected_client_ids=(),
             eligible_client_ids=eligible_ids,
-            eligibility=tuple(eligibility),
+            eligibility=eligibility,
             support_state=SupportState.NOT_TESTED,
         )
     if len(eligible_ids) < target_client_count:
         return SecondaryClientSelection(
             selected_client_ids=eligible_ids,
             eligible_client_ids=eligible_ids,
-            eligibility=tuple(eligibility),
+            eligibility=eligibility,
             support_state=SupportState.SUPPORTED,
         )
     return SecondaryClientSelection(
         selected_client_ids=eligible_ids[:target_client_count],
         eligible_client_ids=eligible_ids,
-        eligibility=tuple(eligibility),
+        eligibility=eligibility,
         support_state=SupportState.SUPPORTED,
     )
