@@ -247,27 +247,27 @@ def score_comparator_ranks(
     if method_name in _EMHI_REQUIRING_FITTED_ARTIFACT:
         raise ValueError("EMHI methods require a fitted EMHI artifact")
     if method_name is MethodName.RAW_MEAN_RANK_FUSION:
-        return _raw_mean_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _raw_mean_scorer(ranks, previous_cusum_state)
     if method_name is MethodName.RAW_MAX_RANK_FUSION:
-        return _raw_max_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _raw_max_scorer(ranks, previous_cusum_state)
     if method_name is MethodName.CONDITIONAL_PAIR_DEPENDENCE:
         return _pair_dependence_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE:
         return _lancaster_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.CONNECTED_INFORMATION_REFERENCE:
-        return _connected_information_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _connected_information_scorer(ranks, previous_cusum_state, fitted_state)
     if method_name is MethodName.D_VINE_CONDITIONAL_REFERENCE:
         return _d_vine_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE:
-        return _log_linear_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _log_linear_scorer(ranks, previous_cusum_state, fitted_state)
     if method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD:
-        return _hofd_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _hofd_scorer(ranks, config, previous_cusum_state)
     if method_name is MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE:
-        return _global_factor_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _global_factor_scorer(ranks, previous_cusum_state, fitted_state)
     if method_name is MethodName.MULTISTREAM_CUSUM_REFERENCE:
-        return _multistream_cusum_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _multistream_cusum_scorer(ranks, config, previous_cusum_state)
     if method_name is MethodName.FEDAVG_AUTOENCODER_REFERENCE:
-        return _raw_mean_scorer(ranks, config, previous_cusum_state, fitted_state)
+        return _raw_mean_scorer(ranks, previous_cusum_state)
     raise ValueError(f"unsupported comparator method {method_name.value}")
 
 
@@ -287,18 +287,14 @@ _EMHI_REQUIRING_FITTED_ARTIFACT = frozenset(
 
 def _raw_mean_scorer(
     ranks: tuple[RankValue, ...],
-    config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
-    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     return mean_rank_fusion(ranks), previous_cusum_state
 
 
 def _raw_max_scorer(
     ranks: tuple[RankValue, ...],
-    config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
-    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     return max_rank_fusion(ranks), previous_cusum_state
 
@@ -355,7 +351,6 @@ def _lancaster_scorer(
 
 def _connected_information_scorer(
     ranks: tuple[RankValue, ...],
-    config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
     fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
@@ -380,7 +375,6 @@ def _d_vine_scorer(
 
 def _log_linear_scorer(
     ranks: tuple[RankValue, ...],
-    config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
     fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
@@ -391,14 +385,12 @@ def _hofd_scorer(
     ranks: tuple[RankValue, ...],
     config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
-    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     return _hofd_score(ranks, config), previous_cusum_state
 
 
 def _global_factor_scorer(
     ranks: tuple[RankValue, ...],
-    config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
     fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
@@ -411,7 +403,6 @@ def _multistream_cusum_scorer(
     ranks: tuple[RankValue, ...],
     config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
-    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     states = tuple(
         next_cusum_state(
