@@ -86,7 +86,6 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     OverwritePolicy,
     PreprocessingLayer,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
@@ -618,7 +617,7 @@ def _prepare_ton_epochs_from_csv(
         validate_ton_iot_network_csv_schema(path)
     paths = tuple(str(path) for path in csv_paths)
     if not paths:
-        return _prepare_ton_epochs(loaded, (), (), (), SupportState.NOT_TESTED, 0, 0, 0)
+        return _prepare_ton_epochs(loaded, (), (), (), False, 0, 0, 0)
     epoch_seconds = loaded.values.time.real_data_epoch_seconds
     connection = duckdb.connect(":memory:")
     connection.execute("SET memory_limit='2GB'")
@@ -695,7 +694,7 @@ def _prepare_ton_epochs_from_csv(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=selection.selected_client_ids,
         eligible_client_ids=selection.eligible_client_ids,
-        selection_support_state=selection.has_sufficient_clients,
+        has_sufficient_clients=selection.has_sufficient_clients,
         epochs=epochs,
         excluded_record_count=raw_count - valid_count,
         duplicate_record_count=valid_count - distinct_count,
@@ -775,7 +774,7 @@ def _prepare_ton_epochs(
     records: tuple[TonIotNetworkFlowRecord, ...],
     selected_client_ids: tuple[ClientId, ...],
     eligible_client_ids: tuple[ClientId, ...],
-    support_state: SupportState,
+    has_sufficient_clients: Boolean,
     excluded_count: RecordCount,
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
@@ -814,7 +813,7 @@ def _prepare_ton_epochs(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=eligible_client_ids,
-        selection_support_state=support_state,
+        has_sufficient_clients=has_sufficient_clients,
         epochs=epochs,
         excluded_record_count=excluded_count,
         duplicate_record_count=duplicate_count,
@@ -827,7 +826,7 @@ def _prepare_edge_epochs(
     records: tuple[EdgeIiotsetFlowRecord, ...],
     selected_client_ids: tuple[ClientId, ...],
     eligible_client_ids: tuple[ClientId, ...],
-    support_state: SupportState,
+    has_sufficient_clients: Boolean,
     excluded_count: RecordCount,
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
@@ -869,7 +868,7 @@ def _prepare_edge_epochs(
         dataset_name=DatasetName.EDGE_IIOTSET,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=eligible_client_ids,
-        selection_support_state=support_state,
+        has_sufficient_clients=has_sufficient_clients,
         epochs=epochs,
         excluded_record_count=excluded_count,
         duplicate_record_count=duplicate_count,
@@ -970,14 +969,14 @@ def _split_from_prepared(
         fractions.threshold_and_policy_calibration,
     )
     partitions = chronological_benign_partitions(common_epochs, lengths)
-    support_state = prepared.selection_support_state
+    has_sufficient_clients = prepared.has_sufficient_clients
     if not partitions.detector_fit or not partitions.nuisance_fit:
-        support_state = SupportState.NOT_TESTED
+        has_sufficient_clients = False
     return DatasetSplitRecord(
         dataset_name=prepared.dataset_name,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        support_state=support_state,
+        has_sufficient_clients=has_sufficient_clients,
         detector_fit_epochs=partitions.detector_fit,
         nuisance_fit_epochs=partitions.nuisance_fit,
         threshold_calibration_epochs=partitions.threshold_and_policy_calibration,
@@ -990,7 +989,7 @@ def _empty_split(prepared: PreparedDatasetRecord) -> DatasetSplitRecord:
         dataset_name=prepared.dataset_name,
         selected_client_ids=prepared.selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        support_state=SupportState.NOT_TESTED,
+        has_sufficient_clients=False,
         detector_fit_epochs=(),
         nuisance_fit_epochs=(),
         threshold_calibration_epochs=(),
@@ -1052,7 +1051,7 @@ def _scale_prepared(
         dataset_name=prepared.dataset_name,
         selected_client_ids=prepared.selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
-        selection_support_state=prepared.selection_support_state,
+        has_sufficient_clients=prepared.has_sufficient_clients,
         epochs=tuple(sorted(scaled_rows, key=lambda row: (row.client_id, row.epoch_index))),
         client_scalers=tuple(scaler_records),
         excluded_record_count=prepared.excluded_record_count,
