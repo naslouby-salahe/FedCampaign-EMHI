@@ -253,17 +253,8 @@ def _execute_dataset(
     )
     start_layer = nearest_reconstruction_layer(reusable, overwrite_policy)
     if start_layer is None:
-        return None, tuple(
-            PreprocessingLayerDecision(
-                dataset_name=dataset_name,
-                layer=layer,
-                reused=True,
-                reconstructed=False,
-                previous_fingerprint=previous_fingerprints[index],
-                current_fingerprint=expected_fingerprints[index],
-                invalidated_descendant_ids=(),
-            )
-            for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
+        return None, _all_reused_decisions(
+            dataset_name, previous_fingerprints, expected_fingerprints
         )
     materialization = _resolve_materialization(
         loaded,
@@ -282,34 +273,18 @@ def _execute_dataset(
         previous = previous_fingerprints[index]
         current = expected_fingerprints[index]
         reconstructed = overwrite_policy is OverwritePolicy.OVERWRITE or index >= start_index
-        if reconstructed:
-            _materialize_layer(
-                layout,
-                dataset_name,
-                layer,
-                current,
-                materialization,
-                expected_fingerprints,
-            )
-        changed = reconstructed and previous is not None and previous != current
-        ancestor_changed = ancestor_changed or changed
-        decisions.append(
-            PreprocessingLayerDecision(
-                dataset_name=dataset_name,
-                layer=layer,
-                reused=not reconstructed,
-                reconstructed=reconstructed,
-                previous_fingerprint=previous,
-                current_fingerprint=current,
-                invalidated_descendant_ids=_downstream_invalidation(
-                    dataset_name,
-                    layer,
-                    previous,
-                    current,
-                    reconstructed and (changed or ancestor_changed),
-                ),
-            )
+        decision, ancestor_changed = _build_layer_decision(
+            layout,
+            dataset_name,
+            layer,
+            previous,
+            current,
+            reconstructed,
+            ancestor_changed,
+            materialization,
+            expected_fingerprints,
         )
+        decisions.append(decision)
     for decision in decisions:
         _preprocessing_logger().info(
             "reuse_decision layer=%s dataset=%s decision=%s",
@@ -318,6 +293,56 @@ def _execute_dataset(
             "reconstructed" if decision.reconstructed else "reused",
         )
     return start_layer, tuple(decisions)
+
+
+def _all_reused_decisions(
+    dataset_name: DatasetName,
+    previous_fingerprints: tuple[MaterialDependencyFingerprint | None, ...],
+    expected_fingerprints: tuple[MaterialDependencyFingerprint, ...],
+) -> tuple[PreprocessingLayerDecision, ...]:
+    return tuple(
+        PreprocessingLayerDecision(
+            dataset_name=dataset_name,
+            layer=layer,
+            reused=True,
+            reconstructed=False,
+            previous_fingerprint=previous_fingerprints[index],
+            current_fingerprint=expected_fingerprints[index],
+            invalidated_descendant_ids=(),
+        )
+        for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
+    )
+
+
+def _build_layer_decision(
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    previous: MaterialDependencyFingerprint | None,
+    current: MaterialDependencyFingerprint,
+    reconstructed: Boolean,
+    ancestor_changed: Boolean,
+    materialization: DatasetMaterialization,
+    expected_fingerprints: tuple[MaterialDependencyFingerprint, ...],
+) -> tuple[PreprocessingLayerDecision, Boolean]:
+    if reconstructed:
+        _materialize_layer(
+            layout, dataset_name, layer, current, materialization, expected_fingerprints
+        )
+    changed = reconstructed and previous is not None and previous != current
+    updated_ancestor_changed = ancestor_changed or changed
+    decision = PreprocessingLayerDecision(
+        dataset_name=dataset_name,
+        layer=layer,
+        reused=not reconstructed,
+        reconstructed=reconstructed,
+        previous_fingerprint=previous,
+        current_fingerprint=current,
+        invalidated_descendant_ids=_downstream_invalidation(
+            dataset_name, layer, previous, current, reconstructed and (changed or ancestor_changed)
+        ),
+    )
+    return decision, updated_ancestor_changed
 
 
 def _expected_fingerprints(

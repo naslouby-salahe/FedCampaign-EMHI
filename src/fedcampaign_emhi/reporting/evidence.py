@@ -241,23 +241,7 @@ def select_verified_evidence(
     if not cell_paths:
         raise ValueError(f"experiment {experiment_name.value} lacks scientific cell records")
     for cell_path in cell_paths:
-        cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
-        if cell.material_digest != loaded.material_digest:
-            raise ValueError(f"scientific cell {cell_path} is stale")
-        if cell.state is not ExperimentState.COMPLETED:
-            raise ValueError(f"scientific cell {cell_path} is not completed")
-        if len(cell.completion_record.mandatory_output_paths) != len(
-            cell.completion_record.mandatory_output_hashes
-        ):
-            raise ValueError(f"scientific cell {cell_path} has incomplete output hashes")
-        for relative_path, expected_hash in zip(
-            cell.completion_record.mandatory_output_paths,
-            cell.completion_record.mandatory_output_hashes,
-            strict=True,
-        ):
-            output_path = repository / relative_path
-            if not output_path.is_file() or file_sha256(output_path) != expected_hash:
-                raise ValueError(f"scientific cell {cell_path} has unverifiable outputs")
+        _validate_scientific_cell(loaded, repository, cell_path)
     return VerifiedExperimentEvidence(
         run_record=run_record,
         seed_summary_paths=seed_paths,
@@ -265,6 +249,30 @@ def select_verified_evidence(
         scientific_cell_paths=cell_paths,
         source_hashes=tuple(file_sha256(path) for path in required),
     )
+
+
+def _validate_scientific_cell(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    cell_path: Path,
+) -> None:
+    cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+    if cell.material_digest != loaded.material_digest:
+        raise ValueError(f"scientific cell {cell_path} is stale")
+    if cell.state is not ExperimentState.COMPLETED:
+        raise ValueError(f"scientific cell {cell_path} is not completed")
+    if len(cell.completion_record.mandatory_output_paths) != len(
+        cell.completion_record.mandatory_output_hashes
+    ):
+        raise ValueError(f"scientific cell {cell_path} has incomplete output hashes")
+    for relative_path, expected_hash in zip(
+        cell.completion_record.mandatory_output_paths,
+        cell.completion_record.mandatory_output_hashes,
+        strict=True,
+    ):
+        output_path = repository / relative_path
+        if not output_path.is_file() or file_sha256(output_path) != expected_hash:
+            raise ValueError(f"scientific cell {cell_path} has unverifiable outputs")
 
 
 @log_stage("reporting.evidence")

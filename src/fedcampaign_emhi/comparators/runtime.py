@@ -244,87 +244,35 @@ def score_comparator_ranks(
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
     if not ranks:
         raise ValueError("comparator scoring requires at least one rank")
+    if method_name in _EMHI_REQUIRING_FITTED_ARTIFACT:
+        raise ValueError("EMHI methods require a fitted EMHI artifact")
     if method_name is MethodName.RAW_MEAN_RANK_FUSION:
-        return mean_rank_fusion(ranks), previous_cusum_state
+        return _raw_mean_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.RAW_MAX_RANK_FUSION:
-        return max_rank_fusion(ranks), previous_cusum_state
+        return _raw_max_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.CONDITIONAL_PAIR_DEPENDENCE:
-        if len(ranks) < 2:
-            raise ValueError("pair comparator requires two ranks")
-        if (
-            fitted_state is None
-            or fitted_state.pair_dependence_mean is None
-            or fitted_state.pair_dependence_deviation is None
-        ):
-            raise ValueError("pair-dependence reference requires a fitted comparator state")
-        moment = pair_dependence_moment(ranks[0], ranks[1])
-        score = pair_dependence_nonconformity(
-            moment,
-            fitted_state.pair_dependence_mean,
-            fitted_state.pair_dependence_deviation,
-            config.numerics.metric_denominator_floor,
-        )
-        return score, previous_cusum_state
+        return _pair_dependence_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE:
-        if len(ranks) < 3:
-            raise ValueError("Lancaster comparator requires three ranks")
-        if (
-            fitted_state is None
-            or fitted_state.lancaster_triple_mean is None
-            or fitted_state.lancaster_triple_deviation is None
-        ):
-            raise ValueError("Lancaster-triple reference requires a fitted comparator state")
-        moment = lancaster_triple_moment(ranks[0], ranks[1], ranks[2])
-        return (
-            lancaster_triple_nonconformity(
-                moment,
-                fitted_state.lancaster_triple_mean,
-                fitted_state.lancaster_triple_deviation,
-                config.numerics.metric_denominator_floor,
-            ),
-            previous_cusum_state,
-        )
+        return _lancaster_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.CONNECTED_INFORMATION_REFERENCE:
-        return _connected_information_score(ranks, fitted_state), previous_cusum_state
+        return _connected_information_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.D_VINE_CONDITIONAL_REFERENCE:
-        if len(ranks) < 3:
-            raise ValueError("D-vine comparator requires three ranks")
-        if fitted_state is None or fitted_state.d_vine is None:
-            raise ValueError("D-vine conditional reference requires a fitted comparator state")
-        score = d_vine_conditional_reference_score(
-            (ranks[0], ranks[1], ranks[2]), fitted_state.d_vine, config.context.rank_clip_epsilon
-        )
-        return score, previous_cusum_state
+        return _d_vine_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE:
-        return _log_linear_score(ranks, fitted_state), previous_cusum_state
+        return _log_linear_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD:
-        return _hofd_score(ranks, config), previous_cusum_state
+        return _hofd_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE:
-        if fitted_state is None or fitted_state.global_factor is None:
-            raise ValueError("global factor residual reference requires a fitted comparator state")
-        return (
-            global_factor_residual_score(ranks, fitted_state.global_factor),
-            previous_cusum_state,
-        )
+        return _global_factor_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.MULTISTREAM_CUSUM_REFERENCE:
-        states = tuple(
-            next_cusum_state(
-                previous,
-                rank,
-                config.comparators.multistream_cusum.rank_center,
-                config.comparators.multistream_cusum.drift_subtraction,
-            )
-            for previous, rank in zip(
-                previous_cusum_state
-                or tuple(config.comparators.multistream_cusum.initial_state for _ in ranks),
-                ranks,
-                strict=True,
-            )
-        )
-        return global_cusum_score(states), states
+        return _multistream_cusum_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.FEDAVG_AUTOENCODER_REFERENCE:
-        return mean_rank_fusion(ranks), previous_cusum_state
-    if method_name in {
+        return _raw_mean_scorer(ranks, config, previous_cusum_state, fitted_state)
+    raise ValueError(f"unsupported comparator method {method_name.value}")
+
+
+_EMHI_REQUIRING_FITTED_ARTIFACT = frozenset(
+    {
         MethodName.FULL_FEDCAMPAIGN_EMHI,
         MethodName.EXCLUSION_MATCHED_ORDER_ONE_EMHI,
         MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
@@ -333,9 +281,153 @@ def score_comparator_ranks(
         MethodName.PARTIAL_COALITION_EXCLUSION,
         MethodName.NO_PROPER_SUBSET_PURIFICATION,
         MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
-    }:
-        raise ValueError("EMHI methods require a fitted EMHI artifact")
-    raise ValueError(f"unsupported comparator method {method_name.value}")
+    }
+)
+
+
+def _raw_mean_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    return mean_rank_fusion(ranks), previous_cusum_state
+
+
+def _raw_max_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    return max_rank_fusion(ranks), previous_cusum_state
+
+
+def _pair_dependence_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    if len(ranks) < 2:
+        raise ValueError("pair comparator requires two ranks")
+    if (
+        fitted_state is None
+        or fitted_state.pair_dependence_mean is None
+        or fitted_state.pair_dependence_deviation is None
+    ):
+        raise ValueError("pair-dependence reference requires a fitted comparator state")
+    moment = pair_dependence_moment(ranks[0], ranks[1])
+    score = pair_dependence_nonconformity(
+        moment,
+        fitted_state.pair_dependence_mean,
+        fitted_state.pair_dependence_deviation,
+        config.numerics.metric_denominator_floor,
+    )
+    return score, previous_cusum_state
+
+
+def _lancaster_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    if len(ranks) < 3:
+        raise ValueError("Lancaster comparator requires three ranks")
+    if (
+        fitted_state is None
+        or fitted_state.lancaster_triple_mean is None
+        or fitted_state.lancaster_triple_deviation is None
+    ):
+        raise ValueError("Lancaster-triple reference requires a fitted comparator state")
+    moment = lancaster_triple_moment(ranks[0], ranks[1], ranks[2])
+    return (
+        lancaster_triple_nonconformity(
+            moment,
+            fitted_state.lancaster_triple_mean,
+            fitted_state.lancaster_triple_deviation,
+            config.numerics.metric_denominator_floor,
+        ),
+        previous_cusum_state,
+    )
+
+
+def _connected_information_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    return _connected_information_score(ranks, fitted_state), previous_cusum_state
+
+
+def _d_vine_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    if len(ranks) < 3:
+        raise ValueError("D-vine comparator requires three ranks")
+    if fitted_state is None or fitted_state.d_vine is None:
+        raise ValueError("D-vine conditional reference requires a fitted comparator state")
+    score = d_vine_conditional_reference_score(
+        (ranks[0], ranks[1], ranks[2]), fitted_state.d_vine, config.context.rank_clip_epsilon
+    )
+    return score, previous_cusum_state
+
+
+def _log_linear_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    return _log_linear_score(ranks, fitted_state), previous_cusum_state
+
+
+def _hofd_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    return _hofd_score(ranks, config), previous_cusum_state
+
+
+def _global_factor_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    if fitted_state is None or fitted_state.global_factor is None:
+        raise ValueError("global factor residual reference requires a fitted comparator state")
+    return global_factor_residual_score(ranks, fitted_state.global_factor), previous_cusum_state
+
+
+def _multistream_cusum_scorer(
+    ranks: tuple[RankValue, ...],
+    config: ScientificConfig,
+    previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
+) -> tuple[DetectorScore, tuple[CusumState, ...]]:
+    states = tuple(
+        next_cusum_state(
+            previous,
+            rank,
+            config.comparators.multistream_cusum.rank_center,
+            config.comparators.multistream_cusum.drift_subtraction,
+        )
+        for previous, rank in zip(
+            previous_cusum_state
+            or tuple(config.comparators.multistream_cusum.initial_state for _ in ranks),
+            ranks,
+            strict=True,
+        )
+    )
+    return global_cusum_score(states), states
 
 
 def validate_comparator_runtime_contracts(config: ScientificConfig) -> None:

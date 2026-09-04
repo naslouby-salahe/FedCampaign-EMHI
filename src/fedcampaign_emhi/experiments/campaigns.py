@@ -37,6 +37,7 @@ from fedcampaign_emhi.artifacts.records import (
     BenignCommonModePositivePowerMeasurementRecord,
     BenignHorizonRecord,
     BenignPartitionRecord,
+    CampaignRecord,
     CampaignRegistryRecord,
     ClientDetectorScoreStream,
     ClientFeatureScalerRecord,
@@ -1967,95 +1968,108 @@ def _campaign_rows(
 ) -> tuple[tuple[YamlNode, ...], tuple[OdiIndicator, ...]]:
     rows: list[YamlNode] = []
     odi_values: list[OdiIndicator] = []
-    threshold = calibration.global_operating_point.threshold
     for campaign in campaigns.campaigns:
-        started = perf_counter()
-        trajectory = campaign_trajectory(loaded.values, ranks, fit, campaign)
-        elapsed: RuntimeSeconds = perf_counter() - started
-        evaluation_epochs = tuple(row.epoch_index for row in trajectory.epochs)
-        global_stop = None if threshold is None else global_stop_epoch(trajectory, threshold)
-        local_stops = local_stop_epochs(
-            scores,
-            calibration.local_operating_points,
-            evaluation_epochs,
-        )
-        odi = odi_evaluation_record(global_stop, local_stops)
-        earliest_local = earliest_local_stop(local_stops)
-        statistical = (
-            None
-            if global_stop is None or earliest_local is None
-            else statistical_lead(earliest_local, global_stop)
-        )
-        operational = (
-            None
-            if global_stop is None or earliest_local is None
-            else operational_lead(
-                earliest_local,
-                global_stop,
-                elapsed,
-                loaded.values.time.real_data_epoch_seconds,
-            )
-        )
-        coverage = trajectory_context_coverage(trajectory)
-        decisive = _trajectory_decisive_order(loaded, trajectory, global_stop)
-        indicator: OdiIndicator = odi.indicator
+        row, indicator = _campaign_row(loaded, scores, ranks, fit, calibration, campaign)
+        rows.append(row)
         odi_values.append(indicator)
-        stop_row = next(
-            (item for item in trajectory.epochs if item.epoch_index == global_stop),
+    return tuple(rows), tuple(odi_values)
+
+
+def _campaign_row(
+    loaded: LoadedScientificConfiguration,
+    scores: DetectorScoreArtifactRecord,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    calibration: OperationalCalibration,
+    campaign: CampaignRecord,
+) -> tuple[YamlNode, OdiIndicator]:
+    threshold = calibration.global_operating_point.threshold
+    started = perf_counter()
+    trajectory = campaign_trajectory(loaded.values, ranks, fit, campaign)
+    elapsed: RuntimeSeconds = perf_counter() - started
+    evaluation_epochs = tuple(row.epoch_index for row in trajectory.epochs)
+    global_stop = None if threshold is None else global_stop_epoch(trajectory, threshold)
+    local_stops = local_stop_epochs(
+        scores,
+        calibration.local_operating_points,
+        evaluation_epochs,
+    )
+    odi = odi_evaluation_record(global_stop, local_stops)
+    earliest_local = earliest_local_stop(local_stops)
+    statistical = (
+        None
+        if global_stop is None or earliest_local is None
+        else statistical_lead(earliest_local, global_stop)
+    )
+    operational = (
+        None
+        if global_stop is None or earliest_local is None
+        else operational_lead(
+            earliest_local,
+            global_stop,
+            elapsed,
+            loaded.values.time.real_data_epoch_seconds,
+        )
+    )
+    coverage = trajectory_context_coverage(trajectory)
+    decisive = _trajectory_decisive_order(loaded, trajectory, global_stop)
+    indicator: OdiIndicator = odi.indicator
+    stop_row = next(
+        (item for item in trajectory.epochs if item.epoch_index == global_stop),
+        None,
+    )
+    order_share = None
+    if stop_row is not None and decisive is not None:
+        matching_factor = next(
+            (factor for order, factor in stop_row.order_factors if order is decisive),
             None,
         )
-        order_share = None
-        if stop_row is not None and decisive is not None:
-            matching_factor = next(
-                (factor for order, factor in stop_row.order_factors if order is decisive),
-                None,
+        if matching_factor is not None:
+            order_share = order_evidence_share(
+                matching_factor,
+                tuple(factor for _order, factor in stop_row.order_factors),
+                loaded.values.numerics.metric_denominator_floor,
             )
-            if matching_factor is not None:
-                order_share = order_evidence_share(
-                    matching_factor,
-                    tuple(factor for _order, factor in stop_row.order_factors),
-                    loaded.values.numerics.metric_denominator_floor,
-                )
-        log_growth = (
-            None
-            if not trajectory.epochs
-            else mean_log_evidence_growth(
-                tuple(log(item.global_evidence_factor) for item in trajectory.epochs)
-            )
+    log_growth = (
+        None
+        if not trajectory.epochs
+        else mean_log_evidence_growth(
+            tuple(log(item.global_evidence_factor) for item in trajectory.epochs)
         )
-        scored_coalitions = 0 if stop_row is None else stop_row.scored_coalition_count
-        rows.append(
-            {
-                "start_epoch": campaign.start_epoch,
-                "end_epoch": campaign.end_epoch,
-                "participating_client_ids": list(campaign.participating_client_ids),
-                "global_stop_epoch": global_stop,
-                "local_stop_epochs": list(local_stops),
-                "local_min_stop_epoch": earliest_local,
-                "strict_odi": indicator,
-                "statistical_lead_epochs": statistical,
-                "operational_lead_epochs": operational,
-                "global_detected_within_horizon": odi.global_detection_indicator,
-                "local_detected_within_horizon": 0 if earliest_local is None else 1,
-                "paired_stopping_time_difference": (
-                    None
-                    if global_stop is None or earliest_local is None
-                    else paired_stopping_time_difference(global_stop, earliest_local)
-                ),
-                "paired_detection_indicator_difference": paired_detection_indicator_difference(
-                    bool(odi.global_detection_indicator), earliest_local is not None
-                ),
-                "decisive_order": decisive,
-                "order_evidence_share": order_share,
-                "mean_log_evidence_growth": log_growth,
-                "context_coverage": coverage,
-                "abstention_rate": 1.0 - coverage,
-                "server_latency_seconds": elapsed,
-                "end_to_end_latency_seconds": elapsed,
-                "throughput": None if elapsed <= 0.0 else throughput(scored_coalitions, elapsed),
-            }
-        )
-    return tuple(rows), tuple(odi_values)
+    )
+    scored_coalitions = 0 if stop_row is None else stop_row.scored_coalition_count
+    return (
+        {
+            "start_epoch": campaign.start_epoch,
+            "end_epoch": campaign.end_epoch,
+            "participating_client_ids": list(campaign.participating_client_ids),
+            "global_stop_epoch": global_stop,
+            "local_stop_epochs": list(local_stops),
+            "local_min_stop_epoch": earliest_local,
+            "strict_odi": indicator,
+            "statistical_lead_epochs": statistical,
+            "operational_lead_epochs": operational,
+            "global_detected_within_horizon": odi.global_detection_indicator,
+            "local_detected_within_horizon": 0 if earliest_local is None else 1,
+            "paired_stopping_time_difference": (
+                None
+                if global_stop is None or earliest_local is None
+                else paired_stopping_time_difference(global_stop, earliest_local)
+            ),
+            "paired_detection_indicator_difference": paired_detection_indicator_difference(
+                bool(odi.global_detection_indicator), earliest_local is not None
+            ),
+            "decisive_order": decisive,
+            "order_evidence_share": order_share,
+            "mean_log_evidence_growth": log_growth,
+            "context_coverage": coverage,
+            "abstention_rate": 1.0 - coverage,
+            "server_latency_seconds": elapsed,
+            "end_to_end_latency_seconds": elapsed,
+            "throughput": None if elapsed <= 0.0 else throughput(scored_coalitions, elapsed),
+        },
+        indicator,
+    )
 
 
 def _heldout_rows(
@@ -2634,21 +2648,7 @@ def materialize_seed_statistics(
     summaries = tuple(
         SeedSummaryRecord.model_validate_json(path.read_bytes()) for path in summary_paths
     )
-    method_groups: list[tuple[MethodName, tuple[SeedSummaryRecord, ...]]] = []
-    for summary in summaries:
-        existing = next(
-            (
-                index
-                for index, (method_name, _records) in enumerate(method_groups)
-                if method_name is summary.method_name
-            ),
-            None,
-        )
-        if existing is None:
-            method_groups.append((summary.method_name, (summary,)))
-        else:
-            method_name, records = method_groups[existing]
-            method_groups[existing] = (method_name, (*records, summary))
+    method_groups = _group_method_summaries(summaries)
     expected_confirmatory = loaded.values.randomness.real_confirmatory_roots
     method_groups = [
         (method_name, records)
@@ -2748,6 +2748,27 @@ def materialize_seed_statistics(
         write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
         paths.append(path)
     return tuple(paths)
+
+
+def _group_method_summaries(
+    summaries: tuple[SeedSummaryRecord, ...],
+) -> tuple[tuple[MethodName, tuple[SeedSummaryRecord, ...]], ...]:
+    method_groups: list[tuple[MethodName, tuple[SeedSummaryRecord, ...]]] = []
+    for summary in summaries:
+        existing = next(
+            (
+                index
+                for index, (method_name, _records) in enumerate(method_groups)
+                if method_name is summary.method_name
+            ),
+            None,
+        )
+        if existing is None:
+            method_groups.append((summary.method_name, (summary,)))
+        else:
+            method_name, records = method_groups[existing]
+            method_groups[existing] = (method_name, (*records, summary))
+    return tuple(method_groups)
 
 
 def _materialize_not_tested_primary_holm_statistic(
@@ -3197,18 +3218,9 @@ def _materialize_full_method_support(
                 comparator_operating_point_available=comparator_available,
             )
         )
-        if result.lead_criterion_satisfied is not lead_ok:
-            raise ValueError("full-method lead criterion is inconsistent")
-        if result.pfa_criterion_satisfied is not pfa_ok:
-            raise ValueError("full-method PFA criterion is inconsistent")
-        if result.odi_rate_criterion_satisfied is not odi_ok:
-            raise ValueError("full-method ODI-rate criterion is inconsistent")
-        if result.advantage_criterion_satisfied is not advantage_ok:
-            raise ValueError("full-method advantage criterion is inconsistent")
-        if result.matched_operating_point_criterion_satisfied is not matched_ok:
-            raise ValueError("full-method operating-point criterion is inconsistent")
-        if result.directional_criterion_satisfied is not directional_ok:
-            raise ValueError("full-method directional criterion is inconsistent")
+        _assert_full_method_criteria(
+            result, pfa_ok, odi_ok, advantage_ok, lead_ok, matched_ok, directional_ok
+        )
     else:
         result = FullMethodSupportResult(
             pfa_criterion_satisfied=pfa_ok,
@@ -3266,6 +3278,32 @@ def _materialize_full_method_support(
         layout.roots.outputs_root / "cache" / "staging",
     )
     return path
+
+
+def _assert_full_method_criteria(
+    support_result: FullMethodSupportResult,
+    pfa_ok: Boolean,
+    odi_ok: Boolean,
+    advantage_ok: Boolean,
+    lead_ok: Boolean,
+    matched_ok: Boolean,
+    directional_ok: Boolean,
+) -> None:
+    checks = (
+        ("PFA", support_result.pfa_criterion_satisfied, pfa_ok),
+        ("ODI-rate", support_result.odi_rate_criterion_satisfied, odi_ok),
+        ("advantage", support_result.advantage_criterion_satisfied, advantage_ok),
+        ("lead", support_result.lead_criterion_satisfied, lead_ok),
+        (
+            "operating-point",
+            support_result.matched_operating_point_criterion_satisfied,
+            matched_ok,
+        ),
+        ("directional", support_result.directional_criterion_satisfied, directional_ok),
+    )
+    for label, actual, expected in checks:
+        if actual is not expected:
+            raise ValueError(f"full-method {label} criterion is inconsistent")
 
 
 def _materialize_confirmatory_odi_inferences(
@@ -4251,91 +4289,105 @@ def _execute_real_emhi_methods(
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     if not prepared.selected_client_ids:
-        for role in contract.execution_roles:
-            for seed in _role_seeds(loaded, role):
-                for method_name in contract.methods:
-                    _materialize_not_tested_real_cell(
-                        loaded,
-                        repository,
-                        experiment_name,
-                        role,
-                        method_name,
-                        seed,
-                    )
-                    completed += 1
-        return completed, ()
+        return _materialize_not_tested_real_cells(loaded, repository, experiment_name, contract), ()
     for role in contract.execution_roles:
         for seed in _role_seeds(loaded, role):
-            seed_started = perf_counter()
-            _campaigns_logger().info(
-                "seed_started experiment=%s role=%s dataset=%s seed=%s",
-                experiment_name.value,
-                role.value,
-                dataset_name.value,
+            completed += _execute_real_emhi_seed(
+                loaded,
+                repository,
+                experiment_name,
+                dataset_name,
+                role,
                 seed,
-            )
-            score_path = materialize_detector_scores_with_retry(
-                loaded, repository, dataset_name, seed
-            )
-            rank_path = materialize_marginal_ranks_with_retry(
-                loaded, repository, dataset_name, seed, score_path
-            )
-            for method_name in supported:
-                fit_path = materialize_emhi_fit_with_retry(
-                    loaded,
-                    repository,
-                    dataset_name,
-                    seed,
-                    method_name,
-                    score_path,
-                    rank_path,
-                )
-                evaluate_emhi_seed_cell_with_retry(
-                    loaded,
-                    repository,
-                    experiment_name,
-                    role,
-                    method_name,
-                    seed,
-                    score_path,
-                    rank_path,
-                    fit_path,
-                )
-                completed += 1
-                _campaigns_logger().info(
-                    "method_cell_completed experiment=%s role=%s seed=%s method=%s",
-                    experiment_name.value,
-                    role.value,
-                    seed,
-                    method_name.value,
-                )
-            for method_name in missing:
-                evaluate_comparator_seed_cell_with_retry(
-                    loaded,
-                    repository,
-                    experiment_name,
-                    role,
-                    method_name,
-                    seed,
-                    score_path,
-                    rank_path,
-                )
-                completed += 1
-                _campaigns_logger().info(
-                    "method_cell_completed experiment=%s role=%s seed=%s method=%s",
-                    experiment_name.value,
-                    role.value,
-                    seed,
-                    method_name.value,
-                )
-            _campaigns_logger().info(
-                "seed_completed experiment=%s role=%s seed=%s elapsed_seconds=%.3f",
-                experiment_name.value,
-                role.value,
-                seed,
-                perf_counter() - seed_started,
+                supported,
+                missing,
             )
     return completed, ()
+
+
+def _materialize_not_tested_real_cells(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    contract: ExperimentContract,
+) -> RecordCount:
+    completed: RecordCount = 0
+    for role in contract.execution_roles:
+        for seed in _role_seeds(loaded, role):
+            for method_name in contract.methods:
+                _materialize_not_tested_real_cell(
+                    loaded, repository, experiment_name, role, method_name, seed
+                )
+                completed += 1
+    return completed
+
+
+def _execute_real_emhi_seed(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    dataset_name: DatasetName,
+    role: ExecutionRole,
+    seed: SeedValue,
+    supported: tuple[MethodName, ...],
+    missing: tuple[MethodName, ...],
+) -> RecordCount:
+    seed_started = perf_counter()
+    _campaigns_logger().info(
+        "seed_started experiment=%s role=%s dataset=%s seed=%s",
+        experiment_name.value,
+        role.value,
+        dataset_name.value,
+        seed,
+    )
+    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    rank_path = materialize_marginal_ranks_with_retry(
+        loaded, repository, dataset_name, seed, score_path
+    )
+    completed: RecordCount = 0
+    for method_name in supported:
+        fit_path = materialize_emhi_fit_with_retry(
+            loaded, repository, dataset_name, seed, method_name, score_path, rank_path
+        )
+        evaluate_emhi_seed_cell_with_retry(
+            loaded,
+            repository,
+            experiment_name,
+            role,
+            method_name,
+            seed,
+            score_path,
+            rank_path,
+            fit_path,
+        )
+        completed += 1
+        _campaigns_logger().info(
+            "method_cell_completed experiment=%s role=%s seed=%s method=%s",
+            experiment_name.value,
+            role.value,
+            seed,
+            method_name.value,
+        )
+    for method_name in missing:
+        evaluate_comparator_seed_cell_with_retry(
+            loaded, repository, experiment_name, role, method_name, seed, score_path, rank_path
+        )
+        completed += 1
+        _campaigns_logger().info(
+            "method_cell_completed experiment=%s role=%s seed=%s method=%s",
+            experiment_name.value,
+            role.value,
+            seed,
+            method_name.value,
+        )
+    _campaigns_logger().info(
+        "seed_completed experiment=%s role=%s seed=%s elapsed_seconds=%.3f",
+        experiment_name.value,
+        role.value,
+        seed,
+        perf_counter() - seed_started,
+    )
+    return completed
 
 
 def sensitivity_base_specification(

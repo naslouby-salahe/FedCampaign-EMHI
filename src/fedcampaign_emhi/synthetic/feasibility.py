@@ -245,7 +245,6 @@ def _component_seed(
 def _histogram_rows(
     config: ScientificConfig,
     sequence: DeterministicContextSupportSequence,
-    order: CoalitionOrder,
 ) -> tuple[tuple[HistogramBinMass, ...] | None, ...]:
     target = sequence.target_client_ids
     complement = tuple(client for client in sequence.client_ids if client not in target)
@@ -391,7 +390,7 @@ def evaluate_estimator_feasibility_condition(
     nuisance = generate_deterministic_context_support(
         clients, order, cell_count, support_per_context, nuisance_seed
     )
-    histograms = _histogram_rows(config, nuisance, order)
+    histograms = _histogram_rows(config, nuisance)
     centroids = _centroids(config, nuisance, order, cell_count, histograms, context_seed)
     if centroids is None:
         return _numerical_failure_metrics()
@@ -423,7 +422,7 @@ def evaluate_estimator_feasibility_condition(
         config.synthetic.sample_sizes.estimator_evaluation_samples_per_context_seed,
         evaluation_seed,
     )
-    evaluation_histograms = _histogram_rows(config, evaluation, order)
+    evaluation_histograms = _histogram_rows(config, evaluation)
     evaluation_ranks = _residual_ranks(config, evaluation, evaluation_histograms, centroids)
     supported = tuple(item for item in evaluation_ranks if item is not None)
     if not supported and not forced_no_abstention:

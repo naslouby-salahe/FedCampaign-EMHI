@@ -50,26 +50,9 @@ def _run_record_state(
     if not cell_paths:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
     for cell_path in cell_paths:
-        try:
-            cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
-        except (ValidationError, ValueError):
-            return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
-        if cell.material_digest != loaded.material_digest:
-            return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
-        if cell.state is not ExperimentState.COMPLETED:
-            return cell.state, ArtifactLifecycleState.INCOMPLETE
-        if len(cell.completion_record.mandatory_output_paths) != len(
-            cell.completion_record.mandatory_output_hashes
-        ):
-            return ExperimentState.INVALID, ArtifactLifecycleState.INCOMPLETE
-        for relative_path, expected_hash in zip(
-            cell.completion_record.mandatory_output_paths,
-            cell.completion_record.mandatory_output_hashes,
-            strict=True,
-        ):
-            output_path = repository / relative_path
-            if not output_path.is_file() or file_sha256(output_path) != expected_hash:
-                return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
+        failure = _cell_validation_failure(loaded, repository, cell_path)
+        if failure is not None:
+            return failure
     lifecycle = (
         ArtifactLifecycleState.VALID
         if record.state is ExperimentState.COMPLETED
@@ -78,6 +61,34 @@ def _run_record_state(
     if record.state is ExperimentState.FAILED:
         lifecycle = ArtifactLifecycleState.FAILED
     return record.state, lifecycle
+
+
+def _cell_validation_failure(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    cell_path: Path,
+) -> tuple[ExperimentState, ArtifactLifecycleState] | None:
+    try:
+        cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+    except (ValidationError, ValueError):
+        return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
+    if cell.material_digest != loaded.material_digest:
+        return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
+    if cell.state is not ExperimentState.COMPLETED:
+        return cell.state, ArtifactLifecycleState.INCOMPLETE
+    if len(cell.completion_record.mandatory_output_paths) != len(
+        cell.completion_record.mandatory_output_hashes
+    ):
+        return ExperimentState.INVALID, ArtifactLifecycleState.INCOMPLETE
+    for relative_path, expected_hash in zip(
+        cell.completion_record.mandatory_output_paths,
+        cell.completion_record.mandatory_output_hashes,
+        strict=True,
+    ):
+        output_path = repository / relative_path
+        if not output_path.is_file() or file_sha256(output_path) != expected_hash:
+            return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
+    return None
 
 
 @log_stage("execution.status")

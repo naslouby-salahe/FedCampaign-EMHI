@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isclose, isfinite, isnan, sqrt
 
@@ -351,6 +352,14 @@ def xor_exact_marginals(strength: XorInteractionStrength, tolerance: NumericalTo
         probabilities.append((1.0 + strength if parity else 1.0 - strength) / 8.0)
     if abs(sum(probabilities) - 1.0) > tolerance:
         return False
+    return _xor_uniform_marginals_pass(probabilities, tolerance) and (
+        _xor_pairwise_independence_pass(probabilities, tolerance)
+    )
+
+
+def _xor_uniform_marginals_pass(
+    probabilities: Sequence[Probability], tolerance: NumericalTolerance
+) -> Boolean:
     for coordinate in range(3):
         marginal = sum(
             probability
@@ -359,6 +368,12 @@ def xor_exact_marginals(strength: XorInteractionStrength, tolerance: NumericalTo
         )
         if abs(marginal - 0.5) > tolerance:
             return False
+    return True
+
+
+def _xor_pairwise_independence_pass(
+    probabilities: Sequence[Probability], tolerance: NumericalTolerance
+) -> Boolean:
     for left in range(3):
         for right in range(left + 1, 3):
             joint = sum(

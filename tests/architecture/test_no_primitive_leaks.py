@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
 from tests.architecture.ast_scans import (
     CANONICAL_TYPES_FILE,
     LOCAL_LEAK_CONTAINER_NAMES,
@@ -95,7 +96,7 @@ def _report(findings: list[tuple[str, int, str, str, str]]) -> str:
 @parametrize_source_files
 def test_no_primitive_leaks(path: Path) -> None:
     if path == CANONICAL_TYPES_FILE:
-        return
+        pytest.skip("canonical types module is exempt from the primitive-leak policy")
     findings = _scan_file(path)
     assert not findings, _report(findings)
 

@@ -46,6 +46,14 @@ def chronological_partition_lengths(
     )
 
 
+def _identifier_conflicts(existing: RetainedEvent, incoming: RetainedEvent) -> Boolean:
+    return (
+        existing.payload != incoming.payload
+        or existing.client_id != incoming.client_id
+        or existing.event_type != incoming.event_type
+    )
+
+
 def retain_first_chronological(
     events: tuple[RetainedEvent, ...],
 ) -> DeduplicationOutcome:
@@ -64,11 +72,7 @@ def retain_first_chronological(
         if event.unique_identifier is not None:
             existing = identified.get(event.unique_identifier)
             if existing is not None:
-                if (
-                    existing.payload != event.payload
-                    or existing.client_id != event.client_id
-                    or existing.event_type != event.event_type
-                ):
+                if _identifier_conflicts(existing, event):
                     return DeduplicationOutcome(
                         retained_events=(),
                         duplicate_count=duplicate_count,

@@ -822,10 +822,7 @@ def build_emhi_fit_artifact(
     dependency_fingerprint: MaterialDependencyFingerprint,
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
 ) -> EMHIFitArtifactRecord:
-    if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
-        cell_count = NO_OUTSIDE_CONTEXT_CELL_COUNT
-    if context_method is ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT:
-        raise ValueError(f"{context_method.value} requires its specialized validation route")
+    cell_count = _effective_cell_count(context_method, cell_count)
     candidates = (
         config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
     )
@@ -933,3 +930,11 @@ def build_emhi_fit_artifact(
         coalition_fits=tuple(coalition_fits),
         dependency_fingerprint=dependency_fingerprint,
     )
+
+
+def _effective_cell_count(context_method: ContextMethodName, cell_count: CellCount) -> CellCount:
+    if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
+        return NO_OUTSIDE_CONTEXT_CELL_COUNT
+    if context_method is ContextMethodName.ORACLE_OUTSIDE_LATENT_CONTEXT:
+        raise ValueError(f"{context_method.value} requires its specialized validation route")
+    return cell_count

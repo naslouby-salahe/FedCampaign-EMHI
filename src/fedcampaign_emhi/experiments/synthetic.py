@@ -44,6 +44,7 @@ from fedcampaign_emhi.domain.types import (
     ComponentName,
     DetectorScore,
     EffectCoefficient,
+    EpochCount,
     EpochIndexValue,
     EvidenceFactor,
     InnovationCoordinate,
@@ -94,6 +95,7 @@ from fedcampaign_emhi.evaluation.metrics import (
 )
 from fedcampaign_emhi.evaluation.scalability import scalability_client_ids
 from fedcampaign_emhi.evaluation.sequential import (
+    CalibratedGlobalOperatingPoint,
     calibrate_global_operating_point,
     coalition_evidence_at_epoch,
     global_stop_epoch,
@@ -884,73 +886,99 @@ def _evaluate_dropout_sparsity_seed(
         )
         campaign_origin = prefix_count
         scored = tuple(range(campaign_origin + warmup, campaign_origin + campaign_length))
+
         for fraction in config.generators.client_dropout.unavailable_fractions:
-            available_by_epoch = {
-                epoch: frozenset(availability_mask(client_ids, fraction, seed + epoch))
-                for epoch in scored
-            }
-            active_epochs = 0
-            for epoch in scored:
-                available = tuple(available_by_epoch[epoch])
-                if dropout_coalition_is_active(
-                    target,
-                    available,
-                    client_ids,
-                    config.context.minimum_available_outside_clients,
-                    config.context.minimum_available_outside_fraction,
-                ):
-                    active_epochs += 1
-            coverage = active_epochs / len(scored)
-            filtered_streams = tuple(
-                ClientMarginalRankStream(
-                    client_id=stream.client_id,
-                    nuisance_reference_scores=stream.nuisance_reference_scores,
-                    epoch_indexes=tuple(
-                        epoch
-                        for epoch, _rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
-                        if epoch not in available_by_epoch
-                        or stream.client_id in available_by_epoch[epoch]
-                    ),
-                    ranks=tuple(
-                        rank
-                        for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
-                        if epoch not in available_by_epoch
-                        or stream.client_id in available_by_epoch[epoch]
-                    ),
-                )
-                for stream in ranks.client_streams
-            )
-            filtered_ranks = ranks.model_copy(update={"client_streams": filtered_streams})
-            started = perf_counter()
-            trajectory = sequential_trajectory(config, filtered_ranks, fit, scored)
-            latency = perf_counter() - started
-            stop = (
-                None
-                if operating.threshold is None
-                else global_stop_epoch(trajectory, operating.threshold)
-            )
-            drift = _target_order_standardized_drift(
-                config,
-                ranks,
-                fit,
-                target,
-                tuple(range(nuisance_count)),
-                scored,
-            )
             records.append(
-                {
-                    "client_count": client_count,
-                    "unavailable_fraction": fraction,
-                    "context_coverage": coverage,
-                    "abstention_rate": abstention_rate(coverage),
-                    "standardized_null_bias": drift,
-                    "detection_rate": campaign_detection_rate((stop,), horizon),
-                    "latency_seconds": latency,
-                    "null_pfa": operating.heldout_upper_pfa,
-                    "operating_point_available": operating.threshold is not None,
-                }
+                _dropout_sparsity_record(
+                    config,
+                    ranks,
+                    fit,
+                    operating,
+                    target,
+                    client_ids,
+                    scored,
+                    client_count,
+                    seed,
+                    fraction,
+                    horizon,
+                    nuisance_count,
+                )
             )
     return SyntheticCellOutcome((), None, {"dropout_conditions": records})
+
+
+def _dropout_sparsity_record(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    operating: CalibratedGlobalOperatingPoint,
+    target: tuple[ClientId, ...],
+    client_ids: tuple[ClientId, ...],
+    scored: tuple[EpochIndexValue, ...],
+    client_count: ClientCount,
+    seed: SeedValue,
+    fraction: Probability,
+    horizon: EpochCount,
+    nuisance_count: EpochCount,
+) -> YamlNode:
+    available_by_epoch = {
+        epoch: frozenset(availability_mask(client_ids, fraction, seed + epoch)) for epoch in scored
+    }
+    active_epochs = 0
+    for epoch in scored:
+        available = tuple(available_by_epoch[epoch])
+        if dropout_coalition_is_active(
+            target,
+            available,
+            client_ids,
+            config.context.minimum_available_outside_clients,
+            config.context.minimum_available_outside_fraction,
+        ):
+            active_epochs += 1
+    coverage = active_epochs / len(scored)
+    filtered_streams = tuple(
+        ClientMarginalRankStream(
+            client_id=stream.client_id,
+            nuisance_reference_scores=stream.nuisance_reference_scores,
+            epoch_indexes=tuple(
+                epoch
+                for epoch, _rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+                if epoch not in available_by_epoch or stream.client_id in available_by_epoch[epoch]
+            ),
+            ranks=tuple(
+                rank
+                for epoch, rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+                if epoch not in available_by_epoch or stream.client_id in available_by_epoch[epoch]
+            ),
+        )
+        for stream in ranks.client_streams
+    )
+    filtered_ranks = ranks.model_copy(update={"client_streams": filtered_streams})
+    started = perf_counter()
+    trajectory = sequential_trajectory(config, filtered_ranks, fit, scored)
+    latency = perf_counter() - started
+    stop = (
+        None if operating.threshold is None else global_stop_epoch(trajectory, operating.threshold)
+    )
+    drift = _target_order_standardized_drift(
+        config,
+        ranks,
+        fit,
+        target,
+        tuple(range(nuisance_count)),
+        scored,
+    )
+    return {
+        "client_count": client_count,
+        "unavailable_fraction": fraction,
+        "context_coverage": coverage,
+        "abstention_rate": abstention_rate(coverage),
+        "standardized_null_bias": drift,
+        "detection_rate": campaign_detection_rate((stop,), horizon),
+        "latency_seconds": latency,
+        "null_pfa": operating.heldout_upper_pfa,
+        "operating_point_available": operating.threshold is not None,
+    }
 
 
 def composition_reference_cell(
@@ -1008,235 +1036,261 @@ def run_synthetic_cell(
             raise ValueError("HOFD equivalence requires a declared paired method")
         return _evaluate_hofd_equivalence_seed(loaded, seed)
     if experiment_name is ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY:
-        sequence = primary_feasibility_context_support(config, seed)
-        evaluations = evaluate_estimator_feasibility_seed(config, seed, execution_role)
-        primary = next(
-            evaluation
-            for evaluation in evaluations
-            if evaluation.condition.identifier == "primary-order-three"
-        )
-        metrics = primary.metrics
-        return SyntheticCellOutcome(
-            (),
-            None,
-            {
-                "primary_support_substrate_rows": len(sequence.ranks),
-                "primary_order_three": {
-                    "conditional_rank_mae": metrics.conditional_rank_mae,
-                    "projection_nrmse": metrics.projection_nrmse,
-                    "standardized_null_bias": metrics.standardized_null_bias,
-                    "context_coverage": metrics.context_coverage,
-                    "abstention_rate": metrics.abstention_rate,
-                    "condition_number": metrics.condition_number,
-                    "numerical_failure": metrics.numerical_failure,
-                    "numerical_failure_rate": metrics.numerical_failure_rate,
-                },
-                "condition_evaluations": [
-                    {
-                        "identifier": evaluation.condition.identifier,
-                        "order": evaluation.condition.order,
-                        "support_per_context": evaluation.condition.support_per_context,
-                        "basis_size": evaluation.condition.basis_size,
-                        "cell_count": evaluation.condition.cell_count,
-                        "forced_no_abstention": evaluation.condition.forced_no_abstention,
-                        "conditional_rank_mae": evaluation.metrics.conditional_rank_mae,
-                        "projection_nrmse": evaluation.metrics.projection_nrmse,
-                        "standardized_null_bias": evaluation.metrics.standardized_null_bias,
-                        "context_coverage": evaluation.metrics.context_coverage,
-                        "abstention_rate": evaluation.metrics.abstention_rate,
-                        "condition_number": evaluation.metrics.condition_number,
-                        "numerical_failure": evaluation.metrics.numerical_failure,
-                        "numerical_failure_rate": evaluation.metrics.numerical_failure_rate,
-                    }
-                    for evaluation in evaluations
-                ],
-            },
-            None,
-            None,
-            None,
-            EstimatorFeasibilitySeedMetrics(metrics),
-        )
+        return _estimator_feasibility_outcome(config, seed, execution_role)
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
-        if method_name is None:
-            raise ValueError("strong comparator selection requires a declared candidate")
-        order = native_target_order(method_name)
-        if order is None:
-            raise ValueError("strong comparator candidate has no native target order")
-        client_count = config.experiments.pure_order_separation_validation.primary_client_count
-        sample_count = config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
-        cell = composition_reference_cell(method_name, order, config)
-        nuisance = tuple(
-            sample_independent_uniform_ranks(client_count, seed + index)
-            for index in range(sample_count)
-        )
-        alternatives = composition_reference_rows(cell, client_count, seed, sample_count)
-        fitted_state = fit_comparator_state(
-            method_name, tuple(row[:order] for row in nuisance), config
-        )
-        null_scores = tuple(
-            score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
-            for row in nuisance
-        )
-        alternative_scores = tuple(
-            score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
-            for row in alternatives
-        )
-        mean = sum(null_scores) / len(null_scores)
-        deviation = (sum((value - mean) ** 2 for value in null_scores) / len(null_scores)) ** 0.5
-        if deviation <= config.numerics.metric_denominator_floor:
-            return SyntheticCellOutcome(
-                ("strong comparator nuisance variation is not usable",),
-                None,
-                {"implementation_state": "unusable_nuisance_standardization"},
-            )
-        standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
-        mixed_diagnostics: list[YamlNode] = []
-        mixed_failures: list[ComponentName] = []
-        remaining = client_count - CoalitionOrder.THREE
-        for term_index, term_set in enumerate(config.generators.mixed_order.enabled_term_sets):
-            enabled = frozenset(CoalitionOrder(term) for term in term_set)
-            row = sample_mixed_order_ranks(
-                enabled,
-                config.generators.mixed_order.term_coefficient,
-                remaining,
-                seed + sample_count + term_index,
-            )
-            mixed_score, _state = score_comparator_ranks(
-                method_name, row[:order], config, (), fitted_state
-            )
-            finite = isfinite(mixed_score)
-            mixed_diagnostics.append(
-                {
-                    "enabled_orders": sorted(enabled),
-                    "finite_native_order_score": finite,
-                    "native_order_score": mixed_score,
-                }
-            )
-            if not finite:
-                mixed_failures.append(f"mixed-order diagnostic {sorted(enabled)}")
-        return SyntheticCellOutcome(
-            tuple(mixed_failures),
-            standardized_score,
-            {
-                "implementation_state": "native_order_score_complete",
-                "native_target_order": order,
-                "standardized_target_order_score": standardized_score,
-                "standardized_target_order_error": abs(
-                    standardized_score - config.generators.pure_polynomial.primary_reference_theta
-                ),
-                "mixed_order_diagnostics": mixed_diagnostics,
-            },
-        )
+        return _strong_comparator_outcome(config, seed, method_name)
     if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
-        result = evaluate_signed_theorem_seed(config, seed)
-        failed_checks: tuple[ComponentName, ...] = (
-            () if result.assumptions_hold else ("signed-theorem mechanical assumptions",)
-        )
-        return SyntheticCellOutcome(
-            failed_checks,
-            None,
-            {
-                "signed_theorem": {
-                    "restricted_arl": result.metrics.restricted_arl,
-                    "stopped_trajectory_count": result.metrics.stopped_trajectory_count,
-                    "trajectory_count": result.metrics.trajectory_count,
-                    "maximum_trajectory_epochs": result.metrics.maximum_trajectory_epochs,
-                    "e_sr_threshold": result.metrics.threshold,
-                    "compensator": result.metrics.compensator,
-                    "assumptions_hold": result.assumptions_hold,
-                }
-            },
-            None,
-            None,
-            result.metrics,
-        )
+        return _sequential_evidence_outcome(config, seed)
     if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
-        result = evaluate_self_explanation_seed(config, seed)
-        materiality = config.materiality.self_explanation
-        exact_derivative_within_margin = exact_nuisance_derivative_within_margin(
-            result.primary_exact_nuisance_derivative,
-            materiality.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
-        )
-        attenuation_is_material = material_attenuation_criterion(
-            result.primary_attenuation_contrast,
-            materiality.minimum_attenuation_difference,
-        )
-        return SyntheticCellOutcome(
-            (),
-            None,
-            {
-                "grid_cell_count": len(result.measurements),
-                "primary_exact_nuisance_derivative": result.primary_exact_nuisance_derivative,
-                "primary_attenuation_contrast": result.primary_attenuation_contrast,
-                "exact_nuisance_derivative_within_margin": exact_derivative_within_margin,
-                "attenuation_is_material": attenuation_is_material,
-                "measurements": [
-                    {
-                        "client_count": measurement.cell.client_count,
-                        "coalition_order": measurement.cell.coalition_order,
-                        "perturbation": measurement.cell.perturbation,
-                        "nuisance_transform": measurement.cell.nuisance_transform.value,
-                        "context_method": measurement.cell.context_method.value,
-                        "response_mean": measurement.response_mean,
-                        "nuisance_mean": measurement.nuisance_mean,
-                        "innovation_mean": measurement.innovation_mean,
-                        "direct_derivative": measurement.direct_derivative,
-                        "nuisance_derivative": measurement.nuisance_derivative,
-                        "innovation_derivative": measurement.innovation_derivative,
-                        "attenuation": measurement.attenuation,
-                    }
-                    for measurement in result.measurements
-                ],
-            },
-            SelfExplanationSeedMetrics(
-                primary_exact_nuisance_derivative=result.primary_exact_nuisance_derivative,
-                primary_attenuation_contrast=result.primary_attenuation_contrast,
-            ),
-        )
+        return _self_explanation_outcome(config, seed)
     if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
-        if method_name is None:
-            raise ValueError("pure-order scoring requires a declared method")
-        failures: list[ComponentName] = []
-        records: list[YamlNode] = []
-        pure_generators = frozenset(
+        return _pure_order_outcome(config, seed, method_name)
+    raise ValueError(f"unsupported synthetic experiment {experiment_name.value}")
+
+
+def _estimator_feasibility_outcome(
+    config: ScientificConfig, seed: SeedValue, execution_role: ExecutionRole
+) -> SyntheticCellOutcome:
+    sequence = primary_feasibility_context_support(config, seed)
+    evaluations = evaluate_estimator_feasibility_seed(config, seed, execution_role)
+    primary = next(
+        evaluation
+        for evaluation in evaluations
+        if evaluation.condition.identifier == "primary-order-three"
+    )
+    metrics = primary.metrics
+    return SyntheticCellOutcome(
+        (),
+        None,
+        {
+            "primary_support_substrate_rows": len(sequence.ranks),
+            "primary_order_three": {
+                "conditional_rank_mae": metrics.conditional_rank_mae,
+                "projection_nrmse": metrics.projection_nrmse,
+                "standardized_null_bias": metrics.standardized_null_bias,
+                "context_coverage": metrics.context_coverage,
+                "abstention_rate": metrics.abstention_rate,
+                "condition_number": metrics.condition_number,
+                "numerical_failure": metrics.numerical_failure,
+                "numerical_failure_rate": metrics.numerical_failure_rate,
+            },
+            "condition_evaluations": [
+                {
+                    "identifier": evaluation.condition.identifier,
+                    "order": evaluation.condition.order,
+                    "support_per_context": evaluation.condition.support_per_context,
+                    "basis_size": evaluation.condition.basis_size,
+                    "cell_count": evaluation.condition.cell_count,
+                    "forced_no_abstention": evaluation.condition.forced_no_abstention,
+                    "conditional_rank_mae": evaluation.metrics.conditional_rank_mae,
+                    "projection_nrmse": evaluation.metrics.projection_nrmse,
+                    "standardized_null_bias": evaluation.metrics.standardized_null_bias,
+                    "context_coverage": evaluation.metrics.context_coverage,
+                    "abstention_rate": evaluation.metrics.abstention_rate,
+                    "condition_number": evaluation.metrics.condition_number,
+                    "numerical_failure": evaluation.metrics.numerical_failure,
+                    "numerical_failure_rate": evaluation.metrics.numerical_failure_rate,
+                }
+                for evaluation in evaluations
+            ],
+        },
+        None,
+        None,
+        None,
+        EstimatorFeasibilitySeedMetrics(metrics),
+    )
+
+
+def _strong_comparator_outcome(
+    config: ScientificConfig, seed: SeedValue, method_name: MethodName | None
+) -> SyntheticCellOutcome:
+    if method_name is None:
+        raise ValueError("strong comparator selection requires a declared candidate")
+    order = native_target_order(method_name)
+    if order is None:
+        raise ValueError("strong comparator candidate has no native target order")
+    client_count = config.experiments.pure_order_separation_validation.primary_client_count
+    sample_count = (
+        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
+    )
+    cell = composition_reference_cell(method_name, order, config)
+    nuisance = tuple(
+        sample_independent_uniform_ranks(client_count, seed + index)
+        for index in range(sample_count)
+    )
+    alternatives = composition_reference_rows(cell, client_count, seed, sample_count)
+    fitted_state = fit_comparator_state(method_name, tuple(row[:order] for row in nuisance), config)
+    null_scores = tuple(
+        score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
+        for row in nuisance
+    )
+    alternative_scores = tuple(
+        score_comparator_ranks(method_name, row[:order], config, (), fitted_state)[0]
+        for row in alternatives
+    )
+    mean = sum(null_scores) / len(null_scores)
+    deviation = (sum((value - mean) ** 2 for value in null_scores) / len(null_scores)) ** 0.5
+    if deviation <= config.numerics.metric_denominator_floor:
+        return SyntheticCellOutcome(
+            ("strong comparator nuisance variation is not usable",),
+            None,
+            {"implementation_state": "unusable_nuisance_standardization"},
+        )
+    standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
+    mixed_diagnostics: list[YamlNode] = []
+    mixed_failures: list[ComponentName] = []
+    remaining = client_count - CoalitionOrder.THREE
+    for term_index, term_set in enumerate(config.generators.mixed_order.enabled_term_sets):
+        enabled = frozenset(CoalitionOrder(term) for term in term_set)
+        row = sample_mixed_order_ranks(
+            enabled,
+            config.generators.mixed_order.term_coefficient,
+            remaining,
+            seed + sample_count + term_index,
+        )
+        mixed_score, _state = score_comparator_ranks(
+            method_name, row[:order], config, (), fitted_state
+        )
+        finite = isfinite(mixed_score)
+        mixed_diagnostics.append(
             {
-                GeneratorName.PURE_ORDER_ONE,
-                GeneratorName.PURE_ORDER_TWO,
-                GeneratorName.PURE_CONTINUOUS_TRIPLE,
-                GeneratorName.XOR_PARITY_TRIPLE,
+                "enabled_orders": sorted(enabled),
+                "finite_native_order_score": finite,
+                "native_order_score": mixed_score,
             }
         )
-        for cell in enumerate_pure_order_grid(config):
-            if cell.method is not method_name:
-                continue
-            report = validate_generator_purity(
-                cell.generator,
-                cell.effect,
-                cell.effect,
-                cell.enabled_orders,
-                config.numerics.deterministic_comparison_tolerance,
-            )
-            if cell.generator in pure_generators and not report.is_valid:
-                failures.append(f"generator:{cell.generator.value}")
-            records.append(
+        if not finite:
+            mixed_failures.append(f"mixed-order diagnostic {sorted(enabled)}")
+    return SyntheticCellOutcome(
+        tuple(mixed_failures),
+        standardized_score,
+        {
+            "implementation_state": "native_order_score_complete",
+            "native_target_order": order,
+            "standardized_target_order_score": standardized_score,
+            "standardized_target_order_error": abs(
+                standardized_score - config.generators.pure_polynomial.primary_reference_theta
+            ),
+            "mixed_order_diagnostics": mixed_diagnostics,
+        },
+    )
+
+
+def _sequential_evidence_outcome(config: ScientificConfig, seed: SeedValue) -> SyntheticCellOutcome:
+    result = evaluate_signed_theorem_seed(config, seed)
+    failed_checks: tuple[ComponentName, ...] = (
+        () if result.assumptions_hold else ("signed-theorem mechanical assumptions",)
+    )
+    return SyntheticCellOutcome(
+        failed_checks,
+        None,
+        {
+            "signed_theorem": {
+                "restricted_arl": result.metrics.restricted_arl,
+                "stopped_trajectory_count": result.metrics.stopped_trajectory_count,
+                "trajectory_count": result.metrics.trajectory_count,
+                "maximum_trajectory_epochs": result.metrics.maximum_trajectory_epochs,
+                "e_sr_threshold": result.metrics.threshold,
+                "compensator": result.metrics.compensator,
+                "assumptions_hold": result.assumptions_hold,
+            }
+        },
+        None,
+        None,
+        result.metrics,
+    )
+
+
+def _self_explanation_outcome(config: ScientificConfig, seed: SeedValue) -> SyntheticCellOutcome:
+    result = evaluate_self_explanation_seed(config, seed)
+    materiality = config.materiality.self_explanation
+    exact_derivative_within_margin = exact_nuisance_derivative_within_margin(
+        result.primary_exact_nuisance_derivative,
+        materiality.exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct,
+    )
+    attenuation_is_material = material_attenuation_criterion(
+        result.primary_attenuation_contrast,
+        materiality.minimum_attenuation_difference,
+    )
+    return SyntheticCellOutcome(
+        (),
+        None,
+        {
+            "grid_cell_count": len(result.measurements),
+            "primary_exact_nuisance_derivative": result.primary_exact_nuisance_derivative,
+            "primary_attenuation_contrast": result.primary_attenuation_contrast,
+            "exact_nuisance_derivative_within_margin": exact_derivative_within_margin,
+            "attenuation_is_material": attenuation_is_material,
+            "measurements": [
                 {
-                    "generator": cell.generator.value,
-                    "effect": cell.effect,
-                    "method": cell.method.value,
-                    "target_order": cell.target_order,
-                    "enabled_orders": sorted(cell.enabled_orders),
-                    "purity_valid": report.is_valid,
-                    "scoring_state": "execution-layer-fitted-grid",
+                    "client_count": measurement.cell.client_count,
+                    "coalition_order": measurement.cell.coalition_order,
+                    "perturbation": measurement.cell.perturbation,
+                    "nuisance_transform": measurement.cell.nuisance_transform.value,
+                    "context_method": measurement.cell.context_method.value,
+                    "response_mean": measurement.response_mean,
+                    "nuisance_mean": measurement.nuisance_mean,
+                    "innovation_mean": measurement.innovation_mean,
+                    "direct_derivative": measurement.direct_derivative,
+                    "nuisance_derivative": measurement.nuisance_derivative,
+                    "innovation_derivative": measurement.innovation_derivative,
+                    "attenuation": measurement.attenuation,
                 }
-            )
-        return SyntheticCellOutcome(
-            tuple(sorted(set(failures))),
-            None,
-            {
-                "condition_count": len(records),
-                "conditions": records,
-                "implementation_state": "execution-layer-grid",
-            },
-            pure_order_metrics=None,
+                for measurement in result.measurements
+            ],
+        },
+        SelfExplanationSeedMetrics(
+            primary_exact_nuisance_derivative=result.primary_exact_nuisance_derivative,
+            primary_attenuation_contrast=result.primary_attenuation_contrast,
+        ),
+    )
+
+
+def _pure_order_outcome(
+    config: ScientificConfig, seed: SeedValue, method_name: MethodName | None
+) -> SyntheticCellOutcome:
+    if method_name is None:
+        raise ValueError("pure-order scoring requires a declared method")
+    failures: list[ComponentName] = []
+    records: list[YamlNode] = []
+    pure_generators = frozenset(
+        {
+            GeneratorName.PURE_ORDER_ONE,
+            GeneratorName.PURE_ORDER_TWO,
+            GeneratorName.PURE_CONTINUOUS_TRIPLE,
+            GeneratorName.XOR_PARITY_TRIPLE,
+        }
+    )
+    for cell in enumerate_pure_order_grid(config):
+        if cell.method is not method_name:
+            continue
+        report = validate_generator_purity(
+            cell.generator,
+            cell.effect,
+            cell.effect,
+            cell.enabled_orders,
+            config.numerics.deterministic_comparison_tolerance,
         )
-    raise ValueError(f"unsupported synthetic experiment {experiment_name.value}")
+        if cell.generator in pure_generators and not report.is_valid:
+            failures.append(f"generator:{cell.generator.value}")
+        records.append(
+            {
+                "generator": cell.generator.value,
+                "effect": cell.effect,
+                "method": cell.method.value,
+                "target_order": cell.target_order,
+                "enabled_orders": sorted(cell.enabled_orders),
+                "purity_valid": report.is_valid,
+                "scoring_state": "execution-layer-fitted-grid",
+            }
+        )
+    return SyntheticCellOutcome(
+        tuple(sorted(set(failures))),
+        None,
+        {
+            "condition_count": len(records),
+            "conditions": records,
+            "implementation_state": "execution-layer-grid",
+        },
+        pure_order_metrics=None,
+    )

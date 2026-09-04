@@ -75,6 +75,27 @@ def median_runtime_seconds(runtimes: tuple[RuntimeSeconds, ...]) -> RuntimeSecon
     return statistics.median(runtimes)
 
 
+def _prefer_candidate(
+    candidate_error: StandardizedError,
+    candidate_runtime: RuntimeSeconds,
+    candidate_name: MethodName,
+    selected_error: StandardizedError,
+    selected_runtime: RuntimeSeconds,
+    selected_name: MethodName,
+    error_tie_tolerance: NumericalTolerance,
+    runtime_tie_tolerance: RuntimeSeconds,
+) -> Boolean:
+    error_delta = candidate_error - selected_error
+    if error_delta < -error_tie_tolerance:
+        return True
+    if abs(error_delta) > error_tie_tolerance:
+        return False
+    runtime_delta = candidate_runtime - selected_runtime
+    if runtime_delta < -runtime_tie_tolerance:
+        return True
+    return abs(runtime_delta) <= runtime_tie_tolerance and candidate_name < selected_name
+
+
 def select_strongest_comparator(
     candidates: tuple[MethodName, ...],
     standardized_errors: tuple[StandardizedError, ...],
@@ -88,20 +109,17 @@ def select_strongest_comparator(
         raise ValueError("candidates, errors, and runtimes must be aligned")
     selected_index = 0
     for index in range(1, len(candidates)):
-        error_delta = standardized_errors[index] - standardized_errors[selected_index]
-        if error_delta < -error_tie_tolerance:
+        if _prefer_candidate(
+            standardized_errors[index],
+            runtimes_seconds[index],
+            candidates[index],
+            standardized_errors[selected_index],
+            runtimes_seconds[selected_index],
+            candidates[selected_index],
+            error_tie_tolerance,
+            runtime_tie_tolerance,
+        ):
             selected_index = index
-            continue
-        if abs(error_delta) <= error_tie_tolerance:
-            runtime_delta = runtimes_seconds[index] - runtimes_seconds[selected_index]
-            if runtime_delta < -runtime_tie_tolerance:
-                selected_index = index
-                continue
-            if (
-                abs(runtime_delta) <= runtime_tie_tolerance
-                and candidates[index] < candidates[selected_index]
-            ):
-                selected_index = index
     return candidates[selected_index]
 
 
