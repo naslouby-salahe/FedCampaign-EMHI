@@ -122,7 +122,6 @@ from fedcampaign_emhi.domain.enums import (
     PartitionRole,
     PreprocessingLayer,
     PrimaryHolmHypothesis,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -1078,12 +1077,8 @@ def materialize_self_explanation_statistics(
         confidence_upper=interval[1],
         hodges_lehmann_shift=attenuation_shift,
         equivalence_established=equivalence_established,
-        decision=(
-            SupportState.SUPPORTED
-            if primary_directional_test_passes(
-                raw_p_value, loaded.values.statistics.nominal_significance_alpha
-            )
-            else SupportState.NULL_RESULT
+        meets_threshold=primary_directional_test_passes(
+            raw_p_value, loaded.values.statistics.nominal_significance_alpha
         ),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
@@ -1159,11 +1154,7 @@ def materialize_pure_order_statistics(
         confidence_level=loaded.values.statistics.confidence_level,
         confidence_lower=interval[0],
         confidence_upper=interval[1],
-        decision=(
-            SupportState.SUPPORTED
-            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
-            else SupportState.NULL_RESULT
-        ),
+        meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -1222,7 +1213,7 @@ def materialize_hofd_equivalence_statistics(
                     {
                         "coalition_order": order,
                         "support_per_context": support,
-                        "decision": SupportState.NOT_TESTED.value,
+                        "meets_threshold": False,
                     }
                 )
                 continue
@@ -1277,11 +1268,7 @@ def materialize_hofd_equivalence_statistics(
                     "stopping_time_confidence_upper": (
                         None if stop_interval is None else stop_interval[1]
                     ),
-                    "decision": (
-                        SupportState.SUPPORTED.value
-                        if supported
-                        else SupportState.NULL_RESULT.value
-                    ),
+                    "meets_threshold": supported,
                 }
             )
     layout = build_artifact_layout(loaded, repository)
@@ -1309,7 +1296,7 @@ def materialize_hofd_equivalence_statistics(
         confidence_level=confidence_level,
         confidence_lower=None,
         confidence_upper=None,
-        decision=SupportState.SUPPORTED if all_supported else SupportState.NULL_RESULT,
+        meets_threshold=all_supported,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
