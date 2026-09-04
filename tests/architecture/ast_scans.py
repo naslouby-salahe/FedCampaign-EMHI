@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 
 import pytest
@@ -8,9 +9,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "fedcampaign_emhi"
 CANONICAL_TYPES_FILE = SRC_ROOT / "domain" / "types.py"
+DOMAIN_TYPES_FILE = CANONICAL_TYPES_FILE
 PRIMITIVE_NAMES = frozenset({"str", "int", "float", "bool", "object", "Any", "bytes"})
 LEAK_CONTAINER_NAMES = frozenset({"dict", "list", "set", "Dict", "List", "Set"})
 LOCAL_LEAK_CONTAINER_NAMES = frozenset({"dict", "Dict"})
+BOUNDARY_TYPE_NAMES = frozenset({"YamlNode"})
 LAYERS = (
     "cli",
     "reporting",
@@ -35,6 +38,8 @@ def annotation_primitives(
     node: ast.expr | None, *, leak_containers: frozenset[str] = LEAK_CONTAINER_NAMES
 ) -> list[str]:
     if node is None:
+        return []
+    if references_boundary_type(node):
         return []
     if isinstance(node, ast.Name):
         if node.id in PRIMITIVE_NAMES or node.id in leak_containers:
@@ -73,6 +78,12 @@ def annotation_primitives(
             found.extend(annotation_primitives(elt, leak_containers=leak_containers))
         return found
     return []
+
+
+def references_boundary_type(node: ast.AST) -> bool:
+    return any(
+        isinstance(child, ast.Name) and child.id in BOUNDARY_TYPE_NAMES for child in ast.walk(node)
+    )
 
 
 def python_files(root: Path) -> tuple[Path, ...]:
@@ -188,7 +199,20 @@ def type_alias_annotations(tree: ast.Module) -> list[tuple[str, ast.expr, int]]:
             and node.value is not None
         ):
             aliases.append((node.target.id, node.value, node.lineno))
+        if isinstance(node, ast.TypeAlias):
+            aliases.append((node.name.id, node.value, node.lineno))
     return aliases
+
+
+def class_attribute_annotations(tree: ast.Module) -> list[tuple[str, ast.expr, int]]:
+    found: list[tuple[str, ast.expr, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for item in node.body:
+            if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+                found.append((node.name, item.annotation, item.lineno))
+    return found
 
 
 def bare_literal_only_names(tree: ast.Module) -> set[str]:
@@ -211,3 +235,114 @@ def package_of(rel: str) -> str:
     if "/" not in rel:
         return Path(rel).stem
     return rel.split("/")[0]
+
+
+def domain_type_names() -> frozenset[str]:
+    tree = module_ast(DOMAIN_TYPES_FILE)
+    names: set[str] = set()
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            target = node.targets[0]
+            if not target.id[:1].isupper():
+                continue
+            value = node.value
+            if isinstance(value, ast.Subscript) and isinstance(value.value, ast.Name):
+                if value.value.id == "Annotated":
+                    names.add(target.id)
+            elif isinstance(value, ast.Name):
+                names.add(target.id)
+    return frozenset(names)
+
+
+def _domain_annotation(node: ast.expr | None, domain_names: frozenset[str]) -> bool:
+    if node is None:
+        return False
+    if isinstance(node, ast.Name):
+        return node.id in domain_names
+    if isinstance(node, ast.Attribute):
+        return node.attr in domain_names
+    if isinstance(node, ast.Subscript):
+        container = node.value.id if isinstance(node.value, ast.Name) else None
+        if container in _DOMAIN_CONTAINER_NAMES:
+            return False
+        if isinstance(node.value, ast.Name) and node.value.id == "Annotated":
+            sl = node.slice
+            inner = sl.elts[0] if isinstance(sl, ast.Tuple) else sl
+            return _domain_annotation(inner, domain_names)
+        return _domain_annotation(node.value, domain_names) or any(
+            _domain_annotation(p, domain_names)
+            for p in ([] if not isinstance(node.slice, ast.Tuple) else list(node.slice.elts))
+        )
+    if isinstance(node, ast.BinOp):
+        return _domain_annotation(node.left, domain_names) or _domain_annotation(
+            node.right, domain_names
+        )
+    if isinstance(node, ast.Tuple):
+        return any(_domain_annotation(e, domain_names) for e in node.elts)
+    return False
+
+
+_DOMAIN_CONTAINER_NAMES = frozenset(
+    {
+        "tuple",
+        "list",
+        "set",
+        "dict",
+        "frozenset",
+        "Sequence",
+        "Mapping",
+        "MutableMapping",
+        "Iterable",
+        "Iterator",
+        "UserDict",
+        "OrderedDict",
+        "NDArray",
+        "Deque",
+    }
+)
+
+
+def domain_bound_names(tree: ast.Module) -> set[str]:
+    domain_names = domain_type_names()
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            for arg in node.args.args + node.args.kwonlyargs + node.args.posonlyargs:
+                if _domain_annotation(arg.annotation, domain_names):
+                    bound.add(arg.arg)
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if _domain_annotation(node.annotation, domain_names):
+                bound.add(node.target.id)
+    return bound
+
+
+def redundant_domain_conversion_violations(path: Path) -> list[str]:
+    tree = module_ast(path)
+    relative = path.relative_to(SRC_ROOT).as_posix() if path.is_relative_to(SRC_ROOT) else path.name
+    bound = domain_bound_names(tree)
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"int", "float", "str", "bool"}
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id in bound
+        ):
+            violations.append(f"{relative}:{node.lineno}: {node.func.id}({node.args[0].id})")
+    return sorted(violations)
+
+
+def production_python_files_via_walk() -> tuple[Path, ...]:
+    found: set[Path] = set()
+    for current, dirs, files in os.walk(SRC_ROOT):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for name in files:
+            if name.endswith(".py"):
+                found.add(Path(current) / name)
+    return tuple(sorted(found))

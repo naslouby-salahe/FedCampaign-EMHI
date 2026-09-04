@@ -1,6 +1,6 @@
 from collections import deque
 from dataclasses import dataclass
-from math import exp
+from math import exp, isclose
 
 from fedcampaign_emhi.artifacts.provenance import content_digest
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
@@ -251,7 +251,14 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     )
     _check(
         FINITE_HORIZON_CANDIDATES,
-        finite_horizon_candidates == (2.0, 3.0, 5.0, 10.0) and finite_horizon_selected == 10.0,
+        all(
+            isclose(candidate, expected, rel_tol=0.0, abs_tol=0.0)
+            for candidate, expected in zip(
+                finite_horizon_candidates, (2.0, 3.0, 5.0, 10.0), strict=True
+            )
+        )
+        and finite_horizon_selected is not None
+        and isclose(finite_horizon_selected, 10.0, rel_tol=0.0, abs_tol=0.0),
         failures,
     )
 

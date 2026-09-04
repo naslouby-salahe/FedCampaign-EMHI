@@ -1,5 +1,6 @@
 import random
 from dataclasses import dataclass
+from math import isclose
 from statistics import NormalDist
 
 from fedcampaign_emhi.domain.enums import (
@@ -153,7 +154,7 @@ def _jackknife_acceleration(values: tuple[StatisticValue, ...]) -> BootstrapAcce
     jackknife_mean = sum(jackknife) / len(jackknife)
     deviations = tuple(jackknife_mean - value for value in jackknife)
     squared_sum = sum(value * value for value in deviations)
-    if squared_sum == 0.0:
+    if squared_sum <= 0.0:
         return 0.0
     numerator = sum(value**3 for value in deviations)
     return numerator / (6 * (squared_sum ** (3 / 2)))
@@ -168,7 +169,7 @@ def _bca_adjusted_probability(
     nominal_z = normal.inv_cdf(nominal_probability)
     numerator = bias_correction + nominal_z
     denominator = 1.0 - acceleration * numerator
-    if denominator == 0.0:
+    if isclose(denominator, 0.0, rel_tol=0.0, abs_tol=0.0):
         return 0.0 if numerator < 0.0 else 1.0
     adjusted = normal.cdf(bias_correction + numerator / denominator)
     return min(max(adjusted, 0.0), 1.0)

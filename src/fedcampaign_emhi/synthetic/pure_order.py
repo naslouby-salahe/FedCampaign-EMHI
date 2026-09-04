@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import isfinite, isnan, sqrt
+from math import isclose, isfinite, isnan, sqrt
 
 import numpy as np
 
@@ -334,7 +334,7 @@ def pure_polynomial_marginalizes_to_uniform(
     theta: EffectCoefficient, order: CoalitionOrder
 ) -> Boolean:
     return polynomial_density_is_valid(theta, order) and (
-        POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL == 0.0
+        isclose(POLYNOMIAL_BASIS_INTEGRAL_ON_UNIT_INTERVAL, 0.0, rel_tol=0.0, abs_tol=0.0)
     )
 
 

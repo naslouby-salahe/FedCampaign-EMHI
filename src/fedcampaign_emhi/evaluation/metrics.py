@@ -236,7 +236,7 @@ def paired_stopping_time_difference(
 def paired_detection_indicator_difference(
     emhi_detected: Boolean, comparison_detected: Boolean
 ) -> OdiIndicator:
-    return int(emhi_detected) - int(comparison_detected)
+    return emhi_detected - comparison_detected
 
 
 def pfa_difference(emhi_pfa: Probability, comparison_pfa: Probability) -> MetricRate:

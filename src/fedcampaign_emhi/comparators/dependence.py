@@ -365,8 +365,8 @@ def kendall_tau_b(
         left_delta: NDArray[np.float64] = left[index + 1 :] - left[index]
         right_delta: NDArray[np.float64] = right[index + 1 :] - right[index]
         sign_product: NDArray[np.float64] = np.sign(left_delta) * np.sign(right_delta)
-        left_tied: NDArray[np.bool_] = left_delta == 0.0
-        right_tied: NDArray[np.bool_] = right_delta == 0.0
+        left_tied: NDArray[np.bool_] = np.isclose(left_delta, 0.0, rtol=0.0, atol=0.0)
+        right_tied: NDArray[np.bool_] = np.isclose(right_delta, 0.0, rtol=0.0, atol=0.0)
         concordant += int(np.sum(sign_product > 0.0))
         discordant += int(np.sum(sign_product < 0.0))
         tied_left_only += int(np.sum(np.logical_and(left_tied, np.logical_not(right_tied))))

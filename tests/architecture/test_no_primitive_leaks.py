@@ -8,6 +8,8 @@ from tests.architecture.ast_scans import (
     LOCAL_LEAK_CONTAINER_NAMES,
     SRC_ROOT,
     annotation_primitives,
+    class_attribute_annotations,
+    domain_bound_names,
     field_annotations,
     is_dataclass,
     is_pydantic_model,
@@ -65,6 +67,21 @@ def _scan_file(path: Path) -> list[tuple[str, int, str, str, str]]:
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             for primitive in annotation_primitives(node.annotation):
                 findings.append((rel, node.lineno, node.target.id, primitive, "module annotation"))
+    bound_domain_names = domain_bound_names(tree)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "cast"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Name)
+            and node.args[1].id in bound_domain_names
+        ):
+            for primitive in annotation_primitives(node.args[0]):
+                findings.append((rel, node.lineno, "cast", primitive, f"cast '{node.args[1].id}'"))
+    for owner, annotation, lineno in class_attribute_annotations(tree):
+        for primitive in annotation_primitives(annotation):
+            findings.append((rel, lineno, owner, primitive, "class attribute"))
     return findings
 
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import exp, log, tanh
+from math import exp, isclose, log, tanh
 
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.domain.enums import (
@@ -220,7 +220,7 @@ def _ols_slope(
     predictor_mean = sum(predictors) / len(predictors)
     response_mean = sum(responses) / len(responses)
     denominator = sum((predictor - predictor_mean) ** 2 for predictor in predictors)
-    if denominator == 0.0:
+    if isclose(denominator, 0.0, rel_tol=0.0, abs_tol=0.0):
         raise ValueError("OLS slope requires nonconstant perturbations")
     numerator = sum(
         (predictor - predictor_mean) * (response - response_mean)
@@ -347,7 +347,7 @@ def evaluate_self_explanation_seed(
         if measurement.cell.client_count == primary.client_count
         and measurement.cell.coalition_order == primary.coalition_order
         and measurement.cell.nuisance_transform is primary.nuisance_transform
-        and measurement.cell.perturbation == 0.0
+        and isclose(measurement.cell.perturbation, 0.0, rel_tol=0.0, abs_tol=0.0)
     ]
     if set(primary.comparison) != {
         ContextMethodName.EXACT_COALITION_EXCLUSION,

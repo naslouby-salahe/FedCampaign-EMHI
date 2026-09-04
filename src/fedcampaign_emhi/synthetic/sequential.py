@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import isfinite
+from math import isclose, isfinite
 
 import numpy as np
 
@@ -94,7 +94,7 @@ def evaluate_signed_theorem_seed(
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     restricted_stops: list[RecordCount] = []
     stopped: RecordCount = 0
-    assumptions_hold = experiment.null_theta == 0.0
+    assumptions_hold = isclose(experiment.null_theta, 0.0, rel_tol=0.0, abs_tol=0.0)
     compensator = signed_theorem_compensator(evidence.clip_bound, evidence.bet_lambda)
     for _trajectory in range(experiment.trajectories_per_seed):
         stop, did_stop, trajectory_assumptions_hold = _trajectory_restricted_stop(

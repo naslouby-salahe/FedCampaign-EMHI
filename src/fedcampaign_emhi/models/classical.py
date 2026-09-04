@@ -43,13 +43,13 @@ def fit_isolation_forest(
     if not fit_rows:
         raise ValueError("Isolation Forest requires a non-empty detector-fit matrix")
     fit_matrix = np.asarray(fit_rows, dtype=np.float64)
-    max_samples = min(int(max_samples_cap), int(fit_matrix.shape[0]))
-    model = IsolationForest(random_state=int(thirty_two_bit_seed(seed)))
+    max_samples = min(max_samples_cap, int(fit_matrix.shape[0]))
+    model = IsolationForest(random_state=thirty_two_bit_seed(seed))
     model.set_params(
-        n_estimators=int(tree_count),
+        n_estimators=tree_count,
         max_samples=max_samples,
-        max_features=float(max_features),
-        n_jobs=int(jobs),
+        max_features=max_features,
+        n_jobs=jobs,
         bootstrap=False,
         contamination="auto",
         warm_start=False,
