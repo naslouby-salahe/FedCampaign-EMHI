@@ -7,7 +7,6 @@ from fedcampaign_emhi.analysis.statistics import (
     secondary_holm_family,
     secondary_holm_family_identifiers,
 )
-from fedcampaign_emhi.domain.enums import SupportState
 
 
 def primary_inputs() -> tuple[HolmHypothesisInput, ...]:
@@ -15,7 +14,7 @@ def primary_inputs() -> tuple[HolmHypothesisInput, ...]:
         HolmHypothesisInput(
             identifier=identifier,
             raw_p_value=0.01 if index == 0 else None,
-            decision=SupportState.SUPPORTED if index == 0 else SupportState.NOT_TESTED,
+            meets_threshold=index == 0,
         )
         for index, identifier in enumerate(primary_holm_family_identifiers())
     )
@@ -44,7 +43,7 @@ def secondary_inputs() -> tuple[HolmHypothesisInput, ...]:
         HolmHypothesisInput(
             identifier=identifier,
             raw_p_value=0.01 if index == 0 else None,
-            decision=SupportState.SUPPORTED if index == 0 else SupportState.NOT_TESTED,
+            meets_threshold=index == 0,
         )
         for index, identifier in enumerate(secondary_holm_family_identifiers())
     )
