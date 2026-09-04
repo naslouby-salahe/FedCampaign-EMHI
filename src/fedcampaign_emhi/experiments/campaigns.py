@@ -1421,18 +1421,14 @@ def materialize_estimator_feasibility_statistics(
     failure_count = sum(metric.numerical_failure for metric in metrics)
     failure_rate = failure_count / len(metrics)
     materiality = loaded.values.materiality
-    decision = (
-        SupportState.SUPPORTED
-        if (
-            sum(metric.context_coverage for metric in metrics) / len(metrics)
-            >= materiality.order_three_estimator.minimum_mean_context_coverage
-            and sum(metric.projection_nrmse for metric in metrics) / len(metrics)
-            <= materiality.order_three_estimator.maximum_mean_projection_nrmse
-            and sum(metric.standardized_null_bias for metric in metrics) / len(metrics)
-            <= materiality.order_three_estimator.maximum_mean_standardized_null_bias
-            and failure_rate <= materiality.maximum_pooled_numerical_failure_rate
-        )
-        else SupportState.NULL_RESULT
+    meets_threshold = (
+        sum(metric.context_coverage for metric in metrics) / len(metrics)
+        >= materiality.order_three_estimator.minimum_mean_context_coverage
+        and sum(metric.projection_nrmse for metric in metrics) / len(metrics)
+        <= materiality.order_three_estimator.maximum_mean_projection_nrmse
+        and sum(metric.standardized_null_bias for metric in metrics) / len(metrics)
+        <= materiality.order_three_estimator.maximum_mean_standardized_null_bias
+        and failure_rate <= materiality.maximum_pooled_numerical_failure_rate
     )
     layout = build_artifact_layout(loaded, repository)
     source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
@@ -1448,7 +1444,7 @@ def materialize_estimator_feasibility_statistics(
         "numerical_failure_count": failure_count,
         "attempted_condition_count": len(metrics),
         "pooled_numerical_failure_rate": failure_rate,
-        "decision": decision.value,
+        "meets_threshold": meets_threshold,
         "source_result_ids": list(source_ids),
     }
     record = EstimatorFeasibilityAggregationRecord(
@@ -1461,7 +1457,7 @@ def materialize_estimator_feasibility_statistics(
         numerical_failure_count=failure_count,
         attempted_condition_count=len(metrics),
         pooled_numerical_failure_rate=failure_rate,
-        decision=decision,
+        meets_threshold=meets_threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -1530,7 +1526,7 @@ def materialize_signed_theorem_statistics(
         confidence_level=confidence_level,
         confidence_lower=lower,
         confidence_upper=None,
-        decision=(SupportState.SUPPORTED if lower >= threshold else SupportState.NULL_RESULT),
+        meets_threshold=lower >= threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -1572,14 +1568,8 @@ def materialize_finite_horizon_statistics(
     )
     maximum_upper = max(upper_bounds, default=None)
     target = loaded.values.evidence.calibrated_finite_horizon.target_pfa
-    decision = (
-        SupportState.NOT_SUPPORTED
-        if unavailable_count > 0
-        else (
-            SupportState.SUPPORTED
-            if maximum_upper is not None and maximum_upper <= target
-            else SupportState.NULL_RESULT
-        )
+    meets_threshold = (
+        unavailable_count == 0 and maximum_upper is not None and maximum_upper <= target
     )
     layout = build_artifact_layout(loaded, repository)
     source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
@@ -1591,7 +1581,7 @@ def materialize_finite_horizon_statistics(
         "operating_point_unavailable_count": unavailable_count,
         "target_pfa": target,
         "maximum_heldout_upper_pfa": maximum_upper,
-        "decision": decision.value,
+        "meets_threshold": meets_threshold,
         "source_result_ids": list(source_ids),
     }
     record = FiniteHorizonAggregationRecord(
@@ -1600,7 +1590,7 @@ def materialize_finite_horizon_statistics(
         operating_point_unavailable_count=unavailable_count,
         target_pfa=target,
         maximum_heldout_upper_pfa=maximum_upper,
-        decision=decision,
+        meets_threshold=meets_threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
