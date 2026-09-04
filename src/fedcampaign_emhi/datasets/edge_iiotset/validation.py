@@ -4,7 +4,7 @@ from pathlib import Path
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.eligibility import build_eligibility_records
 from fedcampaign_emhi.datasets.partitions import epoch_index
-from fedcampaign_emhi.domain.enums import GroundTruthClass, SupportState
+from fedcampaign_emhi.domain.enums import GroundTruthClass
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientBenignTally,
@@ -137,18 +137,18 @@ def select_secondary_clients_from_tallies(
             selected_client_ids=(),
             eligible_client_ids=eligible_ids,
             eligibility=eligibility,
-            support_state=SupportState.NOT_TESTED,
+            has_sufficient_clients=False,
         )
     if len(eligible_ids) < target_client_count:
         return SecondaryClientSelection(
             selected_client_ids=eligible_ids,
             eligible_client_ids=eligible_ids,
             eligibility=eligibility,
-            support_state=SupportState.SUPPORTED,
+            has_sufficient_clients=True,
         )
     return SecondaryClientSelection(
         selected_client_ids=eligible_ids[:target_client_count],
         eligible_client_ids=eligible_ids,
         eligibility=eligibility,
-        support_state=SupportState.SUPPORTED,
+        has_sufficient_clients=True,
     )
