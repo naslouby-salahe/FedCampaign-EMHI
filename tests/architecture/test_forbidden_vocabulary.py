@@ -57,6 +57,12 @@ def manuscript_architecture_violations(path: Path) -> list[str]:
     ]
 
 
+def claim_vocabulary_violations(path: Path, root: Path = SRC_ROOT) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    relative = path.relative_to(root).as_posix()
+    return [f"{relative}:{fragment}" for fragment in FORBIDDEN_CLAIM_FRAGMENTS if fragment in text]
+
+
 def test_forbidden_vocabulary() -> None:
     findings: list[str] = []
     for path in source_files():
@@ -79,10 +85,7 @@ def test_production_has_no_manuscript_claim_or_gate_architecture() -> None:
     findings: list[str] = []
     for path in source_files():
         findings.extend(manuscript_architecture_violations(path))
-        text = path.read_text(encoding="utf-8")
-        for fragment in FORBIDDEN_CLAIM_FRAGMENTS:
-            if fragment in text:
-                findings.append(f"{path.relative_to(SRC_ROOT).as_posix()}:{fragment}")
+        findings.extend(claim_vocabulary_violations(path))
     assert findings == []
 
 
@@ -98,12 +101,12 @@ def test_claim_identifier_names_are_forbidden() -> None:
     assert any(MANUSCRIPT_ARCHITECTURE_PATTERN.search(name) for name in names)
 
 
-def test_support_state_vocabulary_is_forbidden(tmp_path: Path) -> None:
+def test_claim_vocabulary_rule_rejects_support_state_regression(tmp_path: Path) -> None:
     fixture_path = tmp_path / "regressed_support_state.py"
     fixture_path.write_text("SupportState = None\n", encoding="utf-8")
-    text = fixture_path.read_text(encoding="utf-8")
-    findings = [fragment for fragment in FORBIDDEN_CLAIM_FRAGMENTS if fragment in text]
-    assert "SupportState" in findings
+    assert claim_vocabulary_violations(fixture_path, tmp_path) == [
+        "regressed_support_state.py:SupportState"
+    ]
 
 
 def test_forbidden_vocabulary_fails_on_fixture() -> None:
