@@ -37,7 +37,6 @@ from fedcampaign_emhi.domain.types import (
     MetricValue,
     NuisanceCoefficient,
     NumericalFloor,
-    OdiRateAdvantage,
     OperationalLeadEpochs,
     OperationalNormReference,
     PairedDifference,
