@@ -2681,11 +2681,7 @@ def materialize_seed_statistics(
     paths: list[Path] = []
     for index, (method_name, records) in enumerate(method_groups):
         interval = intervals[index]
-        decision = (
-            SupportState.SUPPORTED
-            if adjusted[index] < loaded.values.statistics.nominal_significance_alpha
-            else SupportState.NULL_RESULT
-        )
+        meets_threshold = adjusted[index] < loaded.values.statistics.nominal_significance_alpha
         payload: YamlNode = {
             "experiment_name": experiment_name.value,
             "method_name": method_name.value,
@@ -2696,7 +2692,7 @@ def materialize_seed_statistics(
             "confidence_level": loaded.values.statistics.confidence_level,
             "confidence_lower": None if interval is None else interval[0],
             "confidence_upper": None if interval is None else interval[1],
-            "decision": decision.value,
+            "meets_threshold": meets_threshold,
             "source_result_ids": list(sources[index]),
             "independent_unit_count": len(records),
         }
@@ -2711,7 +2707,7 @@ def materialize_seed_statistics(
             confidence_level=loaded.values.statistics.confidence_level,
             confidence_lower=None if interval is None else interval[0],
             confidence_upper=None if interval is None else interval[1],
-            decision=decision,
+            meets_threshold=meets_threshold,
             source_result_ids=sources[index],
             dependency_fingerprint=fingerprints[index],
             content_digest=payload_digest(payload),
@@ -2773,10 +2769,7 @@ def _materialize_not_tested_primary_holm_statistic(
     dataset_name = campaign_dataset(loaded, experiment_name)
     prepared_path = _preprocessing_paths(loaded, repository, dataset_name)[1]
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
-    if (
-        prepared.selection_support_state is not SupportState.NOT_TESTED
-        or prepared.selected_client_ids
-    ):
+    if prepared.has_sufficient_clients or prepared.selected_client_ids:
         return None
     hypothesis, metric_name = specification
     layout = build_artifact_layout(loaded, repository)
@@ -2823,7 +2816,7 @@ def _materialize_not_tested_primary_holm_statistic(
         confidence_level=None,
         confidence_lower=None,
         confidence_upper=None,
-        decision=SupportState.NOT_TESTED,
+        meets_threshold=False,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -2975,7 +2968,7 @@ def _materialize_paired_confirmatory_odi_contrast(
             confidence_lower=None,
             confidence_upper=None,
             hodges_lehmann_shift=None,
-            decision=SupportState.NOT_TESTED,
+            meets_threshold=False,
             source_result_ids=source_ids,
             dependency_fingerprint=material_fingerprint(
                 statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -3041,11 +3034,7 @@ def _materialize_paired_confirmatory_odi_contrast(
         confidence_lower=interval[0],
         confidence_upper=interval[1],
         hodges_lehmann_shift=shift,
-        decision=(
-            SupportState.SUPPORTED
-            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
-            else SupportState.NULL_RESULT
-        ),
+        meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
@@ -3525,11 +3514,7 @@ def materialize_benign_common_mode_statistic(
         confidence_lower=interval[0],
         confidence_upper=interval[1],
         hodges_lehmann_shift=shift,
-        decision=(
-            SupportState.SUPPORTED
-            if raw_p_value < loaded.values.statistics.nominal_significance_alpha
-            else SupportState.NULL_RESULT
-        ),
+        meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), source_digests
