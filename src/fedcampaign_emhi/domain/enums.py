@@ -109,14 +109,9 @@ class ExperimentState(StrEnum):
     INVALID = "Invalid"
 
 
-class SupportState(StrEnum):
-    SUPPORTED = "SUPPORTED"
-    PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
-    MECHANISM_ONLY = "MECHANISM_ONLY"
-    CONDITIONAL = "CONDITIONAL"
-    NULL_RESULT = "NULL_RESULT"
-    NOT_SUPPORTED = "NOT_SUPPORTED"
-    NOT_TESTED = "NOT_TESTED"
+class FitStatus(StrEnum):
+    FITTED = "FITTED"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
 
 
 class PrimaryHolmHypothesis(StrEnum):
