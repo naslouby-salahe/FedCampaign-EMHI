@@ -28,6 +28,11 @@ FORBIDDEN_CLAIM_FRAGMENTS = (
     "claim_registry",
     "ClaimRegistry",
     "ClaimIdentifier",
+    "SupportState",
+    "FullMethodSupport",
+    "evaluate_full_method_support",
+    "criterion_satisfied",
+    "all_criteria_pass",
 )
 
 MANUSCRIPT_ARCHITECTURE_PATTERN = re.compile(r"(?:^|_)(?:claim|gate)(?:_|$)|(?:Claim|Gate)")
@@ -91,6 +96,14 @@ def test_claim_identifier_names_are_forbidden() -> None:
     parsed = ast.parse("class ClaimIdentifier:\n    pass\n")
     names = [node.name for node in ast.walk(parsed) if isinstance(node, ast.ClassDef)]
     assert any(MANUSCRIPT_ARCHITECTURE_PATTERN.search(name) for name in names)
+
+
+def test_support_state_vocabulary_is_forbidden(tmp_path: Path) -> None:
+    fixture_path = tmp_path / "regressed_support_state.py"
+    fixture_path.write_text("SupportState = None\n", encoding="utf-8")
+    text = fixture_path.read_text(encoding="utf-8")
+    findings = [fragment for fragment in FORBIDDEN_CLAIM_FRAGMENTS if fragment in text]
+    assert "SupportState" in findings
 
 
 def test_forbidden_vocabulary_fails_on_fixture() -> None:
