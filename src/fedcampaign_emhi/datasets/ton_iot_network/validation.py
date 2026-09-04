@@ -2,7 +2,6 @@ import hashlib
 from pathlib import Path
 
 from fedcampaign_emhi.datasets.eligibility import build_eligibility_records
-from fedcampaign_emhi.domain.enums import SupportState
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientBenignTally,
@@ -62,11 +61,11 @@ def select_primary_clients_from_tallies(
             selected_client_ids=(),
             eligible_client_ids=eligible_ids,
             eligibility=eligibility,
-            support_state=SupportState.NOT_TESTED,
+            has_sufficient_clients=False,
         )
     return PrimaryClientSelection(
         selected_client_ids=eligible_ids[:target_client_count],
         eligible_client_ids=eligible_ids,
         eligibility=eligibility,
-        support_state=SupportState.SUPPORTED,
+        has_sufficient_clients=True,
     )

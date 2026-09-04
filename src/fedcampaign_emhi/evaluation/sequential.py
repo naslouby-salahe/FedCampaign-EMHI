@@ -25,8 +25,8 @@ from fedcampaign_emhi.detection import (
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
+    FitStatus,
     PartitionRole,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     BinIndex,
@@ -484,8 +484,7 @@ def _order_context(
         (
             context
             for context in fit.order_contexts
-            if context.coalition_order is coalition_order
-            and context.state is SupportState.SUPPORTED
+            if context.coalition_order is coalition_order and context.state is FitStatus.FITTED
         ),
         None,
     )
@@ -570,7 +569,7 @@ def _projection_cell(
         (
             cell
             for cell in coalition_fit.cells
-            if cell.context_cell == context_cell and cell.state is SupportState.SUPPORTED
+            if cell.context_cell == context_cell and cell.state is FitStatus.FITTED
         ),
         None,
     )
@@ -615,7 +614,7 @@ def _coalition_standardized_atom_and_norm_at_epoch(
     *,
     shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> tuple[tuple[StandardizedAtomCoordinate, ...], OperationalNormReference] | None:
-    if coalition_fit.state is not SupportState.SUPPORTED:
+    if coalition_fit.state is not FitStatus.FITTED:
         return None
     order_context = _order_context(fit, coalition_fit.coalition_order)
     if order_context is None:

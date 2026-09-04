@@ -222,7 +222,7 @@ def materialize_primary_holm_family(
             HolmHypothesisInput(
                 identifier=hypothesis.value,
                 raw_p_value=record.raw_p_value,
-                decision=record.decision,
+                meets_threshold=record.meets_threshold,
             )
         )
     results = primary_holm_family(tuple(inputs))
@@ -236,7 +236,7 @@ def materialize_primary_holm_family(
                 "raw_p_value": result.raw_p_value,
                 "holm_input_p_value": result.holm_input_p_value,
                 "adjusted_p_value": result.adjusted_p_value,
-                "decision": result.decision.value,
+                "meets_threshold": result.meets_threshold,
             }
             for result in results
         ],
@@ -251,7 +251,7 @@ def materialize_primary_holm_family(
                 raw_p_value=result.raw_p_value,
                 holm_input_p_value=result.holm_input_p_value,
                 adjusted_p_value=result.adjusted_p_value,
-                decision=result.decision,
+                meets_threshold=result.meets_threshold,
             )
             for result in results
         ),
@@ -297,7 +297,7 @@ def materialize_secondary_holm_family(
             HolmHypothesisInput(
                 identifier=hypothesis.value,
                 raw_p_value=record.raw_p_value,
-                decision=record.decision,
+                meets_threshold=record.meets_threshold,
             )
         )
     results = secondary_holm_family(tuple(inputs))
@@ -311,7 +311,7 @@ def materialize_secondary_holm_family(
                 "raw_p_value": result.raw_p_value,
                 "holm_input_p_value": result.holm_input_p_value,
                 "adjusted_p_value": result.adjusted_p_value,
-                "decision": result.decision.value,
+                "meets_threshold": result.meets_threshold,
             }
             for result in results
         ],
@@ -326,7 +326,7 @@ def materialize_secondary_holm_family(
                 raw_p_value=result.raw_p_value,
                 holm_input_p_value=result.holm_input_p_value,
                 adjusted_p_value=result.adjusted_p_value,
-                decision=result.decision,
+                meets_threshold=result.meets_threshold,
             )
             for result in results
         ),

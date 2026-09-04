@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fedcampaign_emhi.artifacts.records import EstimatorFeasibilityAggregationRecord
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
-from fedcampaign_emhi.domain.enums import ExecutionRole, SupportState
+from fedcampaign_emhi.domain.enums import ExecutionRole
 from fedcampaign_emhi.experiments.campaigns import (
     EstimatorFeasibilityObservation,
     materialize_estimator_feasibility_statistics,
@@ -41,7 +41,7 @@ def test_estimator_feasibility_statistics_aggrecriterion_primary_confirmatory_me
     assert record.independent_unit_count == len(observations)
     assert record.mean_context_coverage == 1.0
     assert record.pooled_numerical_failure_rate == 0.0
-    assert record.decision is SupportState.SUPPORTED
+    assert record.meets_threshold is True
 
 
 def test_estimator_feasibility_statistics_reject_incomplete_confirmatory_evidence(

@@ -7,7 +7,6 @@ from fedcampaign_emhi.domain.enums import (
     PrimaryHolmHypothesis,
     SecondaryHolmHypothesis,
     SignFlipDirection,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -263,7 +262,7 @@ def exact_sign_pattern(
 class HolmHypothesisInput:
     identifier: ComponentName
     raw_p_value: Probability | None
-    decision: SupportState
+    meets_threshold: Boolean
 
 
 @dataclass(frozen=True)
@@ -272,7 +271,7 @@ class HolmHypothesisResult:
     raw_p_value: Probability | None
     holm_input_p_value: Probability
     adjusted_p_value: Probability | None
-    decision: SupportState
+    meets_threshold: Boolean
 
 
 def holm_adjusted_p_values(
@@ -327,7 +326,7 @@ def fixed_holm_family(
             adjusted_p_value=(
                 None if by_identifier[identifier].raw_p_value is None else adjusted[index]
             ),
-            decision=by_identifier[identifier].decision,
+            meets_threshold=by_identifier[identifier].meets_threshold,
         )
         for index, identifier in enumerate(identifiers)
     )

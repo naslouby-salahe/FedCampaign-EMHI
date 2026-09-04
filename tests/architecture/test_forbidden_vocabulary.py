@@ -28,6 +28,11 @@ FORBIDDEN_CLAIM_FRAGMENTS = (
     "claim_registry",
     "ClaimRegistry",
     "ClaimIdentifier",
+    "SupportState",
+    "FullMethodSupport",
+    "evaluate_full_method_support",
+    "criterion_satisfied",
+    "all_criteria_pass",
 )
 
 MANUSCRIPT_ARCHITECTURE_PATTERN = re.compile(r"(?:^|_)(?:claim|gate)(?:_|$)|(?:Claim|Gate)")
@@ -52,6 +57,12 @@ def manuscript_architecture_violations(path: Path) -> list[str]:
     ]
 
 
+def claim_vocabulary_violations(path: Path, root: Path = SRC_ROOT) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    relative = path.relative_to(root).as_posix()
+    return [f"{relative}:{fragment}" for fragment in FORBIDDEN_CLAIM_FRAGMENTS if fragment in text]
+
+
 def test_forbidden_vocabulary() -> None:
     findings: list[str] = []
     for path in source_files():
@@ -74,10 +85,7 @@ def test_production_has_no_manuscript_claim_or_gate_architecture() -> None:
     findings: list[str] = []
     for path in source_files():
         findings.extend(manuscript_architecture_violations(path))
-        text = path.read_text(encoding="utf-8")
-        for fragment in FORBIDDEN_CLAIM_FRAGMENTS:
-            if fragment in text:
-                findings.append(f"{path.relative_to(SRC_ROOT).as_posix()}:{fragment}")
+        findings.extend(claim_vocabulary_violations(path))
     assert findings == []
 
 
@@ -91,6 +99,14 @@ def test_claim_identifier_names_are_forbidden() -> None:
     parsed = ast.parse("class ClaimIdentifier:\n    pass\n")
     names = [node.name for node in ast.walk(parsed) if isinstance(node, ast.ClassDef)]
     assert any(MANUSCRIPT_ARCHITECTURE_PATTERN.search(name) for name in names)
+
+
+def test_claim_vocabulary_rule_rejects_support_state_regression(tmp_path: Path) -> None:
+    fixture_path = tmp_path / "regressed_support_state.py"
+    fixture_path.write_text("SupportState = None\n", encoding="utf-8")
+    assert claim_vocabulary_violations(fixture_path, tmp_path) == [
+        "regressed_support_state.py:SupportState"
+    ]
 
 
 def test_forbidden_vocabulary_fails_on_fixture() -> None:

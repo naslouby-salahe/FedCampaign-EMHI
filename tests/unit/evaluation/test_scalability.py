@@ -1,5 +1,5 @@
 from fedcampaign_emhi.config.loading import load_smoke_configuration
-from fedcampaign_emhi.domain.enums import ExperimentState, SupportState
+from fedcampaign_emhi.domain.enums import ExperimentState
 from fedcampaign_emhi.evaluation.scalability import (
     ScalabilityMeasurement,
     generate_scalability_feature_rows,
@@ -56,8 +56,8 @@ def test_summarize_scalability_uses_end_to_end_quantile_for_latency_criterion() 
     )
     summary = summarize_scalability(6, measurements, 1.0, 0.01, 1.0)
     assert summary.p95_end_to_end_latency_seconds == 10.0
-    assert summary.latency_criterion_state is SupportState.NOT_SUPPORTED
-    assert summary.numerical_criterion_state is SupportState.SUPPORTED
+    assert summary.latency_within_target is False
+    assert summary.numerical_failure_rate_within_bound is True
     assert summary.state is ExperimentState.COMPLETED
     assert summary.artifact_fit_seconds == 0.5
 
@@ -126,4 +126,4 @@ def test_summarize_scalability_aggregates_seed_level_p95_of_epoch_latencies() ->
     assert summary.p95_server_latency_seconds == 0.04
     assert summary.median_end_to_end_latency_seconds == 0.035
     assert summary.artifact_fit_seconds == 0.3
-    assert summary.latency_criterion_state is SupportState.SUPPORTED
+    assert summary.latency_within_target is True

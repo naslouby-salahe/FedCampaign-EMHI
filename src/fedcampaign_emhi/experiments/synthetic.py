@@ -33,7 +33,6 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     GeneratorName,
     MethodName,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     AttenuationDifference,
@@ -618,7 +617,7 @@ def _rank_rows_as_emhi_artifacts(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=client_ids,
         eligible_client_ids=client_ids,
-        support_state=SupportState.SUPPORTED,
+        has_sufficient_clients=True,
         detector_fit_epochs=nuisance_epochs,
         nuisance_fit_epochs=nuisance_epochs,
         threshold_calibration_epochs=(),

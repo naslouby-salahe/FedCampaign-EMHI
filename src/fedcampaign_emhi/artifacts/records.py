@@ -9,10 +9,10 @@ from fedcampaign_emhi.domain.enums import (
     ExecutionRole,
     ExperimentName,
     ExperimentState,
+    FitStatus,
     GroundTruthClass,
     MethodName,
     OverwritePolicy,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -37,7 +37,6 @@ from fedcampaign_emhi.domain.types import (
     MetricValue,
     NuisanceCoefficient,
     NumericalFloor,
-    OdiRateAdvantage,
     OperationalLeadEpochs,
     OperationalNormReference,
     PairedDifference,
@@ -148,7 +147,7 @@ class PreparedDatasetRecord(FrozenConfigModel):
     dataset_name: DatasetName
     selected_client_ids: tuple[ClientId, ...] = ()
     eligible_client_ids: tuple[ClientId, ...] = ()
-    selection_support_state: SupportState = SupportState.NOT_TESTED
+    has_sufficient_clients: Boolean = False
     epochs: tuple[PreparedEpochRecord, ...]
     client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
@@ -160,7 +159,7 @@ class DatasetSplitRecord(FrozenConfigModel):
     dataset_name: DatasetName
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
-    support_state: SupportState
+    has_sufficient_clients: Boolean
     detector_fit_epochs: tuple[EpochIndexValue, ...]
     nuisance_fit_epochs: tuple[EpochIndexValue, ...]
     threshold_calibration_epochs: tuple[EpochIndexValue, ...]
@@ -225,7 +224,7 @@ class OrderContextFitRecord(FrozenConfigModel):
     coalition_order: CoalitionOrder
     context_method: ContextMethodName
     centroids: tuple[tuple[InnovationCoordinate, ...], ...]
-    state: SupportState
+    state: FitStatus
 
 
 class ConditionalRankReferenceRecord(FrozenConfigModel):
@@ -242,7 +241,7 @@ class ProjectionCellFitRecord(FrozenConfigModel):
     coordinate_means: tuple[InnovationMean, ...]
     coordinate_deviations: tuple[InnovationDeviation, ...]
     operational_norm_reference: OperationalNormReference | None
-    state: SupportState
+    state: FitStatus
     numerical_failure: Boolean
 
 
@@ -250,7 +249,7 @@ class CoalitionFitRecord(FrozenConfigModel):
     coalition_client_ids: tuple[ClientId, ...]
     coalition_order: CoalitionOrder
     cells: tuple[ProjectionCellFitRecord, ...]
-    state: SupportState
+    state: FitStatus
 
 
 class EMHIFitArtifactRecord(FrozenConfigModel):
@@ -295,7 +294,7 @@ class StatisticalRecord(FrozenConfigModel):
     confidence_upper: StatisticValue | None
     hodges_lehmann_shift: StatisticValue | None = None
     equivalence_established: Boolean | None = None
-    decision: SupportState
+    meets_threshold: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -310,7 +309,7 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     numerical_failure_count: RecordCount
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
-    decision: SupportState
+    meets_threshold: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -366,7 +365,7 @@ class FiniteHorizonAggregationRecord(FrozenConfigModel):
     operating_point_unavailable_count: RecordCount
     target_pfa: Probability
     maximum_heldout_upper_pfa: FalseAlarmRate | None
-    decision: SupportState
+    meets_threshold: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
@@ -410,7 +409,7 @@ class HolmFamilyResultRecord(FrozenConfigModel):
     raw_p_value: Probability | None
     holm_input_p_value: Probability
     adjusted_p_value: Probability | None
-    decision: SupportState
+    meets_threshold: Boolean
 
 
 class PrimaryHolmFamilyRecord(FrozenConfigModel):
@@ -426,25 +425,6 @@ class SecondaryHolmFamilyRecord(FrozenConfigModel):
     results: tuple[HolmFamilyResultRecord, ...]
     source_statistical_paths: tuple[RelativePath, ...]
     source_artifact_hashes: tuple[ConfigurationDigest, ...]
-    content_digest: ConfigurationDigest
-
-
-class FullMethodSupportRecord(FrozenConfigModel):
-    experiment_name: ExperimentName
-    heldout_pfa_upper_bound: Probability | None
-    mean_strict_odi_rate: Probability
-    paired_odi_advantage: OdiRateAdvantage
-    median_lead_among_successes: OperationalLeadEpochs | None
-    directional_adjusted_p_value: Probability | None
-    pfa_criterion_satisfied: Boolean
-    odi_rate_criterion_satisfied: Boolean
-    advantage_criterion_satisfied: Boolean
-    lead_criterion_satisfied: Boolean
-    directional_criterion_satisfied: Boolean
-    matched_operating_point_criterion_satisfied: Boolean
-    all_criteria_pass: Boolean
-    source_result_ids: tuple[ArtifactIdentity, ...]
-    dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest
 
 

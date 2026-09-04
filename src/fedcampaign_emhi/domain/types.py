@@ -15,7 +15,6 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     PreprocessingLayer,
     RecordExclusionReason,
-    SupportState,
 )
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
@@ -410,7 +409,7 @@ class PrimaryClientSelection:
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
     eligibility: tuple[ClientEligibilityRecord, ...]
-    support_state: SupportState
+    has_sufficient_clients: Boolean
 
 
 @dataclass(frozen=True)
@@ -425,7 +424,7 @@ class SecondaryClientSelection:
     selected_client_ids: tuple[ClientId, ...]
     eligible_client_ids: tuple[ClientId, ...]
     eligibility: tuple[ClientEligibilityRecord, ...]
-    support_state: SupportState
+    has_sufficient_clients: Boolean
 
 
 @dataclass(frozen=True)
