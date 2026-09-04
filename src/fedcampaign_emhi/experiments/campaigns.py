@@ -1,7 +1,6 @@
 import hashlib
-import json
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from math import log
 from pathlib import Path
@@ -51,7 +50,6 @@ from fedcampaign_emhi.artifacts.records import (
     EstimatorFeasibilityAggregationRecord,
     ExperimentRunRecord,
     FiniteHorizonAggregationRecord,
-    FullMethodSupportRecord,
     MarginalRankArtifactRecord,
     PreparedDatasetRecord,
     ScientificCellRecord,
@@ -144,7 +142,6 @@ from fedcampaign_emhi.domain.types import (
     OdiIndicator,
     OdiRateAdvantage,
     OperationalLeadEpochs,
-    Probability,
     RankValue,
     RecordCount,
     RelativePath,
@@ -229,17 +226,9 @@ from fedcampaign_emhi.experiments.calibration import (
 from fedcampaign_emhi.experiments.registry import (
     RESUME_SEQUENCE,
     ExperimentContract,
-    FullMethodSupportInputs,
-    FullMethodSupportResult,
     assert_known_experiment,
     confirmatory_completeness_within_tolerance,
-    evaluate_full_method_support,
     experiment_registry,
-    matched_operating_point_requirement,
-    median_of,
-    median_operational_lead_criterion,
-    paired_odi_advantage_criterion,
-    strict_odi_rate_criterion,
 )
 from fedcampaign_emhi.experiments.robustness import (
     EpochEventVolume,
@@ -3052,226 +3041,6 @@ def _materialize_paired_confirmatory_odi_contrast(
     return record
 
 
-def _confirmatory_raw_evaluation_paths(root: Path, method_name: MethodName) -> tuple[Path, ...]:
-    return tuple(
-        sorted(
-            (
-                root
-                / "evaluations"
-                / "raw"
-                / ExecutionRole.CONFIRMATORY.value
-                / method_artifact_stem(method_name)
-            ).glob("*.json")
-        )
-    )
-
-
-def _evaluation_heldout_upper_pfa(payload: Mapping[YamlKeyPath, YamlNode]) -> Probability | None:
-    calibration = _as_mapping(payload["calibration"])
-    global_point = _as_mapping(calibration["global"])
-    heldout = global_point["heldout_upper_pfa"]
-    if heldout is None:
-        return None
-    return cast(Probability, heldout)
-
-
-def _evaluation_operating_point_available(payload: Mapping[YamlKeyPath, YamlNode]) -> Boolean:
-    calibration = _as_mapping(payload["calibration"])
-    global_point = _as_mapping(calibration["global"])
-    return global_point["threshold"] is not None
-
-
-def _evaluation_success_leads(
-    payload: Mapping[YamlKeyPath, YamlNode],
-) -> tuple[OperationalLeadEpochs, ...]:
-    campaigns = payload["campaigns"]
-    if not isinstance(campaigns, Sequence):
-        return ()
-    leads: list[OperationalLeadEpochs] = []
-    for row in campaigns:
-        if not isinstance(row, Mapping):
-            continue
-        if row["strict_odi"] != 1:
-            continue
-        lead = row["operational_lead_epochs"]
-        if lead is None:
-            continue
-        leads.append(cast(OperationalLeadEpochs, lead))
-    return tuple(leads)
-
-
-def _materialize_full_method_support(
-    loaded: LoadedScientificConfiguration,
-    repository: Path,
-    contrast: StatisticalRecord | None,
-) -> Path | None:
-    if contrast is None or contrast.raw_p_value is None:
-        return None
-    dataset_name = campaign_dataset(loaded, ExperimentName.PRIMARY_STRICT_ODI_EVALUATION)
-    prepared_path = _preprocessing_paths(loaded, repository, dataset_name)[1]
-    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
-    if not prepared.selected_client_ids:
-        return None
-    layout = build_artifact_layout(loaded, repository)
-    root = layout.experiment_outputs_root(ExperimentName.PRIMARY_STRICT_ODI_EVALUATION)
-    full_paths = _confirmatory_raw_evaluation_paths(root, MethodName.FULL_FEDCAMPAIGN_EMHI)
-    comparator_paths = _confirmatory_raw_evaluation_paths(
-        root, MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI
-    )
-    expected = loaded.values.randomness.real_confirmatory_roots
-    full_payloads = tuple(
-        _as_mapping(cast(YamlNode, json.loads(path.read_text(encoding="utf-8"))))
-        for path in full_paths
-    )
-    comparator_payloads = tuple(
-        _as_mapping(cast(YamlNode, json.loads(path.read_text(encoding="utf-8"))))
-        for path in comparator_paths
-    )
-    full_seeds = tuple(cast(SeedValue, payload["seed"]) for payload in full_payloads)
-    comparator_seeds = tuple(cast(SeedValue, payload["seed"]) for payload in comparator_payloads)
-    if not confirmatory_completeness_within_tolerance(
-        loaded, expected, full_seeds
-    ) or not confirmatory_completeness_within_tolerance(loaded, expected, comparator_seeds):
-        return None
-    upper_bounds = tuple(_evaluation_heldout_upper_pfa(payload) for payload in full_payloads)
-    if any(bound is None for bound in upper_bounds):
-        return None
-    heldout_upper = max(cast(tuple[Probability, ...], upper_bounds))
-    summaries = _confirmatory_method_summaries(
-        _load_seed_summaries(root), MethodName.FULL_FEDCAMPAIGN_EMHI
-    )
-    if not summaries:
-        return None
-    mean_strict_odi_rate = sum(record.method_value for _path, record in summaries) / len(summaries)
-    success_leads = tuple(
-        lead for payload in full_payloads for lead in _evaluation_success_leads(payload)
-    )
-    materiality = loaded.values.materiality.primary_real
-    target_pfa = loaded.values.evidence.calibrated_finite_horizon.target_pfa
-    nominal_alpha = loaded.values.statistics.nominal_significance_alpha
-    full_available = all(
-        _evaluation_operating_point_available(payload) for payload in full_payloads
-    )
-    comparator_available = all(
-        _evaluation_operating_point_available(payload) for payload in comparator_payloads
-    )
-    paired_advantage = contrast.estimate
-    pfa_ok = heldout_upper <= target_pfa
-    odi_ok = strict_odi_rate_criterion(mean_strict_odi_rate, materiality.minimum_strict_odi_rate)
-    advantage_ok = paired_odi_advantage_criterion(
-        paired_advantage, materiality.minimum_odi_rate_advantage_over_order_at_most_two
-    )
-    matched_ok = matched_operating_point_requirement(full_available, comparator_available)
-    directional_ok = contrast.raw_p_value < nominal_alpha
-    if success_leads:
-        median_lead = median_of(success_leads)
-        lead_ok = median_operational_lead_criterion(
-            median_lead, materiality.minimum_median_operational_lead_epochs
-        )
-        result = evaluate_full_method_support(
-            FullMethodSupportInputs(
-                heldout_pfa_upper_bound=heldout_upper,
-                target_pfa=target_pfa,
-                mean_strict_odi_rate=mean_strict_odi_rate,
-                minimum_strict_odi_rate=materiality.minimum_strict_odi_rate,
-                paired_odi_advantage=paired_advantage,
-                minimum_odi_advantage=materiality.minimum_odi_rate_advantage_over_order_at_most_two,
-                median_lead_among_successes=median_lead,
-                minimum_median_lead=materiality.minimum_median_operational_lead_epochs,
-                directional_adjusted_p_value=contrast.raw_p_value,
-                nominal_alpha=nominal_alpha,
-                full_operating_point_available=full_available,
-                comparator_operating_point_available=comparator_available,
-            )
-        )
-        _assert_full_method_criteria(
-            result, pfa_ok, odi_ok, advantage_ok, lead_ok, matched_ok, directional_ok
-        )
-    else:
-        result = FullMethodSupportResult(
-            pfa_criterion_satisfied=pfa_ok,
-            odi_rate_criterion_satisfied=odi_ok,
-            advantage_criterion_satisfied=advantage_ok,
-            lead_criterion_satisfied=False,
-            directional_criterion_satisfied=directional_ok,
-            matched_operating_point_criterion_satisfied=matched_ok,
-        )
-    source_paths = (*full_paths, *comparator_paths)
-    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
-    source_digests = tuple(file_sha256(path) for path in source_paths)
-    all_criteria_pass = result.all_criteria_pass
-    median_lead_value = None if not success_leads else median_of(success_leads)
-    payload: YamlNode = {
-        "experiment_name": ExperimentName.PRIMARY_STRICT_ODI_EVALUATION.value,
-        "heldout_pfa_upper_bound": heldout_upper,
-        "mean_strict_odi_rate": mean_strict_odi_rate,
-        "paired_odi_advantage": paired_advantage,
-        "median_lead_among_successes": median_lead_value,
-        "directional_adjusted_p_value": contrast.raw_p_value,
-        "pfa_criterion_satisfied": result.pfa_criterion_satisfied,
-        "odi_rate_criterion_satisfied": result.odi_rate_criterion_satisfied,
-        "advantage_criterion_satisfied": result.advantage_criterion_satisfied,
-        "lead_criterion_satisfied": result.lead_criterion_satisfied,
-        "directional_criterion_satisfied": result.directional_criterion_satisfied,
-        "matched_operating_point_criterion_satisfied": result.matched_operating_point_criterion_satisfied,
-        "all_criteria_pass": all_criteria_pass,
-        "source_result_ids": list(source_ids),
-    }
-    record = FullMethodSupportRecord(
-        experiment_name=ExperimentName.PRIMARY_STRICT_ODI_EVALUATION,
-        heldout_pfa_upper_bound=heldout_upper,
-        mean_strict_odi_rate=mean_strict_odi_rate,
-        paired_odi_advantage=paired_advantage,
-        median_lead_among_successes=median_lead_value,
-        directional_adjusted_p_value=contrast.raw_p_value,
-        pfa_criterion_satisfied=result.pfa_criterion_satisfied,
-        odi_rate_criterion_satisfied=result.odi_rate_criterion_satisfied,
-        advantage_criterion_satisfied=result.advantage_criterion_satisfied,
-        lead_criterion_satisfied=result.lead_criterion_satisfied,
-        directional_criterion_satisfied=result.directional_criterion_satisfied,
-        matched_operating_point_criterion_satisfied=result.matched_operating_point_criterion_satisfied,
-        all_criteria_pass=all_criteria_pass,
-        source_result_ids=source_ids,
-        dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
-        ),
-        content_digest=payload_digest(payload),
-    )
-    path = root / "statistics" / "tests" / "full-method-support.json"
-    write_atomic_json(
-        path,
-        cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
-    )
-    return path
-
-
-def _assert_full_method_criteria(
-    support_result: FullMethodSupportResult,
-    pfa_ok: Boolean,
-    odi_ok: Boolean,
-    advantage_ok: Boolean,
-    lead_ok: Boolean,
-    matched_ok: Boolean,
-    directional_ok: Boolean,
-) -> None:
-    checks = (
-        ("PFA", support_result.pfa_criterion_satisfied, pfa_ok),
-        ("ODI-rate", support_result.odi_rate_criterion_satisfied, odi_ok),
-        ("advantage", support_result.advantage_criterion_satisfied, advantage_ok),
-        ("lead", support_result.lead_criterion_satisfied, lead_ok),
-        (
-            "operating-point",
-            support_result.matched_operating_point_criterion_satisfied,
-            matched_ok,
-        ),
-        ("directional", support_result.directional_criterion_satisfied, directional_ok),
-    )
-    for label, actual, expected in checks:
-        if actual is not expected:
-            raise ValueError(f"full-method {label} criterion is inconsistent")
-
-
 def _materialize_confirmatory_odi_inferences(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -3279,7 +3048,7 @@ def _materialize_confirmatory_odi_inferences(
     primary_not_tested: Boolean,
 ) -> None:
     if experiment_name is ExperimentName.PRIMARY_STRICT_ODI_EVALUATION and not primary_not_tested:
-        contrast = _materialize_paired_confirmatory_odi_contrast(
+        _materialize_paired_confirmatory_odi_contrast(
             loaded,
             repository,
             experiment_name,
@@ -3287,7 +3056,6 @@ def _materialize_confirmatory_odi_inferences(
             MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
             "paired_strict_odi_rate_advantage",
         )
-        _materialize_full_method_support(loaded, repository, contrast)
         return
     if experiment_name not in {
         ExperimentName.EXCLUSION_MECHANISM_ABLATION,
