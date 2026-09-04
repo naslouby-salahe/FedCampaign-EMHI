@@ -2308,7 +2308,6 @@ def _materialize_not_tested_real_cell(
         "method_name": None if method_name is None else method_name.value,
         "seed": seed,
         "scientific_outcome": "Not Tested",
-        "support_state": "NOT_TESTED",
         "reason": "no eligible raw records were available after deterministic preprocessing",
         "dependency_fingerprint": fingerprint,
         "campaigns": [],
