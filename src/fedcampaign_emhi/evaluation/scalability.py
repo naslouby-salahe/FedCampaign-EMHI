@@ -33,7 +33,6 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
     MethodName,
-    SupportState,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -98,8 +97,8 @@ class ScalabilitySummary:
     peak_rss_bytes: ByteCount
     application_payload_bytes: ByteCount
     numerical_failure_rate: Probability
-    latency_criterion_state: SupportState
-    numerical_criterion_state: SupportState
+    latency_within_target: Boolean
+    numerical_failure_rate_within_bound: Boolean
     local_timing_operating_point_available: Boolean
     global_timing_operating_point_available: Boolean
     artifact_fit_seconds: LatencySeconds
@@ -229,12 +228,8 @@ def summarize_scalability(
         peak_rss_bytes=max(row.peak_rss_bytes for row in selected),
         application_payload_bytes=max(row.application_payload_bytes for row in selected),
         numerical_failure_rate=failure_rate,
-        latency_criterion_state=SupportState.SUPPORTED
-        if latency_passed
-        else SupportState.NOT_SUPPORTED,
-        numerical_criterion_state=SupportState.SUPPORTED
-        if failure_passed
-        else SupportState.NOT_SUPPORTED,
+        latency_within_target=latency_passed,
+        numerical_failure_rate_within_bound=failure_passed,
         local_timing_operating_point_available=all(
             row.local_timing_operating_point_available for row in selected
         ),
@@ -419,7 +414,7 @@ def collect_scalability_measurements(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=client_ids,
         eligible_client_ids=client_ids,
-        support_state=SupportState.SUPPORTED,
+        has_sufficient_clients=True,
         detector_fit_epochs=tuple(range(nuisance_count)),
         nuisance_fit_epochs=nuisance_epochs,
         threshold_calibration_epochs=(),
