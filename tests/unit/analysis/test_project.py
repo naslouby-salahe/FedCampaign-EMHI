@@ -22,7 +22,6 @@ from fedcampaign_emhi.artifacts.storage import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import SupportState
 
 
 def _write_statistical_record(
@@ -49,7 +48,7 @@ def _write_statistical_record(
         "confidence_level": None,
         "confidence_lower": None,
         "confidence_upper": None,
-        "decision": SupportState.SUPPORTED.value,
+        "meets_threshold": True,
         "source_result_ids": [source_id],
     }
     record = StatisticalRecord(
@@ -63,7 +62,7 @@ def _write_statistical_record(
         confidence_level=None,
         confidence_lower=None,
         confidence_upper=None,
-        decision=SupportState.SUPPORTED,
+        meets_threshold=True,
         source_result_ids=(source_id,),
         dependency_fingerprint=material_fingerprint(
             statistical_analysis_boundary_digest(loaded.values), (source_digest,)
@@ -124,7 +123,7 @@ def test_materialize_primary_holm_family_adjusts_across_all_five_hypotheses(
     )
     assert smallest.raw_p_value == 0.001
     assert smallest.adjusted_p_value == pytest.approx(0.005)
-    assert smallest.decision is SupportState.SUPPORTED
+    assert smallest.meets_threshold is True
     assert record.source_statistical_paths
     assert len(record.source_artifact_hashes) == len(PRIMARY_HOLM_STATISTICS)
 
@@ -178,7 +177,7 @@ def test_materialize_secondary_holm_family_adjusts_across_all_six_hypotheses(
     )
     assert smallest.raw_p_value == 0.001
     assert smallest.adjusted_p_value == pytest.approx(0.006)
-    assert smallest.decision is SupportState.SUPPORTED
+    assert smallest.meets_threshold is True
     assert record.source_statistical_paths
     assert len(record.source_artifact_hashes) == len(SECONDARY_HOLM_STATISTICS)
 
