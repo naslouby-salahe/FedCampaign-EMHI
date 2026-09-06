@@ -1,11 +1,11 @@
 import pytest
 
-import fedcampaign_emhi.experiments.campaigns as runner
+import fedcampaign_emhi.experiments.synthetic_execution as runner
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import SeedValue
-from fedcampaign_emhi.experiments.campaigns import run_synthetic_cell_with_technical_retry
 from fedcampaign_emhi.experiments.synthetic import SyntheticCellOutcome
+from fedcampaign_emhi.experiments.synthetic_execution import run_synthetic_cell_with_technical_retry
 
 
 def _flaky_cell(fail_count: int, result: SyntheticCellOutcome):

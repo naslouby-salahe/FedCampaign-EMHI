@@ -75,6 +75,7 @@ GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
 BinIndex = NonNegativeInt
 ScientificChoiceCount = NonNegativeInt
 DeterministicUtf8Bytes = Annotated[bytes, Field()]
+FigureBytes = Annotated[bytes, Field()]
 Boolean = Annotated[bool, Field()]
 ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
@@ -144,7 +145,6 @@ DetectorScore = FiniteFloat
 FractionalClientCount = NonNegativeFloat
 FeatureValue = FiniteFloat
 AnomalyScore = FiniteFloat
-SvgCoordinate = FiniteFloat
 XavierGain = PositiveFloat
 StandardizedError = FiniteFloat
 PairedDifference = FiniteFloat
@@ -210,6 +210,7 @@ ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespa
 ByteCount = NonNegativeInt
 Sha256Hex = ConfigurationDigest
 ThirtyTwoBitSeed = Annotated[int, Field(ge=0, lt=4_294_967_296)]
+LoopbackPortNumber = Annotated[int, Field(ge=1, le=65_535)]
 
 
 @dataclass(frozen=True)
@@ -356,16 +357,6 @@ class CoalitionMembers:
 @dataclass(frozen=True)
 class RankReference:
     scores: tuple[FiniteFloat, ...]
-
-
-@dataclass(frozen=True)
-class TonIotNetworkFlowRecord:
-    timestamp_seconds: UnixTimestampSeconds
-    source_ip: ClientId
-    protocol_token: NormalizedEventToken
-    service_token: NormalizedEventToken
-    binary_label: BinaryClassLabel
-    attack_type: AttackTypeName
 
 
 @dataclass(frozen=True)

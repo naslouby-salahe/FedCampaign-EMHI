@@ -5,14 +5,19 @@ from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, sample_standard_deviation
 from fedcampaign_emhi.models.autoencoder import (
     autoencoder_anomaly_scores,
-    autoencoder_layer_widths,
     batch_permutation_seed,
+    build_autoencoder_network,
 )
 from fedcampaign_emhi.models.classical import isolation_forest_anomaly_scores
 
 
 def test_autoencoder_width_contract() -> None:
-    assert autoencoder_layer_widths(66) == (66, 32, 8, 32, 66)
+    network = build_autoencoder_network(66, 7)
+    assert network.encoder.in_features == 66
+    assert network.encoder.out_features == 32
+    assert network.latent.out_features == 8
+    assert network.decoder.out_features == 32
+    assert network.output_layer.out_features == 66
 
 
 def test_autoencoder_scores_reconstruction_error() -> None:

@@ -1,7 +1,7 @@
 import math
 
-import numpy as np
-from numpy.typing import NDArray
+import torch
+from torch import nn
 
 from fedcampaign_emhi.domain.types import (
     AnomalyScore,
@@ -25,20 +25,10 @@ from fedcampaign_emhi.runtime import derive_component_seed, log_stage, thirty_tw
 AUTOENCODER_ENCODER_WIDTH: LayerWidth = 32
 AUTOENCODER_LATENT_WIDTH: LayerWidth = 8
 AUTOENCODER_DECODER_WIDTH: LayerWidth = 32
-RELU_XAVIER_GAIN = math.sqrt(2.0)
-OUTPUT_XAVIER_GAIN = 1.0
+RELU_XAVIER_GAIN: XavierGain = math.sqrt(2.0)
+OUTPUT_XAVIER_GAIN: XavierGain = 1.0
 
-
-def autoencoder_layer_widths(
-    input_dimension: FeatureDimension,
-) -> tuple[FeatureDimension, LayerWidth, LayerWidth, LayerWidth, FeatureDimension]:
-    return (
-        input_dimension,
-        AUTOENCODER_ENCODER_WIDTH,
-        AUTOENCODER_LATENT_WIDTH,
-        AUTOENCODER_DECODER_WIDTH,
-        input_dimension,
-    )
+torch.set_num_threads(1)
 
 
 def batch_permutation_seed(
@@ -55,58 +45,65 @@ def batch_permutation_seed(
     return derive_component_seed(identity)
 
 
-def _xavier_uniform(
-    generator: np.random.Generator,
-    fan_in: FeatureDimension,
-    fan_out: FeatureDimension,
-    gain: XavierGain,
-) -> NDArray[np.float32]:
-    bound = gain * math.sqrt(6.0 / (fan_in + fan_out))
-    return generator.uniform(-bound, bound, size=(fan_in, fan_out)).astype(np.float32)
+class AutoencoderNetwork(nn.Module):
+    encoder: nn.Linear
+    latent: nn.Linear
+    decoder: nn.Linear
+    output_layer: nn.Linear
+
+    def __init__(self, input_dimension: FeatureDimension) -> None:
+        super().__init__()
+        self.encoder = nn.Linear(input_dimension, AUTOENCODER_ENCODER_WIDTH)
+        self.latent = nn.Linear(AUTOENCODER_ENCODER_WIDTH, AUTOENCODER_LATENT_WIDTH)
+        self.decoder = nn.Linear(AUTOENCODER_LATENT_WIDTH, AUTOENCODER_DECODER_WIDTH)
+        self.output_layer = nn.Linear(AUTOENCODER_DECODER_WIDTH, input_dimension)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        hidden = torch.relu(self.encoder(inputs))
+        latent = torch.relu(self.latent(hidden))
+        decoded = torch.relu(self.decoder(latent))
+        return self.output_layer(decoded)
 
 
-def _relu(values: NDArray[np.float32]) -> NDArray[np.float32]:
-    return np.maximum(values, 0.0, dtype=np.float32)
+def build_autoencoder_network(
+    input_dimension: FeatureDimension, root_seed: SeedValue
+) -> AutoencoderNetwork:
+    generator = torch.Generator()
+    generator.manual_seed(thirty_two_bit_seed(root_seed))
+    network = AutoencoderNetwork(input_dimension)
+    for layer, gain in (
+        (network.encoder, RELU_XAVIER_GAIN),
+        (network.latent, RELU_XAVIER_GAIN),
+        (network.decoder, RELU_XAVIER_GAIN),
+    ):
+        nn.init.xavier_uniform_(layer.weight, gain=gain, generator=generator)
+        nn.init.zeros_(layer.bias)
+    nn.init.xavier_uniform_(
+        network.output_layer.weight, gain=OUTPUT_XAVIER_GAIN, generator=generator
+    )
+    nn.init.zeros_(network.output_layer.bias)
+    return network
 
 
 class FittedAutoencoder:
-    __slots__ = ("_biases", "_weights")
+    __slots__ = ("_network",)
 
-    def __init__(
-        self,
-        weights: tuple[NDArray[np.float32], ...],
-        biases: tuple[NDArray[np.float32], ...],
-    ) -> None:
-        self._weights = weights
-        self._biases = biases
+    def __init__(self, network: AutoencoderNetwork) -> None:
+        self._network = network
 
     def score(self, score_rows: tuple[tuple[FeatureValue, ...], ...]) -> tuple[AnomalyScore, ...]:
-        score_matrix = np.asarray(score_rows, dtype=np.float32)
-        reconstructions = _forward(score_matrix, self._weights, self._biases)
-        squared = np.square(score_matrix - reconstructions)
-        per_sample = np.mean(squared, axis=1, dtype=np.float64)
-        return tuple(float(value) for value in per_sample.tolist())
+        score_matrix = torch.tensor(score_rows, dtype=torch.float32)
+        with torch.no_grad():
+            reconstruction = self._network(score_matrix)
+            squared = torch.square(score_matrix - reconstruction)
+            per_sample = squared.to(torch.float64).mean(dim=1)
+        sample_count = int(per_sample.shape[0])
+        return tuple(float(per_sample[index].item()) for index in range(sample_count))
 
 
-def _xavier_initial_parameters(
-    input_dimension: FeatureDimension, root_seed: SeedValue
-) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
-    widths = autoencoder_layer_widths(input_dimension)
-    init_generator = np.random.default_rng(thirty_two_bit_seed(root_seed))
-    weights = (
-        _xavier_uniform(init_generator, widths[0], widths[1], RELU_XAVIER_GAIN),
-        _xavier_uniform(init_generator, widths[1], widths[2], RELU_XAVIER_GAIN),
-        _xavier_uniform(init_generator, widths[2], widths[3], RELU_XAVIER_GAIN),
-        _xavier_uniform(init_generator, widths[3], widths[4], OUTPUT_XAVIER_GAIN),
-    )
-    biases = tuple(np.zeros((width,), dtype=np.float32) for width in widths[1:])
-    return weights, biases
-
-
-def _train_epochs(
-    fit_matrix: NDArray[np.float32],
-    weights: tuple[NDArray[np.float32], ...],
-    biases: tuple[NDArray[np.float32], ...],
+def train_autoencoder_epochs(
+    network: AutoencoderNetwork,
+    fit_matrix: torch.Tensor,
     learning_rate: LearningRate,
     beta_one: AutoencoderBeta,
     beta_two: AutoencoderBeta,
@@ -114,50 +111,58 @@ def _train_epochs(
     weight_decay: WeightDecay,
     batch_size: BatchSize,
     epoch_count: SolverIterationLimit,
-    permutation_seed_root: SeedValue,
+    root_seed: SeedValue,
     client_id: ClientId,
     epoch_offset: SolverIterationLimit,
-) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
-    first_moments = tuple(np.zeros_like(weight) for weight in weights)
-    second_moments = tuple(np.zeros_like(weight) for weight in weights)
-    bias_first = tuple(np.zeros_like(bias) for bias in biases)
-    bias_second = tuple(np.zeros_like(bias) for bias in biases)
+) -> None:
+    optimizer = torch.optim.Adam(
+        [
+            {
+                "params": (
+                    network.encoder.weight,
+                    network.latent.weight,
+                    network.decoder.weight,
+                    network.output_layer.weight,
+                ),
+                "weight_decay": weight_decay,
+            },
+            {
+                "params": (
+                    network.encoder.bias,
+                    network.latent.bias,
+                    network.decoder.bias,
+                    network.output_layer.bias,
+                ),
+                "weight_decay": 0.0,
+            },
+        ],
+        lr=learning_rate,
+        betas=(beta_one, beta_two),
+        eps=optimizer_epsilon,
+    )
+    criterion = nn.MSELoss()
     row_count = int(fit_matrix.shape[0])
-    step = 0
-    trained_weights = weights
-    trained_biases = biases
     for local_epoch_index in range(epoch_count):
         permutation_seed = batch_permutation_seed(
-            permutation_seed_root, client_id, epoch_offset + local_epoch_index
+            root_seed, client_id, epoch_offset + local_epoch_index
         )
-        order = np.random.default_rng(thirty_two_bit_seed(permutation_seed)).permutation(row_count)
+        generator = torch.Generator()
+        generator.manual_seed(thirty_two_bit_seed(permutation_seed))
+        order = torch.randperm(row_count, generator=generator)
         shuffled = fit_matrix[order]
         for start in range(0, row_count, batch_size):
             batch = shuffled[start : start + batch_size]
-            step += 1
-            (
-                trained_weights,
-                trained_biases,
-                first_moments,
-                second_moments,
-                bias_first,
-                bias_second,
-            ) = _adam_step(
-                batch,
-                trained_weights,
-                trained_biases,
-                first_moments,
-                second_moments,
-                bias_first,
-                bias_second,
-                learning_rate,
-                beta_one,
-                beta_two,
-                optimizer_epsilon,
-                weight_decay,
-                step,
-            )
-    return trained_weights, trained_biases
+            optimizer.zero_grad(set_to_none=True)
+            reconstruction = network(batch)
+            loss = criterion(reconstruction, batch)
+            loss.backward()
+            optimizer.step()
+
+
+def _fit_matrix(fit_rows: tuple[tuple[FeatureValue, ...], ...]) -> torch.Tensor:
+    if not fit_rows:
+        raise ValueError("autoencoder requires a non-empty detector-fit matrix")
+    return torch.tensor(fit_rows, dtype=torch.float32)
 
 
 @log_stage("models.autoencoder")
@@ -173,15 +178,12 @@ def fit_autoencoder(
     root_seed: SeedValue,
     client_id: ClientId,
 ) -> FittedAutoencoder:
-    if not fit_rows:
-        raise ValueError("autoencoder requires a non-empty detector-fit matrix")
-    fit_matrix = np.asarray(fit_rows, dtype=np.float32)
+    fit_matrix = _fit_matrix(fit_rows)
     input_dimension = int(fit_matrix.shape[1])
-    weights, biases = _xavier_initial_parameters(input_dimension, root_seed)
-    trained_weights, trained_biases = _train_epochs(
+    network = build_autoencoder_network(input_dimension, root_seed)
+    train_autoencoder_epochs(
+        network,
         fit_matrix,
-        weights,
-        biases,
         learning_rate,
         beta_one,
         beta_two,
@@ -193,46 +195,7 @@ def fit_autoencoder(
         client_id,
         0,
     )
-    return FittedAutoencoder(trained_weights, trained_biases)
-
-
-def initial_xavier_autoencoder_parameters(
-    input_dimension: FeatureDimension, root_seed: SeedValue
-) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
-    return _xavier_initial_parameters(input_dimension, root_seed)
-
-
-@log_stage("models.autoencoder")
-def train_client_autoencoder_epochs(
-    fit_matrix: NDArray[np.float32],
-    weights: tuple[NDArray[np.float32], ...],
-    biases: tuple[NDArray[np.float32], ...],
-    learning_rate: LearningRate,
-    beta_one: AutoencoderBeta,
-    beta_two: AutoencoderBeta,
-    optimizer_epsilon: NumericalFloor,
-    weight_decay: WeightDecay,
-    batch_size: BatchSize,
-    epoch_count: SolverIterationLimit,
-    permutation_seed_root: SeedValue,
-    client_id: ClientId,
-    epoch_offset: SolverIterationLimit,
-) -> tuple[tuple[NDArray[np.float32], ...], tuple[NDArray[np.float32], ...]]:
-    return _train_epochs(
-        fit_matrix,
-        weights,
-        biases,
-        learning_rate,
-        beta_one,
-        beta_two,
-        optimizer_epsilon,
-        weight_decay,
-        batch_size,
-        epoch_count,
-        permutation_seed_root,
-        client_id,
-        epoch_offset,
-    )
+    return FittedAutoencoder(network)
 
 
 def autoencoder_anomaly_scores(
@@ -261,97 +224,3 @@ def autoencoder_anomaly_scores(
         client_id,
     )
     return fitted.score(score_rows)
-
-
-def _forward(
-    inputs: NDArray[np.float32],
-    weights: tuple[NDArray[np.float32], ...],
-    biases: tuple[NDArray[np.float32], ...],
-) -> NDArray[np.float32]:
-    hidden = _relu(inputs @ weights[0] + biases[0])
-    latent = _relu(hidden @ weights[1] + biases[1])
-    decoded = _relu(latent @ weights[2] + biases[2])
-    return decoded @ weights[3] + biases[3]
-
-
-def _adam_step(
-    batch: NDArray[np.float32],
-    weights: tuple[NDArray[np.float32], ...],
-    biases: tuple[NDArray[np.float32], ...],
-    first_moments: tuple[NDArray[np.float32], ...],
-    second_moments: tuple[NDArray[np.float32], ...],
-    bias_first: tuple[NDArray[np.float32], ...],
-    bias_second: tuple[NDArray[np.float32], ...],
-    learning_rate: LearningRate,
-    beta_one: AutoencoderBeta,
-    beta_two: AutoencoderBeta,
-    optimizer_epsilon: NumericalFloor,
-    weight_decay: WeightDecay,
-    step: SolverIterationLimit,
-) -> tuple[
-    tuple[NDArray[np.float32], ...],
-    tuple[NDArray[np.float32], ...],
-    tuple[NDArray[np.float32], ...],
-    tuple[NDArray[np.float32], ...],
-    tuple[NDArray[np.float32], ...],
-    tuple[NDArray[np.float32], ...],
-]:
-    hidden = _relu(batch @ weights[0] + biases[0])
-    latent = _relu(hidden @ weights[1] + biases[1])
-    decoded = _relu(latent @ weights[2] + biases[2])
-    reconstruction = decoded @ weights[3] + biases[3]
-    batch_size = float(batch.shape[0])
-    feature_count = float(batch.shape[1])
-    error = (reconstruction - batch) * np.float32(2.0 / (batch_size * feature_count))
-    grad_w3 = decoded.T @ error
-    grad_b3 = np.sum(error, axis=0)
-    decoded_delta = (error @ weights[3].T) * (decoded > 0.0)
-    grad_w2 = latent.T @ decoded_delta
-    grad_b2 = np.sum(decoded_delta, axis=0)
-    latent_delta = (decoded_delta @ weights[2].T) * (latent > 0.0)
-    grad_w1 = hidden.T @ latent_delta
-    grad_b1 = np.sum(latent_delta, axis=0)
-    hidden_delta = (latent_delta @ weights[1].T) * (hidden > 0.0)
-    grad_w0 = batch.T @ hidden_delta
-    grad_b0 = np.sum(hidden_delta, axis=0)
-    weight_grads = (grad_w0, grad_w1, grad_w2, grad_w3)
-    bias_grads = (grad_b0, grad_b1, grad_b2, grad_b3)
-    next_weights: list[NDArray[np.float32]] = []
-    next_biases: list[NDArray[np.float32]] = []
-    next_first: list[NDArray[np.float32]] = []
-    next_second: list[NDArray[np.float32]] = []
-    next_bias_first: list[NDArray[np.float32]] = []
-    next_bias_second: list[NDArray[np.float32]] = []
-    beta1 = np.float32(beta_one)
-    beta2 = np.float32(beta_two)
-    for index, weight in enumerate(weights):
-        gradient = weight_grads[index] + np.float32(weight_decay) * weight
-        first = beta1 * first_moments[index] + (1.0 - beta1) * gradient
-        second = beta2 * second_moments[index] + (1.0 - beta2) * np.square(gradient)
-        first_hat = first / (1.0 - (beta1**step))
-        second_hat = second / (1.0 - (beta2**step))
-        updated = weight - np.float32(learning_rate) * first_hat / (
-            np.sqrt(second_hat) + np.float32(optimizer_epsilon)
-        )
-        next_weights.append(updated.astype(np.float32))
-        next_first.append(first.astype(np.float32))
-        next_second.append(second.astype(np.float32))
-        bias_gradient = bias_grads[index]
-        bias_m = beta1 * bias_first[index] + (1.0 - beta1) * bias_gradient
-        bias_v = beta2 * bias_second[index] + (1.0 - beta2) * np.square(bias_gradient)
-        bias_m_hat = bias_m / (1.0 - (beta1**step))
-        bias_v_hat = bias_v / (1.0 - (beta2**step))
-        updated_bias = biases[index] - np.float32(learning_rate) * bias_m_hat / (
-            np.sqrt(bias_v_hat) + np.float32(optimizer_epsilon)
-        )
-        next_biases.append(updated_bias.astype(np.float32))
-        next_bias_first.append(bias_m.astype(np.float32))
-        next_bias_second.append(bias_v.astype(np.float32))
-    return (
-        tuple(next_weights),
-        tuple(next_biases),
-        tuple(next_first),
-        tuple(next_second),
-        tuple(next_bias_first),
-        tuple(next_bias_second),
-    )

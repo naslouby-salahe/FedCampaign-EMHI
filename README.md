@@ -26,6 +26,7 @@ fedcampaign preprocess <dataset-name>
 fedcampaign preprocess --overwrite
 fedcampaign preprocess <dataset-name> --overwrite
 fedcampaign plan
+fedcampaign analyze
 fedcampaign smoke
 fedcampaign smoke --overwrite
 fedcampaign run <experiment-name>

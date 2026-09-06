@@ -7,6 +7,7 @@ from pathlib import Path
 from tests.architecture.ast_scans import SRC_ROOT, source_files
 
 CLI_MODULE = "fedcampaign_emhi.cli"
+RUNTIME_CALLBACK_CLASS_NAMES = frozenset({"FedAvgServerStrategy"})
 
 
 def _module_name(path: Path) -> str:
@@ -98,6 +99,61 @@ def _add_attr(
     if not candidates and len(simple[attr]) == 1:
         candidates.update(simple[attr])
     calls[caller].update(candidates)
+
+
+def _external_import_names() -> dict[str, tuple[str, str]]:
+    external: dict[str, tuple[str, str]] = {}
+    for path in source_files():
+        module = _module_name(path)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom):
+                if node.module and node.module.startswith("fedcampaign_emhi"):
+                    continue
+                for alias in node.names:
+                    external[alias.asname or alias.name] = (module, "imported")
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("fedcampaign_emhi"):
+                        continue
+                    external[alias.asname or alias.name.split(".")[-1]] = (module, "imported")
+    return external
+
+
+def _base_root_identifier(base: ast.expr) -> str | None:
+    if isinstance(base, ast.Name):
+        return base.id
+    if isinstance(base, ast.Attribute):
+        value = base.value
+        while isinstance(value, ast.Attribute):
+            value = value.value
+        if isinstance(value, ast.Name):
+            return value.id
+    return None
+
+
+def _external_base_framework_methods(functions: dict[str, tuple[str, int]]) -> set[str]:
+    external = _external_import_names()
+    framework_methods: set[str] = set()
+    for path in source_files():
+        module = _module_name(path)
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            has_external_base = any(
+                (identifier := _base_root_identifier(base)) is not None and identifier in external
+                for base in node.bases
+            )
+            is_runtime_callback = node.name in RUNTIME_CALLBACK_CLASS_NAMES
+            if not (has_external_base or is_runtime_callback):
+                continue
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
+                    qname = f"{module}.{node.name}.{item.name}"
+                    if qname in functions:
+                        framework_methods.add(qname)
+    return framework_methods
 
 
 def _build_call_graph(functions: dict[str, tuple[str, int]]) -> dict[str, set[str]]:
@@ -197,6 +253,42 @@ def _build_call_graph(functions: dict[str, tuple[str, int]]) -> dict[str, set[st
                                     node.args[0].id, module, current_class, imported, functions
                                 )
                             )
+                        if func.attr == "submit":
+                            for keyword in node.keywords:
+                                if keyword.arg == "fn" and isinstance(keyword.value, ast.Name):
+                                    calls[caller].update(
+                                        _resolve_name(
+                                            keyword.value.id,
+                                            module,
+                                            current_class,
+                                            imported,
+                                            functions,
+                                        )
+                                    )
+                        if func.attr == "Thread":
+                            for keyword in node.keywords:
+                                if keyword.arg == "target" and isinstance(keyword.value, ast.Name):
+                                    calls[caller].update(
+                                        _resolve_name(
+                                            keyword.value.id,
+                                            module,
+                                            current_class,
+                                            imported,
+                                            functions,
+                                        )
+                                    )
+                    elif isinstance(func, ast.Name) and func.id == "Thread":
+                        for keyword in node.keywords:
+                            if keyword.arg == "target" and isinstance(keyword.value, ast.Name):
+                                calls[caller].update(
+                                    _resolve_name(
+                                        keyword.value.id,
+                                        module,
+                                        current_class,
+                                        imported,
+                                        functions,
+                                    )
+                                )
                 elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
                     _add_attr(
                         node.value,
@@ -234,7 +326,8 @@ def test_cli_commands_reach_every_non_cli_production_method() -> None:
     functions = _collect_functions()
     cli_entries = _cli_commands(functions)
     calls = _build_call_graph(functions)
-    reachable = _reachable(cli_entries, calls)
+    framework_roots = _external_base_framework_methods(functions)
+    reachable = _reachable(cli_entries | framework_roots, calls)
     non_cli = set(functions) - cli_entries
     unreachable = sorted(non_cli - reachable)
     assert cli_entries, "CLI command entry points must exist"

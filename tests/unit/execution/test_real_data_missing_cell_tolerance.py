@@ -8,7 +8,7 @@ from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import SeedValue
-from fedcampaign_emhi.experiments.campaigns import materialize_seed_statistics
+from fedcampaign_emhi.experiments.seed_statistics import materialize_seed_statistics
 
 
 def _write_summary(

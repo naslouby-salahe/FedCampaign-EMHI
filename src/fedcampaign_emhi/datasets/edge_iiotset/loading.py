@@ -1,8 +1,10 @@
-import csv
 import re
 from collections.abc import Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
+
+import polars as pl
 
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
@@ -49,29 +51,35 @@ def _parse_row_fields(
 def iter_edge_iiotset_csv_entries(
     path: Path,
 ) -> Iterator[EdgeIiotsetFlowRecord | ExcludedRecord]:
-    with path.open(newline="", encoding="utf-8-sig") as csv_file:
-        reader = csv.DictReader(csv_file)
-        fieldnames = tuple(reader.fieldnames or ())
-        if not schema_is_executable(fieldnames):
-            raise ValueError(
-                f"{path} is missing required Edge-IIoTset columns {REQUIRED_EDGE_IIOTSET_COLUMNS}"
+    header = pl.read_csv(path, n_rows=0, infer_schema_length=0)
+    fieldnames = tuple(header.columns)
+    if not schema_is_executable(fieldnames):
+        raise ValueError(
+            f"{path} is missing required Edge-IIoTset columns {REQUIRED_EDGE_IIOTSET_COLUMNS}"
+        )
+    schema_overrides = {name: pl.Utf8 for name in fieldnames}
+    frame = pl.scan_csv(path, schema_overrides=schema_overrides, low_memory=True).collect()
+    for raw_row in frame.iter_rows(named=True):
+        row = {name: raw_row.get(name) for name in fieldnames}
+        parsed = _parse_row_fields(
+            cast(Mapping[NormalizedEventToken, NormalizedEventToken | None], row)
+        )
+        if isinstance(parsed, ExcludedRecord):
+            yield parsed
+            continue
+        timestamp_seconds, source_host, binary_label, attack_type = parsed
+        fields = tuple(
+            (name, cast(NormalizedEventToken | None, row.get(name))) for name in fieldnames
+        )
+        yield (
+            EdgeIiotsetFlowRecord(
+                timestamp_seconds=timestamp_seconds,
+                source_host=source_host,
+                protocol_group=dominant_protocol_group_for_row(fields),
+                binary_label=binary_label,
+                attack_type=attack_type,
             )
-        for row in reader:
-            parsed = _parse_row_fields(row)
-            if isinstance(parsed, ExcludedRecord):
-                yield parsed
-                continue
-            timestamp_seconds, source_host, binary_label, attack_type = parsed
-            fields = tuple((name, row.get(name)) for name in fieldnames)
-            yield (
-                EdgeIiotsetFlowRecord(
-                    timestamp_seconds=timestamp_seconds,
-                    source_host=source_host,
-                    protocol_group=dominant_protocol_group_for_row(fields),
-                    binary_label=binary_label,
-                    attack_type=attack_type,
-                )
-            )
+        )
 
 
 def parse_frame_time(raw_timestamp: NormalizedEventToken) -> UnixTimestampSeconds:

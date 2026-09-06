@@ -4,11 +4,11 @@ from fedcampaign_emhi.artifacts.records import StrongComparatorCompositionRecord
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import MethodName
 from fedcampaign_emhi.experiments.calibration import (
+    CompositionCandidateObservation,
     CompositionCandidateSeedMetrics,
     evaluate_composition_candidate_seed,
 )
-from fedcampaign_emhi.experiments.campaigns import (
-    CompositionCandidateObservation,
+from fedcampaign_emhi.experiments.synthetic_execution import (
     materialize_strong_comparator_composition_selection,
 )
 

@@ -2,7 +2,6 @@ import hashlib
 import unicodedata
 
 from fedcampaign_emhi.domain.types import (
-    ClientId,
     HashBucketCount,
     HashBucketIndex,
     NormalizedEventToken,
@@ -22,10 +21,6 @@ def normalize_token(
     if not stripped or stripped == ZEEK_MISSING_FIELD_TOKEN:
         return missing_token
     return unicodedata.normalize("NFKC", stripped.upper())
-
-
-def normalize_client_id(source_ip: ClientId) -> ClientId:
-    return unicodedata.normalize("NFKC", source_ip.strip())
 
 
 def normalize_event_type(

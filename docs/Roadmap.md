@@ -1024,7 +1024,7 @@ statistics:
   bootstrap_replicates: 10000
   synthetic_sign_flip_replicates_when_not_exact: 100000
 
-claim_materiality:
+materiality:
   self_explanation:
     exact_exclusion_nuisance_derivative_equivalence_fraction_of_direct: 0.05
     minimum_attenuation_difference: 0.1
@@ -2066,7 +2066,7 @@ Full FedCampaign-EMHI vs Order at Most Two
 
 ### Claim and materiality criteria
 
-Every numerical materiality, equivalence, feasibility, PFA, ODI, robustness, and latency criterion remains authoritative under `claim_materiality` and the other cited Configuration YAML keys. The criteria are scientifically locked and may not be tuned from observed outcomes.
+Every numerical materiality, equivalence, feasibility, PFA, ODI, robustness, and latency criterion remains authoritative under `materiality` and the other cited Configuration YAML keys. The criteria are scientifically locked and may not be tuned from observed outcomes.
 
 ### Synthetic estimator and equivalence grids
 
@@ -3447,9 +3447,9 @@ Primary equivalence support levels are `experiments.exclusion_matched_hofd_equiv
 
 At each primary support level, both methods must satisfy the configured finite-horizon null-PFA requirement before stopping-time equivalence is interpreted. Equivalence then requires:
 
-* the complete paired 95% BCa CI for seed-level atom NRMSE to lie below `claim_materiality.hofd_equivalence.atom_nrmse_upper_margin`;
-* the mean seed-level atom cosine similarity to be at least `claim_materiality.hofd_equivalence.minimum_cosine_similarity`;
-* the complete paired 95% BCa CI for seed-level mean finite-stop stopping-time difference to lie inside `claim_materiality.hofd_equivalence.stopping_time_difference_interval_epochs`;
+* the complete paired 95% BCa CI for seed-level atom NRMSE to lie below `materiality.hofd_equivalence.atom_nrmse_upper_margin`;
+* the mean seed-level atom cosine similarity to be at least `materiality.hofd_equivalence.minimum_cosine_similarity`;
+* the complete paired 95% BCa CI for seed-level mean finite-stop stopping-time difference to lie inside `materiality.hofd_equivalence.stopping_time_difference_interval_epochs`;
 * the paired detection-indicator difference to be reported alongside the finite-stop comparison.
 
 Unexpected large superiority of either implementation triggers investigation and cannot be marketed as expected scientific superiority.
@@ -3682,11 +3682,11 @@ The FedAvg autoencoder remains unmatched ecological context.
 
 Held-out full-method PFA must satisfy the confidence and target configured under `evidence.calibrated_finite_horizon`.
 
-Mean seed-level strict ODI must meet `claim_materiality.primary_real.minimum_strict_odi_rate`.
+Mean seed-level strict ODI must meet `materiality.primary_real.minimum_strict_odi_rate`.
 
-Mean paired ODI-rate advantage over order-at-most-two must meet `claim_materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`.
+Mean paired ODI-rate advantage over order-at-most-two must meet `materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`.
 
-Median operational lead among strict-ODI successes must meet `claim_materiality.primary_real.minimum_median_operational_lead_epochs`.
+Median operational lead among strict-ODI successes must meet `materiality.primary_real.minimum_median_operational_lead_epochs`.
 
 Primary ODI advantage directional inference uses the fixed Holm correction defined in Sections 14.10–14.11 and `statistics.nominal_significance_alpha`.
 
@@ -3806,8 +3806,8 @@ $$
 
 Support requires:
 
-* mean seed-level common-mode suppression relative to Raw Mean Rank Fusion at least `claim_materiality.benign_common_mode.minimum_false_campaign_suppression`;
-* mean seed-level positive-power loss relative to No-Outside-Context Full Hierarchy no greater than `claim_materiality.benign_common_mode.maximum_detection_rate_loss`;
+* mean seed-level common-mode suppression relative to Raw Mean Rank Fusion at least `materiality.benign_common_mode.minimum_false_campaign_suppression`;
+* mean seed-level positive-power loss relative to No-Outside-Context Full Hierarchy no greater than `materiality.benign_common_mode.maximum_detection_rate_loss`;
 * the adjusted primary directional p-value for false-campaign reduction below `statistics.nominal_significance_alpha`.
 
 ## 13.13 Strong Local Policy Challenge
@@ -3961,7 +3961,7 @@ Metrics:
 * numerical-failure rate;
 * local/global timing operating-point state.
 
-Scalability support is based on confirmatory timing seeds. For every configured K, pooled numerical failure rate must not exceed `claim_materiality.maximum_pooled_numerical_failure_rate` and the seed-level p95 reference-harness end-to-end latencies must aggregate by the configured `scalability_timing.result_quantile`; the resulting reported p95 must not exceed `claim_materiality.reference_harness.p95_latency_maximum_seconds`.
+Scalability support is based on confirmatory timing seeds. For every configured K, pooled numerical failure rate must not exceed `materiality.maximum_pooled_numerical_failure_rate` and the seed-level p95 reference-harness end-to-end latencies must aggregate by the configured `scalability_timing.result_quantile`; the resulting reported p95 must not exceed `materiality.reference_harness.p95_latency_maximum_seconds`.
 
 All claim-bearing K cells must execute under one common timing environment satisfying Section 19.3. Results are explicitly conditional on that recorded reference environment and do not imply real network latency or production deployment performance.
 
@@ -4146,9 +4146,9 @@ The primary Holm family contains exactly five one-sided positive-direction hypot
 | `Pure-Order Target Drift` | Full FedCampaign-EMHI `D_A` at the primary Pure Continuous Triple condition and primary reference theta | mean `D_A <= 0` | mean `D_A > 0` |
 | `Primary ODI Advantage over Order-at-Most-Two EMHI` | `R_ODI,full - R_ODI,<=2` on TON_IoT Network | mean paired difference `<= 0` | mean paired difference `> 0` |
 | `Common-Mode False-Campaign Reduction` | native-high-volume stress-window false-declaration rate of Raw Mean Rank Fusion minus Full FedCampaign-EMHI | mean paired difference `<= 0` | mean paired difference `> 0` |
-| `Strong-Local ODI above Minimum` | `R_ODI,full,strong-local - claim_materiality.strong_local.minimum_strict_odi_rate` | mean shifted value `<= 0` | mean shifted value `> 0` |
+| `Strong-Local ODI above Minimum` | `R_ODI,full,strong-local - materiality.strong_local.minimum_strict_odi_rate` | mean shifted value `<= 0` | mean shifted value `> 0` |
 
-Synthetic hypotheses use the synthetic sign-flip procedure in Section 14.5. Real hypotheses use exact ten-seed sign-flip inference from Section 14.4. The primary multiplicity artifact always contains exactly these five identifiers in this fixed family. When a hypothesis is scientifically Not Tested because its predeclared metric is undefined or its experiment is ineligible, its scientific raw p-value and adjusted p-value are stored as `null`, its scientific decision remains Not Tested, and a separate field `holm_input_p=1.0` is used only to retain the fixed family size during Holm adjustment of the other hypotheses. This value is a conservative multiplicity placeholder, not an imputed scientific test result, and it cannot make the Not Tested hypothesis Supported.
+Synthetic hypotheses use the synthetic sign-flip procedure in Section 14.5. Real hypotheses use exact ten-seed sign-flip inference from Section 14.4. The primary multiplicity artifact always contains exactly these five identifiers in this fixed family. When a hypothesis is scientifically unavailable because its predeclared metric is undefined or its experiment is ineligible, its raw p-value and adjusted p-value are stored as `null`, and a separate field `holm_input_p=1.0` is used only to retain the fixed family size during Holm adjustment of the other hypotheses. This value is a conservative multiplicity placeholder, not an imputed scientific test result; no hypothesis conclusion is stored or derived from it.
 
 The secondary Holm family contains exactly six one-sided positive-direction ablation contrasts. In every row the statistic is the paired seed-level strict-ODI-rate difference `R_ODI,Full - R_ODI,Comparator` on TON_IoT Network:
 
@@ -4161,7 +4161,7 @@ Full FedCampaign-EMHI vs Order One
 Full FedCampaign-EMHI vs Order at Most Two
 ```
 
-Both methods in a secondary contrast must have eligible matched finite-horizon operating points for the corresponding seed-level ODI comparison. The secondary multiplicity artifact always contains exactly the six identifiers above. If a contrast is Not Tested, its scientific raw/adjusted p-values are `null` and its separate `holm_input_p` is 1.0 solely for fixed-family Holm bookkeeping; descriptive PFA/detection/coverage outputs remain reportable.
+Both methods in a secondary contrast must have eligible matched finite-horizon operating points for the corresponding seed-level ODI comparison. The secondary multiplicity artifact always contains exactly the six identifiers above. If a contrast is scientifically unavailable, its raw/adjusted p-values are `null` and its separate `holm_input_p` is 1.0 solely for fixed-family Holm bookkeeping; descriptive PFA/detection/coverage outputs remain reportable.
 
 ## 14.11 Holm correction
 
@@ -4379,71 +4379,29 @@ project/
 │   │
 │   └── cache/                                     # Non-authoritative recomputable workspace; cached content can never establish scientific validity.
 │       ├── preprocessing/                         # Recomputable cache for deterministic raw-to-prepared transformations.
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── classical.py
-│       │   └── autoencoder.py
-│       ├── detection.py
-│       ├── emhi/
-│       │   ├── __init__.py
-│       │   ├── structure.py
-│       │   ├── contexts.py
-│       │   ├── projection.py
-│       │   ├── innovations.py
-│       │   ├── calibration.py
-│       │   ├── thresholds.py
-│       │   ├── evidence.py
-│       │   └── sequential.py
-│       ├── comparators/
-│       │   ├── __init__.py
-│       │   ├── contracts.py
-│       │   ├── dependence.py
-│       │   ├── fusion.py
-│       │   ├── sequential.py
-│       │   ├── federated.py
-│       │   └── runtime.py
-│       ├── synthetic/
-│       │   ├── __init__.py
-│       │   ├── generators.py
-│       │   ├── self_explanation.py
-│       │   ├── pure_order.py
-│       │   ├── feasibility.py
-│       │   └── sequential.py
-│       ├── experiments/
-│       │   ├── __init__.py
-│       │   ├── registry.py
-│       │   ├── synthetic.py
-│       │   ├── campaigns.py
-│       │   ├── robustness.py
-│       │   └── calibration.py
-│       ├── evaluation/
-│       │   ├── __init__.py
-│       │   ├── records.py
-│       │   ├── sequential.py
-│       │   ├── metrics.py
-│       │   ├── scalability.py
-│       │   └── validation.py
-│       ├── analysis/
-│       │   ├── __init__.py
-│       │   ├── statistics.py
-│       │   └── results.py
-│       ├── artifacts/
-│       │   ├── __init__.py
-│       │   ├── records.py
-│       │   ├── storage.py
-│       │   └── provenance.py
-│       ├── execution/
-│       │   ├── __init__.py
-│       │   ├── preprocessing.py
-│       │   ├── planning.py
-│       │   ├── runner.py
-│       │   └── status.py
-│       ├── runtime.py
-│       ├── reporting/
-│       │   ├── __init__.py
-│       │   ├── evidence.py
-│       │   └── export.py
-│       └── cli.py
+│       ├── staging/                                # Atomic-write staging for products before rename.
+│       └── derived/                                # Other recomputable cache data; never treated as evidence.
+├── src/fedcampaign_emhi/                           # Typed implementation package (roadmap §16 module contracts).
+│   ├── domain/                                    # enums.py, types.py
+│   ├── config/                                    # schema.py, loading.py, validation.py
+│   ├── artifacts/                                 # records.py, storage.py, provenance.py
+│   ├── runtime.py                                 # deterministic digests, seeds, structured logging
+│   ├── datasets/                                  # preprocessing.py, inventory.py, partitions.py, campaigns.py, eligibility.py
+│   │   ├── edge_iiotset/                           # loading, canonicalization, validation, ground truth
+│   │   └── ton_iot_network/                        # loading, canonicalization, validation, ground truth
+│   ├── execution/                                 # preprocessing.py, planning.py, runner.py, status.py
+│   ├── models/                                    # autoencoder.py (PyTorch), classical.py
+│   ├── detection.py
+│   ├── emhi/                                      # structure, contexts, projection, innovations, calibration, thresholds, evidence, sequential
+│   ├── comparators/                               # contracts, dependence, fusion, federated (Flower), runtime
+│   ├── synthetic/                                 # generators, self_explanation, pure_order, feasibility, sequential
+│   ├── experiments/                               # registry, execution, technical_retry, synthetic_execution, synthetic, calibration,
+│   │                                              # seed_materialization, seed_evaluation, seed_statistics,
+│   │                                              # coalition_scalability, robustness, orchestration
+│   ├── evaluation/                                # records, sequential, metrics, scalability, validation
+│   ├── analysis/                                  # statistics, results
+│   ├── reporting/                                 # evidence.py, export.py (Matplotlib figures)
+│   └── cli.py                                     # thin Typer orchestration only
 │└── tests/
     ├── conftest.py
     │
@@ -5260,7 +5218,7 @@ Benign-horizon records are keyed by experiment, execution role, dataset, method,
 
 Seed-level summaries record experiment/lifecycle-step/dataset/comparison/seed, the compared methods, metric, both values, paired difference, campaign count, source-evaluation identities, dependency fingerprint, and content hash.
 
-Statistical records retain the claim/hypothesis/comparison/metric identity; test or CI/effect-size method; alternative or equivalence margins where applicable; number of independent units; statistic/estimate; raw and Holm-adjusted p-values where applicable; confidence level and bounds where applicable; bootstrap/permutation count where applicable; analysis seed; decision; source-result identities; analysis dependency fingerprint; and content hash. These records must preserve every rule in Section 14.
+Statistical records retain the claim/hypothesis/comparison/metric identity; test or CI/effect-size method; alternative or equivalence margins where applicable; number of independent units; statistic/estimate; raw and Holm-adjusted p-values where applicable; confidence level and bounds where applicable; bootstrap/permutation count where applicable; analysis seed; source-result identities; analysis dependency fingerprint; and content hash. These records must preserve every rule in Section 14.
 
 A statistical-code change invalidates only the statistical records whose material analysis component changed and their report descendants. It does not invalidate the source evaluation records unless evaluation logic also changed.
 
@@ -5443,13 +5401,13 @@ At the primary self-explanation condition, define the exact-exclusion nuisance-d
 m=\texttt{claim＿materiality.self＿explanation.exact＿exclusion＿nuisance＿derivative＿equivalence＿fraction＿of＿direct}\,|D_{direct}|.
 \]
 
-Fully supported when: the analytic direct-response fixture passes; the complete 95% BCa CI for exact-exclusion seed-level $D_\eta$ lies inside $[-m,m]$; mean confirmatory $\Delta A_{self}=A_{self,inclusive}-A_{self,exact}$ is at least `claim_materiality.self_explanation.minimum_attenuation_difference`; and the primary Holm-adjusted `Self-Explanation Material Attenuation` p-value is below `statistics.nominal_significance_alpha`.
+Fully supported when: the analytic direct-response fixture passes; the complete 95% BCa CI for exact-exclusion seed-level $D_\eta$ lies inside $[-m,m]$; mean confirmatory $\Delta A_{self}=A_{self,inclusive}-A_{self,exact}$ is at least `materiality.self_explanation.minimum_attenuation_difference`; and the primary Holm-adjusted `Self-Explanation Material Attenuation` p-value is below `statistics.nominal_significance_alpha`.
 
 A null result (valid experiment, exact-exclusion identity not contradicted, but the material attenuation criterion and/or directional inference does not pass) must be reported as such, not as support. The claim is contradicted only by a valid controlled implementation that violates the exact derivative identity beyond its equivalence region for reasons other than a technical defect.
 
 ## 21.3 `CLAIM_PURE_ORDER_SEPARATION`
 
-Fully supported when, for the primary Pure Continuous Triple condition at `generators.pure_polynomial.primary_reference_theta` over confirmatory synthetic seeds: analytic generator-purity invariants pass; mean maximum proper-subset standardized drift is no greater than `claim_materiality.pure_order.maximum_proper_subset_standardized_drift`; mean target-order standardized drift is at least `claim_materiality.pure_order.minimum_target_order_standardized_drift`; and the primary Holm-adjusted `Pure-Order Target Drift` p-value is below `statistics.nominal_significance_alpha`.
+Fully supported when, for the primary Pure Continuous Triple condition at `generators.pure_polynomial.primary_reference_theta` over confirmatory synthetic seeds: analytic generator-purity invariants pass; mean maximum proper-subset standardized drift is no greater than `materiality.pure_order.maximum_proper_subset_standardized_drift`; mean target-order standardized drift is at least `materiality.pure_order.minimum_target_order_standardized_drift`; and the primary Holm-adjusted `Pure-Order Target Drift` p-value is below `statistics.nominal_significance_alpha`.
 
 The mechanism-only claim applies when those pure-order conditions pass but the Section 13.6 order-3 estimator feasibility criterion does not — the existence/separation mechanism is retained while practical order-3 use is downscoped. Other generator/effect rows remain scope and failure-boundary evidence and cannot replace the primary condition. The claim is contradicted only when a mathematically valid declared pure-order generator fails the target-order movement criterion or violates the proper-subset invariance criterion after technical defects have been excluded.
 
@@ -5463,7 +5421,7 @@ This roadmap does not provide a theorem-quality real-data conditional-null argum
 
 Let the primary paired comparison be Full FedCampaign-EMHI minus Exclusion-Matched Order-at-Most-Two EMHI on `randomness.real_confirmatory_roots`.
 
-Fully supported only when all are true: (1) both methods have eligible calibrated finite-horizon operating points and held-out PFA one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`; (2) mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `claim_materiality.primary_real.minimum_strict_odi_rate`; (3) mean paired ODI-rate advantage is at least `claim_materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`; (4) pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`; (5) the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
+Fully supported only when all are true: (1) both methods have eligible calibrated finite-horizon operating points and held-out PFA one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`; (2) mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `materiality.primary_real.minimum_strict_odi_rate`; (3) mean paired ODI-rate advantage is at least `materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`; (4) pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `materiality.primary_real.minimum_median_operational_lead_epochs`; (5) the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
 
 Partial support applies when both methods satisfy the matched held-out PFA requirement and Full FedCampaign-EMHI meets the minimum strict-ODI-rate criterion, but one or more of the paired-advantage, operational-lead, or adjusted-inference criteria does not pass — the manuscript must then state exactly which materiality component did not pass and may not use the full permitted claim wording. A null result applies when both methods satisfy the matched held-out PFA requirement but Full FedCampaign-EMHI mean strict-ODI rate is below the minimum. The claim is not supported when Full FedCampaign-EMHI has no eligible calibrated operating point or its held-out PFA UCB exceeds the target. The claim is not tested when the observed TON_IoT Network release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
 
@@ -5478,7 +5436,7 @@ Define the confirmatory real order-3 contribution as the mean paired difference
 \mathcal S=\texttt{randomness.real＿confirmatory＿roots}.
 \]
 
-Fully supported when: `CLAIM_PURE_ORDER_SEPARATION` is supported; the Section 13.6 order-3 estimator feasibility criterion passes; and the real order-3 contribution is at least `claim_materiality.order_three_real.minimum_material_odi_contribution`.
+Fully supported when: `CLAIM_PURE_ORDER_SEPARATION` is supported; the Section 13.6 order-3 estimator feasibility criterion passes; and the real order-3 contribution is at least `materiality.order_three_real.minimum_material_odi_contribution`.
 
 The mechanism-only claim applies when controlled pure-order separation and estimator feasibility pass but the valid real contribution is below the configured materiality threshold. The claim is not supported when pure order-3 separation fails or order-3 estimator feasibility fails, and not tested when the primary real experiment is scientifically not tested in a way that prevents calculating the contribution. The claim is restricted to order 3; no behavior above `study.maximum_coalition_order` is implied.
 
@@ -5486,7 +5444,7 @@ The mechanism-only claim applies when controlled pure-order separation and estim
 
 For every K in `robustness.scalability_client_counts`, compute the pooled numerical-failure rate and the reported p95 reference-harness latency exactly as Section 13.17 defines. Separately use the Primary Strict ODI Evaluation operational-lead metric without recomputing it.
 
-Fully supported when: every required K/confirmatory timing cell is valid under one common Section 19.3 environment identity; pooled numerical-failure rate at every K is no greater than `claim_materiality.maximum_pooled_numerical_failure_rate`; reported p95 reference-harness latency at every K is no greater than `claim_materiality.reference_harness.p95_latency_maximum_seconds`; every K uses valid primary local and global timing operating points rather than timing-only fallbacks; and the primary pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `claim_materiality.primary_real.minimum_median_operational_lead_epochs`.
+Fully supported when: every required K/confirmatory timing cell is valid under one common Section 19.3 environment identity; pooled numerical-failure rate at every K is no greater than `materiality.maximum_pooled_numerical_failure_rate`; reported p95 reference-harness latency at every K is no greater than `materiality.reference_harness.p95_latency_maximum_seconds`; every K uses valid primary local and global timing operating points rather than timing-only fallbacks; and the primary pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `materiality.primary_real.minimum_median_operational_lead_epochs`.
 
 A conditional claim applies when the numerical-failure and latency criteria pass at every K under one common valid environment but the practical lead requirement is campaign-dependent, below its configured criterion, or one or more K cells require a timing-only local/global operating-point fallback — the manuscript may then report the measured computational feasibility within the tested harness, but may not make an unqualified practical early-warning statement. The claim is not supported when an observed valid K cell exceeds either numerical-failure or latency criterion, and not tested when a common valid timing environment, a required K cell, or the primary real operational-lead evidence is scientifically unavailable without changing the roadmap. The claim is restricted to the tested client-count grid and the recorded in-process reference environment; it does not imply real network latency, production-SOC throughput, or universal scalability.
 
@@ -5515,3 +5473,5 @@ Implementation may begin only when the production configuration validates, requi
 Dataset facts that depend on the acquired release are resolved by the deterministic raw-validation/adaptation rules in Section 6 rather than by inventing literature-derived constants. A discrepancy between expected documentation and observed raw bytes is surfaced in provenance and handled by the predeclared eligibility or Invalid rules; it is never silently repaired to match an expected count/schema.
 
 A scientifically unfavorable result, unavailable operating point, abstention boundary, or dataset ineligibility is an executable roadmap outcome and must not be treated as an implementation defect. Technical, provenance, leakage, schema, mathematical-invariant, or dependency-fingerprint failures must be repaired before dependent scientific evidence is interpreted.
+Generic computational machinery is provided by the standardized research stack: PyTorch for the local autoencoder network and its optimization, Flower for FedAvg orchestration and parameter transport of the federated autoencoder reference, Polars and DuckDB for large-CSV schema inspection, selection, parsing, and columnar aggregation and querying, scikit-learn for the Isolation Forest and One-Class SVM detectors, SciPy for statistical primitives such as normal and beta quantiles and Clopper-Pearson bounds, Matplotlib for deterministic publication figures rendered only from verified artifacts, Pydantic for configuration and typed records, and Typer for the public CLI. These libraries implement only generic machinery; every fixed scientific rule in this roadmap remains authoritative regardless of any library default, and persisted measurement and inference outputs are never interpreted into manuscript conclusions by execution code.
+

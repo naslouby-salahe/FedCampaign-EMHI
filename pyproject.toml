@@ -12,13 +12,17 @@ license = { file = "LICENSE" }
 authors = [{ name = "Salah Naslouby" }]
 dependencies = [
     "duckdb>=1.2",
+    "flwr>=1.36,<2",
+    "matplotlib>=3.10",
     "numpy>=2.2",
+    "polars>=1.40",
     "pydantic>=2.13",
     "pyyaml>=6.0",
     "rfc8785>=0.1",
     "scikit-learn>=1.6",
     "scipy>=1.15",
-    "typer>=0.27",
+    "torch>=2.6",
+    "typer>=0.13,<0.21",
 ]
 
 [project.scripts]
@@ -37,6 +41,14 @@ dev = [
     "semgrep>=1.100",
     "vulture>=2.14",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fedcampaign_emhi"]

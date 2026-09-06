@@ -289,7 +289,7 @@ def materialize_verified_experiment_report(
     output_paths: list[Path] = []
     if evidence.seed_summary_paths:
         table_path = result_root / "tables" / "main" / "seed-summary.csv"
-        figure_path = result_root / "figures" / "main" / "paired-differences.svg"
+        figure_path = result_root / "figures" / "main" / "paired-differences.png"
         summaries = load_seed_summaries(evidence.seed_summary_paths)
         if overwrite_policy is OverwritePolicy.OVERWRITE or not table_path.is_file():
             write_seed_summary_table(table_path, summaries)

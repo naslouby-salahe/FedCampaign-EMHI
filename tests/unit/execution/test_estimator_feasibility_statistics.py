@@ -3,11 +3,13 @@ from pathlib import Path
 from fedcampaign_emhi.artifacts.records import EstimatorFeasibilityAggregationRecord
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExecutionRole
-from fedcampaign_emhi.experiments.campaigns import (
+from fedcampaign_emhi.experiments.synthetic import (
     EstimatorFeasibilityObservation,
+    EstimatorFeasibilitySeedMetrics,
+)
+from fedcampaign_emhi.experiments.synthetic_execution import (
     materialize_estimator_feasibility_statistics,
 )
-from fedcampaign_emhi.experiments.synthetic import EstimatorFeasibilitySeedMetrics
 from fedcampaign_emhi.synthetic.feasibility import EstimatorFeasibilityMetrics
 
 
