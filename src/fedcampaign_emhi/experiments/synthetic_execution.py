@@ -755,9 +755,10 @@ def materialize_pure_order_statistics(
     source_paths = tuple(observation.diagnostic_path for observation in confirmatory)
     source_digests = tuple(file_sha256(path) for path in source_paths)
     source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    hypothesis_identifier = PrimaryHolmHypothesis.PURE_ORDER_TARGET_DRIFT.value
     payload: YamlNode = {
         "experiment_name": ExperimentName.PURE_ORDER_SEPARATION_VALIDATION.value,
-        "hypothesis_identifier": "Pure-Order Target Drift",
+        "hypothesis_identifier": hypothesis_identifier,
         "metric_name": "target_order_standardized_drift",
         "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         "independent_unit_count": len(values),
@@ -769,7 +770,7 @@ def materialize_pure_order_statistics(
         "source_result_ids": list(source_ids),
     }
     record = StatisticalRecord(
-        hypothesis_identifier="Pure-Order Target Drift",
+        hypothesis_identifier=hypothesis_identifier,
         metric_name="target_order_standardized_drift",
         method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         independent_unit_count=len(values),

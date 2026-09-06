@@ -77,6 +77,11 @@ def annotation_primitives(
         for elt in node.elts:
             found.extend(annotation_primitives(elt, leak_containers=leak_containers))
         return found
+    if isinstance(node, ast.List):
+        found: list[str] = []
+        for elt in node.elts:
+            found.extend(annotation_primitives(elt, leak_containers=leak_containers))
+        return found
     return []
 
 

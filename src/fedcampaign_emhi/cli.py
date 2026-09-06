@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from hashlib import sha256
 from pathlib import Path
 from subprocess import run
@@ -75,7 +74,7 @@ def _lock_digest(repository: Path) -> ConfigurationDigest:
 
 def doctor_command() -> None:
     configure_structured_logging()
-    emit: Callable[[str], None] = typer.echo
+    emit = typer.echo
     repository, loaded = production_configuration_context()
     readiness = assess_implementation_readiness(loaded, repository)
     layout = build_artifact_layout(loaded, repository)
