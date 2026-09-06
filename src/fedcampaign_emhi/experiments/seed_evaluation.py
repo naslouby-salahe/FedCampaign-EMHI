@@ -37,6 +37,13 @@ from fedcampaign_emhi.artifacts.storage import (
     payload_digest,
     write_atomic_json,
 )
+from fedcampaign_emhi.comparators.conditioning import (
+    CONDITIONED_COMPARATOR_METHODS,
+    comparator_panel,
+    condition_epoch_ranks,
+    conditioned_comparator_order,
+    fit_comparator_conditioning,
+)
 from fedcampaign_emhi.comparators.federated import fit_federated_autoencoder
 from fedcampaign_emhi.comparators.runtime import (
     fit_comparator_state,
@@ -98,9 +105,7 @@ from fedcampaign_emhi.evaluation.metrics import (
     earliest_local_stop,
     false_campaigns_per_ten_thousand_benign_epochs,
     seed_level_odi_rate,
-)
-from fedcampaign_emhi.evaluation.records import (
-    odi_evaluation_record,
+    strict_odi_outcome,
 )
 from fedcampaign_emhi.evaluation.scalability import (
     resident_set_bytes,
@@ -208,7 +213,7 @@ def _evaluate_emhi_seed_cell(
     )
     heldout_rows = build_heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
     heldout_maps = tuple(as_mapping(row) for row in heldout_rows)
-    heldout_false_stops = sum(int(cast(Boolean, row["false_campaign"])) for row in heldout_maps)
+    heldout_false_stops = sum(cast(int, row["false_campaign"]) for row in heldout_maps)
     heldout_epochs = sum(len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons)
     false_campaign_rate = (
         None
@@ -525,13 +530,56 @@ def comparator_epoch_scores(
         MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE,
     }
 
+    def _full_row_for_epoch(epoch: EpochIndexValue) -> tuple[RankValue, ...]:
+        return tuple(epoch_rank_map[epoch] for _client_id, epoch_rank_map in streams)
+
     def _row_for_epoch(epoch: EpochIndexValue) -> tuple[RankValue, ...]:
-        values: tuple[RankValue, ...] = tuple(
-            epoch_rank_map[epoch] for _client_id, epoch_rank_map in streams
-        )
+        values = _full_row_for_epoch(epoch)
         return values[:3] if scoring_method in triple_methods else values
 
+    conditioned = scoring_method in CONDITIONED_COMPARATOR_METHODS
     nuisance_epoch_set = set(nuisance_fit_epochs)
+    if conditioned:
+        native_order = conditioned_comparator_order(scoring_method)
+        if native_order is None:
+            raise ValueError(f"{scoring_method.value} has no conditioned native order")
+        panel = comparator_panel(
+            tuple(common_epochs),
+            tuple(_full_row_for_epoch(epoch) for epoch in common_epochs),
+        )
+        model = fit_comparator_conditioning(
+            loaded.values,
+            ranks.dataset_name,
+            panel,
+            tuple(epoch for epoch in common_epochs if epoch in nuisance_epoch_set),
+            int(native_order),
+            ranks.selected_client_ids,
+        )
+        if model is None:
+            return ()
+        nuisance_conditioned = tuple(
+            conditioned_row
+            for epoch in common_epochs
+            if epoch in nuisance_epoch_set
+            and (conditioned_row := condition_epoch_ranks(loaded.values, panel, epoch, model))
+            is not None
+        )
+        fitted_state = fit_comparator_state(scoring_method, nuisance_conditioned, loaded.values)
+        scores: list[tuple[EpochIndexValue, DetectorScore]] = []
+        cusum_state: tuple[CusumState, ...] = ()
+        for epoch in common_epochs:
+            conditioned_row = condition_epoch_ranks(loaded.values, panel, epoch, model)
+            if conditioned_row is None:
+                continue
+            score, cusum_state = score_comparator_ranks(
+                scoring_method,
+                conditioned_row,
+                loaded.values,
+                cusum_state,
+                fitted_state,
+            )
+            scores.append((epoch, score))
+        return tuple(scores)
     nuisance_rows = tuple(
         _row_for_epoch(epoch) for epoch in common_epochs if epoch in nuisance_epoch_set
     )
@@ -560,6 +608,8 @@ def comparator_evidence_scores(
     raw_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
     nuisance_epochs: tuple[EpochIndexValue, ...],
 ) -> tuple[tuple[EpochIndexValue, DetectorScore], ...]:
+    if not raw_scores:
+        return ()
     nuisance_scores = tuple(score for epoch, score in raw_scores if epoch in nuisance_epochs)
     if not nuisance_scores:
         raise ValueError("comparator evidence requires nuisance-fit scores")
@@ -569,7 +619,7 @@ def comparator_evidence_scores(
     ) ** 0.5
     floor = loaded.values.numerics.metric_denominator_floor
     if nuisance_deviation <= floor:
-        raise ValueError("comparator nuisance-fit score deviation is not usable")
+        return ()
     standardized = tuple(
         (epoch, abs((score - nuisance_mean) / nuisance_deviation)) for epoch, score in raw_scores
     )
@@ -618,6 +668,8 @@ def calibrate_comparator_operating_point(
 ) -> tuple[
     ThresholdValue | None, tuple[RecordCount, ...], RecordCount, RecordCount, FalseAlarmRate | None
 ]:
+    if not evidence_scores:
+        return None, (), len(partitions.calibration_horizons), 0, None
     calibration_horizons = partitions.calibration_horizons
     heldout_horizons = partitions.heldout_horizons
     candidates = loaded.values.evidence.calibrated_finite_horizon.threshold_candidates
@@ -708,7 +760,7 @@ def _evaluate_comparator_seed_cell(
         stop_epoch = comparator_stop(scores, epochs, threshold)
         elapsed: RuntimeSeconds = perf_counter() - started
         local_stops = local_stop_epochs(detector_scores, local_operating_points, epochs)
-        odi = odi_evaluation_record(stop_epoch, local_stops)
+        odi = strict_odi_outcome(stop_epoch, local_stops)
         earliest_local = earliest_local_stop(local_stops)
         statistical = (
             None
@@ -1098,7 +1150,8 @@ def _sensitivity_condition_fit(
         )
     )
     fingerprint = material_fingerprint(
-        nuisance_context_boundary_digest(loaded.values), (condition_digest,)
+        nuisance_context_boundary_digest(loaded.values),
+        (condition_digest,),
     )
     return build_emhi_fit_artifact(
         loaded.values,
@@ -1141,7 +1194,7 @@ def _emhi_metrics_for_fit(
     )
     rows = tuple(cast(Mapping[str, YamlNode], row) for row in campaign_rows)
     detection_rate = (
-        sum(cast(Boolean, row["global_detected_within_horizon"]) for row in rows) / len(rows)
+        sum(cast(int, row["global_detected_within_horizon"]) for row in rows) / len(rows)
         if rows
         else 0.0
     )
@@ -1278,7 +1331,7 @@ def sensitivity_cell_slug(
     if ridge_override is not None:
         return f"forced-ridge-{ridge_override}"
     if method_override is not None:
-        return method_artifact_stem(cast(MethodName, method_override))
+        return method_override.value.lower().replace(" ", "-")
     raise ValueError("sensitivity cell requires exactly one overridden factor")
 
 

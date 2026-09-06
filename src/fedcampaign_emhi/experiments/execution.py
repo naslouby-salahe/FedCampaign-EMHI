@@ -123,6 +123,15 @@ def run_record_path(
     )
 
 
+def cell_record_paths(experiment_root: Path) -> tuple[Path, ...]:
+    directory = experiment_root / "provenance" / "dependencies"
+    if not directory.is_dir():
+        return ()
+    return tuple(
+        sorted(path for path in directory.glob("*.json") if path.name != "run-record.json")
+    )
+
+
 def implementation_digest(repository: Path) -> ConfigurationDigest:
     source_root = repository / "src" / "fedcampaign_emhi"
     digest = hashlib.sha256()

@@ -70,3 +70,19 @@ def test_atom_metrics_use_aligned_vector_geometry() -> None:
     hofd = ((1.0, 0.0), (0.0, 1.0))
     assert atom_nrmse(emhi, hofd, 1e-12) == 0.0
     assert atom_cosine_similarity(emhi, hofd, 1e-12) == pytest.approx(1.0)
+
+
+def test_atom_nrmse_adds_floor_to_emhi_rms_denominator() -> None:
+    emhi = ((1.0,),)
+    hofd = ((0.0,),)
+    expected = 1.0 / (1.0 + 2.0)
+    assert atom_nrmse(emhi, hofd, 2.0) == pytest.approx(expected)
+    assert atom_nrmse(emhi, hofd, 2.0) != pytest.approx(1.0 / 2.0)
+
+
+def test_atom_cosine_adds_floor_to_denominator() -> None:
+    emhi = ((1.0,), (2.0,))
+    hofd = ((3.0,), (4.0,))
+    inner = 3.0 + 8.0
+    denominator = (1.0**2 + 2.0**2) ** 0.5 * (3.0**2 + 4.0**2) ** 0.5
+    assert atom_cosine_similarity(emhi, hofd, 5.0) == pytest.approx(inner / (denominator + 5.0))

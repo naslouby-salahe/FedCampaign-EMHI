@@ -3,7 +3,6 @@ from math import floor, sqrt
 
 import numpy as np
 
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExperimentState
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -174,10 +173,7 @@ class SyntheticValidationResult:
     failed_checks: tuple[ComponentName, ...]
 
 
-def validate_synthetic_generators(
-    loaded: LoadedScientificConfiguration,
-) -> SyntheticValidationResult:
-    del loaded
+def validate_synthetic_generators() -> SyntheticValidationResult:
     failed: list[ComponentName] = []
     loadings = equally_spaced_loadings(3, 0.0, 1.0)
     if loadings != (0.0, 0.5, 1.0):

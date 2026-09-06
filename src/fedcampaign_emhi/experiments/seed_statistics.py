@@ -1,5 +1,6 @@
+import json
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -61,6 +62,7 @@ from fedcampaign_emhi.domain.types import (
     BenignHorizon,
     Boolean,
     ComponentName,
+    ConfigurationDigest,
     DetectorScore,
     EpochIndexValue,
     FalseAlarmRate,
@@ -68,6 +70,7 @@ from fedcampaign_emhi.domain.types import (
     MaterialDependencyFingerprint,
     MetricRate,
     MetricValue,
+    RecordCount,
     RelativePath,
     RobustnessCountMultiplier,
     RobustScaler,
@@ -127,6 +130,84 @@ class MethodSeedOdi:
     source_evaluation_id: ArtifactIdentity
 
 
+def _raw_evaluation_operating_point(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    method_name: MethodName,
+    seed: SeedValue,
+) -> YamlNode | None:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    path = (
+        root
+        / "evaluations"
+        / "raw"
+        / ExecutionRole.CONFIRMATORY.value
+        / method_artifact_stem(method_name)
+        / f"seed-{seed}.json"
+    )
+    if not path.is_file():
+        return None
+    payload = cast(YamlNode, json.loads(path.read_text(encoding="utf-8")))
+    if not isinstance(payload, Mapping):
+        return None
+    calibration_value = payload.get("calibration")
+    if not isinstance(calibration_value, Mapping):
+        return None
+    global_value = calibration_value.get("global")
+    if not isinstance(global_value, Mapping):
+        return None
+    return cast(YamlNode, global_value)
+
+
+def _method_has_eligible_operating_point(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    method_name: MethodName,
+    seed: SeedValue,
+    require_heldout_pfa_within_target: Boolean,
+) -> Boolean:
+    operating_point = _raw_evaluation_operating_point(
+        loaded, repository, experiment_name, method_name, seed
+    )
+    if not isinstance(operating_point, Mapping):
+        return False
+    threshold = operating_point.get("threshold")
+    if not isinstance(threshold, int | float):
+        return False
+    if not require_heldout_pfa_within_target:
+        return True
+    heldout_upper = operating_point.get("heldout_upper_pfa")
+    if not isinstance(heldout_upper, int | float):
+        return False
+    return float(heldout_upper) <= float(
+        loaded.values.evidence.calibrated_finite_horizon.target_pfa
+    )
+
+
+def _paired_methods_have_eligible_operating_points(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    comparator_method: MethodName,
+    confirmatory_seeds: tuple[SeedValue, ...],
+) -> Boolean:
+    return all(
+        _method_has_eligible_operating_point(
+            loaded,
+            repository,
+            experiment_name,
+            method_name,
+            seed,
+            require_heldout_pfa_within_target=True,
+        )
+        for method_name in (MethodName.FULL_FEDCAMPAIGN_EMHI, comparator_method)
+        for seed in confirmatory_seeds
+    )
+
+
 def materialize_seed_statistics(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -170,7 +251,10 @@ def materialize_seed_statistics(
         sources.append(source_ids)
         hashes = tuple(record.content_digest for record in records)
         fingerprints.append(
-            material_fingerprint(statistical_analysis_boundary_digest(loaded.values), hashes)
+            material_fingerprint(
+                statistical_analysis_boundary_digest(loaded.values),
+                hashes,
+            )
         )
         if len(values) < 2:
             raw_p_values.append(1.0)
@@ -332,7 +416,8 @@ def materialize_not_tested_primary_holm_statistic(
         meets_threshold=False,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -448,7 +533,10 @@ def _materialize_paired_confirmatory_odi_contrast(
     source_ids = tuple(path.relative_to(repository).as_posix() for path in paired_paths)
     source_digests = tuple(file_sha256(path) for path in paired_paths)
     complete = confirmatory_completeness_within_tolerance(loaded, expected, paired_seeds)
-    if not complete:
+    matched_eligible = _paired_methods_have_eligible_operating_points(
+        loaded, repository, experiment_name, comparator_method, expected
+    )
+    if not complete or not matched_eligible:
         payload: YamlNode = {
             "experiment_name": experiment_name.value,
             "hypothesis_identifier": hypothesis_identifier,
@@ -495,11 +583,12 @@ def _materialize_paired_confirmatory_odi_contrast(
         )
         return record
     paired_with_difference = tuple(
-        replace(
-            full,
-            reference_method_name=comparator.method_name,
-            reference_value=comparator.method_value,
-            paired_difference=full.method_value - comparator.method_value,
+        full.model_copy(
+            update={
+                "reference_method_name": comparator.method_name,
+                "reference_value": comparator.method_value,
+                "paired_difference": full.method_value - comparator.method_value,
+            }
         )
         for full, comparator in zip(paired_full, paired_comparator, strict=True)
     )
@@ -544,7 +633,8 @@ def _materialize_paired_confirmatory_odi_contrast(
         meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -591,6 +681,160 @@ def materialize_confirmatory_odi_inferences(
             comparator_method,
             "paired_strict_odi_rate_advantage",
         )
+
+
+def _write_null_odi_hypothesis_record(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    hypothesis_identifier: ComponentName,
+    metric_name: ComponentName,
+    independent_unit_count: RecordCount,
+    source_ids: tuple[ArtifactIdentity, ...],
+    source_digests: tuple[ConfigurationDigest, ...],
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "hypothesis_identifier": hypothesis_identifier,
+        "metric_name": metric_name,
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": independent_unit_count,
+        "estimate": 0.0,
+        "raw_p_value": None,
+        "confidence_level": None,
+        "confidence_lower": None,
+        "confidence_upper": None,
+        "hodges_lehmann_shift": None,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier=hypothesis_identifier,
+        metric_name=metric_name,
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=independent_unit_count,
+        estimate=0.0,
+        raw_p_value=None,
+        adjusted_p_value=None,
+        confidence_level=None,
+        confidence_lower=None,
+        confidence_upper=None,
+        hodges_lehmann_shift=None,
+        meets_threshold=False,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+    )
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
+
+
+def materialize_strong_local_odi_statistic(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> Path | None:
+    experiment_name = ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    not_tested_path = root / "statistics" / "tests" / "primary-holm-not-tested.json"
+    if not_tested_path.is_file():
+        return None
+    summaries = _load_seed_summaries(root)
+    confirmatory = _confirmatory_method_summaries(summaries, MethodName.FULL_FEDCAMPAIGN_EMHI)
+    expected = loaded.values.randomness.real_confirmatory_roots
+    observed = tuple(record.seed for _path, record in confirmatory)
+    complete = confirmatory_completeness_within_tolerance(loaded, expected, observed)
+    operating_points_available = all(
+        _method_has_eligible_operating_point(
+            loaded,
+            repository,
+            experiment_name,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            seed,
+            require_heldout_pfa_within_target=False,
+        )
+        for seed in expected
+    )
+    source_paths = tuple(path for path, _record in confirmatory)
+    source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+    source_digests = tuple(file_sha256(path) for path in source_paths)
+    hypothesis_identifier = PrimaryHolmHypothesis.STRONG_LOCAL_ODI_ABOVE_MINIMUM
+    if not complete:
+        return None
+    if not operating_points_available:
+        return _write_null_odi_hypothesis_record(
+            loaded,
+            repository,
+            experiment_name,
+            hypothesis_identifier.value,
+            "strong_local_strict_odi_rate",
+            len(observed),
+            source_ids,
+            source_digests,
+        )
+    minimum = loaded.values.materiality.strong_local.minimum_strict_odi_rate
+    shifted = tuple(record.method_value - minimum for _path, record in confirmatory)
+    estimate: MetricValue = sum(shifted) / len(shifted)
+    raw_p_value = sign_flip_p_value(estimate, exact_sign_flip_means(shifted), True)
+    shift = hodges_lehmann_shift(shifted)
+    interval = paired_mean_bca_interval(
+        shifted,
+        loaded.values.statistics.confidence_level,
+        loaded.values.statistics.bootstrap_replicates,
+        loaded.values.randomness.statistical_analysis_base_seed,
+    )
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "hypothesis_identifier": hypothesis_identifier.value,
+        "metric_name": "strong_local_strict_odi_rate",
+        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        "independent_unit_count": len(shifted),
+        "estimate": estimate,
+        "raw_p_value": raw_p_value,
+        "confidence_level": loaded.values.statistics.confidence_level,
+        "confidence_lower": interval[0],
+        "confidence_upper": interval[1],
+        "hodges_lehmann_shift": shift,
+        "source_result_ids": list(source_ids),
+    }
+    record = StatisticalRecord(
+        hypothesis_identifier=hypothesis_identifier.value,
+        metric_name="strong_local_strict_odi_rate",
+        method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        independent_unit_count=len(shifted),
+        estimate=estimate,
+        raw_p_value=raw_p_value,
+        adjusted_p_value=None,
+        confidence_level=loaded.values.statistics.confidence_level,
+        confidence_lower=interval[0],
+        confidence_upper=interval[1],
+        hodges_lehmann_shift=shift,
+        meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = root / "statistics" / "tests" / "strong-local-odi-above-minimum.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
 
 
 def _stress_window_false_declaration_rate(
@@ -803,7 +1047,8 @@ def materialize_benign_common_mode_statistic(
         meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -1016,7 +1261,8 @@ def materialize_benign_common_mode_count_stress_diagnostics(
                 raw_mean_false_declaration_rate=raw_mean_fcr,
                 source_result_ids=source_ids,
                 dependency_fingerprint=material_fingerprint(
-                    statistical_analysis_boundary_digest(loaded.values), source_digests
+                    statistical_analysis_boundary_digest(loaded.values),
+                    source_digests,
                 ),
                 content_digest=payload_digest(payload),
             )
@@ -1070,8 +1316,15 @@ def _campaign_detection_rate_for_method(
     typed_rows = tuple(cast(Mapping[str, YamlNode], row) for row in rows)
     if not typed_rows:
         return None
+    relative_stops = tuple(
+        None
+        if row["global_stop_epoch"] is None
+        else cast(EpochIndexValue, row["global_stop_epoch"])
+        - cast(EpochIndexValue, row["start_epoch"])
+        for row in typed_rows
+    )
     detection_rate = campaign_detection_rate(
-        tuple(cast(EpochIndexValue | None, row["global_stop_epoch"]) for row in typed_rows),
+        relative_stops,
         loaded.values.campaign.evaluation_horizon_epochs,
     )
     return detection_rate, (score_path, rank_path, fit_path)
@@ -1175,7 +1428,8 @@ def materialize_benign_common_mode_positive_power_measurement(
         ),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )

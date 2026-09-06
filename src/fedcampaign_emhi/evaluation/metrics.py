@@ -204,7 +204,7 @@ def atom_nrmse(
         / len(emhi_atoms)
     )
     reference = sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms) / len(emhi_atoms))
-    return difference / max(reference, metric_denominator_floor)
+    return difference / (reference + metric_denominator_floor)
 
 
 def atom_cosine_similarity(
@@ -220,11 +220,10 @@ def atom_cosine_similarity(
         sum(left * right for left, right in zip(emhi, hofd, strict=True))
         for emhi, hofd in zip(emhi_atoms, hofd_atoms, strict=True)
     )
-    return inner / max(
-        sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms))
-        * sqrt(sum(euclidean_norm(atom) ** 2 for atom in hofd_atoms)),
-        metric_denominator_floor,
+    denominator = sqrt(sum(euclidean_norm(atom) ** 2 for atom in emhi_atoms)) * sqrt(
+        sum(euclidean_norm(atom) ** 2 for atom in hofd_atoms)
     )
+    return inner / (denominator + metric_denominator_floor)
 
 
 def paired_stopping_time_difference(

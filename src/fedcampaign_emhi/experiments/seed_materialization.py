@@ -65,12 +65,12 @@ from fedcampaign_emhi.evaluation.metrics import (
     order_evidence_share,
     paired_detection_indicator_difference,
     paired_stopping_time_difference,
+    strict_odi_outcome,
     throughput,
 )
 from fedcampaign_emhi.evaluation.records import (
     OperationalCalibration,
     SequentialTrajectory,
-    odi_evaluation_record,
 )
 from fedcampaign_emhi.evaluation.sequential import (
     TrajectoryCache,
@@ -451,7 +451,7 @@ def _campaign_row(
         calibration.local_operating_points,
         evaluation_epochs,
     )
-    odi = odi_evaluation_record(global_stop, local_stops)
+    odi = strict_odi_outcome(global_stop, local_stops)
     earliest_local = earliest_local_stop(local_stops)
     statistical = (
         None

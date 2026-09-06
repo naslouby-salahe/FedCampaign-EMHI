@@ -12,8 +12,9 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
 )
-from fedcampaign_emhi.domain.types import SeedCount
+from fedcampaign_emhi.domain.types import RecordCount, SeedCount
 from fedcampaign_emhi.execution.planning import plan_experiments
+from fedcampaign_emhi.experiments.execution import cell_record_paths
 from fedcampaign_emhi.runtime import log_stage
 
 
@@ -24,6 +25,28 @@ class ExperimentStatus:
     lifecycle_state: ArtifactLifecycleState
     development_seed_count: SeedCount
     confirmatory_seed_count: SeedCount
+    completed_cell_count: RecordCount
+    failed_cell_count: RecordCount
+    invalid_cell_count: RecordCount
+
+
+def _cell_state_counts(cell_paths: tuple[Path, ...]) -> tuple[RecordCount, ...]:
+    completed = 0
+    failed = 0
+    invalid = 0
+    for cell_path in cell_paths:
+        try:
+            cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+        except (ValidationError, ValueError):
+            invalid += 1
+            continue
+        if cell.state is ExperimentState.COMPLETED:
+            completed += 1
+        elif cell.state is ExperimentState.FAILED:
+            failed += 1
+        else:
+            invalid += 1
+    return completed, failed, invalid
 
 
 def _run_record_state(
@@ -46,7 +69,7 @@ def _run_record_state(
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
     if record.material_digest != loaded.material_digest:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
-    cell_paths = tuple(sorted(path.parent.glob("cell-*.json")))
+    cell_paths = cell_record_paths(path.parent)
     if not cell_paths:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
     for cell_path in cell_paths:
@@ -107,6 +130,9 @@ def project_status(
         )
         if existing_index is None:
             state, lifecycle = _run_record_state(loaded, repository, planned.experiment_name)
+            layout = build_artifact_layout(loaded, repository)
+            cell_paths = cell_record_paths(layout.experiment_outputs_root(planned.experiment_name))
+            completed, failed, invalid = _cell_state_counts(cell_paths)
             development = planned.seed_count
             confirmatory = 0
             if planned.execution_role is ExecutionRole.CONFIRMATORY:
@@ -119,6 +145,9 @@ def project_status(
                     lifecycle_state=lifecycle,
                     development_seed_count=development,
                     confirmatory_seed_count=confirmatory,
+                    completed_cell_count=completed,
+                    failed_cell_count=failed,
+                    invalid_cell_count=invalid,
                 )
             )
             continue

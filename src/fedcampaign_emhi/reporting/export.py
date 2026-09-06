@@ -1,4 +1,5 @@
 import csv
+import os
 import platform
 import sys
 from io import BytesIO, StringIO
@@ -9,11 +10,17 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
 from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
-from fedcampaign_emhi.artifacts.storage import build_artifact_layout, file_sha256, write_atomic_json
+from fedcampaign_emhi.artifacts.storage import (
+    build_artifact_layout,
+    dataset_directory_stem,
+    file_sha256,
+    write_atomic_json,
+)
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import ExperimentName
+from fedcampaign_emhi.domain.enums import DatasetName, ExperimentName, PreprocessingLayer
 from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, FigureBytes, MetricValue
+from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan
 from fedcampaign_emhi.runtime import log_stage
 
 
@@ -134,10 +141,94 @@ def export_reproducibility(
         "completed_experiments": [experiment.value for experiment in completed_experiments],
     }
     write_atomic_json(execution_path, execution_payload, staging)
+    environment_path = root / "execution" / "environment-identity.json"
+    environment_payload: YamlNode = {
+        "operating_system": platform.system(),
+        "machine_architecture": platform.machine(),
+        "python_version": sys.version.split()[0],
+        "logical_core_count": os.cpu_count(),
+        "material_configuration_digest": loaded.material_digest,
+    }
+    write_atomic_json(environment_path, environment_payload, staging)
+    plan_payload: YamlNode = {
+        "material_configuration_digest": loaded.material_digest,
+        "planned_experiments": [
+            {
+                "experiment_name": experiment.value,
+                "execution_role": role.value,
+                "seed_count": seed_count,
+            }
+            for experiment, role, seed_count in enumerate_experiment_plan(loaded.values)
+        ],
+    }
+    plan_path = root / "execution" / "plan-snapshot.json"
+    write_atomic_json(plan_path, plan_payload, staging)
+    completion_path = root / "execution" / "experiment-completion-metadata.json"
+    completion_payload: YamlNode = {
+        "material_configuration_digest": loaded.material_digest,
+        "experiments": [
+            {
+                "experiment_name": experiment.value,
+                "run_record_digest": file_sha256(
+                    layout.experiment_outputs_root(experiment)
+                    / "provenance"
+                    / "dependencies"
+                    / "run-record.json"
+                ),
+            }
+            for experiment in completed_experiments
+        ],
+    }
+    write_atomic_json(completion_path, completion_payload, staging)
+    dataset_identity_path = root / "datasets" / "preprocessing-identity.json"
+    preprocessing_root = layout.roots.outputs_root / "preprocessing"
+    dataset_payload: YamlNode = {
+        "datasets": [
+            {
+                "dataset_name": dataset.value,
+                "layers": [
+                    {
+                        "layer": layer.value,
+                        "relative_path": artifact_path.relative_to(repository).as_posix(),
+                        "sha256": file_sha256(artifact_path),
+                    }
+                    for layer, artifact_path in _preprocessing_layer_paths(
+                        preprocessing_root, dataset
+                    )
+                    if artifact_path.is_file()
+                ],
+            }
+            for dataset in (DatasetName.TON_IOT_NETWORK, DatasetName.EDGE_IIOTSET)
+        ]
+    }
+    write_atomic_json(dataset_identity_path, dataset_payload, staging)
     return (
         configuration_path,
         dataset_path,
         seed_path,
         software_path,
         execution_path,
+        environment_path,
+        plan_path,
+        completion_path,
+        dataset_identity_path,
+    )
+
+
+def _preprocessing_layer_paths(
+    preprocessing_root: Path, dataset_name: DatasetName
+) -> tuple[tuple[PreprocessingLayer, Path], ...]:
+    stem = dataset_directory_stem(dataset_name)
+    return (
+        (PreprocessingLayer.INVENTORY, preprocessing_root / "inventories" / f"{stem}.json"),
+        (PreprocessingLayer.PREPARED, preprocessing_root / "prepared" / f"{stem}.json"),
+        (PreprocessingLayer.SPLITS, preprocessing_root / "splits" / f"{stem}.json"),
+        (
+            PreprocessingLayer.PARTITIONS,
+            preprocessing_root / "metadata" / f"{stem}-benign-partitions.json",
+        ),
+        (
+            PreprocessingLayer.CAMPAIGN_REGISTRY,
+            preprocessing_root / "metadata" / f"{stem}-campaign-registry.json",
+        ),
     )

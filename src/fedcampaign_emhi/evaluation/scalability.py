@@ -1,4 +1,8 @@
+import contextlib
+import importlib.metadata
 import math
+import os
+import platform
 import statistics
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,6 +22,7 @@ from fedcampaign_emhi.artifacts.records import (
     ProjectionCellFitRecord,
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
+from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.detection import (
     FittedClientDetector,
     assign_detector_families,
@@ -182,6 +187,50 @@ def measure_repetition_epoch_latencies(
         state = advance.global_state
         history = advance.active_history
     return tuple(timed)
+
+
+def capture_timing_environment_identity() -> YamlNode:
+    installed_ram_bytes = None
+    memory_path = Path("/proc/meminfo")
+    if memory_path.is_file():
+        for line in memory_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemTotal:"):
+                installed_ram_bytes = int(line.split()[1]) << 10
+                break
+    pytorch_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        pytorch_version = importlib.metadata.version("torch")
+    scikit_learn_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        scikit_learn_version = importlib.metadata.version("scikit-learn")
+    numpy_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        numpy_version = importlib.metadata.version("numpy")
+    scipy_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        scipy_version = importlib.metadata.version("scipy")
+    polars_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        polars_version = importlib.metadata.version("polars")
+    duckdb_version = None
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        duckdb_version = importlib.metadata.version("duckdb")
+    identity: YamlNode = {
+        "operating_system": platform.system(),
+        "kernel_or_build": platform.release(),
+        "machine_architecture": platform.machine(),
+        "python_version": platform.python_version(),
+        "cpu_model": platform.processor(),
+        "logical_core_count": os.cpu_count(),
+        "installed_ram_bytes": installed_ram_bytes,
+        "pytorch_version": pytorch_version,
+        "scikit_learn_version": scikit_learn_version,
+        "numpy_version": numpy_version,
+        "scipy_version": scipy_version,
+        "polars_version": polars_version,
+        "duckdb_version": duckdb_version,
+    }
+    return identity
 
 
 def resident_set_bytes() -> ByteCount:

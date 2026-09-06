@@ -15,7 +15,6 @@ def test_public_commands_exist(cli_runner: CliRunner) -> None:
         "smoke",
         "run",
         "status",
-        "analyze",
         "report",
     ):
         assert command in result.stdout

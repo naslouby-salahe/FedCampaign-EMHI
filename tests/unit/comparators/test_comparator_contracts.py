@@ -1,6 +1,5 @@
 from fedcampaign_emhi.comparators.dependence import (
     gaussian_h_function,
-    hofd_atom_rows,
     lancaster_triple_moment,
     pair_dependence_moment,
     pair_dependence_nonconformity,
@@ -14,6 +13,8 @@ from fedcampaign_emhi.comparators.sequential import (
     next_cusum_state,
 )
 from fedcampaign_emhi.domain.types import RankReference
+from fedcampaign_emhi.emhi.innovations import projection_residual
+from fedcampaign_emhi.emhi.projection import ridge_coefficient_matrix
 from fedcampaign_emhi.emhi.structure import midrank
 
 
@@ -44,7 +45,11 @@ def test_pair_and_lancaster_moments_at_one_half_are_zero() -> None:
 def test_hofd_zero_when_tensor_in_design_span() -> None:
     design = ((1.0, 0.0), (1.0, 1.0), (1.0, 2.0))
     tensor = ((0.0,), (1.0,), (2.0,))
-    residuals = hofd_atom_rows(tensor, design, 0.0, 1.0e-12)
+    coefficients = ridge_coefficient_matrix(design, tensor, 0.0, 1.0e-12)
+    residuals = tuple(
+        projection_residual(tensor_row, coefficients, design_row)
+        for tensor_row, design_row in zip(tensor, design, strict=True)
+    )
     assert all(abs(row[0]) < 1.0e-10 for row in residuals)
 
 

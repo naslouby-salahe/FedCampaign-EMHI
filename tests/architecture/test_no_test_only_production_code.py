@@ -179,24 +179,11 @@ def test_no_test_only_production_code_passes_on_compliant_fixture() -> None:
     assert any(item.startswith("fedcampaign_emhi.config") for item in imports)
 
 
-def test_analyze_command_materializes_primary_and_secondary_holm_families() -> None:
-    tree = module_ast(SRC_ROOT / "cli.py")
-    imported: set[str] = set()
-    analyze_calls: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            imported.update(alias.name for alias in node.names)
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name == "analyze_command":
-            for child in ast.walk(node):
-                if not isinstance(child, ast.Call):
-                    continue
-                func = child.func
-                if isinstance(func, ast.Name):
-                    analyze_calls.add(func.id)
-                elif isinstance(func, ast.Attribute):
-                    analyze_calls.add(func.attr)
-    assert "materialize_primary_holm_family" in imported
-    assert "materialize_secondary_holm_family" in imported
-    assert "materialize_primary_holm_family" in analyze_calls
-    assert "materialize_secondary_holm_family" in analyze_calls
+def test_run_workflow_reconciles_project_holm_families_after_completion() -> None:
+    tree = module_ast(SRC_ROOT / "execution" / "runner.py")
+    reconciler_references = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and node.id == "reconcile_project_holm_families"
+    }
+    assert reconciler_references, "run workflow must invoke the project Holm reconciler"

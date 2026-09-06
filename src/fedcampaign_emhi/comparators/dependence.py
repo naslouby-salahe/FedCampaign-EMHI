@@ -7,7 +7,6 @@ from scipy.stats import norm
 
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.domain.types import (
-    BasisCoordinate,
     BinCount,
     Boolean,
     ClientCount,
@@ -16,7 +15,6 @@ from fedcampaign_emhi.domain.types import (
     DependenceMoment,
     FactorRank,
     GaussianCoordinate,
-    InnovationCoordinate,
     JeffreysPseudocount,
     LogDensity,
     NonconformityScore,
@@ -27,7 +25,6 @@ from fedcampaign_emhi.domain.types import (
     ProjectionNrmse,
     RankValue,
     RecordCount,
-    RidgePenalty,
     SingularValue,
     SolverIterationLimit,
     StandardDeviation,
@@ -35,30 +32,11 @@ from fedcampaign_emhi.domain.types import (
 )
 from fedcampaign_emhi.emhi.innovations import (
     centered_scaled_coordinate,
-    projection_residual,
     sample_mean,
     sample_standard_deviation,
 )
-from fedcampaign_emhi.emhi.projection import (
-    ridge_coefficient_matrix,
-)
 from fedcampaign_emhi.emhi.structure import standard_normal_cdf
 from fedcampaign_emhi.runtime import log_stage
-
-
-def hofd_atom_rows(
-    tensor_rows: tuple[tuple[InnovationCoordinate, ...], ...],
-    design_rows: tuple[tuple[BasisCoordinate, ...], ...],
-    ridge_penalty: RidgePenalty,
-    relative_singular_cutoff: NumericalFloor,
-) -> tuple[tuple[InnovationCoordinate, ...], ...]:
-    coefficients = ridge_coefficient_matrix(
-        design_rows, tensor_rows, ridge_penalty, relative_singular_cutoff
-    )
-    residuals: list[tuple[InnovationCoordinate, ...]] = []
-    for tensor_row, design_row in zip(tensor_rows, design_rows, strict=True):
-        residuals.append(projection_residual(tensor_row, coefficients, design_row))
-    return tuple(residuals)
 
 
 def pair_dependence_moment(left_rank: RankValue, right_rank: RankValue) -> DependenceMoment:

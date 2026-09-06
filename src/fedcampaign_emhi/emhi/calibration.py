@@ -1,4 +1,5 @@
 from collections import UserDict
+from math import isfinite
 
 from fedcampaign_emhi.artifacts.records import (
     CoalitionFitRecord,
@@ -10,7 +11,9 @@ from fedcampaign_emhi.artifacts.records import (
     OrderContextFitRecord,
     ProjectionCellFitRecord,
 )
+from fedcampaign_emhi.artifacts.storage import payload_digest
 from fedcampaign_emhi.config.schema import ScientificConfig
+from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
@@ -72,6 +75,7 @@ from fedcampaign_emhi.emhi.innovations import (
 from fedcampaign_emhi.emhi.projection import (
     blocked_fit_is_supported,
     blocked_fold_bounds,
+    design_within_gram_condition_limit,
     fold_size_weighted_mse,
     proper_subset_design_row,
     proper_subset_design_shape,
@@ -92,6 +96,36 @@ type FoldRankCache = UserDict[tuple[RecordCount, RecordCount], MarginalRankArtif
 type OrderContextCache = UserDict[
     tuple[RecordCount, RecordCount, CoalitionOrder], OrderContextFitRecord
 ]
+
+
+def fold_rank_fingerprint(
+    scores: DetectorScoreArtifactRecord,
+    training_start: RecordCount,
+    training_end: RecordCount,
+) -> MaterialDependencyFingerprint:
+    payload: YamlNode = {
+        "detector_scores_fingerprint": scores.dependency_fingerprint,
+        "fold_training_boundary": [training_start, training_end],
+    }
+    return payload_digest(payload)
+
+
+def fitted_values_are_finite(
+    means: tuple[InnovationMean, ...],
+    deviations: tuple[InnovationDeviation, ...],
+    norm_reference: OperationalNormReference | None,
+    penalty: RidgePenalty | None = None,
+    coefficients: tuple[tuple[InnovationCoordinate, ...], ...] = (),
+) -> Boolean:
+    if any(not isfinite(value) for value in means):
+        return False
+    if any(not isfinite(value) for value in deviations):
+        return False
+    if norm_reference is not None and not isfinite(norm_reference):
+        return False
+    if penalty is not None and not isfinite(penalty):
+        return False
+    return all(isfinite(value) for row in coefficients for value in row)
 
 
 def fold_observation_indexes(
@@ -596,7 +630,7 @@ def _cross_fitted_cell_statistics(
                 scores,
                 training_epochs,
                 config.context.rank_clip_epsilon,
-                scores.dependency_fingerprint,
+                fold_rank_fingerprint(scores, start, end),
             )
             fold_rank_cache[fold_key] = fold_ranks
         order_context_key = (start, end, coalition.order)
@@ -789,6 +823,33 @@ def _fit_projection_cell(
             numerical_failure=True,
         )
     means, deviations, norm_reference = cross_fitted_statistics
+    finite_outputs = fitted_values_are_finite(
+        means,
+        deviations,
+        norm_reference,
+        None if complete_fit is None else complete_fit.selected_ridge_penalty,
+        () if complete_fit is None else complete_fit.complete_nuisance_coefficients,
+    )
+    design_within_condition_limit = (
+        design_within_gram_condition_limit(
+            design_rows,
+            config.projection.maximum_gram_condition_number,
+        )
+        if purification_enabled
+        else True
+    )
+    if not finite_outputs or not design_within_condition_limit:
+        return ProjectionCellFitRecord(
+            context_cell=context_cell,
+            conditional_rank_references=references,
+            selected_ridge_penalty=None,
+            complete_nuisance_coefficients=(),
+            coordinate_means=(),
+            coordinate_deviations=(),
+            operational_norm_reference=None,
+            state=FitStatus.INSUFFICIENT_DATA,
+            numerical_failure=True,
+        )
     return ProjectionCellFitRecord(
         context_cell=context_cell,
         conditional_rank_references=references,

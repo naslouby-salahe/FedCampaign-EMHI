@@ -5,7 +5,6 @@ from fedcampaign_emhi.detection import first_local_stop_epoch
 from fedcampaign_emhi.domain.enums import SecondaryHolmHypothesis
 from fedcampaign_emhi.emhi.sequential import first_global_stop_epoch, next_global_state
 from fedcampaign_emhi.evaluation.metrics import strict_odi_outcome
-from fedcampaign_emhi.evaluation.records import odi_evaluation_record
 
 
 def test_same_epoch_is_not_odi_but_is_global_detection() -> None:
@@ -27,7 +26,7 @@ def test_missing_global_stop_is_not_odi() -> None:
 
 
 def test_later_global_stop_is_detection_without_odi() -> None:
-    outcome = odi_evaluation_record(7, (5, 8))
+    outcome = strict_odi_outcome(7, (5, 8))
     assert outcome.indicator == 0
     assert outcome.global_detection_indicator == 1
 

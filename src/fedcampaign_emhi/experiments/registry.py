@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
 from fedcampaign_emhi.domain.types import (
-    ArtifactFilename,
     Boolean,
     ResumeStep,
     SeedCount,
@@ -62,7 +61,7 @@ def experiment_registry(config: ScientificConfig) -> tuple[ExperimentContract, .
         ),
         ExperimentContract(
             experiment_name=ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE,
-            execution_roles=(ExecutionRole.DEVELOPMENT, ExecutionRole.DEVELOPMENT_ONLY),
+            execution_roles=(ExecutionRole.DEVELOPMENT,),
             methods=experiments.strong_comparator_composition_challenge.candidates,
             uses_real_seeds=False,
             uses_synthetic_seeds=True,
@@ -152,13 +151,6 @@ def experiment_registry(config: ScientificConfig) -> tuple[ExperimentContract, .
             uses_synthetic_seeds=False,
         ),
     )
-
-
-def resolve_experiment_name(slug: ArtifactFilename) -> ExperimentName:
-    try:
-        return ExperimentName(slug)
-    except ValueError as error:
-        raise ValueError(f"unknown experiment name {slug}") from error
 
 
 def planned_seed_count(

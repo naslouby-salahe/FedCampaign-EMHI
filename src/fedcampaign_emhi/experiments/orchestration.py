@@ -28,6 +28,7 @@ from fedcampaign_emhi.experiments.execution import (
     ExperimentExecutionResult,
     campaign_dataset,
     campaigns_logger,
+    cell_record_paths,
     experiment_contract,
     implementation_digest,
     publish_experiment_run_record,
@@ -53,6 +54,7 @@ from fedcampaign_emhi.experiments.seed_statistics import (
     materialize_confirmatory_odi_inferences,
     materialize_not_tested_primary_holm_statistic,
     materialize_seed_statistics,
+    materialize_strong_local_odi_statistic,
 )
 from fedcampaign_emhi.experiments.synthetic_execution import (
     execute_synthetic_experiment,
@@ -119,7 +121,7 @@ def _existing_completed_run(
         or record.state is not ExperimentState.COMPLETED
     ):
         return None
-    cell_paths = tuple(sorted(path.parent.glob("cell-*.json")))
+    cell_paths = cell_record_paths(path.parent)
     if not cell_paths or not all(
         _completed_cell_is_reusable(repository, cell_path, loaded.material_digest)
         for cell_path in cell_paths
@@ -257,6 +259,8 @@ def execute_campaign_experiment(
     not_tested_primary = materialize_not_tested_primary_holm_statistic(
         loaded, repository, experiment_name
     )
+    if experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
+        materialize_strong_local_odi_statistic(loaded, repository)
     materialize_confirmatory_odi_inferences(
         loaded, repository, experiment_name, not_tested_primary is not None
     )

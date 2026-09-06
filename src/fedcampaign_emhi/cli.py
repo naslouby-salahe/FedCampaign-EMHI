@@ -4,10 +4,6 @@ from subprocess import run
 
 import typer
 
-from fedcampaign_emhi.analysis.results import (
-    materialize_primary_holm_family,
-    materialize_secondary_holm_family,
-)
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout
 from fedcampaign_emhi.config.loading import (
     load_smoke_configuration,
@@ -22,17 +18,19 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
     PreprocessingLayer,
 )
-from fedcampaign_emhi.domain.types import ArtifactIdentity, Boolean, ConfigurationDigest
-from fedcampaign_emhi.execution.planning import (
-    plan_experiments,
-    resolve_requested_experiment,
+from fedcampaign_emhi.domain.types import (
+    ArtifactIdentity,
+    Boolean,
+    ConfigurationDigest,
+    SourceRevisionIdentity,
 )
+from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.execution.preprocessing import (
     execute_preprocess,
     preprocess_must_not_regenerate,
     requested_datasets,
 )
-from fedcampaign_emhi.execution.runner import execute_experiment, publish_plan_artifact
+from fedcampaign_emhi.execution.runner import execute_experiment
 from fedcampaign_emhi.execution.status import project_status
 from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_experiment
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
@@ -53,7 +51,7 @@ def main() -> None:
     application()
 
 
-def _git_commit(repository: Path) -> ConfigurationDigest:
+def _git_commit(repository: Path) -> SourceRevisionIdentity:
     completed = run(
         ["git", "-C", str(repository), "rev-parse", "HEAD"],
         capture_output=True,
@@ -116,6 +114,9 @@ def doctor_command() -> None:
             f" lifecycle={status.lifecycle_state.value}"
             f" development_seeds={status.development_seed_count}"
             f" confirmatory_seeds={status.confirmatory_seed_count}"
+            f" completed_cells={status.completed_cell_count}"
+            f" failed_cells={status.failed_cell_count}"
+            f" invalid_cells={status.invalid_cell_count}"
         )
     emit(f"next_action={next_action}")
     emit(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
@@ -162,10 +163,8 @@ def preprocess_command(
 
 def plan_command() -> None:
     configure_structured_logging()
-    repository, loaded = production_configuration_context()
-    plan_path = publish_plan_artifact(loaded, repository)
+    _repository, loaded = production_configuration_context()
     typer.echo(f"material_digest={loaded.material_digest}")
-    typer.echo(f"plan_artifact={plan_path}")
     typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
     for planned in plan_experiments(loaded):
         typer.echo(
@@ -219,18 +218,17 @@ def run_command(
 ) -> None:
     configure_structured_logging()
     repository, loaded = production_configuration_context()
-    resolved = resolve_requested_experiment(requested.value)
-    assert_known_experiment(loaded.values, resolved)
+    assert_known_experiment(loaded.values, requested)
     if dry_run:
-        typer.echo(f"experiment={resolved.value}")
+        typer.echo(f"experiment={requested.value}")
         typer.echo(f"material_digest={loaded.material_digest}")
         typer.echo("scientific_configuration_overrides=rejected")
         typer.echo("dry_run=true")
         typer.echo(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
         return
     policy = OverwritePolicy.OVERWRITE if overwrite else OverwritePolicy.REUSE_COMPATIBLE
-    result = execute_experiment(loaded, repository, resolved, policy)
-    typer.echo(f"experiment={resolved.value}")
+    result = execute_experiment(loaded, repository, requested, policy)
+    typer.echo(f"experiment={requested.value}")
     typer.echo(f"material_digest={loaded.material_digest}")
     typer.echo(f"overwrite={overwrite}")
     typer.echo("scientific_configuration_overrides=rejected")
@@ -261,6 +259,9 @@ def status_command(
             f" lifecycle={item.lifecycle_state.value}"
             f" development_seeds={item.development_seed_count}"
             f" confirmatory_seeds={item.confirmatory_seed_count}"
+            f" completed_cells={item.completed_cell_count}"
+            f" failed_cells={item.failed_cell_count}"
+            f" invalid_cells={item.invalid_cell_count}"
         )
 
 
@@ -288,18 +289,7 @@ def report_command(
             typer.echo(f"report_artifact={path}")
 
 
-def analyze_command() -> None:
-    configure_structured_logging()
-    repository, loaded = production_configuration_context()
-    primary_holm_path = materialize_primary_holm_family(loaded, repository)
-    secondary_holm_path = materialize_secondary_holm_family(loaded, repository)
-    typer.echo(f"material_digest={loaded.material_digest}")
-    typer.echo(f"primary_holm_artifact={primary_holm_path}")
-    typer.echo(f"secondary_holm_artifact={secondary_holm_path}")
-
-
 application.command("doctor")(doctor_command)
-application.command("analyze")(analyze_command)
 application.command("preprocess")(preprocess_command)
 application.command("plan")(plan_command)
 application.command("smoke")(smoke_command)

@@ -18,7 +18,6 @@ from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, Method
 from fedcampaign_emhi.domain.types import Boolean
 from fedcampaign_emhi.experiments.registry import (
     experiment_registry,
-    resolve_experiment_name,
 )
 
 
@@ -181,8 +180,6 @@ def test_selected_comparator_cannot_fall_back_to_the_first_configured_candidate(
 
 def test_experiment_slugs_are_descriptive_kebab_case() -> None:
     for experiment in ExperimentName:
-        slug = resolve_experiment_name(experiment.value)
-        assert slug is experiment
         assert experiment.value == experiment.value.lower()
         assert " " not in experiment.value
         assert all(part.isalnum() for part in experiment.value.split("-"))

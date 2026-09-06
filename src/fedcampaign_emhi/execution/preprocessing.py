@@ -714,7 +714,6 @@ def _duckdb_count(
 
 
 @log_stage("execution.preprocessing")
-@log_stage("execution.preprocessing")
 def _deduplicate_edge_records(
     records: tuple[EdgeIiotsetFlowRecord, ...],
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], RecordCount]:
@@ -1041,9 +1040,6 @@ def _campaigns_from_prepared(
         loaded.values.campaign.minimum_duration_epochs,
         loaded.values.campaign.prestart_warmup_epochs,
     )
-    for entry in registry:
-        if entry.duration_epochs != entry.end_epoch - entry.start_epoch + 1:
-            raise ValueError("campaign duration must equal the inclusive epoch span")
     return CampaignRegistryRecord(
         dataset_name=prepared.dataset_name,
         campaigns=tuple(

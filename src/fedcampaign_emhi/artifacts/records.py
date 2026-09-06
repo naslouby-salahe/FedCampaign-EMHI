@@ -49,7 +49,6 @@ from fedcampaign_emhi.domain.types import (
     RidgePenalty,
     RobustnessCountMultiplier,
     RuntimeSeconds,
-    SeedCount,
     SeedValue,
     StandardizedError,
     StandardizedNullBias,
@@ -98,19 +97,6 @@ class ExperimentRunRecord(FrozenConfigModel):
     overwrite_policy: OverwritePolicy
     resume_sequence: tuple[ResumeStep, ...]
     state: ExperimentState
-
-
-class PlannedExperimentRecord(FrozenConfigModel):
-    experiment_name: ExperimentName
-    execution_role: ExecutionRole
-    seed_count: SeedCount
-    state: ExperimentState
-
-
-class PlanArtifactRecord(FrozenConfigModel):
-    material_digest: ConfigurationDigest
-    resume_sequence: tuple[ResumeStep, ...]
-    experiments: tuple[PlannedExperimentRecord, ...]
 
 
 class DatasetInventoryFileRecord(FrozenConfigModel):

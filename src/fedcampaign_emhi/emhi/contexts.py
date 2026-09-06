@@ -7,7 +7,6 @@ from math import sqrt
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial.distance import cdist
-from scipy.stats import norm
 
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -32,7 +31,6 @@ from fedcampaign_emhi.domain.types import (
     KmeansFitRowLimit,
     KmeansInertia,
     KmeansInitializationCount,
-    LatentState,
     NumericalTolerance,
     OutsideContextHistogram,
     PermutationIndex,
@@ -51,8 +49,6 @@ from fedcampaign_emhi.runtime import (
     log_stage,
     thirty_two_bit_seed,
 )
-
-STANDARD_NORMAL_QUARTILE: Probability = 1 / 4
 
 
 def exact_exclusion_members(
@@ -92,12 +88,6 @@ def partial_coalition_context_members(
     return complement_members(selected_client_ids, removed)
 
 
-ORACLE_QUARTILE_CELL_COUNT = 4
-ORACLE_QUARTILE_BOUNDARIES: tuple[LatentState, LatentState, LatentState] = (
-    float(norm.ppf(STANDARD_NORMAL_QUARTILE)),
-    0.0,
-    float(norm.ppf(3 * STANDARD_NORMAL_QUARTILE)),
-)
 NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
 
 
@@ -226,7 +216,7 @@ def context_row_ranking_value(row: ContextTrainingRow, context_seed: SeedValue) 
     payload: YamlNode = {
         "context_seed": context_seed,
         "dataset": row.dataset.value,
-        "coalition_order": int(row.coalition_order),
+        "coalition_order": row.coalition_order.value,
         "coalition_client_ids": list(row.coalition_client_ids),
         "epoch_index": row.epoch_index,
     }

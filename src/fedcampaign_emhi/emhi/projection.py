@@ -157,6 +157,25 @@ def unregularized_gram_condition_number(
     return float(np.max(singular_values) / smallest)
 
 
+def design_within_gram_condition_limit(
+    design_columns: tuple[tuple[BasisCoordinate, ...], ...],
+    maximum_condition_number: GramConditionNumber,
+) -> Boolean:
+    if maximum_condition_number <= 0.0:
+        raise ValueError("maximum Gram condition number must be positive")
+    if not design_columns:
+        return False
+    matrix = np.asarray(design_columns, dtype=np.float64)
+    variances = np.var(matrix, axis=0)
+    if not np.any(variances > 0.0):
+        return True
+    try:
+        condition_number = unregularized_gram_condition_number(design_columns)
+    except ValueError:
+        return False
+    return condition_number <= maximum_condition_number
+
+
 def ridge_coefficient_matrix(
     design_columns: tuple[tuple[BasisCoordinate, ...], ...],
     responses: tuple[tuple[BasisCoordinate, ...], ...],

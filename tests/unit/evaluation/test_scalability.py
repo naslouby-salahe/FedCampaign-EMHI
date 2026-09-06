@@ -127,3 +127,40 @@ def test_summarize_scalability_aggregates_seed_level_p95_of_epoch_latencies() ->
     assert summary.median_end_to_end_latency_seconds == 0.035
     assert summary.artifact_fit_seconds == 0.3
     assert summary.latency_within_target is True
+
+
+def test_confirmatory_timing_seed_sequence_is_used_for_scalability_support() -> None:
+    from fedcampaign_emhi.config.loading import load_production_configuration
+    from fedcampaign_emhi.experiments.coalition_scalability import (
+        confirmatory_timing_seed_sequence,
+    )
+
+    loaded = load_production_configuration()
+    seeds = confirmatory_timing_seed_sequence(loaded.values)
+    assert tuple(seeds) == tuple(loaded.values.randomness.real_confirmatory_roots)
+    assert not set(seeds) & set(loaded.values.randomness.real_development_roots)
+
+
+def test_timing_environment_identity_is_stable_and_complete() -> None:
+    from fedcampaign_emhi.evaluation.scalability import capture_timing_environment_identity
+
+    first = capture_timing_environment_identity()
+    second = capture_timing_environment_identity()
+    assert first == second
+    expected_keys = {
+        "operating_system",
+        "kernel_or_build",
+        "machine_architecture",
+        "python_version",
+        "cpu_model",
+        "logical_core_count",
+        "installed_ram_bytes",
+        "pytorch_version",
+        "scikit_learn_version",
+        "numpy_version",
+        "scipy_version",
+        "polars_version",
+        "duckdb_version",
+    }
+    assert isinstance(first, dict)
+    assert expected_keys <= set(first)

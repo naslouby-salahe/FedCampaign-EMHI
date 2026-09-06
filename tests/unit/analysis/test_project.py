@@ -8,6 +8,8 @@ from fedcampaign_emhi.analysis.results import (
     SECONDARY_HOLM_STATISTICS,
     materialize_primary_holm_family,
     materialize_secondary_holm_family,
+    primary_holm_family_artifact_path,
+    reconcile_project_holm_families,
 )
 from fedcampaign_emhi.artifacts.provenance import (
     material_fingerprint,
@@ -215,3 +217,37 @@ def test_materialize_secondary_holm_family_rejects_stale_source_lineage(
 
     with pytest.raises(ValueError, match="stale source lineage"):
         materialize_secondary_holm_family(production_configuration, tmp_path)
+
+
+def test_reconcile_writes_primary_family_under_outputs_when_records_complete(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    _write_full_family(production_configuration, tmp_path, (0.001, 0.5, 0.5, 0.5, 0.5))
+
+    written = reconcile_project_holm_families(production_configuration, tmp_path)
+
+    primary_path = primary_holm_family_artifact_path(production_configuration, tmp_path)
+    assert primary_path.is_file()
+    record = PrimaryHolmFamilyRecord.model_validate_json(primary_path.read_bytes())
+    assert len(record.results) == len(PRIMARY_HOLM_STATISTICS)
+    assert primary_path in written
+
+
+def test_reconcile_skips_family_until_all_records_complete(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    layout = build_artifact_layout(production_configuration, tmp_path)
+    experiment_name, hypothesis = PRIMARY_HOLM_STATISTICS[0]
+    _write_statistical_record(
+        production_configuration,
+        tmp_path,
+        layout.experiment_outputs_root(experiment_name),
+        hypothesis.value,
+        0.01,
+        "only-hypothesis",
+    )
+
+    written = reconcile_project_holm_families(production_configuration, tmp_path)
+
+    assert written == ()
+    assert not primary_holm_family_artifact_path(production_configuration, tmp_path).is_file()

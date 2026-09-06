@@ -200,6 +200,7 @@ ConfigurationDigest = Annotated[
     StringConstraints(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
 ]
 MaterialDependencyFingerprint = ConfigurationDigest
+SourceRevisionIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -492,10 +493,6 @@ class CampaignRegistryEntry:
     start_epoch: EpochIndexValue
     end_epoch: EpochIndexValue
     sorted_participating_client_ids: tuple[ClientId, ...]
-
-    @property
-    def duration_epochs(self) -> EpochCount:
-        return self.end_epoch - self.start_epoch + 1
 
     @property
     def integrity_checksum(self) -> Sha256Hex:

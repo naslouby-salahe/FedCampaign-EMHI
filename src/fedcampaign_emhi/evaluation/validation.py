@@ -138,6 +138,16 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         for rank in (0.01, 0.13, 0.99)
     )
     _check(HISTOGRAM_BINS, bin_indices == (0, 1, 7), failures)
+    histogram_masses = tuple(
+        bin_indices.count(index) / len(bin_indices)
+        for index in range(context.outside_histogram_bin_count)
+    )
+    expected_masses = (1 / 3, 1 / 3, 0.0, 0.0, 0.0, 0.0, 0.0, 1 / 3)
+    _check(
+        SmokeFixtureName("histogram normalized mass"),
+        histogram_masses == expected_masses[: context.outside_histogram_bin_count],
+        failures,
+    )
 
     selected = ("c1", "c2", "c3", "c4", "c5", "c6")
     coalition = ("c1", "c2", "c3")
@@ -187,6 +197,14 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         abs(ridge_selected - max(ridge_candidates)) <= projection.selection_tie_tolerance_mse,
         failures,
     )
+    exact_tie_selected = select_ridge_penalty(
+        (0.01, 0.1), (0.05, 0.05), projection.selection_tie_tolerance_mse
+    )
+    _check(
+        SmokeFixtureName("ridge tie exact instance"),
+        exact_tie_selected == 0.1,
+        failures,
+    )
 
     order_three_minimum = minimum_support_epochs_for_order(
         CoalitionOrder.THREE,
@@ -197,6 +215,12 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(
         ABSTENTION_BOUNDARY,
         399 < order_three_minimum <= 400,
+        failures,
+    )
+    _check(
+        SmokeFixtureName("abstention boundary exact minimum"),
+        order_three_minimum == context.minimum_support_epochs.order_three
+        and order_three_minimum == 400,
         failures,
     )
 

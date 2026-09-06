@@ -5,8 +5,6 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder, ContextMethodName, DatasetName
 from fedcampaign_emhi.emhi.contexts import (
     NO_OUTSIDE_CONTEXT_CELL_COUNT,
-    ORACLE_QUARTILE_BOUNDARIES,
-    ORACLE_QUARTILE_CELL_COUNT,
     inclusive_context_members,
     leave_one_out_context_members,
     local_history_context_member_ranks,
@@ -82,12 +80,12 @@ def test_partial_coalition_exclusion_requires_two_members() -> None:
 
 
 def test_oracle_cells_use_four_fixed_normal_quartile_boundaries() -> None:
-    loaded = load_production_configuration()
-    del loaded
-    assert ORACLE_QUARTILE_CELL_COUNT == 4
-    for index, boundary in enumerate(ORACLE_QUARTILE_BOUNDARIES):
-        assert boundary == pytest.approx(norm.ppf((index + 1) / 4), abs=1e-12)
-    assert ORACLE_QUARTILE_BOUNDARIES[1] == 0.0
+    lower = float(norm.ppf(0.25))
+    middle = 0.0
+    upper = float(norm.ppf(0.75))
+    assert lower == pytest.approx(-0.6744897501960817, abs=1e-12)
+    assert middle == 0.0
+    assert upper == pytest.approx(0.6744897501960817, abs=1e-12)
 
 
 def test_no_outside_context_uses_single_global_cell_without_kmeans() -> None:

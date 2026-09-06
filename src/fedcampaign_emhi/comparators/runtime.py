@@ -23,7 +23,6 @@ from fedcampaign_emhi.comparators.dependence import (
     fit_pairwise_maxent_table,
     floored_probability_table,
     global_factor_residual_score,
-    hofd_atom_rows,
     jeffreys_smoothed_probabilities,
     lancaster_triple_moment,
     lancaster_triple_nonconformity,
@@ -54,11 +53,13 @@ from fedcampaign_emhi.domain.types import (
     CusumState,
     DependenceMoment,
     DetectorScore,
+    NuisanceCoefficient,
     ProbabilityMass,
     RankValue,
     StandardDeviation,
 )
-from fedcampaign_emhi.emhi.projection import proper_subset_design_row
+from fedcampaign_emhi.emhi.innovations import projection_residual
+from fedcampaign_emhi.emhi.projection import proper_subset_design_row, ridge_coefficient_matrix
 from fedcampaign_emhi.emhi.structure import tensor_representation
 from fedcampaign_emhi.runtime import log_stage
 
@@ -80,6 +81,7 @@ class ComparatorFittedState:
     log_linear_bin_count: BinCount | None = None
     log_linear_maxent_table: tuple[tuple[tuple[ProbabilityMass, ...], ...], ...] | None = None
     global_factor: GlobalFactorFittedBasis | None = None
+    hofd_coefficients: tuple[tuple[NuisanceCoefficient, ...], ...] | None = None
 
 
 @log_stage("comparators.runtime")
@@ -142,6 +144,22 @@ def fit_comparator_state(
                 config.comparators.global_factor_residual.candidate_ranks,
             )
         )
+    if method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD:
+        if not nuisance_rows:
+            raise ValueError("HOFD reference requires nuisance-fit rows")
+        design_rows = tuple(
+            proper_subset_design_row(row, config.basis.primary_size) for row in nuisance_rows
+        )
+        tensor_rows = tuple(
+            tensor_representation(row, config.basis.primary_size) for row in nuisance_rows
+        )
+        coefficients = ridge_coefficient_matrix(
+            design_rows,
+            tensor_rows,
+            config.comparators.exclusion_matched_conditional_hofd.ridge_penalty,
+            config.comparators.exclusion_matched_conditional_hofd.relative_singular_cutoff,
+        )
+        return ComparatorFittedState(hofd_coefficients=coefficients)
     return None
 
 
@@ -223,15 +241,14 @@ def _log_linear_score(
     return -log(probability)
 
 
-def _hofd_score(ranks: tuple[RankValue, ...], config: ScientificConfig) -> DetectorScore:
+def _hofd_score(
+    ranks: tuple[RankValue, ...],
+    coefficients: tuple[tuple[NuisanceCoefficient, ...], ...],
+    config: ScientificConfig,
+) -> DetectorScore:
     tensor = tensor_representation(ranks, config.basis.primary_size)
     design = proper_subset_design_row(ranks, config.basis.primary_size)
-    residual = hofd_atom_rows(
-        (tensor,),
-        (design,),
-        config.comparators.exclusion_matched_conditional_hofd.ridge_penalty,
-        config.comparators.exclusion_matched_conditional_hofd.relative_singular_cutoff,
-    )[0]
+    residual = projection_residual(tensor, coefficients, design)
     return sum(value * value for value in residual) ** 0.5
 
 
@@ -261,7 +278,7 @@ def score_comparator_ranks(
     if method_name is MethodName.CONDITIONAL_LOG_LINEAR_REFERENCE:
         return _log_linear_scorer(ranks, previous_cusum_state, fitted_state)
     if method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD:
-        return _hofd_scorer(ranks, config, previous_cusum_state)
+        return _hofd_scorer(ranks, config, previous_cusum_state, fitted_state)
     if method_name is MethodName.GLOBAL_FACTOR_RESIDUAL_REFERENCE:
         return _global_factor_scorer(ranks, previous_cusum_state, fitted_state)
     if method_name is MethodName.MULTISTREAM_CUSUM_REFERENCE:
@@ -385,8 +402,14 @@ def _hofd_scorer(
     ranks: tuple[RankValue, ...],
     config: ScientificConfig,
     previous_cusum_state: tuple[CusumState, ...],
+    fitted_state: ComparatorFittedState | None,
 ) -> tuple[DetectorScore, tuple[CusumState, ...]]:
-    return _hofd_score(ranks, config), previous_cusum_state
+    if fitted_state is None or fitted_state.hofd_coefficients is None:
+        raise ValueError("HOFD reference requires coefficients fitted on nuisance-fit rows")
+    return (
+        _hofd_score(ranks, fitted_state.hofd_coefficients, config),
+        previous_cusum_state,
+    )
 
 
 def _global_factor_scorer(

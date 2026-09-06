@@ -22,6 +22,9 @@ from fedcampaign_emhi.domain.types import (
     UnixTimestampSeconds,
 )
 
+EDGE_IIOTSET_TIMEZONE = UTC
+EDGE_IIOTSET_NAIVE_BASE_MONTH_DAY = (1, 1)
+
 
 def _parse_row_fields(
     row: Mapping[NormalizedEventToken, NormalizedEventToken | None],
@@ -91,15 +94,16 @@ def parse_frame_time(raw_timestamp: NormalizedEventToken) -> UnixTimestampSecond
         if match is not None:
             year, hour, minute, second, fraction = match.groups()
             microseconds = int((fraction or "0")[:6].ljust(6, "0"))
+            base_month, base_day = EDGE_IIOTSET_NAIVE_BASE_MONTH_DAY
             return datetime(
                 int(year),
-                1,
-                1,
+                base_month,
+                base_day,
                 int(hour),
                 int(minute),
                 int(second),
                 microseconds,
-                tzinfo=UTC,
+                tzinfo=EDGE_IIOTSET_TIMEZONE,
             ).timestamp()
         parsed = datetime.fromisoformat(stripped)
         if parsed.tzinfo is None:

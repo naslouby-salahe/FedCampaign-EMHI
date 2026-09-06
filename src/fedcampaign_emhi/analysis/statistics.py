@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from math import isfinite
 
 import numpy as np
 from numpy.typing import NDArray
@@ -187,7 +188,11 @@ def _bca_interval(
     tail = (1.0 - confidence_level) / 2.0
     lower_probability = _adjusted_probability(tail, bias_correction, acceleration)
     upper_probability = _adjusted_probability(1.0 - tail, bias_correction, acceleration)
+    if not (isfinite(lower_probability) and isfinite(upper_probability)):
+        raise ValueError("BCa interval is not numerically defined")
     quantiles = np.quantile(replicates, (lower_probability, upper_probability))
+    if not (isfinite(quantiles[0]) and isfinite(quantiles[1])):
+        raise ValueError("BCa interval is not numerically defined")
     return (float(quantiles[0]), float(quantiles[1]))
 
 
@@ -231,7 +236,12 @@ def mean_bca_one_sided_lower_bound(
     probability = _adjusted_probability(
         1.0 - confidence_level, bias_correction, _jackknife_acceleration(sample)
     )
-    return float(np.quantile(replicates, probability))
+    if not isfinite(probability):
+        raise ValueError("BCa interval is not numerically defined")
+    lower_quantile = np.quantile(replicates, probability)
+    if not isfinite(lower_quantile):
+        raise ValueError("BCa interval is not numerically defined")
+    return float(lower_quantile)
 
 
 @dataclass(frozen=True)

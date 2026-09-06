@@ -7,6 +7,7 @@ from fedcampaign_emhi.analysis.statistics import (
     mean_bca_one_sided_lower_bound,
     one_sided_synthetic_sign_flip_p_value,
     paired_difference,
+    paired_mean_bca_interval,
     sign_flip_assignment_count,
 )
 
@@ -58,3 +59,13 @@ def test_one_sided_bca_lower_bound_uses_the_declared_confidence_tail() -> None:
 
     assert lower <= 2.0
     assert mean_bca_one_sided_lower_bound((2.0, 2.0), 0.95, 10, 11) == 2.0
+
+
+def test_paired_bca_interval_rejects_numerically_undefined_output() -> None:
+    with pytest.raises(ValueError, match="not numerically defined"):
+        paired_mean_bca_interval((1.0, float("nan"), 3.0), 0.95, 200, 11)
+
+
+def test_one_sided_bca_bound_rejects_numerically_undefined_output() -> None:
+    with pytest.raises(ValueError, match="not numerically defined"):
+        mean_bca_one_sided_lower_bound((1.0, float("nan"), 3.0), 0.95, 200, 11)

@@ -9,10 +9,8 @@ from fedcampaign_emhi.domain.types import (
     LocalPolicyArtifact,
     Probability,
     RecordCount,
-    StrictOdiOutcome,
     ThresholdValue,
 )
-from fedcampaign_emhi.evaluation.metrics import strict_odi_outcome
 
 
 @dataclass(frozen=True)
@@ -63,10 +61,3 @@ class ClientLocalOperatingPoint:
 class OperationalCalibration:
     global_operating_point: CalibratedGlobalOperatingPoint
     local_operating_points: tuple[ClientLocalOperatingPoint, ...]
-
-
-def odi_evaluation_record(
-    global_stop_epoch: EpochIndexValue | None,
-    local_stop_epochs: tuple[EpochIndexValue | None, ...],
-) -> StrictOdiOutcome:
-    return strict_odi_outcome(global_stop_epoch, local_stop_epochs)

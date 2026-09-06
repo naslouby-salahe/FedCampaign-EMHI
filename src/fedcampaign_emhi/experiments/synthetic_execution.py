@@ -119,7 +119,7 @@ def execute_synthetic_module_validation(
     staging = layout.roots.outputs_root / "cache" / "staging"
     started = perf_counter()
     invariant_criterion = run_synthetic_module_validation(loaded)
-    generator_criterion = validate_synthetic_generators(loaded)
+    generator_criterion = validate_synthetic_generators()
     state = (
         ExperimentState.COMPLETED
         if invariant_criterion.passed and generator_criterion.state is ExperimentState.COMPLETED
@@ -132,7 +132,10 @@ def execute_synthetic_module_validation(
         "generator_failures": list(generator_criterion.failed_checks),
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
-    fingerprint = material_fingerprint(synthetic_invariant_boundary_digest(loaded.values), ())
+    fingerprint = material_fingerprint(
+        synthetic_invariant_boundary_digest(loaded.values),
+        (),
+    )
     completion = CompletionRecord(
         state=state,
         mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
@@ -707,7 +710,8 @@ def materialize_self_explanation_statistics(
         ),
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -783,7 +787,8 @@ def materialize_pure_order_statistics(
         meets_threshold=raw_p_value < loaded.values.statistics.nominal_significance_alpha,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -925,7 +930,8 @@ def materialize_hofd_equivalence_statistics(
         meets_threshold=all_supported,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -1086,7 +1092,8 @@ def materialize_estimator_feasibility_statistics(
         meets_threshold=meets_threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -1155,7 +1162,8 @@ def materialize_signed_theorem_statistics(
         meets_threshold=lower >= threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )
@@ -1219,7 +1227,8 @@ def materialize_finite_horizon_statistics(
         meets_threshold=meets_threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(
-            statistical_analysis_boundary_digest(loaded.values), source_digests
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
         ),
         content_digest=payload_digest(payload),
     )

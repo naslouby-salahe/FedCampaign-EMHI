@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
@@ -44,6 +45,69 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
 )
 from fedcampaign_emhi.runtime import log_stage
+
+
+def primary_holm_family_artifact_path(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    return (
+        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "primary-holm.json"
+    )
+
+
+def secondary_holm_family_artifact_path(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    return (
+        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "secondary-holm.json"
+    )
+
+
+def _record_hypothesis_identifier(path: Path) -> ComponentName | None:
+    try:
+        record = StatisticalRecord.model_validate_json(path.read_bytes())
+    except ValueError:
+        return None
+    return record.hypothesis_identifier
+
+
+def _family_record_ids(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> Mapping[ExperimentName, frozenset[ComponentName]]:
+    layout = build_artifact_layout(loaded, repository)
+    experiment_names = {experiment for experiment, _hypothesis in PRIMARY_HOLM_STATISTICS} | {
+        experiment for experiment, _hypothesis, _method in SECONDARY_HOLM_STATISTICS
+    }
+    return {
+        experiment_name: frozenset(
+            identifier
+            for path in sorted(
+                (layout.experiment_outputs_root(experiment_name) / "statistics").rglob("*.json")
+            )
+            if (identifier := _record_hypothesis_identifier(path)) is not None
+        )
+        for experiment_name in experiment_names
+    }
+
+
+def reconcile_project_holm_families(
+    loaded: LoadedScientificConfiguration, repository: Path
+) -> tuple[Path, ...]:
+    available = _family_record_ids(loaded, repository)
+    written: list[Path] = []
+    if all(
+        hypothesis in available[experiment_name]
+        for experiment_name, hypothesis in PRIMARY_HOLM_STATISTICS
+    ):
+        written.append(materialize_primary_holm_family(loaded, repository))
+    if all(
+        hypothesis in available[experiment_name]
+        for experiment_name, hypothesis, _method in SECONDARY_HOLM_STATISTICS
+    ):
+        written.append(materialize_secondary_holm_family(loaded, repository))
+    return tuple(written)
 
 
 def seed_mean(values: tuple[MetricValue, ...]) -> MetricValue:
@@ -184,6 +248,12 @@ def paired_seed_differences(
     return tuple(differences)
 
 
+def verified_statistical_record(
+    loaded: LoadedScientificConfiguration, repository: Path, path: Path
+) -> StatisticalRecord:
+    return _verified_statistical_record(loaded, repository, path)
+
+
 def _verified_statistical_record(
     loaded: LoadedScientificConfiguration, repository: Path, path: Path
 ) -> StatisticalRecord:
@@ -193,7 +263,8 @@ def _verified_statistical_record(
         raise ValueError(f"statistical record {path} has missing source results")
     source_digests = tuple(file_sha256(source_path) for source_path in source_paths)
     if record.dependency_fingerprint != material_fingerprint(
-        statistical_analysis_boundary_digest(loaded.values), source_digests
+        statistical_analysis_boundary_digest(loaded.values),
+        source_digests,
     ):
         raise ValueError(f"statistical record {path} has stale source lineage")
     return record
@@ -259,13 +330,7 @@ def materialize_primary_holm_family(
         source_artifact_hashes=source_hashes,
         content_digest=payload_digest(payload),
     )
-    path = (
-        layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "primary-holm.json"
-    )
+    path = primary_holm_family_artifact_path(loaded, repository)
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
@@ -334,13 +399,7 @@ def materialize_secondary_holm_family(
         source_artifact_hashes=source_hashes,
         content_digest=payload_digest(payload),
     )
-    path = (
-        layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "secondary-holm.json"
-    )
+    path = secondary_holm_family_artifact_path(loaded, repository)
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
