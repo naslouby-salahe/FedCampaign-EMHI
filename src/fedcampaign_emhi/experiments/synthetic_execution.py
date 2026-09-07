@@ -503,7 +503,14 @@ def execute_synthetic_experiment(
     dispatched_order: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = list(
         dispatched_cells
     )
-    worker_count = max(1, min(len(dispatched_order), os.cpu_count() or 1))
+    worker_count = max(
+        1,
+        min(
+            len(dispatched_order),
+            os.cpu_count() or 1,
+            loaded.values.runtime.synthetic_concurrent_experiment_cells,
+        ),
+    )
     tasks = tuple(
         (
             loaded,

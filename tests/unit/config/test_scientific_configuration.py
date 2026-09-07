@@ -408,6 +408,7 @@ def test_locked_comparator_experiment_statistics_and_runtime(
     assert values.scalability_timing.result_quantile == 0.95
     assert values.runtime.automatic_technical_retries_after_initial_failure == 2
     assert values.runtime.required_confirmatory_missing_cell_tolerance == 0
+    assert values.runtime.synthetic_concurrent_experiment_cells == 6
     assert values.artifacts.outputs_root == "outputs"
     assert values.artifacts.results_root == "results"
 

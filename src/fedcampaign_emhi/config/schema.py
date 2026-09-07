@@ -688,6 +688,7 @@ class ScalabilityTimingConfig(FrozenConfigModel):
 class RuntimeConfig(FrozenConfigModel):
     automatic_technical_retries_after_initial_failure: RetryCount
     required_confirmatory_missing_cell_tolerance: MissingCellTolerance
+    synthetic_concurrent_experiment_cells: ConcurrentExperimentCellCount
 
 
 class SyntheticModuleValidationConfig(FrozenConfigModel):

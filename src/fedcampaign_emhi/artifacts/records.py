@@ -21,10 +21,12 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ByteCount,
     CellCount,
+    ClientCount,
     ClientId,
     CommonModeSuppression,
     ComponentName,
     ConfigurationDigest,
+    ContextCoverage,
     DetectionRateLoss,
     DetectorScore,
     EpochIndexValue,
@@ -88,6 +90,28 @@ class ScientificCellRecord(FrozenConfigModel):
     peak_rss_bytes: ByteCount
     application_payload_bytes: ByteCount
     completion_record: CompletionRecord
+
+
+class DropoutBoundaryConditionRecord(FrozenConfigModel):
+    client_count: ClientCount
+    unavailable_fraction: Probability
+    context_coverage: ContextCoverage
+    abstention_rate: Probability
+    standardized_null_bias: StandardizedNullBias
+    detection_rate: Probability
+    latency_seconds: RuntimeSeconds
+    null_pfa: Probability
+    operating_point_available: Boolean
+
+
+class DropoutBoundaryEvidenceRecord(FrozenConfigModel):
+    dropout_conditions: tuple[DropoutBoundaryConditionRecord, ...]
+
+
+class DropoutBoundaryDiagnosticRecord(FrozenConfigModel):
+    seed: SeedValue
+    state: ExperimentState
+    evidence: DropoutBoundaryEvidenceRecord
 
 
 class ExperimentRunRecord(FrozenConfigModel):

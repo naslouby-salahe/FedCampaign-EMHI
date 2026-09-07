@@ -6,10 +6,15 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from fedcampaign_emhi.artifacts.records import SeedSummaryRecord
+from fedcampaign_emhi.artifacts.records import (
+    DropoutBoundaryConditionRecord,
+    DropoutBoundaryDiagnosticRecord,
+    SeedSummaryRecord,
+)
 from fedcampaign_emhi.artifacts.storage import (
     build_artifact_layout,
     dataset_directory_stem,
@@ -97,6 +102,119 @@ def write_paired_difference_figure(
         if record.paired_difference is not None
     )
     staging.write_bytes(paired_difference_figure_bytes(paired_differences))
+    staging.replace(destination)
+
+
+def load_dropout_boundary_conditions(
+    paths: tuple[Path, ...],
+) -> tuple[DropoutBoundaryConditionRecord, ...]:
+    diagnostics = tuple(
+        DropoutBoundaryDiagnosticRecord.model_validate_json(path.read_bytes()) for path in paths
+    )
+    return tuple(
+        condition
+        for diagnostic in diagnostics
+        for condition in diagnostic.evidence.dropout_conditions
+    )
+
+
+def dropout_boundary_csv(
+    records: tuple[DropoutBoundaryConditionRecord, ...],
+) -> DeterministicUtf8Bytes:
+    output = StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(
+        (
+            "client_count",
+            "unavailable_fraction",
+            "context_coverage",
+            "abstention_rate",
+            "standardized_null_bias",
+            "detection_rate",
+            "latency_seconds",
+            "null_pfa",
+            "operating_point_available",
+        )
+    )
+    for record in records:
+        writer.writerow(
+            (
+                record.client_count,
+                record.unavailable_fraction,
+                record.context_coverage,
+                record.abstention_rate,
+                record.standardized_null_bias,
+                record.detection_rate,
+                record.latency_seconds,
+                record.null_pfa,
+                record.operating_point_available,
+            )
+        )
+    return output.getvalue().encode("utf-8")
+
+
+def write_dropout_boundary_table(
+    destination: Path, records: tuple[DropoutBoundaryConditionRecord, ...]
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.with_suffix(destination.suffix + ".partial")
+    staging.write_bytes(dropout_boundary_csv(records))
+    staging.replace(destination)
+
+
+def dropout_boundary_figure_bytes(
+    records: tuple[DropoutBoundaryConditionRecord, ...],
+) -> FigureBytes:
+    if not records:
+        raise ValueError("dropout boundary figure requires condition records")
+    figure = Figure(figsize=(8, 2.0))
+    FigureCanvasAgg(figure)
+    axes = figure.subplots(1, 3, sharex=True)
+    metrics = (
+        ("context_coverage", "Context coverage"),
+        ("detection_rate", "Campaign detection rate"),
+        ("abstention_rate", "Abstention rate"),
+    )
+    client_counts = tuple(sorted({record.client_count for record in records}))
+    fractions = tuple(sorted({record.unavailable_fraction for record in records}))
+    for axis, (attribute, label) in zip(axes, metrics, strict=True):
+        for client_count in client_counts:
+            means: list[MetricValue] = []
+            errors: list[MetricValue] = []
+            for fraction in fractions:
+                values = np.asarray(
+                    [
+                        getattr(record, attribute)
+                        for record in records
+                        if record.client_count == client_count
+                        and record.unavailable_fraction == fraction
+                    ],
+                    dtype=float,
+                )
+                means.append(float(values.mean()))
+                errors.append(
+                    float(values.std(ddof=1) / np.sqrt(values.size))
+                ) if values.size > 1 else errors.append(0.0)
+            axis.errorbar(
+                fractions, means, yerr=errors, marker="o", capsize=3, label=f"K={client_count}"
+            )
+        axis.set_xlabel("Unavailable-client fraction")
+        axis.set_ylabel(label)
+        axis.set_ylim(0.0, 1.0)
+        axis.grid(axis="y", alpha=0.5)
+    axes[0].legend(title="Clients", fontsize=8)
+    figure.tight_layout()
+    output = BytesIO()
+    figure.savefig(output, format="png", dpi=180)
+    return output.getvalue()
+
+
+def write_dropout_boundary_figure(
+    destination: Path, records: tuple[DropoutBoundaryConditionRecord, ...]
+) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.with_suffix(destination.suffix + ".partial")
+    staging.write_bytes(dropout_boundary_figure_bytes(records))
     staging.replace(destination)
 
 

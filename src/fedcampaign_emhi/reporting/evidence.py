@@ -38,7 +38,10 @@ from fedcampaign_emhi.domain.types import Boolean, ConfigurationDigest
 from fedcampaign_emhi.experiments.execution import cell_record_paths, run_record_path
 from fedcampaign_emhi.reporting.export import (
     export_reproducibility,
+    load_dropout_boundary_conditions,
     load_seed_summaries,
+    write_dropout_boundary_figure,
+    write_dropout_boundary_table,
     write_paired_difference_figure,
     write_seed_summary_table,
 )
@@ -294,6 +297,16 @@ def _validate_scientific_cell(
             raise ValueError(f"scientific cell {cell_path} has unverifiable outputs")
 
 
+def dropout_boundary_diagnostic_paths(
+    repository: Path, cell_paths: tuple[Path, ...]
+) -> tuple[Path, ...]:
+    return tuple(
+        repository / cell.completion_record.mandatory_output_paths[0]
+        for cell_path in cell_paths
+        for cell in (ScientificCellRecord.model_validate_json(cell_path.read_bytes()),)
+    )
+
+
 @log_stage("reporting.evidence")
 def materialize_verified_experiment_report(
     loaded: LoadedScientificConfiguration,
@@ -318,6 +331,17 @@ def materialize_verified_experiment_report(
             if overwrite_policy is OverwritePolicy.OVERWRITE or not figure_path.is_file():
                 write_paired_difference_figure(figure_path, paired)
             output_paths.append(figure_path)
+    if experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
+        table_path = result_root / "tables" / "main" / "dropout-boundary.csv"
+        figure_path = result_root / "figures" / "main" / "dropout-boundary.png"
+        conditions = load_dropout_boundary_conditions(
+            dropout_boundary_diagnostic_paths(repository, evidence.scientific_cell_paths)
+        )
+        if overwrite_policy is OverwritePolicy.OVERWRITE or not table_path.is_file():
+            write_dropout_boundary_table(table_path, conditions)
+        if overwrite_policy is OverwritePolicy.OVERWRITE or not figure_path.is_file():
+            write_dropout_boundary_figure(figure_path, conditions)
+        output_paths.extend((table_path, figure_path))
     analysis_hash = content_digest({"source_hashes": list(evidence.source_hashes)})
     dependency_fingerprint = material_fingerprint(
         evidence_export_boundary_digest(loaded.values),

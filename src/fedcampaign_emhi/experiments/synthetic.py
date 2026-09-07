@@ -993,7 +993,19 @@ def _dropout_sparsity_record(
         )
         for stream in ranks.client_streams
     )
-    filtered_ranks = ranks.model_copy(update={"client_streams": filtered_streams})
+    filtered_ranks = ranks.model_copy(
+        update={
+            "client_streams": filtered_streams,
+            "dependency_fingerprint": deterministic_digest(
+                {
+                    "producer": "client-dropout-sparsity-filtered-ranks",
+                    "seed": seed,
+                    "client_count": client_count,
+                    "unavailable_fraction": fraction,
+                }
+            ),
+        }
+    )
     started = perf_counter()
     trajectory = sequential_trajectory(config, filtered_ranks, fit, scored)
     latency = perf_counter() - started
@@ -1002,7 +1014,7 @@ def _dropout_sparsity_record(
     )
     drift = _target_order_standardized_drift(
         config,
-        ranks,
+        filtered_ranks,
         fit,
         target,
         tuple(range(nuisance_count)),
