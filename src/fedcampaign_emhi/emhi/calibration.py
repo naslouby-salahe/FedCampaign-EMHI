@@ -57,6 +57,7 @@ from fedcampaign_emhi.emhi.contexts import (
     exact_exclusion_members,
     fit_context_centroids,
     inclusive_context_members,
+    lagged_context_epoch,
     leave_one_out_context_members,
     local_history_context_member_ranks,
     minimum_support_epochs_for_order,
@@ -347,7 +348,7 @@ def _context_row(
             raise ValueError("shuffled outside context requires a precomputed lag lookup")
         lagged_epoch = shuffled_lag_epoch
     else:
-        lagged_epoch = epoch_index - config.context.outside_lag_epochs
+        lagged_epoch = lagged_context_epoch(epoch_index, config.context.outside_lag_epochs)
     if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
         return None
     members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
@@ -438,7 +439,7 @@ def _fit_order_context(
                     raise ValueError("shuffled outside context requires a lag lookup")
                 lagged_epoch = lag_lookup[epoch_index]
             else:
-                lagged_epoch = epoch_index - config.context.outside_lag_epochs
+                lagged_epoch = lagged_context_epoch(epoch_index, config.context.outside_lag_epochs)
             if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
                 continue
             available_count = 0

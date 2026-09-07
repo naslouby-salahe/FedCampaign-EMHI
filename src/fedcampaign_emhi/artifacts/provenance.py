@@ -33,6 +33,13 @@ def synthetic_invariant_boundary_digest(config: ScientificConfig) -> Configurati
             {
                 "generators": config.generators.model_dump(mode="json"),
                 "synthetic": config.synthetic.model_dump(mode="json"),
+                "context": config.context.model_dump(mode="json"),
+                "basis": config.basis.model_dump(mode="json"),
+                "projection": config.projection.model_dump(mode="json"),
+                "evidence": config.evidence.model_dump(mode="json"),
+                "distributed_support": config.distributed_support.model_dump(mode="json"),
+                "campaign": config.campaign.model_dump(mode="json"),
+                "engineering_smoke_root": config.randomness.engineering_smoke_root,
                 "numerics": config.numerics.model_dump(mode="json"),
             },
         )

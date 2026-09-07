@@ -57,6 +57,7 @@ from fedcampaign_emhi.emhi.contexts import (
     assign_context_cell,
     exact_exclusion_members,
     inclusive_context_members,
+    lagged_context_epoch,
     leave_one_out_context_members,
     outside_context_histogram,
     partial_coalition_context_members,
@@ -534,7 +535,7 @@ def _coalition_context_cell(
             raise ValueError("shuffled outside context requires a precomputed lag lookup")
         lagged_epoch = shuffled_lag_epoch
     else:
-        lagged_epoch = epoch_index - config.context.outside_lag_epochs
+        lagged_epoch = lagged_context_epoch(epoch_index, config.context.outside_lag_epochs)
     members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
     lagged_ranks = tuple(
         (client_id, rank)

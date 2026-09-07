@@ -4,6 +4,7 @@ from fedcampaign_emhi.artifacts.provenance import (
     evidence_export_boundary_digest,
     nuisance_context_boundary_digest,
     statistical_analysis_boundary_digest,
+    synthetic_invariant_boundary_digest,
 )
 from fedcampaign_emhi.config.loading import load_production_configuration
 
@@ -100,6 +101,16 @@ def test_context_change_alters_nuisance_context_boundary() -> None:
     )
     changed = loaded.values.model_copy(update={"context": context})
     assert nuisance_context_boundary_digest(changed) != before
+
+
+def test_fixture_context_change_alters_synthetic_invariant_boundary() -> None:
+    loaded = load_production_configuration()
+    before = synthetic_invariant_boundary_digest(loaded.values)
+    context = loaded.values.context.model_copy(
+        update={"outside_lag_epochs": loaded.values.context.outside_lag_epochs + 1}
+    )
+    changed = loaded.values.model_copy(update={"context": context})
+    assert synthetic_invariant_boundary_digest(changed) != before
 
 
 def test_statistics_change_does_not_alter_campaign_evaluation_boundary() -> None:

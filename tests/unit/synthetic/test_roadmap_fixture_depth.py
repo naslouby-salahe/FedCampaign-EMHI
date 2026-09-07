@@ -2,9 +2,11 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import CoalitionOrder
 from fedcampaign_emhi.emhi.contexts import (
     histogram_bin_index,
+    lagged_context_epoch,
     minimum_support_epochs_for_order,
 )
 from fedcampaign_emhi.emhi.projection import select_ridge_penalty
+from fedcampaign_emhi.emhi.sequential import distributed_support_predicate
 
 
 def test_histogram_normalized_mass_vector_fixture() -> None:
@@ -36,3 +38,15 @@ def test_abstention_boundary_matches_configured_order_three_minimum() -> None:
     )
     assert minimum == context.minimum_support_epochs.order_three
     assert 399 < minimum <= 400
+
+
+def test_lag_semantics_excludes_the_current_epoch() -> None:
+    loaded = load_production_configuration()
+    assert lagged_context_epoch(5, loaded.values.context.outside_lag_epochs) == 4
+
+
+def test_distributed_support_fixture_meets_the_configured_minimum() -> None:
+    loaded = load_production_configuration()
+    assert distributed_support_predicate(
+        ("c1", "c2", "c3"), loaded.values.distributed_support.minimum_clients
+    )

@@ -60,6 +60,15 @@ class ReportMaterialization:
     output_paths: tuple[Path, ...]
 
 
+def report_source_is_reusable(source_path: Path, expected: ReportSourceRecord) -> bool:
+    if not source_path.is_file():
+        return False
+    try:
+        return ReportSourceRecord.model_validate_json(source_path.read_bytes()) == expected
+    except ValueError:
+        return False
+
+
 def _json_files(root: Path) -> tuple[Path, ...]:
     if not root.is_dir():
         return ()
@@ -323,7 +332,9 @@ def materialize_verified_experiment_report(
         source_artifact_hashes=evidence.source_hashes,
     )
     staging = layout.roots.outputs_root / "cache" / "staging"
-    if overwrite_policy is OverwritePolicy.OVERWRITE or not source_path.is_file():
+    if overwrite_policy is OverwritePolicy.OVERWRITE or not report_source_is_reusable(
+        source_path, source_record
+    ):
         write_atomic_json(source_path, source_record.model_dump(mode="json"), staging)
     output_paths.append(source_path)
     return ReportMaterialization(experiment_name=experiment_name, output_paths=tuple(output_paths))

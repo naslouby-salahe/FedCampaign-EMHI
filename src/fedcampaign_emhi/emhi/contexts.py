@@ -111,6 +111,12 @@ class OrderOutsideContextLagLookup(UserDict[CoalitionOrder, OutsideContextLagLoo
     __slots__ = ()
 
 
+def lagged_context_epoch(
+    epoch_index: EpochIndexValue, outside_lag_epochs: EpochCount
+) -> EpochIndexValue:
+    return epoch_index - outside_lag_epochs
+
+
 def shuffled_outside_context_lag_lookup(
     split_epochs: tuple[EpochIndexValue, ...],
     split_role: PartitionRole,
@@ -121,7 +127,9 @@ def shuffled_outside_context_lag_lookup(
     permutation = shuffled_context_permutation(row_keys, split_role, context_seed)
     lookup = OutsideContextLagLookup()
     for position, epoch_index in enumerate(split_epochs):
-        lookup[epoch_index] = split_epochs[permutation[position]] - outside_lag_epochs
+        lookup[epoch_index] = lagged_context_epoch(
+            split_epochs[permutation[position]], outside_lag_epochs
+        )
     return lookup
 
 

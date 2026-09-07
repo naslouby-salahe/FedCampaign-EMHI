@@ -25,6 +25,7 @@ from fedcampaign_emhi.emhi.contexts import (
     exact_exclusion_members,
     histogram_bin_index,
     inclusive_context_members,
+    lagged_context_epoch,
     leave_one_out_context_members,
     minimum_support_epochs_for_order,
     partial_coalition_context_members,
@@ -40,7 +41,10 @@ from fedcampaign_emhi.emhi.projection import (
     proper_subset_design_column_count,
     select_ridge_penalty,
 )
-from fedcampaign_emhi.emhi.sequential import trailing_support_window_client_ids
+from fedcampaign_emhi.emhi.sequential import (
+    distributed_support_predicate,
+    trailing_support_window_client_ids,
+)
 from fedcampaign_emhi.emhi.structure import bounded_basis, clip_rank, midrank, tensor_dimension
 from fedcampaign_emhi.emhi.thresholds import select_calibrated_threshold
 from fedcampaign_emhi.evaluation.metrics import censored_plot_value, strict_odi_outcome
@@ -73,6 +77,7 @@ EXACT_EXCLUSION = SmokeFixtureName("exact exclusion")
 INCLUSIVE_CONTEXT = SmokeFixtureName("inclusive context")
 LEAVE_ONE_OUT = SmokeFixtureName("leave-one-out")
 PARTIAL_TRIPLE = SmokeFixtureName("partial triple")
+LAG_SEMANTICS = SmokeFixtureName("lag semantics")
 KMEANS_TIE = SmokeFixtureName("kmeans tie")
 PROJECTION_DIMENSIONS = SmokeFixtureName("projection dimensions")
 BASIS_WIDTH = SmokeFixtureName("basis width")
@@ -165,6 +170,11 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(
         PARTIAL_TRIPLE,
         partial_coalition_context_members(selected, coalition) == ("c3", "c4", "c5", "c6"),
+        failures,
+    )
+    _check(
+        LAG_SEMANTICS,
+        lagged_context_epoch(5, context.outside_lag_epochs) == 4,
         failures,
     )
 
@@ -261,7 +271,12 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     window_union = trailing_support_window_client_ids(
         (("c1", "c2"), ("c2", "c3")), distributed_support.trailing_window_epochs
     )
-    _check(SUPPORT_UNION, window_union == ("c1", "c2", "c3"), failures)
+    _check(
+        SUPPORT_UNION,
+        window_union == ("c1", "c2", "c3")
+        and distributed_support_predicate(window_union, distributed_support.minimum_clients),
+        failures,
+    )
 
     finite_horizon_candidates = evidence.calibrated_finite_horizon.threshold_candidates[:4]
     exact_fixture_false_stop_counts = (20, 15, 5, 0)
