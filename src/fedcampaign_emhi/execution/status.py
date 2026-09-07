@@ -69,7 +69,7 @@ def _run_record_state(
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
     if record.material_digest != loaded.material_digest:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
-    cell_paths = cell_record_paths(path.parent)
+    cell_paths = cell_record_paths(layout.experiment_outputs_root(experiment_name))
     if not cell_paths:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
     for cell_path in cell_paths:

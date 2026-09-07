@@ -1,4 +1,7 @@
+import multiprocessing
+import os
 from collections.abc import Mapping
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -91,6 +94,7 @@ from fedcampaign_emhi.domain.types import (
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
+from fedcampaign_emhi.emhi.contexts import terminate_kmeans_restart_pool
 from fedcampaign_emhi.emhi.evidence import (
     operational_evidence_factor,
     operational_norm_reference_quantile,
@@ -1004,26 +1008,63 @@ def execute_real_emhi_methods(
     missing = tuple(
         method for method in contract.methods if emhi_method_specification(method) is None
     )
-    completed: RecordCount = 0
     _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
         preprocessing_paths(loaded, repository, dataset_name)
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     if not prepared.selected_client_ids:
         return _materialize_not_tested_real_cells(loaded, repository, experiment_name, contract), ()
+    tasks: list[tuple[ExecutionRole, SeedValue]] = []
     for role in contract.execution_roles:
         for seed in role_seeds(loaded, role):
+            tasks.append((role, seed))
+    worker_count = max(1, min(len(tasks), os.cpu_count() or 1))
+    completed: RecordCount = 0
+    if worker_count == 1:
+        for role, seed in tasks:
             completed += _execute_real_emhi_seed(
-                loaded,
-                repository,
-                experiment_name,
-                dataset_name,
-                role,
-                seed,
-                supported,
-                missing,
+                loaded, repository, experiment_name, dataset_name, role, seed, supported, missing
             )
+        return completed, ()
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
+        for seed_completions in pool.map(
+            _execute_real_seed_worker,
+            (
+                (loaded, repository, experiment_name, dataset_name, role, seed, supported, missing)
+                for role, seed in tasks
+            ),
+        ):
+            completed += seed_completions
     return completed, ()
+
+
+def _execute_real_seed_worker(
+    task: tuple[
+        LoadedScientificConfiguration,
+        Path,
+        ExperimentName,
+        DatasetName,
+        ExecutionRole,
+        SeedValue,
+        tuple[MethodName, ...],
+        tuple[MethodName, ...],
+    ],
+) -> RecordCount:
+    loaded, repository, experiment_name, dataset_name, role, seed, supported, missing = task
+    try:
+        return _execute_real_emhi_seed(
+            loaded,
+            repository,
+            experiment_name,
+            dataset_name,
+            role,
+            seed,
+            supported,
+            missing,
+        )
+    finally:
+        terminate_kmeans_restart_pool()
 
 
 def _materialize_not_tested_real_cells(

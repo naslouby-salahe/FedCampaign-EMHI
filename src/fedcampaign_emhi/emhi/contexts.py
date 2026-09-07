@@ -224,6 +224,31 @@ def context_row_ranking_value(row: ContextTrainingRow, context_seed: SeedValue) 
     return int.from_bytes(digest[:8], "big")
 
 
+def context_coordinate_ranking_value(
+    context_seed: SeedValue,
+    dataset: DatasetName,
+    coalition_order: CoalitionOrder,
+    coalition_client_ids: tuple[ClientId, ...],
+    epoch_index: EpochIndexValue,
+) -> SeedValue:
+    client_list = ",".join(f'"{client_id}"' for client_id in coalition_client_ids)
+    payload = (
+        b'{"coalition_client_ids":['
+        + client_list.encode()
+        + b'],"coalition_order":'
+        + str(coalition_order.value).encode()
+        + b',"context_seed":'
+        + str(context_seed).encode()
+        + b',"dataset":"'
+        + dataset.value.encode()
+        + b'","epoch_index":'
+        + str(epoch_index).encode()
+        + b"}"
+    )
+    digest = hashlib.sha256(payload).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
 def cap_context_training_rows(
     rows: tuple[ContextTrainingRow, ...],
     context_seed: SeedValue,
@@ -263,6 +288,14 @@ def _kmeans_restart_pool() -> ProcessPoolExecutor:
     if _kmeans_restart_pool_instance is None:
         _kmeans_restart_pool_instance = ProcessPoolExecutor(max_workers=os.cpu_count())
     return _kmeans_restart_pool_instance
+
+
+def terminate_kmeans_restart_pool() -> None:
+    global _kmeans_restart_pool_instance
+    pool = _kmeans_restart_pool_instance
+    _kmeans_restart_pool_instance = None
+    if pool is not None:
+        pool.shutdown(wait=True, cancel_futures=True)
 
 
 def _restart_seed(base_seed: SeedValue, restart_index: KmeansInitializationCount) -> SeedValue:

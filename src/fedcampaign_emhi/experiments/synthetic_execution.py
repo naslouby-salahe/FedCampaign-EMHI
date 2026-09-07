@@ -1,5 +1,8 @@
+import multiprocessing
+import os
 from collections.abc import Mapping
-from dataclasses import replace
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass, replace
 from pathlib import Path
 from time import perf_counter
 from typing import cast
@@ -64,6 +67,7 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     StandardizedError,
 )
+from fedcampaign_emhi.emhi.contexts import terminate_kmeans_restart_pool
 from fedcampaign_emhi.evaluation.scalability import (
     resident_set_bytes,
 )
@@ -78,7 +82,7 @@ from fedcampaign_emhi.experiments.calibration import (
     evaluate_comparator_pure_order_cell,
     evaluate_composition_candidate_seed,
     evaluate_finite_horizon_common_mode_seed,
-    evaluate_fitted_pure_order_cell,
+    evaluate_fitted_pure_order_grid,
 )
 from fedcampaign_emhi.experiments.execution import (
     ExperimentExecutionResult,
@@ -189,6 +193,246 @@ def run_synthetic_cell_with_technical_retry(
     )
 
 
+@dataclass(frozen=True)
+class SyntheticCellExecution:
+    state: ExperimentState
+    outcome: SyntheticCellOutcome
+    finite_horizon_metrics: FiniteHorizonSeedMetrics | None
+    composition_metrics: CompositionCandidateSeedMetrics | None
+    technical_failure: bool
+    runtime_seconds: RuntimeSeconds
+    peak_rss_bytes: int
+
+
+def execute_synthetic_cell_payload(
+    loaded: LoadedScientificConfiguration,
+    experiment_name: ExperimentName,
+    role: ExecutionRole,
+    seed: SeedValue,
+    method_name: MethodName | None,
+) -> SyntheticCellExecution:
+    started = perf_counter()
+    finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
+    composition_metrics: CompositionCandidateSeedMetrics | None = None
+    technical_failure = False
+    try:
+        outcome = run_synthetic_cell_with_technical_retry(
+            loaded, experiment_name, seed, method_name, role
+        )
+        if (
+            experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
+            and method_name is not None
+            and emhi_method_settings(method_name) is not None
+        ):
+            primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
+            fitted_grid = evaluate_fitted_pure_order_grid(loaded.values, method_name, seed)
+            primary_fitted = (
+                next(
+                    (
+                        fitted
+                        for cell, fitted in fitted_grid
+                        if cell.generator is primary.generator
+                        and cell.target_order == CoalitionOrder(primary.coalition_order)
+                        and cell.effect
+                        == loaded.values.generators.pure_polynomial.primary_reference_theta
+                    ),
+                    None,
+                )
+                if method_name is primary.method
+                else None
+            )
+            grid_complete = all(fitted.artifact_path_complete for _cell, fitted in fitted_grid)
+            if grid_complete:
+                evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
+                evidence["implementation_state"] = "fitted_emhi_artifact_grid"
+                evidence["fitted_emhi_scores"] = [
+                    {
+                        "generator": cell.generator.value,
+                        "effect": cell.effect,
+                        "target_order": cell.target_order,
+                        "maximum_proper_subset_standardized_drift": fitted.metrics.maximum_proper_subset_standardized_drift,
+                        "target_order_standardized_drift": fitted.metrics.target_order_standardized_drift,
+                    }
+                    for cell, fitted in fitted_grid
+                ]
+                if primary_fitted is not None and primary_fitted.artifact_path_complete:
+                    evidence["primary_exact_exclusion_artifact_score"] = {
+                        "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
+                        "target_order_standardized_drift": primary_fitted.metrics.target_order_standardized_drift,
+                    }
+                outcome = replace(
+                    outcome,
+                    evidence=evidence,
+                    pure_order_metrics=(
+                        PureOrderSeedMetrics(
+                            primary_fitted.metrics.maximum_proper_subset_standardized_drift,
+                            primary_fitted.metrics.target_order_standardized_drift,
+                        )
+                        if primary_fitted is not None and primary_fitted.artifact_path_complete
+                        else outcome.pure_order_metrics
+                    ),
+                    failed_checks=outcome.failed_checks,
+                )
+            else:
+                outcome = replace(
+                    outcome,
+                    failed_checks=(
+                        *outcome.failed_checks,
+                        "incomplete fitted EMHI pure-order grid",
+                    ),
+                )
+        if (
+            experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
+            and method_name is not None
+            and emhi_method_settings(method_name) is None
+            and method_name
+            is not loaded.values.experiments.pure_order_separation_validation.primary_condition.method
+        ):
+            comparator_grid = tuple(
+                (cell, evaluate_comparator_pure_order_cell(loaded.values, cell, seed))
+                for cell in enumerate_pure_order_grid(loaded.values)
+                if cell.method is method_name
+            )
+            native_order = native_target_order(method_name)
+            expected_comparator_cells = tuple(
+                cell
+                for cell, _metrics in comparator_grid
+                if native_order is not None and cell.target_order is native_order
+            )
+            comparator_completed = tuple(
+                (cell, metrics) for cell, metrics in comparator_grid if metrics is not None
+            )
+            comparator_grid_complete = bool(expected_comparator_cells) and all(
+                metrics is not None
+                for cell, metrics in comparator_grid
+                if cell in expected_comparator_cells
+            )
+            if comparator_completed:
+                evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                evidence["native_comparator_scores"] = [
+                    {
+                        "generator": cell.generator.value,
+                        "effect": cell.effect,
+                        "target_order": cell.target_order,
+                        "target_order_standardized_drift": metrics.target_order_standardized_drift,
+                    }
+                    for cell, metrics in comparator_completed
+                ]
+                evidence["native_comparator_grid"] = {
+                    "native_target_order": native_order if native_order is not None else None,
+                    "expected_cell_count": len(expected_comparator_cells),
+                    "completed_cell_count": len(comparator_completed),
+                    "complete": comparator_grid_complete,
+                }
+                if comparator_grid_complete:
+                    evidence["implementation_state"] = "native_comparator_grid"
+                outcome = replace(
+                    outcome,
+                    evidence=evidence,
+                    failed_checks=(
+                        outcome.failed_checks
+                        if comparator_grid_complete
+                        else (
+                            *outcome.failed_checks,
+                            "incomplete native comparator pure-order grid",
+                        )
+                    ),
+                )
+        if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
+            finite_horizon = evaluate_finite_horizon_common_mode_seed(loaded.values, seed)
+            finite_horizon_metrics = finite_horizon.metrics
+            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+            evidence["calibrated_finite_horizon"] = {
+                "calibrated_threshold": finite_horizon.metrics.calibrated_threshold,
+                "calibration_horizon_count": finite_horizon.metrics.calibration_horizon_count,
+                "heldout_horizon_count": finite_horizon.metrics.heldout_horizon_count,
+                "heldout_false_stop_count": finite_horizon.metrics.heldout_false_stop_count,
+                "heldout_upper_pfa": finite_horizon.metrics.heldout_upper_pfa,
+                "operating_point_available": finite_horizon.metrics.calibrated_threshold
+                is not None,
+            }
+            outcome = replace(
+                outcome,
+                evidence=evidence,
+                failed_checks=(
+                    outcome.failed_checks
+                    if finite_horizon.assumptions_hold
+                    else (
+                        *outcome.failed_checks,
+                        "finite-horizon operational-route assumptions",
+                    )
+                ),
+            )
+        if (
+            experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE
+            and role is ExecutionRole.DEVELOPMENT
+            and method_name is not None
+            and not outcome.failed_checks
+        ):
+            composition_metrics = evaluate_composition_candidate_seed(
+                loaded.values, method_name, seed
+            )
+            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+            evidence["composition_calibration"] = {
+                "calibrated_threshold": composition_metrics.calibrated_threshold,
+                "calibration_horizon_count": composition_metrics.calibration_horizon_count,
+                "heldout_horizon_count": composition_metrics.heldout_horizon_count,
+                "heldout_false_stop_count": composition_metrics.heldout_false_stop_count,
+                "scoring_runtime_seconds": composition_metrics.scoring_runtime_seconds,
+                "operating_point_available": composition_metrics.calibrated_threshold is not None,
+            }
+            outcome = replace(outcome, evidence=evidence)
+    except (ArithmeticError, ValueError) as error:
+        outcome = SyntheticCellOutcome((str(error),), None)
+    except (OSError, MemoryError) as error:
+        outcome = SyntheticCellOutcome((str(error),), None)
+        technical_failure = True
+    state = (
+        ExperimentState.FAILED
+        if technical_failure
+        else ExperimentState.COMPLETED
+        if not outcome.failed_checks
+        else ExperimentState.INVALID
+    )
+    try:
+        return SyntheticCellExecution(
+            state,
+            outcome,
+            finite_horizon_metrics,
+            composition_metrics,
+            technical_failure,
+            perf_counter() - started,
+            resident_set_bytes(),
+        )
+    finally:
+        terminate_kmeans_restart_pool()
+
+
+def execute_synthetic_worker_task(
+    task: tuple[
+        LoadedScientificConfiguration,
+        ExperimentName,
+        ExecutionRole,
+        SeedValue,
+        MethodName | None,
+    ],
+) -> SyntheticCellExecution:
+    loaded, experiment_name, role, seed, method_name = task
+    return execute_synthetic_cell_payload(loaded, experiment_name, role, seed, method_name)
+
+
+def _synthetic_dispatch_method(
+    experiment_name: ExperimentName, method_name: MethodName | None
+) -> MethodName | None:
+    if (
+        experiment_name is ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE
+        and method_name is MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD
+    ):
+        return MethodName.FULL_FEDCAMPAIGN_EMHI
+    return method_name
+
+
 def execute_synthetic_experiment(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -199,267 +443,98 @@ def execute_synthetic_experiment(
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    completed = 0
-    invalid = 0
-    self_explanation_observations: list[SelfExplanationObservation] = []
-    pure_order_observations: list[PureOrderObservation] = []
-    signed_theorem_observations: list[SignedTheoremObservation] = []
-    finite_horizon_observations: list[FiniteHorizonObservation] = []
-    estimator_feasibility_observations: list[EstimatorFeasibilityObservation] = []
-    composition_observations: list[CompositionCandidateObservation] = []
-    hofd_observations: list[HofdEquivalenceObservation] = []
+    methods: tuple[MethodName | None, ...] = contract.methods or (None,)
+    cells: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = []
     for role in contract.execution_roles:
-        methods: tuple[MethodName | None, ...] = contract.methods or (None,)
         for seed in synthetic_role_seeds(loaded, role):
             for method_name in methods:
-                started = perf_counter()
-                campaigns_logger().info(
-                    "cell_started experiment=%s role=%s seed=%s method=%s",
-                    experiment_name.value,
-                    role.value,
-                    seed,
-                    "coordinate-validation" if method_name is None else method_name.value,
-                )
-                finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
-                composition_metrics: CompositionCandidateSeedMetrics | None = None
-                technical_failure = False
-                try:
-                    outcome = run_synthetic_cell_with_technical_retry(
-                        loaded, experiment_name, seed, method_name, role
-                    )
-                    if (
-                        experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
-                        and method_name is not None
-                        and emhi_method_settings(method_name) is not None
-                    ):
-                        primary = loaded.values.experiments.pure_order_separation_validation.primary_condition
-                        fitted_grid = tuple(
-                            (cell, evaluate_fitted_pure_order_cell(loaded.values, cell, seed))
-                            for cell in enumerate_pure_order_grid(loaded.values)
-                            if cell.method is method_name
-                        )
-                        primary_fitted = (
-                            next(
-                                (
-                                    fitted
-                                    for cell, fitted in fitted_grid
-                                    if cell.generator is primary.generator
-                                    and cell.target_order == CoalitionOrder(primary.coalition_order)
-                                    and cell.effect
-                                    == loaded.values.generators.pure_polynomial.primary_reference_theta
-                                ),
-                                None,
-                            )
-                            if method_name is primary.method
-                            else None
-                        )
-                        grid_complete = all(
-                            fitted is not None and fitted.artifact_path_complete
-                            for _cell, fitted in fitted_grid
-                        )
-                        if grid_complete:
-                            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
-                            evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
-                            evidence["implementation_state"] = "fitted_emhi_artifact_grid"
-                            evidence["fitted_emhi_scores"] = [
-                                {
-                                    "generator": cell.generator.value,
-                                    "effect": cell.effect,
-                                    "target_order": cell.target_order,
-                                    "maximum_proper_subset_standardized_drift": fitted.metrics.maximum_proper_subset_standardized_drift,
-                                    "target_order_standardized_drift": fitted.metrics.target_order_standardized_drift,
-                                }
-                                for cell, fitted in fitted_grid
-                                if fitted is not None
-                            ]
-                            if primary_fitted is not None and primary_fitted.artifact_path_complete:
-                                evidence["primary_exact_exclusion_artifact_score"] = {
-                                    "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
-                                    "target_order_standardized_drift": primary_fitted.metrics.target_order_standardized_drift,
-                                }
-                            outcome = replace(
-                                outcome,
-                                evidence=evidence,
-                                pure_order_metrics=(
-                                    PureOrderSeedMetrics(
-                                        primary_fitted.metrics.maximum_proper_subset_standardized_drift,
-                                        primary_fitted.metrics.target_order_standardized_drift,
-                                    )
-                                    if primary_fitted is not None
-                                    and primary_fitted.artifact_path_complete
-                                    else outcome.pure_order_metrics
-                                ),
-                                failed_checks=outcome.failed_checks,
-                            )
-                        else:
-                            outcome = replace(
-                                outcome,
-                                failed_checks=(
-                                    *outcome.failed_checks,
-                                    "incomplete fitted EMHI pure-order grid",
-                                ),
-                            )
-                    if (
-                        experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
-                        and method_name is not None
-                        and emhi_method_settings(method_name) is None
-                        and method_name
-                        is not loaded.values.experiments.pure_order_separation_validation.primary_condition.method
-                    ):
-                        comparator_grid = tuple(
-                            (cell, evaluate_comparator_pure_order_cell(loaded.values, cell, seed))
-                            for cell in enumerate_pure_order_grid(loaded.values)
-                            if cell.method is method_name
-                        )
-                        native_order = native_target_order(method_name)
-                        expected_comparator_cells = tuple(
-                            cell
-                            for cell, _metrics in comparator_grid
-                            if native_order is not None and cell.target_order is native_order
-                        )
-                        comparator_completed = tuple(
-                            (cell, metrics)
-                            for cell, metrics in comparator_grid
-                            if metrics is not None
-                        )
-                        comparator_grid_complete = bool(expected_comparator_cells) and all(
-                            metrics is not None
-                            for cell, metrics in comparator_grid
-                            if cell in expected_comparator_cells
-                        )
-                        if comparator_completed:
-                            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
-                            evidence["native_comparator_scores"] = [
-                                {
-                                    "generator": cell.generator.value,
-                                    "effect": cell.effect,
-                                    "target_order": cell.target_order,
-                                    "target_order_standardized_drift": metrics.target_order_standardized_drift,
-                                }
-                                for cell, metrics in comparator_completed
-                            ]
-                            evidence["native_comparator_grid"] = {
-                                "native_target_order": native_order
-                                if native_order is not None
-                                else None,
-                                "expected_cell_count": len(expected_comparator_cells),
-                                "completed_cell_count": len(comparator_completed),
-                                "complete": comparator_grid_complete,
-                            }
-                            if comparator_grid_complete:
-                                evidence["implementation_state"] = "native_comparator_grid"
-                            outcome = replace(
-                                outcome,
-                                evidence=evidence,
-                                failed_checks=(
-                                    outcome.failed_checks
-                                    if comparator_grid_complete
-                                    else (
-                                        *outcome.failed_checks,
-                                        "incomplete native comparator pure-order grid",
-                                    )
-                                ),
-                            )
-                    if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
-                        finite_horizon = evaluate_finite_horizon_common_mode_seed(
-                            loaded.values, seed
-                        )
-                        finite_horizon_metrics = finite_horizon.metrics
-                        evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
-                        evidence["calibrated_finite_horizon"] = {
-                            "calibrated_threshold": finite_horizon.metrics.calibrated_threshold,
-                            "calibration_horizon_count": finite_horizon.metrics.calibration_horizon_count,
-                            "heldout_horizon_count": finite_horizon.metrics.heldout_horizon_count,
-                            "heldout_false_stop_count": finite_horizon.metrics.heldout_false_stop_count,
-                            "heldout_upper_pfa": finite_horizon.metrics.heldout_upper_pfa,
-                            "operating_point_available": finite_horizon.metrics.calibrated_threshold
-                            is not None,
-                        }
-                        outcome = replace(
-                            outcome,
-                            evidence=evidence,
-                            failed_checks=(
-                                outcome.failed_checks
-                                if finite_horizon.assumptions_hold
-                                else (
-                                    *outcome.failed_checks,
-                                    "finite-horizon operational-route assumptions",
-                                )
-                            ),
-                        )
-                    if (
-                        experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE
-                        and role is ExecutionRole.DEVELOPMENT
-                        and method_name is not None
-                        and not outcome.failed_checks
-                    ):
-                        composition_metrics = evaluate_composition_candidate_seed(
-                            loaded.values, method_name, seed
-                        )
-                        evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
-                        evidence["composition_calibration"] = {
-                            "calibrated_threshold": composition_metrics.calibrated_threshold,
-                            "calibration_horizon_count": composition_metrics.calibration_horizon_count,
-                            "heldout_horizon_count": composition_metrics.heldout_horizon_count,
-                            "heldout_false_stop_count": composition_metrics.heldout_false_stop_count,
-                            "scoring_runtime_seconds": composition_metrics.scoring_runtime_seconds,
-                            "operating_point_available": composition_metrics.calibrated_threshold
-                            is not None,
-                        }
-                        outcome = replace(outcome, evidence=evidence)
-                except (ArithmeticError, ValueError) as error:
-                    outcome = SyntheticCellOutcome((str(error),), None)
-                except (OSError, MemoryError) as error:
-                    outcome = SyntheticCellOutcome((str(error),), None)
-                    technical_failure = True
-                state = (
-                    ExperimentState.FAILED
-                    if technical_failure
-                    else ExperimentState.COMPLETED
-                    if not outcome.failed_checks
-                    else ExperimentState.INVALID
-                )
+                cells.append((role, seed, method_name))
+    dispatched_cells: dict[tuple[ExecutionRole, SeedValue, MethodName | None], tuple[int, ...]] = {}
+    for cell_index, (role, seed, method_name) in enumerate(cells):
+        dispatch = (role, seed, _synthetic_dispatch_method(experiment_name, method_name))
+        dispatched_cells[dispatch] = (*dispatched_cells.get(dispatch, ()), cell_index)
+    dispatched_order: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = list(
+        dispatched_cells
+    )
+    worker_count = max(1, min(len(dispatched_order), os.cpu_count() or 1))
+    tasks = tuple(
+        (
+            loaded,
+            experiment_name,
+            dispatch_role,
+            dispatch_seed,
+            dispatch_method,
+        )
+        for dispatch_role, dispatch_seed, dispatch_method in dispatched_order
+    )
+    campaigns_logger().info(
+        "experiment_cells experiment=%s cell_count=%d dispatched_count=%d worker_count=%d",
+        experiment_name.value,
+        len(cells),
+        len(dispatched_order),
+        worker_count,
+    )
+    self_explanation_slots: list[list[SelfExplanationObservation]] = [[] for _ in cells]
+    pure_order_slots: list[list[PureOrderObservation]] = [[] for _ in cells]
+    signed_theorem_slots: list[list[SignedTheoremObservation]] = [[] for _ in cells]
+    finite_horizon_slots: list[list[FiniteHorizonObservation]] = [[] for _ in cells]
+    estimator_feasibility_slots: list[list[EstimatorFeasibilityObservation]] = [[] for _ in cells]
+    composition_slots: list[list[CompositionCandidateObservation]] = [[] for _ in cells]
+    hofd_slots: list[list[HofdEquivalenceObservation]] = [[] for _ in cells]
+    completed = 0
+    invalid = 0
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
+        for (role, seed, method_name), execution in zip(
+            dispatched_order,
+            pool.map(execute_synthetic_worker_task, tasks, chunksize=1),
+            strict=True,
+        ):
+            state = execution.state
+            for cell_index in dispatched_cells[(role, seed, method_name)]:
+                _role, _seed, cell_method = cells[cell_index]
                 method_slug = (
                     "coordinate-validation"
-                    if method_name is None
-                    else method_artifact_stem(method_name)
+                    if cell_method is None
+                    else method_artifact_stem(cell_method)
                 )
                 diagnostic_path = (
                     root
                     / "diagnostics"
                     / "scientific"
-                    / role.value
+                    / _role.value
                     / method_slug
-                    / f"seed-{seed}.json"
+                    / f"seed-{_seed}.json"
                 )
                 diagnostic_payload: YamlNode = {
                     "experiment_name": experiment_name.value,
-                    "execution_role": role.value,
-                    "seed": seed,
-                    "method_name": None if method_name is None else method_name.value,
+                    "execution_role": _role.value,
+                    "seed": _seed,
+                    "method_name": None if cell_method is None else cell_method.value,
                     "state": state.value,
-                    "failed_checks": list(outcome.failed_checks),
-                    "method_score": outcome.method_score,
-                    "evidence": outcome.evidence,
+                    "failed_checks": list(execution.outcome.failed_checks),
+                    "method_score": execution.outcome.method_score,
+                    "evidence": execution.outcome.evidence,
                 }
                 diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
+                outcome = execution.outcome
                 if (
                     state is ExperimentState.COMPLETED
                     and outcome.self_explanation_metrics is not None
                 ):
-                    self_explanation_observations.append(
+                    self_explanation_slots[cell_index].append(
                         SelfExplanationObservation(
-                            execution_role=role,
-                            seed=seed,
+                            execution_role=_role,
+                            seed=_seed,
                             metric=outcome.self_explanation_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
                 if state is ExperimentState.COMPLETED and outcome.pure_order_metrics is not None:
-                    pure_order_observations.append(
+                    pure_order_slots[cell_index].append(
                         PureOrderObservation(
-                            execution_role=role,
-                            seed=seed,
+                            execution_role=_role,
+                            seed=_seed,
                             metric=outcome.pure_order_metrics,
                             diagnostic_path=diagnostic_path,
                         )
@@ -468,20 +543,23 @@ def execute_synthetic_experiment(
                     state is ExperimentState.COMPLETED
                     and outcome.signed_theorem_metrics is not None
                 ):
-                    signed_theorem_observations.append(
+                    signed_theorem_slots[cell_index].append(
                         SignedTheoremObservation(
-                            execution_role=role,
-                            seed=seed,
+                            execution_role=_role,
+                            seed=_seed,
                             metric=outcome.signed_theorem_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
-                if state is ExperimentState.COMPLETED and finite_horizon_metrics is not None:
-                    finite_horizon_observations.append(
+                if (
+                    state is ExperimentState.COMPLETED
+                    and execution.finite_horizon_metrics is not None
+                ):
+                    finite_horizon_slots[cell_index].append(
                         FiniteHorizonObservation(
-                            execution_role=role,
-                            seed=seed,
-                            metric=finite_horizon_metrics,
+                            execution_role=_role,
+                            seed=_seed,
+                            metric=execution.finite_horizon_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
@@ -489,43 +567,43 @@ def execute_synthetic_experiment(
                     state is ExperimentState.COMPLETED
                     and outcome.estimator_feasibility_metrics is not None
                 ):
-                    estimator_feasibility_observations.append(
+                    estimator_feasibility_slots[cell_index].append(
                         EstimatorFeasibilityObservation(
-                            execution_role=role,
-                            seed=seed,
+                            execution_role=_role,
+                            seed=_seed,
                             metric=outcome.estimator_feasibility_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
                 if state is ExperimentState.COMPLETED and outcome.hofd_metrics is not None:
-                    hofd_observations.append(
+                    hofd_slots[cell_index].append(
                         HofdEquivalenceObservation(
-                            execution_role=role,
-                            seed=seed,
+                            execution_role=_role,
+                            seed=_seed,
                             metric=outcome.hofd_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
                 if (
                     state is ExperimentState.COMPLETED
-                    and composition_metrics is not None
-                    and method_name is not None
+                    and execution.composition_metrics is not None
+                    and cell_method is not None
                 ):
                     evidence = cast(Mapping[str, YamlNode], outcome.evidence)
-                    composition_observations.append(
+                    composition_slots[cell_index].append(
                         CompositionCandidateObservation(
-                            method_name=method_name,
-                            seed=seed,
+                            method_name=cell_method,
+                            seed=_seed,
                             standardized_target_order_error=cast(
                                 StandardizedError, evidence["standardized_target_order_error"]
                             ),
-                            metric=composition_metrics,
+                            metric=execution.composition_metrics,
                             diagnostic_path=diagnostic_path,
                         )
                     )
                 fingerprint = material_fingerprint(
                     synthetic_cell_boundary_digest(loaded.values),
-                    (payload_digest(cast(YamlNode, {"seed": seed, "method": method_slug})),),
+                    (payload_digest(cast(YamlNode, {"seed": _seed, "method": method_slug})),),
                 )
                 completion = CompletionRecord(
                     state=state,
@@ -534,17 +612,17 @@ def execute_synthetic_experiment(
                 )
                 cell = ScientificCellRecord(
                     experiment_name=experiment_name,
-                    execution_role=role,
-                    semantic_cell_path=f"{role.value}/{method_slug}/seed-{seed}",
-                    method_name=method_name,
-                    seed=seed,
+                    execution_role=_role,
+                    semantic_cell_path=f"{_role.value}/{method_slug}/seed-{_seed}",
+                    method_name=cell_method,
+                    seed=_seed,
                     state=state,
                     material_digest=loaded.material_digest,
                     selected_client_ids=(),
                     upstream_artifact_ids=(),
                     dependency_fingerprint=fingerprint,
-                    runtime_seconds=perf_counter() - started,
-                    peak_rss_bytes=resident_set_bytes(),
+                    runtime_seconds=execution.runtime_seconds,
+                    peak_rss_bytes=execution.peak_rss_bytes,
                     application_payload_bytes=len(diagnostic_path.read_bytes()),
                     completion_record=completion,
                 )
@@ -552,60 +630,59 @@ def execute_synthetic_experiment(
                     root
                     / "provenance"
                     / "dependencies"
-                    / f"cell-{role.value}-{method_slug}-seed-{seed}.json"
+                    / f"cell-{_role.value}-{method_slug}-seed-{_seed}.json"
                 )
                 write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
-                campaigns_logger().info(
-                    "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
-                    " elapsed_seconds=%.3f",
-                    experiment_name.value,
-                    role.value,
-                    seed,
-                    "coordinate-validation" if method_name is None else method_name.value,
-                    state.value,
-                    perf_counter() - started,
-                )
                 if state is ExperimentState.COMPLETED:
                     completed += 1
                 else:
                     invalid += 1
+                campaigns_logger().info(
+                    "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
+                    " elapsed_seconds=%.3f",
+                    experiment_name.value,
+                    _role.value,
+                    _seed,
+                    "coordinate-validation" if cell_method is None else cell_method.value,
+                    state.value,
+                    execution.runtime_seconds,
+                )
+    self_explanation_observations = tuple(
+        observation for slot in self_explanation_slots for observation in slot
+    )
+    pure_order_observations = tuple(
+        observation for slot in pure_order_slots for observation in slot
+    )
+    signed_theorem_observations = tuple(
+        observation for slot in signed_theorem_slots for observation in slot
+    )
+    finite_horizon_observations = tuple(
+        observation for slot in finite_horizon_slots for observation in slot
+    )
+    estimator_feasibility_observations = tuple(
+        observation for slot in estimator_feasibility_slots for observation in slot
+    )
+    composition_observations = tuple(
+        observation for slot in composition_slots for observation in slot
+    )
+    hofd_observations = tuple(observation for slot in hofd_slots for observation in slot)
     if experiment_name is ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION:
-        materialize_self_explanation_statistics(
-            loaded,
-            repository,
-            tuple(self_explanation_observations),
-        )
+        materialize_self_explanation_statistics(loaded, repository, self_explanation_observations)
     if experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION:
-        materialize_pure_order_statistics(loaded, repository, tuple(pure_order_observations))
+        materialize_pure_order_statistics(loaded, repository, pure_order_observations)
     if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
-        materialize_signed_theorem_statistics(
-            loaded,
-            repository,
-            tuple(signed_theorem_observations),
-        )
-        materialize_finite_horizon_statistics(
-            loaded,
-            repository,
-            tuple(finite_horizon_observations),
-        )
+        materialize_signed_theorem_statistics(loaded, repository, signed_theorem_observations)
+        materialize_finite_horizon_statistics(loaded, repository, finite_horizon_observations)
     if experiment_name is ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY:
         materialize_estimator_feasibility_statistics(
-            loaded,
-            repository,
-            tuple(estimator_feasibility_observations),
+            loaded, repository, estimator_feasibility_observations
         )
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
         materialize_strong_comparator_composition_selection(
-            loaded,
-            repository,
-            tuple(composition_observations),
+            loaded, repository, composition_observations
         )
     if experiment_name is ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE:
-        materialize_hofd_equivalence_statistics(
-            loaded,
-            repository,
-            tuple(hofd_observations),
-        )
+        materialize_hofd_equivalence_statistics(loaded, repository, hofd_observations)
     state = ExperimentState.COMPLETED if invalid == 0 else ExperimentState.INVALID
     run_path = publish_experiment_run_record(
         loaded,

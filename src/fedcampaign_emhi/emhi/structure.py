@@ -96,6 +96,20 @@ def clipped_midrank(
     return clip_rank(midrank(score, reference), epsilon)
 
 
+def sorted_clipped_midrank(
+    score: DetectorScore,
+    sorted_reference_scores: tuple[RankValue, ...],
+    epsilon: NumericalFloor,
+) -> RankValue:
+    observation_count = len(sorted_reference_scores)
+    if observation_count == 0:
+        raise ValueError("rank reference must contain at least one score")
+    less = bisect_left(sorted_reference_scores, score)
+    equal = bisect_right(sorted_reference_scores, score) - less
+    rank = (less + (0.5 * equal) + 0.5) / (observation_count + 1)
+    return clip_rank(rank, epsilon)
+
+
 def coalition_conditioned_residual_rank(
     marginal_rank: RankValue, context_reference: RankReference, epsilon: NumericalFloor
 ) -> RankValue:
@@ -118,25 +132,28 @@ def batch_clipped_midrank(
     return tuple(ranks)
 
 
-_CLIENT_EPOCH_RANK_MAP_CACHE_LIMIT = 64
-_client_epoch_rank_map_cache: OrderedDict[
-    tuple[MaterialDependencyFingerprint, ClientId], Mapping[EpochIndexValue, RankValue]
+_ARTIFACT_EPOCH_RANK_MAP_CACHE_LIMIT = 64
+_artifact_epoch_rank_map_cache: OrderedDict[
+    MaterialDependencyFingerprint, Mapping[ClientId, Mapping[EpochIndexValue, RankValue]]
 ] = OrderedDict()
 
 
-def _client_epoch_rank_map(
-    stream: ClientMarginalRankStream, dependency_fingerprint: MaterialDependencyFingerprint
-) -> Mapping[EpochIndexValue, RankValue]:
-    cache_key = (dependency_fingerprint, stream.client_id)
-    cached = _client_epoch_rank_map_cache.get(cache_key)
+def _client_epoch_rank_maps(
+    ranks: MarginalRankArtifactRecord,
+) -> Mapping[ClientId, Mapping[EpochIndexValue, RankValue]]:
+    dependency_fingerprint = ranks.dependency_fingerprint
+    cached = _artifact_epoch_rank_map_cache.get(dependency_fingerprint)
     if cached is not None:
-        _client_epoch_rank_map_cache.move_to_end(cache_key)
+        _artifact_epoch_rank_map_cache.move_to_end(dependency_fingerprint)
         return cached
-    built = dict(zip(stream.epoch_indexes, stream.ranks, strict=True))
-    _client_epoch_rank_map_cache[cache_key] = built
-    _client_epoch_rank_map_cache.move_to_end(cache_key)
-    if len(_client_epoch_rank_map_cache) > _CLIENT_EPOCH_RANK_MAP_CACHE_LIMIT:
-        _client_epoch_rank_map_cache.popitem(last=False)
+    built = {
+        stream.client_id: dict(zip(stream.epoch_indexes, stream.ranks, strict=True))
+        for stream in ranks.client_streams
+    }
+    _artifact_epoch_rank_map_cache[dependency_fingerprint] = built
+    _artifact_epoch_rank_map_cache.move_to_end(dependency_fingerprint)
+    if len(_artifact_epoch_rank_map_cache) > _ARTIFACT_EPOCH_RANK_MAP_CACHE_LIMIT:
+        _artifact_epoch_rank_map_cache.popitem(last=False)
     return built
 
 
@@ -145,14 +162,11 @@ def rank_at_epoch(
     client_id: ClientId,
     epoch_index: EpochIndexValue,
 ) -> RankValue | None:
-    stream = next(
-        (stream for stream in ranks.client_streams if stream.client_id == client_id),
-        None,
-    )
-    if stream is None:
+    client_maps = _client_epoch_rank_maps(ranks)
+    map_for_client = client_maps.get(client_id)
+    if map_for_client is None:
         return None
-    index = _client_epoch_rank_map(stream, ranks.dependency_fingerprint)
-    return index.get(epoch_index)
+    return map_for_client.get(epoch_index)
 
 
 def build_marginal_rank_artifact(

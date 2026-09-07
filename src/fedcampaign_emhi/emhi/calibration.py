@@ -1,4 +1,5 @@
 from collections import UserDict
+from heapq import heappush, heapreplace
 from math import isfinite
 
 from fedcampaign_emhi.artifacts.records import (
@@ -42,7 +43,6 @@ from fedcampaign_emhi.domain.types import (
     NumericalTolerance,
     OperationalNormReference,
     ProjectionMeanSquaredError,
-    RankReference,
     RankValue,
     RecordCount,
     RidgePenalty,
@@ -52,8 +52,8 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.emhi.contexts import (
     NO_OUTSIDE_CONTEXT_CELL_COUNT,
     assign_context_cell,
-    cap_context_training_rows,
     context_cluster_identity,
+    context_coordinate_ranking_value,
     exact_exclusion_members,
     fit_context_centroids,
     inclusive_context_members,
@@ -84,10 +84,11 @@ from fedcampaign_emhi.emhi.projection import (
 )
 from fedcampaign_emhi.emhi.structure import (
     build_marginal_rank_artifact,
-    coalition_conditioned_residual_rank,
     enumerate_coalitions,
     proper_subset_members,
     rank_at_epoch,
+    required_outside_client_count,
+    sorted_clipped_midrank,
     tensor_representation,
 )
 from fedcampaign_emhi.runtime import derive_component_seed, log_stage
@@ -419,16 +420,55 @@ def _fit_order_context(
         if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
         else None
     )
+    coalitions_of_order = tuple(
+        coalition for coalition in coalitions if coalition.order is coalition_order
+    )
+    selection_limit = config.context.kmeans.max_fit_rows
+    selected: list[tuple[SeedValue, tuple[ClientId, ...], EpochIndexValue]] = []
+    for coalition in coalitions_of_order:
+        members = _context_members(context_method, ranks.selected_client_ids, coalition.client_ids)
+        required_available = required_outside_client_count(
+            len(members),
+            config.context.minimum_available_outside_clients,
+            config.context.minimum_available_outside_fraction,
+        )
+        for epoch_index in nuisance_epochs:
+            if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT:
+                if lag_lookup is None:
+                    raise ValueError("shuffled outside context requires a lag lookup")
+                lagged_epoch = lag_lookup[epoch_index]
+            else:
+                lagged_epoch = epoch_index - config.context.outside_lag_epochs
+            if permitted_lag_epochs is not None and lagged_epoch not in permitted_lag_epochs:
+                continue
+            available_count = 0
+            for member in members:
+                if rank_at_epoch(ranks, member, lagged_epoch) is not None:
+                    available_count += 1
+                    if available_count >= required_available:
+                        break
+            if available_count < required_available:
+                continue
+            ranking_value = context_coordinate_ranking_value(
+                context_seed,
+                ranks.dataset_name,
+                coalition_order,
+                coalition.client_ids,
+                epoch_index,
+            )
+            candidate = (ranking_value, coalition.client_ids, epoch_index)
+            if len(selected) < selection_limit:
+                heappush(selected, candidate)
+            elif candidate < selected[0]:
+                heapreplace(selected, candidate)
     rows = tuple(
         row
-        for coalition in coalitions
-        if coalition.order is coalition_order
-        for epoch_index in nuisance_epochs
+        for _ranking_value, coalition_ids, epoch_index in sorted(selected)
         for row in (
             _context_row(
                 config,
                 ranks,
-                coalition,
+                CoalitionMembers(client_ids=coalition_ids, order=coalition_order),
                 epoch_index,
                 context_method,
                 permitted_lag_epochs,
@@ -437,7 +477,6 @@ def _fit_order_context(
         )
         if row is not None
     )
-    capped = cap_context_training_rows(rows, context_seed, config.context.kmeans.max_fit_rows)
     identity = context_cluster_identity(
         ranks.dataset_name,
         coalition_order,
@@ -445,7 +484,7 @@ def _fit_order_context(
         ranks.root_seed,
     )
     centroids = fit_context_centroids(
-        capped,
+        rows,
         identity,
         cell_count,
         config.context.kmeans.n_init,
@@ -469,21 +508,21 @@ def _fit_order_context(
     )
 
 
-def _coalition_cell_epochs(
+def _context_cell_epoch_assignment(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
-    nuisance_epochs: tuple[EpochIndexValue, ...],
+    epochs: tuple[EpochIndexValue, ...],
     centroids: tuple[tuple[HistogramBinMass, ...], ...],
-    context_cell: BinIndex,
+    cell_count: CellCount,
     context_method: ContextMethodName,
     permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
-) -> tuple[EpochIndexValue, ...]:
+) -> tuple[tuple[EpochIndexValue, ...], ...]:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
-        return nuisance_epochs
+        return (epochs,)
     lag_lookup = (
         shuffled_outside_context_lag_lookup(
-            nuisance_epochs,
+            epochs,
             PartitionRole.NUISANCE_FIT,
             config.context.outside_lag_epochs,
             context_seed_for_order(config, ranks, coalition.order, context_method),
@@ -491,8 +530,8 @@ def _coalition_cell_epochs(
         if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
         else None
     )
-    selected: list[EpochIndexValue] = []
-    for epoch_index in nuisance_epochs:
+    selected: list[list[EpochIndexValue]] = [[] for _index in range(cell_count)]
+    for epoch_index in epochs:
         row = _context_row(
             config,
             ranks,
@@ -509,9 +548,9 @@ def _coalition_cell_epochs(
             centroids,
             config.context.kmeans.assignment_tie_tolerance,
         )
-        if assigned == context_cell:
-            selected.append(epoch_index)
-    return tuple(selected)
+        if assigned < len(selected):
+            selected[assigned].append(epoch_index)
+    return tuple(tuple(epochs) for epochs in selected)
 
 
 def _conditional_rank_references(
@@ -535,26 +574,33 @@ def _conditional_rank_references(
     )
 
 
+def _sorted_reference_scores(
+    references: tuple[ConditionalRankReferenceRecord, ...],
+) -> dict[ClientId, tuple[RankValue, ...]]:
+    return {
+        item.client_id: tuple(sorted(item.reference_ranks))
+        for item in references
+        if item.reference_ranks
+    }
+
+
 def _conditioned_member_ranks(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
     epoch_index: EpochIndexValue,
-    references: tuple[ConditionalRankReferenceRecord, ...],
+    sorted_scores: dict[ClientId, tuple[RankValue, ...]],
 ) -> tuple[RankValue, ...] | None:
     conditioned: list[RankValue] = []
     for client_id in coalition.client_ids:
         marginal = rank_at_epoch(ranks, client_id, epoch_index)
-        reference = next(
-            (item for item in references if item.client_id == client_id and item.reference_ranks),
-            None,
-        )
-        if marginal is None or reference is None:
+        reference_scores = sorted_scores.get(client_id)
+        if marginal is None or reference_scores is None:
             return None
         conditioned.append(
-            coalition_conditioned_residual_rank(
+            sorted_clipped_midrank(
                 marginal,
-                RankReference(scores=reference.reference_ranks),
+                reference_scores,
                 config.context.rank_clip_epsilon,
             )
         )
@@ -570,11 +616,12 @@ def _conditioned_rows(
 ) -> tuple[tuple[RankValue, ...], ...]:
     if coalition.order > 1 and not proper_subset_members(coalition):
         raise ValueError("purification requires nonempty proper subsets")
+    sorted_scores = _sorted_reference_scores(references)
     return tuple(
         conditioned
         for epoch_index in epochs
         for conditioned in (
-            _conditioned_member_ranks(config, ranks, coalition, epoch_index, references),
+            _conditioned_member_ranks(config, ranks, coalition, epoch_index, sorted_scores),
         )
         if conditioned is not None
     )
@@ -596,13 +643,12 @@ def _design_and_tensors(
 
 
 @log_stage("emhi.calibration")
-def _cross_fitted_cell_statistics(
+def _cross_fitted_coalition_statistics(
     config: ScientificConfig,
     scores: DetectorScoreArtifactRecord,
     split: DatasetSplitRecord,
     coalitions: tuple[CoalitionMembers, ...],
     coalition: CoalitionMembers,
-    context_cell: BinIndex,
     context_method: ContextMethodName,
     cell_count: CellCount,
     basis_size: BasisSize,
@@ -611,15 +657,18 @@ def _cross_fitted_cell_statistics(
     ridge_candidates: tuple[RidgePenalty, ...],
     fold_rank_cache: FoldRankCache,
     order_context_cache: OrderContextCache,
-) -> (
+) -> tuple[
     tuple[tuple[InnovationMean, ...], tuple[InnovationDeviation, ...], OperationalNormReference]
-    | None
-):
+    | None,
+    ...,
+]:
     nuisance_epochs = split.nuisance_fit_epochs
     fold_count = config.context.nuisance_crossfit.fold_count
     if len(nuisance_epochs) < fold_count:
-        return None
-    held_innovations: list[tuple[InnovationCoordinate, ...]] = []
+        return tuple(None for _index in range(cell_count))
+    held_by_cell: list[list[tuple[InnovationCoordinate, ...]]] = [
+        [] for _index in range(cell_count)
+    ]
     for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
         held_epochs = nuisance_epochs[start:end]
         training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
@@ -649,49 +698,17 @@ def _cross_fitted_cell_statistics(
             order_context_cache[order_context_key] = order_context
         if order_context.state is not FitStatus.FITTED:
             continue
-        if context_cell >= len(order_context.centroids):
-            continue
-        training_cell_epochs = _coalition_cell_epochs(
+        centroid_count = len(order_context.centroids)
+        cell_epoch_lists = _context_cell_epoch_assignment(
             config,
             fold_ranks,
             coalition,
             training_epochs,
             order_context.centroids,
-            context_cell,
+            centroid_count,
             context_method,
             training_epochs,
         )
-        if len(training_cell_epochs) < _minimum_support(config, coalition.order):
-            if not forced_no_abstention:
-                continue
-            training_cell_epochs = training_epochs
-        references = _conditional_rank_references(
-            fold_ranks,
-            coalition,
-            context_cell,
-            training_cell_epochs,
-        )
-        training_rows = _conditioned_rows(
-            config,
-            fold_ranks,
-            coalition,
-            training_cell_epochs,
-            references,
-        )
-        design_rows, tensors = _design_and_tensors(training_rows, basis_size)
-        calibration = None
-        if purification_enabled:
-            calibration = calibrate_innovations_on_nuisance_fit(
-                design_rows,
-                tensors,
-                ridge_candidates,
-                config.projection.cross_validation.fold_count,
-                config.projection.selection_tie_tolerance_mse,
-                config.projection.zero_ridge_svd_relative_cutoff,
-                config.projection.atom_scale_floor,
-            )
-            if calibration is None:
-                continue
         held_lag_lookup = (
             shuffled_outside_context_lag_lookup(
                 held_epochs,
@@ -702,70 +719,117 @@ def _cross_fitted_cell_statistics(
             if context_method is ContextMethodName.SHUFFLED_OUTSIDE_CONTEXT
             else None
         )
-        for epoch_index in held_epochs:
-            row = _context_row(
-                config,
-                fold_ranks,
-                coalition,
+        held_rows = tuple(
+            (
                 epoch_index,
-                context_method,
-                None,
-                shuffled_lag_epoch=(
-                    None if held_lag_lookup is None else held_lag_lookup[epoch_index]
+                _context_row(
+                    config,
+                    fold_ranks,
+                    coalition,
+                    epoch_index,
+                    context_method,
+                    None,
+                    shuffled_lag_epoch=(
+                        None if held_lag_lookup is None else held_lag_lookup[epoch_index]
+                    ),
                 ),
             )
-            if row is None:
+            for epoch_index in held_epochs
+        )
+        for cell_index in range(centroid_count):
+            training_cell_epochs = cell_epoch_lists[cell_index]
+            if len(training_cell_epochs) < _minimum_support(config, coalition.order):
                 if not forced_no_abstention:
                     continue
-            elif context_method is not ContextMethodName.NO_OUTSIDE_CONTEXT:
-                assigned = assign_context_cell(
-                    row.histogram,
-                    order_context.centroids,
-                    config.context.kmeans.assignment_tie_tolerance,
-                )
-                if assigned != context_cell:
-                    continue
-            conditioned = _conditioned_member_ranks(
+                training_cell_epochs = training_epochs
+            references = _conditional_rank_references(
+                fold_ranks,
+                coalition,
+                cell_index,
+                training_cell_epochs,
+            )
+            sorted_scores = _sorted_reference_scores(references)
+            training_rows = _conditioned_rows(
                 config,
                 fold_ranks,
                 coalition,
-                epoch_index,
+                training_cell_epochs,
                 references,
             )
-            if conditioned is None:
-                continue
-            tensor = tensor_representation(conditioned, basis_size)
+            design_rows, tensors = _design_and_tensors(training_rows, basis_size)
+            calibration = None
             if purification_enabled:
+                calibration = calibrate_innovations_on_nuisance_fit(
+                    design_rows,
+                    tensors,
+                    ridge_candidates,
+                    config.projection.cross_validation.fold_count,
+                    config.projection.selection_tie_tolerance_mse,
+                    config.projection.zero_ridge_svd_relative_cutoff,
+                    config.projection.atom_scale_floor,
+                )
                 if calibration is None:
                     continue
-                design_row = proper_subset_design_row(conditioned, basis_size)
-                held_innovations.append(
-                    innovation_excludes_same_order_representation(
-                        tensor,
-                        calibration.complete_nuisance_coefficients,
-                        design_row,
+            for epoch_index, row in held_rows:
+                if row is None:
+                    if not forced_no_abstention:
+                        continue
+                elif context_method is not ContextMethodName.NO_OUTSIDE_CONTEXT:
+                    assigned = assign_context_cell(
+                        row.histogram,
+                        order_context.centroids,
+                        config.context.kmeans.assignment_tie_tolerance,
                     )
+                    if assigned != cell_index:
+                        continue
+                conditioned = _conditioned_member_ranks(
+                    config,
+                    fold_ranks,
+                    coalition,
+                    epoch_index,
+                    sorted_scores,
                 )
-            else:
-                held_innovations.append(tensor)
-    moments = moments_from_held_fold_innovations(tuple(held_innovations))
-    if moments is None:
-        return None
-    means, deviations = moments
-    standardized = tuple(
-        center_and_scale_atom(
-            innovation,
-            means,
-            deviations,
-            config.projection.atom_scale_floor,
+                if conditioned is None:
+                    continue
+                tensor = tensor_representation(conditioned, basis_size)
+                if purification_enabled:
+                    if calibration is None:
+                        continue
+                    design_row = proper_subset_design_row(conditioned, basis_size)
+                    held_by_cell[cell_index].append(
+                        innovation_excludes_same_order_representation(
+                            tensor,
+                            calibration.complete_nuisance_coefficients,
+                            design_row,
+                        )
+                    )
+                else:
+                    held_by_cell[cell_index].append(tensor)
+    results: list[
+        tuple[tuple[InnovationMean, ...], tuple[InnovationDeviation, ...], OperationalNormReference]
+        | None
+    ] = []
+    for cell_index in range(cell_count):
+        moments = moments_from_held_fold_innovations(tuple(held_by_cell[cell_index]))
+        if moments is None:
+            results.append(None)
+            continue
+        means, deviations = moments
+        standardized = tuple(
+            center_and_scale_atom(
+                innovation,
+                means,
+                deviations,
+                config.projection.atom_scale_floor,
+            )
+            for innovation in held_by_cell[cell_index]
         )
-        for innovation in held_innovations
-    )
-    norm_reference = operational_norm_reference_quantile(
-        standardized,
-        config.evidence.operational_norm_reference_quantile,
-    )
-    return means, deviations, norm_reference
+        norm_reference = operational_norm_reference_quantile(
+            standardized,
+            config.evidence.operational_norm_reference_quantile,
+        )
+        results.append((means, deviations, norm_reference))
+    return tuple(results)
 
 
 @log_stage("emhi.calibration")
@@ -923,35 +987,40 @@ def build_emhi_fit_artifact(
                 )
             )
             continue
+        cell_epoch_lists = _context_cell_epoch_assignment(
+            config,
+            ranks,
+            coalition,
+            split.nuisance_fit_epochs,
+            order_context.centroids,
+            len(order_context.centroids),
+            context_method,
+            None,
+        )
+        coalition_statistics = _cross_fitted_coalition_statistics(
+            config,
+            scores,
+            split,
+            coalitions,
+            coalition,
+            context_method,
+            cell_count,
+            basis_size,
+            purification_enabled,
+            forced_no_abstention,
+            candidates,
+            fold_rank_cache,
+            order_context_cache,
+        )
         cells: list[ProjectionCellFitRecord] = []
         for context_cell in range(len(order_context.centroids)):
-            epochs = _coalition_cell_epochs(
-                config,
-                ranks,
-                coalition,
-                split.nuisance_fit_epochs,
-                order_context.centroids,
-                context_cell,
-                context_method,
-                None,
-            )
+            epochs = cell_epoch_lists[context_cell]
             if len(epochs) < _minimum_support(config, coalition.order) and forced_no_abstention:
                 epochs = split.nuisance_fit_epochs
-            statistics = _cross_fitted_cell_statistics(
-                config,
-                scores,
-                split,
-                coalitions,
-                coalition,
-                context_cell,
-                context_method,
-                cell_count,
-                basis_size,
-                purification_enabled,
-                forced_no_abstention,
-                candidates,
-                fold_rank_cache,
-                order_context_cache,
+            statistics = (
+                None
+                if context_cell >= len(coalition_statistics)
+                else coalition_statistics[context_cell]
             )
             cells.append(
                 _fit_projection_cell(

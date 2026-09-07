@@ -1,9 +1,17 @@
 import hashlib
+from dataclasses import asdict
 from pathlib import Path
+from time import perf_counter
 from typing import cast
 
+from fedcampaign_emhi.artifacts.provenance import material_fingerprint
+from fedcampaign_emhi.artifacts.records import (
+    CompletionRecord,
+    ScientificCellRecord,
+)
 from fedcampaign_emhi.artifacts.storage import (
     build_artifact_layout,
+    payload_digest,
     write_atomic_json,
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
@@ -11,6 +19,7 @@ from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     ExecutionRole,
     ExperimentName,
+    ExperimentState,
 )
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -60,7 +69,7 @@ def materialize_coalition_scalability_summaries(
     maximum_order = config.study.maximum_coalition_order
     maximum_latency = config.materiality.reference_harness.p95_latency_maximum_seconds
     maximum_failure_rate = config.materiality.maximum_pooled_numerical_failure_rate
-    paths: list[Path] = []
+    cell_paths: list[Path] = []
     identity = capture_timing_environment_identity()
     environment_digest = hashlib.sha256(deterministic_utf8_bytes(identity)).hexdigest()
     environment_path = root / "provenance" / "environment" / "timing-environment.json"
@@ -86,7 +95,68 @@ def materialize_coalition_scalability_summaries(
 
         collected: list[ScalabilityMeasurement] = []
         for seed in seeds:
-            collected.extend(collect_scalability_seed_measurements(loaded, client_count, seed))
+            seed_started = perf_counter()
+            seed_measurements = collect_scalability_seed_measurements(loaded, client_count, seed)
+            seed_elapsed = perf_counter() - seed_started
+            seed_peak_rss = max(
+                (measurement.peak_rss_bytes for measurement in seed_measurements),
+                default=0,
+            )
+            seed_payload: YamlNode = {
+                "client_count": client_count,
+                "seed": seed,
+                "execution_role": ExecutionRole.CONFIRMATORY.value,
+                "timing_environment_digest": environment_digest,
+                "repetition_count": len(seed_measurements),
+                "measurements": [
+                    cast(YamlNode, asdict(measurement)) for measurement in seed_measurements
+                ],
+            }
+            seed_path = root / "metrics" / "per_seed" / f"k-{client_count}-seed-{seed}.json"
+            seed_hash = write_atomic_json(seed_path, seed_payload, staging)
+            fingerprint = material_fingerprint(
+                payload_digest(
+                    cast(
+                        YamlNode,
+                        {
+                            "producer": "coalition-scalability-timing-cell",
+                            "seed": seed,
+                            "k": client_count,
+                        },
+                    )
+                ),
+                (environment_digest,),
+            )
+            completion = CompletionRecord(
+                state=ExperimentState.COMPLETED,
+                mandatory_output_paths=(seed_path.relative_to(repository).as_posix(),),
+                mandatory_output_hashes=(seed_hash,),
+            )
+            cell = ScientificCellRecord(
+                experiment_name=ExperimentName.COALITION_SCALABILITY,
+                execution_role=ExecutionRole.CONFIRMATORY,
+                semantic_cell_path=f"confirmatory/k-{client_count}/seed-{seed}",
+                method_name=None,
+                seed=seed,
+                state=ExperimentState.COMPLETED,
+                material_digest=loaded.material_digest,
+                selected_client_ids=(),
+                upstream_artifact_ids=(),
+                dependency_fingerprint=fingerprint,
+                runtime_seconds=seed_elapsed,
+                peak_rss_bytes=seed_peak_rss,
+                application_payload_bytes=len(seed_path.read_bytes()),
+                completion_record=completion,
+            )
+            cell_path = (
+                root
+                / "provenance"
+                / "dependencies"
+                / f"cell-confirmatory-k-{client_count}-seed-{seed}.json"
+            )
+            write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+            cell_paths.append(cell_path)
+            collected.extend(seed_measurements)
         measurements = tuple(collected)
         summary = summarize_scalability(
             client_count,
@@ -124,5 +194,4 @@ def materialize_coalition_scalability_summaries(
         }
         path = root / "metrics" / "aggregate" / f"k-{client_count}.json"
         write_atomic_json(path, payload, staging)
-        paths.append(path)
-    return tuple(paths)
+    return tuple(cell_paths)

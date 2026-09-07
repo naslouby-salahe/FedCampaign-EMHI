@@ -12,6 +12,8 @@ from fedcampaign_emhi.artifacts.records import (
     ClientDetectorScoreStream,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
+    EMHIFitArtifactRecord,
+    MarginalRankArtifactRecord,
 )
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.runtime import (
@@ -38,6 +40,7 @@ from fedcampaign_emhi.domain.types import (
     DetectorScore,
     FalseAlarmRate,
     PositiveEpochCount,
+    RankValue,
     RecordCount,
     RuntimeSeconds,
     SeedCoordinate,
@@ -72,6 +75,7 @@ from fedcampaign_emhi.synthetic.generators import (
 from fedcampaign_emhi.synthetic.pure_order import (
     PureOrderCell,
     PureOrderDriftMetrics,
+    enumerate_pure_order_grid,
     sample_generator_row,
     sample_independent_uniform_ranks,
 )
@@ -459,40 +463,51 @@ def emhi_method_settings(
     return None
 
 
-@log_stage("experiments.calibration")
-def evaluate_fitted_pure_order_cell(
-    config: ScientificConfig, cell: PureOrderCell, seed: SeedValue
-) -> FittedPureOrderResult | None:
-    settings = emhi_method_settings(cell.method)
-    if settings is None:
-        return None
-    context_method, maximum_order, purification = settings
-    if cell.target_order > maximum_order:
-        return FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, True), True)
+@dataclass(frozen=True)
+class PureOrderEvaluationArtifact:
+    rows: tuple[tuple[RankValue, ...], ...]
+    scores: DetectorScoreArtifactRecord
+    ranks: MarginalRankArtifactRecord
+
+
+def _pure_order_prefix_rows(
+    config: ScientificConfig, seed: SeedValue
+) -> tuple[tuple[RankValue, ...], ...]:
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
     nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
     evaluation_count = (
         config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
     )
-    null_evaluation = tuple(
+    return tuple(
+        sample_independent_uniform_ranks(client_count, seed + index)
+        for index in range(nuisance_count)
+    ) + tuple(
         sample_independent_uniform_ranks(client_count, seed + nuisance_count + index)
         for index in range(evaluation_count)
     )
+
+
+def _pure_order_evaluation_artifact(
+    config: ScientificConfig,
+    cell: PureOrderCell,
+    seed: SeedValue,
+    prefix_rows: tuple[tuple[RankValue, ...], ...],
+) -> PureOrderEvaluationArtifact:
+    client_count = config.experiments.pure_order_separation_validation.primary_client_count
+    evaluation_count = (
+        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
+    )
+    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
     alternative = tuple(
-        sample_generator_row(cell, client_count, seed + nuisance_count + evaluation_count + index)
+        sample_generator_row(
+            cell,
+            client_count,
+            seed + nuisance_count + evaluation_count + index,
+        )
         for index in range(evaluation_count)
     )
-    rows = (
-        tuple(
-            sample_independent_uniform_ranks(client_count, seed + index)
-            for index in range(nuisance_count)
-        )
-        + null_evaluation
-        + alternative
-    )
-    client_ids: tuple[ClientId, ...] = tuple(
-        f"synthetic-pure-order-{index}" for index in range(client_count)
-    )
+    rows = prefix_rows + alternative
+    client_ids = tuple(f"synthetic-pure-order-{index}" for index in range(client_count))
     epochs = tuple(range(len(rows)))
     fingerprint = deterministic_digest(
         {"producer": "pure-order-artifact", "seed": seed, "method": cell.method.value}
@@ -514,6 +529,24 @@ def evaluate_fitted_pure_order_cell(
         dependency_fingerprint=fingerprint,
     )
     nuisance_epochs = tuple(range(nuisance_count))
+    ranks = build_marginal_rank_artifact(
+        scores, nuisance_epochs, config.context.rank_clip_epsilon, fingerprint
+    )
+    return PureOrderEvaluationArtifact(rows=rows, scores=scores, ranks=ranks)
+
+
+def _pure_order_fit(
+    config: ScientificConfig,
+    cell: PureOrderCell,
+    artifact: PureOrderEvaluationArtifact,
+) -> EMHIFitArtifactRecord:
+    settings = emhi_method_settings(cell.method)
+    if settings is None:
+        raise ValueError("pure-order fit requires an EMHI hierarchy method")
+    context_method, maximum_order, purification = settings
+    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
+    nuisance_epochs = tuple(range(nuisance_count))
+    client_ids = artifact.scores.selected_client_ids
     split = DatasetSplitRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=client_ids,
@@ -524,13 +557,17 @@ def evaluate_fitted_pure_order_cell(
         threshold_calibration_epochs=(),
         heldout_benign_epochs=(),
     )
-    ranks = build_marginal_rank_artifact(
-        scores, nuisance_epochs, config.context.rank_clip_epsilon, fingerprint
+    fingerprint = deterministic_digest(
+        {
+            "producer": "pure-order-artifact",
+            "seed": artifact.scores.root_seed,
+            "method": cell.method.value,
+        }
     )
-    fit = build_emhi_fit_artifact(
+    return build_emhi_fit_artifact(
         config,
-        scores,
-        ranks,
+        artifact.scores,
+        artifact.ranks,
         split,
         cell.method,
         context_method,
@@ -540,6 +577,18 @@ def evaluate_fitted_pure_order_cell(
         purification,
         False,
         fingerprint,
+    )
+
+
+def _pure_order_drift_metrics(
+    config: ScientificConfig,
+    artifact: PureOrderEvaluationArtifact,
+    fit: EMHIFitArtifactRecord,
+    target_order: CoalitionOrder,
+) -> FittedPureOrderResult:
+    nuisance_count = config.synthetic.sample_sizes.generic_nuisance_fit_epochs
+    evaluation_count = (
+        config.synthetic.sample_sizes.pure_order_independent_evaluation_samples_per_condition_seed
     )
 
     def standardized_drift(coalition_ids: tuple[ClientId, ...]) -> StandardizedDrift | None:
@@ -554,12 +603,12 @@ def evaluate_fitted_pure_order_cell(
         if coalition_fit is None:
             return None
         null_scores = tuple(
-            coalition_evidence_at_epoch(config, ranks, fit, coalition_fit, epoch)
+            coalition_evidence_at_epoch(config, artifact.ranks, fit, coalition_fit, epoch)
             for epoch in range(nuisance_count, nuisance_count + evaluation_count)
         )
         alternative_scores = tuple(
-            coalition_evidence_at_epoch(config, ranks, fit, coalition_fit, epoch)
-            for epoch in range(nuisance_count + evaluation_count, len(rows))
+            coalition_evidence_at_epoch(config, artifact.ranks, fit, coalition_fit, epoch)
+            for epoch in range(nuisance_count + evaluation_count, len(artifact.rows))
         )
         if any(value is None for value in (*null_scores, *alternative_scores)):
             return None
@@ -574,7 +623,7 @@ def evaluate_fitted_pure_order_cell(
             config.numerics.metric_denominator_floor,
         )
 
-    target_ids = client_ids[: cell.target_order]
+    target_ids = fit.selected_client_ids[:target_order]
     target_drift = standardized_drift(target_ids)
     subset_drifts = tuple(
         drift
@@ -609,3 +658,53 @@ def evaluate_fitted_pure_order_cell(
         ),
         True,
     )
+
+
+@log_stage("experiments.calibration")
+def evaluate_fitted_pure_order_cell(
+    config: ScientificConfig, cell: PureOrderCell, seed: SeedValue
+) -> FittedPureOrderResult | None:
+    settings = emhi_method_settings(cell.method)
+    if settings is None:
+        return None
+    if cell.target_order > settings[1]:
+        return FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, True), True)
+    prefix_rows = _pure_order_prefix_rows(config, seed)
+    artifact = _pure_order_evaluation_artifact(config, cell, seed, prefix_rows)
+    fit = _pure_order_fit(config, cell, artifact)
+    return _pure_order_drift_metrics(config, artifact, fit, cell.target_order)
+
+
+@log_stage("experiments.calibration")
+def evaluate_fitted_pure_order_grid(
+    config: ScientificConfig, method_name: MethodName, seed: SeedValue
+) -> tuple[tuple[PureOrderCell, FittedPureOrderResult], ...]:
+    settings = emhi_method_settings(method_name)
+    if settings is None:
+        return ()
+    maximum_order = settings[1]
+    grid = tuple(cell for cell in enumerate_pure_order_grid(config) if cell.method is method_name)
+    fitted = next((cell for cell in grid if cell.target_order <= maximum_order), None)
+    if fitted is None:
+        return tuple(
+            (cell, FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, True), True))
+            for cell in grid
+        )
+    prefix_rows = _pure_order_prefix_rows(config, seed)
+    shared_artifact = _pure_order_evaluation_artifact(config, fitted, seed, prefix_rows)
+    shared_fit = _pure_order_fit(config, fitted, shared_artifact)
+    results: list[tuple[PureOrderCell, FittedPureOrderResult]] = []
+    for cell in grid:
+        if cell.target_order > maximum_order:
+            results.append(
+                (cell, FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, True), True))
+            )
+            continue
+        cell_artifact = _pure_order_evaluation_artifact(config, cell, seed, prefix_rows)
+        results.append(
+            (
+                cell,
+                _pure_order_drift_metrics(config, cell_artifact, shared_fit, cell.target_order),
+            )
+        )
+    return tuple(results)

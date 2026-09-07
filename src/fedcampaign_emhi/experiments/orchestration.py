@@ -6,6 +6,7 @@ from fedcampaign_emhi.artifacts.records import (
     ScientificCellRecord,
 )
 from fedcampaign_emhi.artifacts.storage import (
+    build_artifact_layout,
     file_sha256,
 )
 from fedcampaign_emhi.comparators.runtime import (
@@ -121,7 +122,9 @@ def _existing_completed_run(
         or record.state is not ExperimentState.COMPLETED
     ):
         return None
-    cell_paths = cell_record_paths(path.parent)
+    cell_paths = cell_record_paths(
+        build_artifact_layout(loaded, repository).experiment_outputs_root(experiment_name)
+    )
     if not cell_paths or not all(
         _completed_cell_is_reusable(repository, cell_path, loaded.material_digest)
         for cell_path in cell_paths
