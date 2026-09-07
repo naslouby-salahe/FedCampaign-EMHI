@@ -40,6 +40,45 @@ fedcampaign report <experiment-name> --overwrite
 
 The CLI exposes execution controls only. It does not accept seed, method, coalition-order, basis, context, threshold, PFA, statistical, sensitivity, run-id, or lifecycle-step overrides.
 
+## Campaign experiments
+
+Each registered experiment is executed by name with a single command. Run `fedcampaign status` before starting one and verify `fedcampaign status <experiment-name>` afterwards; materialize results with `fedcampaign report <experiment-name>`. Names are identical for `run`, `status`, and `report`.
+
+Run the experiments in the dependency-aware campaign order below. The real-data experiments require valid production preprocessing (`fedcampaign preprocess`, `fedcampaign status`), and `strong-comparator-composition-challenge` must complete before `primary-strict-odi-evaluation` and `secondary-controlled-trace-generalization`, whose configurations use the Selected Strong Comparator Composition record. `coalition-scalability` is a timing harness and runs last so its evidence is not distorted by campaign load. The `(Duration: ...)` annotation shows the measured wall time where a completed run exists; experiments without one read `not yet measured`.
+
+```text
+fedcampaign run synthetic-module-validation                   (Duration: ≈ 3–5 s — measured; currently stale, re-run pending)
+fedcampaign run self-explanation-exclusion-validation         (Duration: not yet measured)
+fedcampaign run estimator-support-and-context-feasibility     (Duration: not yet measured)
+fedcampaign run sequential-evidence-validation                (Duration: not yet measured)
+fedcampaign run pure-order-separation-validation              (Duration: not yet measured)
+fedcampaign run exclusion-matched-hofd-equivalence            (Duration: not yet measured)
+fedcampaign run strong-comparator-composition-challenge       (Duration: not yet measured)
+fedcampaign run outside-campaign-contamination-boundary       (Duration: not yet measured)
+fedcampaign run client-dropout-and-context-sparsity-boundary  (Duration: ≈ 2 h 13–19 min)
+fedcampaign run context-and-estimator-sensitivity             (Duration: not yet measured)
+fedcampaign run primary-strict-odi-evaluation                 (Duration: not yet measured)
+fedcampaign run exclusion-mechanism-ablation                  (Duration: not yet measured)
+fedcampaign run purification-and-order-ablation               (Duration: not yet measured)
+fedcampaign run strong-local-policy-challenge                 (Duration: not yet measured)
+fedcampaign run benign-common-mode-robustness                 (Duration: not yet measured)
+fedcampaign run secondary-controlled-trace-generalization     (Duration: not yet measured)
+fedcampaign run coalition-scalability                         (Duration: not yet measured)
+```
+
+All listed experiments are registered names under the production configuration (`configs/fedcampaign-emhi.yaml`); `fedcampaign status` confirms which are registered.
+
+### Measured run durations
+
+Only experiments with a completed run have a measured duration. Values below were recorded from the campaign execution logs of 2026-09-07 and must not be extrapolated to unmeasured experiments — their cell grids, worker profiles, and data scales differ.
+
+| Experiment | Measured duration of completed run | Notes |
+| --- | --- | --- |
+| `synthetic-module-validation` | ≈ 3–5 s wall per canonical run (measured runs 2.6–5.3 s); single validation cell | Ran to completion twice on 2026-09-07, but `fedcampaign status` now reports it `BLOCKED` (stale) because the material digest changed — a re-run is required before its evidence may be reused. |
+| `client-dropout-and-context-sparsity-boundary` | ≈ 2 h 13–19 min; runner-recorded execute-stage `elapsed_seconds=8348.6` (≈ 2 h 19 min) with a logged start-to-completion span of ≈ 2 h 13 min | The only currently valid completed run (state `Completed`, 30/30 development cells). Ran 30 cells at 6 concurrent workers, ≈ 27 min per cell. Two earlier invocations were stopped memory-policy probes and produced no results. |
+
+No other experiment has completed a run, so no duration is measured for it yet. Each completed run records its canonical duration in the execution log as `stage_completed function=execute_experiment elapsed_seconds=...`; append that measured value to this table after the first completed run of any experiment rather than estimating it.
+
 ## Development
 
 ```bash
