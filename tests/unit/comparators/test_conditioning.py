@@ -68,8 +68,6 @@ def test_pair_conditioning_is_cell_conditional_not_marginal() -> None:
     low_cell: list[float] = [value for value in conditioned if value > 0.9]
     high_cell: list[float] = [value for value in conditioned if value < 0.1]
     assert low_cell and high_cell
-    # a mid query that is above every low-cell reference but below every high-cell
-    # reference must be mapped to opposite extremes by cell, never to the marginal ~0.5
     assert not any(0.3 < value < 0.7 for value in conditioned)
 
 

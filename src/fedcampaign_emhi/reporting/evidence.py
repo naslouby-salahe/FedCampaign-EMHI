@@ -34,7 +34,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentState,
     OverwritePolicy,
 )
-from fedcampaign_emhi.domain.types import ConfigurationDigest
+from fedcampaign_emhi.domain.types import Boolean, ConfigurationDigest
 from fedcampaign_emhi.experiments.execution import cell_record_paths, run_record_path
 from fedcampaign_emhi.reporting.export import (
     export_reproducibility,
@@ -60,7 +60,7 @@ class ReportMaterialization:
     output_paths: tuple[Path, ...]
 
 
-def report_source_is_reusable(source_path: Path, expected: ReportSourceRecord) -> bool:
+def report_source_is_reusable(source_path: Path, expected: ReportSourceRecord) -> Boolean:
     if not source_path.is_file():
         return False
     try:

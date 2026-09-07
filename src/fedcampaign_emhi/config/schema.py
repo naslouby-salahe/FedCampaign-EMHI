@@ -99,6 +99,7 @@ from fedcampaign_emhi.domain.types import (
     ThresholdValue,
     TrajectoryCount,
     TreeCount,
+    ValidationFixtureCount,
     WeightDecay,
     WorkerCount,
 )
@@ -689,6 +690,13 @@ class RuntimeConfig(FrozenConfigModel):
     required_confirmatory_missing_cell_tolerance: MissingCellTolerance
 
 
+class SyntheticModuleValidationConfig(FrozenConfigModel):
+    exact_identity_tolerance: NumericalTolerance
+    repeatability_tolerance: NumericalTolerance
+    expected_fixture_count: ValidationFixtureCount
+    expected_generator_check_count: ValidationFixtureCount
+
+
 class ArtifactsConfig(FrozenConfigModel):
     outputs_root: RelativePath
     results_root: RelativePath
@@ -737,6 +745,7 @@ class ScientificConfig(FrozenConfigModel):
     experiments: ExperimentsConfig
     scalability_timing: ScalabilityTimingConfig
     runtime: RuntimeConfig
+    synthetic_module_validation: SyntheticModuleValidationConfig
     artifacts: ArtifactsConfig
     reporting: ReportingConfig
 

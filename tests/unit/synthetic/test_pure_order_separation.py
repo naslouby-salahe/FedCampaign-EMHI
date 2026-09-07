@@ -9,7 +9,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.experiments.calibration import (
     emhi_method_settings,
-    evaluate_fitted_pure_order_cell,
+    evaluate_fitted_pure_order_grid,
 )
 from fedcampaign_emhi.experiments.registry import experiment_registry
 from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
@@ -241,9 +241,7 @@ def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:
         if cell.method is primary.method and cell.generator is primary.generator
     )
 
-    result = evaluate_fitted_pure_order_cell(config, cell, 17)
-
-    assert result is not None
+    result = dict(evaluate_fitted_pure_order_grid(config, primary.method, 17))[cell]
     assert result.artifact_path_complete
 
 
@@ -284,9 +282,7 @@ def test_order_one_target_has_no_proper_subsets_and_reports_zero_drift() -> None
     )
     assert cell.target_order is CoalitionOrder.ONE
 
-    result = evaluate_fitted_pure_order_cell(config, cell, 17)
-
-    assert result is not None
+    result = dict(evaluate_fitted_pure_order_grid(config, cell.method, 17))[cell]
     assert result.artifact_path_complete
     assert result.metrics.maximum_proper_subset_standardized_drift == 0.0
 

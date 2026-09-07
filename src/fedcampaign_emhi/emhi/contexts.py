@@ -237,21 +237,14 @@ def context_coordinate_ranking_value(
     coalition_client_ids: tuple[ClientId, ...],
     epoch_index: EpochIndexValue,
 ) -> SeedValue:
-    client_list = ",".join(f'"{client_id}"' for client_id in coalition_client_ids)
-    payload = (
-        b'{"coalition_client_ids":['
-        + client_list.encode()
-        + b'],"coalition_order":'
-        + str(coalition_order.value).encode()
-        + b',"context_seed":'
-        + str(context_seed).encode()
-        + b',"dataset":"'
-        + dataset.value.encode()
-        + b'","epoch_index":'
-        + str(epoch_index).encode()
-        + b"}"
-    )
-    digest = hashlib.sha256(payload).digest()
+    payload: YamlNode = {
+        "context_seed": context_seed,
+        "dataset": dataset.value,
+        "coalition_order": coalition_order.value,
+        "coalition_client_ids": list(coalition_client_ids),
+        "epoch_index": epoch_index,
+    }
+    digest = hashlib.sha256(deterministic_utf8_bytes(payload)).digest()
     return int.from_bytes(digest[:8], "big")
 
 

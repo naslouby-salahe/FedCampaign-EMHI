@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+from collections import UserDict
 from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, replace
@@ -62,11 +63,15 @@ from fedcampaign_emhi.domain.enums import (
     PrimaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import (
+    Boolean,
+    MemoryBytes,
     MetricValue,
+    RecordCount,
     RuntimeSeconds,
     SeedValue,
     StandardizedError,
 )
+from fedcampaign_emhi.emhi.evidence import signed_evidence_factor
 from fedcampaign_emhi.evaluation.scalability import (
     resident_set_bytes,
 )
@@ -122,10 +127,24 @@ def execute_synthetic_module_validation(
     staging = layout.roots.outputs_root / "cache" / "staging"
     started = perf_counter()
     invariant_criterion = run_synthetic_module_validation(loaded)
-    generator_criterion = validate_synthetic_generators()
+    generator_criterion = validate_synthetic_generators(loaded.values)
+    repeatability_criterion = run_synthetic_module_validation(loaded)
+    repeatability_deviation = abs(
+        invariant_criterion.maximum_absolute_identity_error
+        - repeatability_criterion.maximum_absolute_identity_error
+    )
+    deterministic_seed_repeat_agreement = repeatability_criterion == invariant_criterion
+    repeatability_tolerance = loaded.values.synthetic_module_validation.repeatability_tolerance
     state = (
         ExperimentState.COMPLETED
-        if invariant_criterion.passed and generator_criterion.state is ExperimentState.COMPLETED
+        if (
+            invariant_criterion.passed
+            and generator_criterion.state is ExperimentState.COMPLETED
+            and generator_criterion.executed_check_count
+            == loaded.values.synthetic_module_validation.expected_generator_check_count
+            and deterministic_seed_repeat_agreement
+            and repeatability_deviation <= repeatability_tolerance
+        )
         else ExperimentState.INVALID
     )
     diagnostic_path = root / "diagnostics" / "scientific" / "synthetic-validation.json"
@@ -133,6 +152,36 @@ def execute_synthetic_module_validation(
         "state": state.value,
         "invariant_failures": [failure.label for failure in invariant_criterion.failures],
         "generator_failures": list(generator_criterion.failed_checks),
+        "executed_fixture_count": len(invariant_criterion.executed_fixture_names),
+        "expected_fixture_count": invariant_criterion.expected_fixture_count,
+        "executed_fixture_names": [
+            fixture.label for fixture in invariant_criterion.executed_fixture_names
+        ],
+        "maximum_absolute_identity_error": invariant_criterion.maximum_absolute_identity_error,
+        "exact_identity_tolerance": invariant_criterion.exact_identity_tolerance,
+        "worst_error_to_tolerance_ratio": (
+            invariant_criterion.maximum_absolute_identity_error
+            / invariant_criterion.exact_identity_tolerance
+        ),
+        "repeatability_deviation": repeatability_deviation,
+        "repeatability_tolerance": repeatability_tolerance,
+        "deterministic_seed_repeat_agreement": deterministic_seed_repeat_agreement,
+        "expected_negative_fixture_count": generator_criterion.expected_negative_fixture_count,
+        "correctly_rejected_negative_fixture_count": (
+            generator_criterion.correctly_rejected_negative_fixture_count
+        ),
+        "executed_generator_check_count": generator_criterion.executed_check_count,
+        "expected_generator_check_count": (
+            loaded.values.synthetic_module_validation.expected_generator_check_count
+        ),
+        "bounded_evidence_factor": {
+            "signed_positive": signed_evidence_factor(
+                1.0, loaded.values.evidence.clip_bound, loaded.values.evidence.bet_lambda
+            ),
+            "signed_negative": signed_evidence_factor(
+                -1.0, loaded.values.evidence.clip_bound, loaded.values.evidence.bet_lambda
+            ),
+        },
     }
     diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
     fingerprint = material_fingerprint(
@@ -198,9 +247,9 @@ class SyntheticCellExecution:
     outcome: SyntheticCellOutcome
     finite_horizon_metrics: FiniteHorizonSeedMetrics | None
     composition_metrics: CompositionCandidateSeedMetrics | None
-    technical_failure: bool
+    technical_failure: Boolean
     runtime_seconds: RuntimeSeconds
-    peak_rss_bytes: int
+    peak_rss_bytes: MemoryBytes
 
 
 def execute_synthetic_cell_payload(
@@ -445,7 +494,9 @@ def execute_synthetic_experiment(
         for seed in synthetic_role_seeds(loaded, role):
             for method_name in methods:
                 cells.append((role, seed, method_name))
-    dispatched_cells: dict[tuple[ExecutionRole, SeedValue, MethodName | None], tuple[int, ...]] = {}
+    dispatched_cells: UserDict[
+        tuple[ExecutionRole, SeedValue, MethodName | None], tuple[RecordCount, ...]
+    ] = UserDict()
     for cell_index, (role, seed, method_name) in enumerate(cells):
         dispatch = (role, seed, _synthetic_dispatch_method(experiment_name, method_name))
         dispatched_cells[dispatch] = (*dispatched_cells.get(dispatch, ()), cell_index)

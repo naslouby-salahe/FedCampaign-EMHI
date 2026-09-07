@@ -3,7 +3,8 @@ from math import floor, sqrt
 
 import numpy as np
 
-from fedcampaign_emhi.domain.enums import ExperimentState
+from fedcampaign_emhi.config.schema import ScientificConfig
+from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentState
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
@@ -22,10 +23,14 @@ from fedcampaign_emhi.domain.types import (
     ScoreShift,
     SeedValue,
     StandardDeviation,
+    ValidationFixtureCount,
 )
 from fedcampaign_emhi.emhi.structure import required_outside_client_count, standard_normal_cdf
 from fedcampaign_emhi.runtime import thirty_two_bit_seed
-from fedcampaign_emhi.synthetic.pure_order import lexicographic_target_clients
+from fedcampaign_emhi.synthetic.pure_order import (
+    lexicographic_target_clients,
+    polynomial_density_is_valid,
+)
 
 
 def equally_spaced_loadings(
@@ -171,9 +176,12 @@ def outside_contamination_targets(client_ids: tuple[ClientId, ...]) -> tuple[Cli
 class SyntheticValidationResult:
     state: ExperimentState
     failed_checks: tuple[ComponentName, ...]
+    executed_check_count: ValidationFixtureCount
+    expected_negative_fixture_count: ValidationFixtureCount
+    correctly_rejected_negative_fixture_count: ValidationFixtureCount
 
 
-def validate_synthetic_generators() -> SyntheticValidationResult:
+def validate_synthetic_generators(config: ScientificConfig) -> SyntheticValidationResult:
     failed: list[ComponentName] = []
     loadings = equally_spaced_loadings(3, 0.0, 1.0)
     if loadings != (0.0, 0.5, 1.0):
@@ -193,7 +201,26 @@ def validate_synthetic_generators() -> SyntheticValidationResult:
         failed.append("outside contamination selection")
     if not dropout_coalition_is_active(("a",), ("a", "b", "c"), ("a", "b", "c"), 1, 0.5):
         failed.append("dropout active-coalition rule")
+    negative_rejections = 0
+    try:
+        generate_unit_variance_autoregressive_latent(0, 0.5, 11)
+    except ValueError as error:
+        if str(error) == "autoregressive latent generation requires a positive epoch count":
+            negative_rejections += 1
+        else:
+            failed.append("negative latent epoch count rejection")
+    invalid_order_three_theta = (
+        max(config.generators.pure_polynomial.theta.order_three)
+        + config.generators.pure_polynomial.primary_reference_theta
+    )
+    if not polynomial_density_is_valid(invalid_order_three_theta, CoalitionOrder.THREE):
+        negative_rejections += 1
+    else:
+        failed.append("negative order-three density rejection")
     return SyntheticValidationResult(
         state=ExperimentState.COMPLETED if not failed else ExperimentState.INVALID,
         failed_checks=tuple(failed),
+        executed_check_count=8,
+        expected_negative_fixture_count=2,
+        correctly_rejected_negative_fixture_count=negative_rejections,
     )

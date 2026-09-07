@@ -52,9 +52,9 @@ def test_rank_lookup_handles_sparse_epoch_indexes() -> None:
     scores = _score_artifact().model_copy(
         update={
             "client_streams": (
-                _score_artifact().client_streams[0].model_copy(
-                    update={"epoch_indexes": (2, 4, 8, 16, 32, 64)}
-                ),
+                _score_artifact()
+                .client_streams[0]
+                .model_copy(update={"epoch_indexes": (2, 4, 8, 16, 32, 64)}),
             )
         }
     )

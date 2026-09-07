@@ -41,6 +41,9 @@ def synthetic_invariant_boundary_digest(config: ScientificConfig) -> Configurati
                 "campaign": config.campaign.model_dump(mode="json"),
                 "engineering_smoke_root": config.randomness.engineering_smoke_root,
                 "numerics": config.numerics.model_dump(mode="json"),
+                "synthetic_module_validation": config.synthetic_module_validation.model_dump(
+                    mode="json"
+                ),
             },
         )
     )

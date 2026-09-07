@@ -411,6 +411,12 @@ runtime:
   automatic_technical_retries_after_initial_failure: 2
   required_confirmatory_missing_cell_tolerance: 0
 
+synthetic_module_validation:
+  exact_identity_tolerance: 1.0e-14
+  repeatability_tolerance: 1.0e-14
+  expected_fixture_count: 33
+  expected_generator_check_count: 8
+
 artifacts:
   outputs_root: outputs
   results_root: results

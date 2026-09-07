@@ -661,21 +661,6 @@ def _pure_order_drift_metrics(
 
 
 @log_stage("experiments.calibration")
-def evaluate_fitted_pure_order_cell(
-    config: ScientificConfig, cell: PureOrderCell, seed: SeedValue
-) -> FittedPureOrderResult | None:
-    settings = emhi_method_settings(cell.method)
-    if settings is None:
-        return None
-    if cell.target_order > settings[1]:
-        return FittedPureOrderResult(PureOrderDriftMetrics(0.0, 0.0, True), True)
-    prefix_rows = _pure_order_prefix_rows(config, seed)
-    artifact = _pure_order_evaluation_artifact(config, cell, seed, prefix_rows)
-    fit = _pure_order_fit(config, cell, artifact)
-    return _pure_order_drift_metrics(config, artifact, fit, cell.target_order)
-
-
-@log_stage("experiments.calibration")
 def evaluate_fitted_pure_order_grid(
     config: ScientificConfig, method_name: MethodName, seed: SeedValue
 ) -> tuple[tuple[PureOrderCell, FittedPureOrderResult], ...]:

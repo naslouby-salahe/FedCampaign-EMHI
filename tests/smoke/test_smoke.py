@@ -6,3 +6,5 @@ def test_smoke_validation_passes_all_exact_roadmap_fixtures() -> None:
     criterion = run_synthetic_module_validation(load_smoke_configuration())
     assert criterion.passed, criterion.failures
     assert criterion.failures == ()
+    assert len(criterion.executed_fixture_names) == criterion.expected_fixture_count
+    assert criterion.maximum_absolute_identity_error <= criterion.exact_identity_tolerance

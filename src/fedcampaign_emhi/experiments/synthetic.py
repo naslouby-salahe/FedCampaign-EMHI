@@ -847,9 +847,7 @@ def _evaluate_dropout_sparsity_seed(
     heldout_count = config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
     records: list[YamlNode] = []
     for client_count in config.robustness.scalability_client_counts:
-        campaigns_logger().info(
-            "dropout_scale_started seed=%s client_count=%s", seed, client_count
-        )
+        campaigns_logger().info("dropout_scale_started seed=%s client_count=%s", seed, client_count)
         scale_started = perf_counter()
         client_ids = _synthetic_robustness_client_ids(client_count)
         target = outside_contamination_targets(client_ids)

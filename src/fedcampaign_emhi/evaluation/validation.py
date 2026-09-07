@@ -15,8 +15,10 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ConfigurationDigest,
+    MetricValue,
     OwnershipStatement,
     RankReference,
+    RecordCount,
     SeedValue,
 )
 from fedcampaign_emhi.emhi.calibration import fold_observation_indexes
@@ -60,13 +62,27 @@ class SmokeFixtureName:
 class SmokeValidationResult:
     passed: Boolean
     failures: tuple[SmokeFixtureName, ...]
+    executed_fixture_names: tuple[SmokeFixtureName, ...]
+    expected_fixture_count: RecordCount
+    maximum_absolute_identity_error: MetricValue
+    exact_identity_tolerance: MetricValue
+    expected_negative_fixture_count: RecordCount
+    correctly_rejected_negative_fixture_count: RecordCount
 
 
-def _check(
-    fixture_name: SmokeFixtureName, condition: Boolean, failures: deque[SmokeFixtureName]
-) -> None:
-    if not condition:
-        failures.append(fixture_name)
+@dataclass
+class FixtureCollector:
+    failures: deque[SmokeFixtureName]
+    executed_fixture_names: deque[SmokeFixtureName]
+
+    def record(self, fixture_name: SmokeFixtureName, condition: Boolean) -> None:
+        self.executed_fixture_names.append(fixture_name)
+        if not condition:
+            self.failures.append(fixture_name)
+
+
+def _check(fixture_name: SmokeFixtureName, condition: Boolean, collector: FixtureCollector) -> None:
+    collector.record(fixture_name, condition)
 
 
 MIDRANK_TIES = SmokeFixtureName("midrank ties")
@@ -122,27 +138,29 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     evidence = loaded.values.evidence
     distributed_support = loaded.values.distributed_support
     basis_size = loaded.values.basis.primary_size
-    failures: deque[SmokeFixtureName] = deque()
+    collector = FixtureCollector(deque(), deque())
+    failures = collector
+    exact_tolerance = loaded.values.synthetic_module_validation.exact_identity_tolerance
 
     tie_rank = midrank(0.5, RankReference(scores=(0.0, 0.5, 0.5, 1.0)))
-    _check(MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, failures)
+    _check(MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, collector)
 
     _check(
         RANK_CLIPPING_LOW,
         clip_rank(0.0, context.rank_clip_epsilon) == context.rank_clip_epsilon,
-        failures,
+        collector,
     )
     _check(
         RANK_CLIPPING_HIGH,
         abs(clip_rank(1.0, context.rank_clip_epsilon) - (1.0 - context.rank_clip_epsilon)) <= 0.0,
-        failures,
+        collector,
     )
 
     bin_indices = tuple(
         histogram_bin_index(rank, context.outside_histogram_bin_count)
         for rank in (0.01, 0.13, 0.99)
     )
-    _check(HISTOGRAM_BINS, bin_indices == (0, 1, 7), failures)
+    _check(HISTOGRAM_BINS, bin_indices == (0, 1, 7), collector)
     histogram_masses = tuple(
         bin_indices.count(index) / len(bin_indices)
         for index in range(context.outside_histogram_bin_count)
@@ -151,7 +169,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(
         SmokeFixtureName("histogram normalized mass"),
         histogram_masses == expected_masses[: context.outside_histogram_bin_count],
-        failures,
+        collector,
     )
 
     selected = ("c1", "c2", "c3", "c4", "c5", "c6")
@@ -208,7 +226,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         failures,
     )
     exact_tie_selected = select_ridge_penalty(
-        (0.01, 0.1), (0.05, 0.05), projection.selection_tie_tolerance_mse
+        ridge_candidates[-3:-1], (0.05, 0.05), projection.selection_tie_tolerance_mse
     )
     _check(
         SmokeFixtureName("ridge tie exact instance"),
@@ -328,4 +346,27 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(CAMPAIGN_DURATION, campaign_duration_epochs(1, 4) == 4, failures)
     _check(NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)
 
-    return SmokeValidationResult(passed=not failures, failures=tuple(failures))
+    identity_errors = (
+        abs(tie_rank - 0.5),
+        abs(clip_rank(0.0, context.rank_clip_epsilon) - context.rank_clip_epsilon),
+        abs(clip_rank(1.0, context.rank_clip_epsilon) - (1.0 - context.rank_clip_epsilon)),
+        abs(signed_evidence_factor(1.0, evidence.clip_bound, evidence.bet_lambda) - exp(0.375)),
+        abs(signed_evidence_factor(-1.0, evidence.clip_bound, evidence.bet_lambda) - exp(-0.625)),
+        abs(norm_factor - exp(-0.125)),
+    )
+    maximum_absolute_identity_error = max(identity_errors)
+    expected_fixture_count = loaded.values.synthetic_module_validation.expected_fixture_count
+    return SmokeValidationResult(
+        passed=(
+            not collector.failures
+            and len(collector.executed_fixture_names) == expected_fixture_count
+            and maximum_absolute_identity_error <= exact_tolerance
+        ),
+        failures=tuple(collector.failures),
+        executed_fixture_names=tuple(collector.executed_fixture_names),
+        expected_fixture_count=expected_fixture_count,
+        maximum_absolute_identity_error=maximum_absolute_identity_error,
+        exact_identity_tolerance=exact_tolerance,
+        expected_negative_fixture_count=0,
+        correctly_rejected_negative_fixture_count=0,
+    )

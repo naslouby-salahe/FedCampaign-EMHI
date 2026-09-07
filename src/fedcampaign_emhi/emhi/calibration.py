@@ -98,6 +98,7 @@ type FoldRankCache = UserDict[tuple[RecordCount, RecordCount], MarginalRankArtif
 type OrderContextCache = UserDict[
     tuple[RecordCount, RecordCount, CoalitionOrder], OrderContextFitRecord
 ]
+type ConditionalReferenceScoreLookup = UserDict[ClientId, tuple[RankValue, ...]]
 
 
 def fold_rank_fingerprint(
@@ -577,12 +578,14 @@ def _conditional_rank_references(
 
 def _sorted_reference_scores(
     references: tuple[ConditionalRankReferenceRecord, ...],
-) -> dict[ClientId, tuple[RankValue, ...]]:
-    return {
-        item.client_id: tuple(sorted(item.reference_ranks))
-        for item in references
-        if item.reference_ranks
-    }
+) -> ConditionalReferenceScoreLookup:
+    return UserDict(
+        {
+            item.client_id: tuple(sorted(item.reference_ranks))
+            for item in references
+            if item.reference_ranks
+        }
+    )
 
 
 def _conditioned_member_ranks(
@@ -590,7 +593,7 @@ def _conditioned_member_ranks(
     ranks: MarginalRankArtifactRecord,
     coalition: CoalitionMembers,
     epoch_index: EpochIndexValue,
-    sorted_scores: dict[ClientId, tuple[RankValue, ...]],
+    sorted_scores: ConditionalReferenceScoreLookup,
 ) -> tuple[RankValue, ...] | None:
     conditioned: list[RankValue] = []
     for client_id in coalition.client_ids:
