@@ -1,5 +1,4 @@
 from bisect import bisect_left, bisect_right
-from collections import OrderedDict
 from collections.abc import Mapping
 from itertools import combinations
 from math import ceil, comb, sqrt
@@ -132,29 +131,29 @@ def batch_clipped_midrank(
     return tuple(ranks)
 
 
-_ARTIFACT_EPOCH_RANK_MAP_CACHE_LIMIT = 64
-_artifact_epoch_rank_map_cache: OrderedDict[
-    MaterialDependencyFingerprint, Mapping[ClientId, Mapping[EpochIndexValue, RankValue]]
-] = OrderedDict()
+_cached_rank_stream_fingerprint: MaterialDependencyFingerprint | None = None
+_cached_rank_streams: Mapping[ClientId, ClientMarginalRankStream] | None = None
 
 
-def _client_epoch_rank_maps(
+def _client_rank_streams(
     ranks: MarginalRankArtifactRecord,
-) -> Mapping[ClientId, Mapping[EpochIndexValue, RankValue]]:
-    dependency_fingerprint = ranks.dependency_fingerprint
-    cached = _artifact_epoch_rank_map_cache.get(dependency_fingerprint)
-    if cached is not None:
-        _artifact_epoch_rank_map_cache.move_to_end(dependency_fingerprint)
-        return cached
-    built = {
-        stream.client_id: dict(zip(stream.epoch_indexes, stream.ranks, strict=True))
-        for stream in ranks.client_streams
-    }
-    _artifact_epoch_rank_map_cache[dependency_fingerprint] = built
-    _artifact_epoch_rank_map_cache.move_to_end(dependency_fingerprint)
-    if len(_artifact_epoch_rank_map_cache) > _ARTIFACT_EPOCH_RANK_MAP_CACHE_LIMIT:
-        _artifact_epoch_rank_map_cache.popitem(last=False)
+) -> Mapping[ClientId, ClientMarginalRankStream]:
+    global _cached_rank_stream_fingerprint, _cached_rank_streams
+    if (
+        _cached_rank_stream_fingerprint == ranks.dependency_fingerprint
+        and _cached_rank_streams is not None
+    ):
+        return _cached_rank_streams
+    built = {stream.client_id: stream for stream in ranks.client_streams}
+    _cached_rank_stream_fingerprint = ranks.dependency_fingerprint
+    _cached_rank_streams = built
     return built
+
+
+def clear_rank_lookup_cache() -> None:
+    global _cached_rank_stream_fingerprint, _cached_rank_streams
+    _cached_rank_stream_fingerprint = None
+    _cached_rank_streams = None
 
 
 def rank_at_epoch(
@@ -162,11 +161,18 @@ def rank_at_epoch(
     client_id: ClientId,
     epoch_index: EpochIndexValue,
 ) -> RankValue | None:
-    client_maps = _client_epoch_rank_maps(ranks)
-    map_for_client = client_maps.get(client_id)
-    if map_for_client is None:
+    stream = _client_rank_streams(ranks).get(client_id)
+    if stream is None:
         return None
-    return map_for_client.get(epoch_index)
+    if not stream.epoch_indexes:
+        return None
+    position = epoch_index - stream.epoch_indexes[0]
+    if 0 <= position < len(stream.epoch_indexes) and stream.epoch_indexes[position] == epoch_index:
+        return stream.ranks[position]
+    position = bisect_left(stream.epoch_indexes, epoch_index)
+    if position == len(stream.epoch_indexes) or stream.epoch_indexes[position] != epoch_index:
+        return None
+    return stream.ranks[position]
 
 
 def build_marginal_rank_artifact(

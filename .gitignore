@@ -228,6 +228,7 @@ docs/.tmp-*/
 
 # Temporary architecture-audit working state
 docs/.audit-temp/
+docs/.fedcampaign-execution/
 
 # Local Graphify AST/HTML artifacts
 graphify-out/

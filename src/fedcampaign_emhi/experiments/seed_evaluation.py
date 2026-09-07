@@ -94,7 +94,6 @@ from fedcampaign_emhi.domain.types import (
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
-from fedcampaign_emhi.emhi.contexts import terminate_kmeans_restart_pool
 from fedcampaign_emhi.emhi.evidence import (
     operational_evidence_factor,
     operational_norm_reference_quantile,
@@ -1052,19 +1051,16 @@ def _execute_real_seed_worker(
     ],
 ) -> RecordCount:
     loaded, repository, experiment_name, dataset_name, role, seed, supported, missing = task
-    try:
-        return _execute_real_emhi_seed(
-            loaded,
-            repository,
-            experiment_name,
-            dataset_name,
-            role,
-            seed,
-            supported,
-            missing,
-        )
-    finally:
-        terminate_kmeans_restart_pool()
+    return _execute_real_emhi_seed(
+        loaded,
+        repository,
+        experiment_name,
+        dataset_name,
+        role,
+        seed,
+        supported,
+        missing,
+    )
 
 
 def _materialize_not_tested_real_cells(

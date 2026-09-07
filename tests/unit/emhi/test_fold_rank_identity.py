@@ -46,3 +46,18 @@ def test_distinct_fold_rank_artifacts_do_not_share_reference_ranks() -> None:
     assert first_rank is not None and second_rank is not None
     assert abs(first_rank - 0.8333333333333333) < 1.0e-9
     assert abs(second_rank - 0.16666666666666666) < 1.0e-9
+
+
+def test_rank_lookup_handles_sparse_epoch_indexes() -> None:
+    scores = _score_artifact().model_copy(
+        update={
+            "client_streams": (
+                _score_artifact().client_streams[0].model_copy(
+                    update={"epoch_indexes": (2, 4, 8, 16, 32, 64)}
+                ),
+            )
+        }
+    )
+    ranks = build_marginal_rank_artifact(scores, (2, 4), 1.0e-12, "a" * 64)
+    assert rank_at_epoch(ranks, "client-a", 16) is not None
+    assert rank_at_epoch(ranks, "client-a", 15) is None

@@ -67,7 +67,6 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     StandardizedError,
 )
-from fedcampaign_emhi.emhi.contexts import terminate_kmeans_restart_pool
 from fedcampaign_emhi.evaluation.scalability import (
     resident_set_bytes,
 )
@@ -395,18 +394,15 @@ def execute_synthetic_cell_payload(
         if not outcome.failed_checks
         else ExperimentState.INVALID
     )
-    try:
-        return SyntheticCellExecution(
-            state,
-            outcome,
-            finite_horizon_metrics,
-            composition_metrics,
-            technical_failure,
-            perf_counter() - started,
-            resident_set_bytes(),
-        )
-    finally:
-        terminate_kmeans_restart_pool()
+    return SyntheticCellExecution(
+        state,
+        outcome,
+        finite_horizon_metrics,
+        composition_metrics,
+        technical_failure,
+        perf_counter() - started,
+        resident_set_bytes(),
+    )
 
 
 def execute_synthetic_worker_task(
@@ -639,13 +635,16 @@ def execute_synthetic_experiment(
                     invalid += 1
                 campaigns_logger().info(
                     "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
-                    " elapsed_seconds=%.3f",
+                    " elapsed_seconds=%.3f completed_cells=%d invalid_cells=%d total_cells=%d",
                     experiment_name.value,
                     _role.value,
                     _seed,
                     "coordinate-validation" if cell_method is None else cell_method.value,
                     state.value,
                     execution.runtime_seconds,
+                    completed,
+                    invalid,
+                    len(cells),
                 )
     self_explanation_observations = tuple(
         observation for slot in self_explanation_slots for observation in slot

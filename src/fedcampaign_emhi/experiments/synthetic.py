@@ -40,6 +40,7 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientCount,
     ClientId,
+    CoalitionMembers,
     ComponentName,
     DetectorScore,
     EffectCoefficient,
@@ -78,7 +79,12 @@ from fedcampaign_emhi.emhi.sequential import (
     next_global_state,
     threshold_predicate,
 )
-from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact, tensor_representation
+from fedcampaign_emhi.emhi.structure import (
+    build_marginal_rank_artifact,
+    clear_rank_lookup_cache,
+    enumerate_coalitions,
+    tensor_representation,
+)
 from fedcampaign_emhi.emhi.thresholds import (
     clopper_pearson_one_sided_upper_bound,
     select_calibrated_threshold,
@@ -101,6 +107,7 @@ from fedcampaign_emhi.evaluation.sequential import (
     sequential_trajectory,
     trajectory_context_coverage,
 )
+from fedcampaign_emhi.experiments.execution import campaigns_logger
 from fedcampaign_emhi.runtime import deterministic_digest, log_stage
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
@@ -593,6 +600,7 @@ def _rank_rows_as_emhi_artifacts(
     nuisance_count: RecordCount,
     seed: SeedValue,
     producer: ComponentName,
+    coalition_subset: tuple[CoalitionMembers, ...] | None = None,
 ) -> tuple[DetectorScoreArtifactRecord, MarginalRankArtifactRecord, EMHIFitArtifactRecord]:
     fingerprint = deterministic_digest({"producer": producer, "seed": seed})
     epochs = tuple(range(len(rows)))
@@ -639,6 +647,7 @@ def _rank_rows_as_emhi_artifacts(
         True,
         False,
         fingerprint,
+        coalition_subset=coalition_subset,
     )
     return scores, ranks, fit
 
@@ -838,6 +847,10 @@ def _evaluate_dropout_sparsity_seed(
     heldout_count = config.synthetic.sample_sizes.finite_horizon_heldout_null_horizons_per_seed
     records: list[YamlNode] = []
     for client_count in config.robustness.scalability_client_counts:
+        campaigns_logger().info(
+            "dropout_scale_started seed=%s client_count=%s", seed, client_count
+        )
+        scale_started = perf_counter()
         client_ids = _synthetic_robustness_client_ids(client_count)
         target = outside_contamination_targets(client_ids)
         prefix_count = nuisance_count + ((calibration_count + heldout_count) * campaign_length)
@@ -845,6 +858,13 @@ def _evaluate_dropout_sparsity_seed(
             sample_generator_row(cell, client_count, seed + client_count + index)
             for index in range(prefix_count + campaign_length)
         )
+        target_hierarchy = enumerate_coalitions(
+            target, CoalitionOrder(config.study.maximum_coalition_order)
+        )
+        campaigns_logger().info(
+            "dropout_rank_fit_started seed=%s client_count=%s", seed, client_count
+        )
+        rank_fit_started = perf_counter()
         _scores, ranks, fit = _rank_rows_as_emhi_artifacts(
             config,
             client_ids,
@@ -852,6 +872,13 @@ def _evaluate_dropout_sparsity_seed(
             nuisance_count,
             seed + client_count,
             "client-dropout-sparsity",
+            target_hierarchy,
+        )
+        campaigns_logger().info(
+            "dropout_rank_fit_completed seed=%s client_count=%s elapsed_seconds=%.3f",
+            seed,
+            client_count,
+            perf_counter() - rank_fit_started,
         )
 
         def _horizons(
@@ -870,6 +897,7 @@ def _evaluate_dropout_sparsity_seed(
                 for index in range(count)
             )
 
+        operating_point_started = perf_counter()
         operating = calibrate_global_operating_point(
             config,
             ranks,
@@ -882,6 +910,12 @@ def _evaluate_dropout_sparsity_seed(
                     heldout_count,
                 ),
             ),
+        )
+        campaigns_logger().info(
+            "dropout_operating_point_completed seed=%s client_count=%s elapsed_seconds=%.3f",
+            seed,
+            client_count,
+            perf_counter() - operating_point_started,
         )
         campaign_origin = prefix_count
         scored = tuple(range(campaign_origin + warmup, campaign_origin + campaign_length))
@@ -903,6 +937,15 @@ def _evaluate_dropout_sparsity_seed(
                     nuisance_count,
                 )
             )
+        del _scores
+        del rows
+        clear_rank_lookup_cache()
+        campaigns_logger().info(
+            "dropout_scale_completed seed=%s client_count=%s elapsed_seconds=%.3f",
+            seed,
+            client_count,
+            perf_counter() - scale_started,
+        )
     return SyntheticCellOutcome((), None, {"dropout_conditions": records})
 
 

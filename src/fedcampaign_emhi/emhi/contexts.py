@@ -1,7 +1,5 @@
 import hashlib
-import os
 from collections import UserDict
-from concurrent.futures import ProcessPoolExecutor
 from math import sqrt
 
 import numpy as np
@@ -280,24 +278,6 @@ def assign_context_cell(
     return tied[0]
 
 
-_kmeans_restart_pool_instance: ProcessPoolExecutor | None = None
-
-
-def _kmeans_restart_pool() -> ProcessPoolExecutor:
-    global _kmeans_restart_pool_instance
-    if _kmeans_restart_pool_instance is None:
-        _kmeans_restart_pool_instance = ProcessPoolExecutor(max_workers=os.cpu_count())
-    return _kmeans_restart_pool_instance
-
-
-def terminate_kmeans_restart_pool() -> None:
-    global _kmeans_restart_pool_instance
-    pool = _kmeans_restart_pool_instance
-    _kmeans_restart_pool_instance = None
-    if pool is not None:
-        pool.shutdown(wait=True, cancel_futures=True)
-
-
 def _restart_seed(base_seed: SeedValue, restart_index: KmeansInitializationCount) -> SeedValue:
     return derive_component_seed(
         SeedDerivationIdentity(
@@ -341,15 +321,15 @@ def fit_context_centroids(
     matrix = np.asarray([row.histogram for row in rows], dtype=np.float64)
     restart_seeds = tuple(_restart_seed(seed, restart_index) for restart_index in range(n_init))
     results = tuple(
-        _kmeans_restart_pool().map(
-            _lloyd_kmeans_restart,
-            (matrix,) * n_init,
-            (cell_count,) * n_init,
-            (max_iterations,) * n_init,
-            (tolerance,) * n_init,
-            (assignment_tie_tolerance,) * n_init,
-            restart_seeds,
+        _lloyd_kmeans_restart(
+            matrix,
+            cell_count,
+            max_iterations,
+            tolerance,
+            assignment_tie_tolerance,
+            restart_seed,
         )
+        for restart_seed in restart_seeds
     )
     best_centroids: NDArray[np.float64] | None = None
     best_inertia = None

@@ -946,12 +946,17 @@ def build_emhi_fit_artifact(
     forced_no_abstention: Boolean,
     dependency_fingerprint: MaterialDependencyFingerprint,
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
+    coalition_subset: tuple[CoalitionMembers, ...] | None = None,
 ) -> EMHIFitArtifactRecord:
     cell_count = _effective_cell_count(context_method, cell_count)
     candidates = (
         config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
     )
-    coalitions = enumerate_coalitions(split.selected_client_ids, maximum_order)
+    coalitions = (
+        enumerate_coalitions(split.selected_client_ids, maximum_order)
+        if coalition_subset is None
+        else coalition_subset
+    )
     order_contexts = tuple(
         _fit_order_context(
             config,
