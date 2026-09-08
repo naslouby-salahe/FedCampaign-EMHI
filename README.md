@@ -53,14 +53,14 @@ fedcampaign run estimator-support-and-context-feasibility     (Duration: not yet
 fedcampaign run sequential-evidence-validation                (Duration: not yet measured)
 fedcampaign run pure-order-separation-validation              (Duration: not yet measured)
 fedcampaign run exclusion-matched-hofd-equivalence            (Duration: not yet measured)
-fedcampaign run strong-comparator-composition-challenge       (Duration: not yet measured)
+fedcampaign run strong-comparator-composition-challenge       (Duration: ≈ 4 min 11 s)
 fedcampaign run outside-campaign-contamination-boundary       (Duration: not yet measured)
 fedcampaign run client-dropout-and-context-sparsity-boundary  (Duration: ≈ 2 h 13–19 min)
-fedcampaign run context-and-estimator-sensitivity             (Duration: not yet measured)
+fedcampaign run context-and-estimator-sensitivity             (Duration: ≈ 10 min 13 s)
 fedcampaign run primary-strict-odi-evaluation                 (Duration: not yet measured)
 fedcampaign run exclusion-mechanism-ablation                  (Duration: not yet measured)
 fedcampaign run purification-and-order-ablation               (Duration: not yet measured)
-fedcampaign run strong-local-policy-challenge                 (Duration: not yet measured)
+fedcampaign run strong-local-policy-challenge                 (Duration: ≈ 1 min 3 s)
 fedcampaign run benign-common-mode-robustness                 (Duration: not yet measured)
 fedcampaign run secondary-controlled-trace-generalization     (Duration: not yet measured)
 fedcampaign run coalition-scalability                         (Duration: not yet measured)
@@ -70,12 +70,15 @@ All listed experiments are registered names under the production configuration (
 
 ### Measured run durations
 
-Only experiments with a completed run have a measured duration. Values below were recorded from the campaign execution logs of 2026-09-07 and must not be extrapolated to unmeasured experiments — their cell grids, worker profiles, and data scales differ.
+Only experiments with a completed run have a measured duration. Values below were recorded from the campaign execution logs of 2026-09-07 and 2026-09-08 and must not be extrapolated to unmeasured experiments — their cell grids, worker profiles, and data scales differ.
 
 | Experiment | Measured duration of completed run | Notes |
 | --- | --- | --- |
 | `synthetic-module-validation` | ≈ 3–5 s wall per canonical run (measured runs 2.6–5.3 s); single validation cell | Ran to completion twice on 2026-09-07, but `fedcampaign status` now reports it `BLOCKED` (stale) because the material digest changed — a re-run is required before its evidence may be reused. |
-| `client-dropout-and-context-sparsity-boundary` | ≈ 2 h 13–19 min; runner-recorded execute-stage `elapsed_seconds=8348.6` (≈ 2 h 19 min) with a logged start-to-completion span of ≈ 2 h 13 min | The only currently valid completed run (state `Completed`, 30/30 development cells). Ran 30 cells at 6 concurrent workers, ≈ 27 min per cell. Two earlier invocations were stopped memory-policy probes and produced no results. |
+| `client-dropout-and-context-sparsity-boundary` | ≈ 2 h 13–19 min; runner-recorded execute-stage `elapsed_seconds=8348.6` (≈ 2 h 19 min) with a logged start-to-completion span of ≈ 2 h 13 min | One of the currently valid completed runs (state `Completed`, 30/30 development cells). Ran 30 cells at 6 concurrent workers, ≈ 27 min per cell. Two earlier invocations were stopped memory-policy probes and produced no results. |
+| `strong-comparator-composition-challenge` | ≈ 4 min 11 s (runner-recorded `elapsed_seconds=251.36`); 150 synthetic producer cells at 6 concurrent workers | Final fresh run 2026-09-08, state `Completed` (150/150 cells); selection: Conditional Log-Linear Reference. Earlier single-cell probe estimated ≈ 3 min; the recorded run is authoritative. |
+| `strong-local-policy-challenge` | ≈ 1 min 3 s (runner-recorded `elapsed_seconds=63.09`); 20 real-data cells at 10 concurrent workers | Final fresh run 2026-09-08, state `Completed` (20/20 cells). Shared detector-score/rank/fit ancestors were reused, so this duration excludes those upstream fits. |
+| `context-and-estimator-sensitivity` | ≈ 10 min 13 s (runner-recorded `elapsed_seconds=613.32`); 80 sensitivity condition cells at 10 concurrent workers | Final fresh run 2026-09-08, state `Completed` (80/80 cells). Runs seed-parallel; the earlier serial implementation was estimated at ≈ 55–60 min. |
 
 No other experiment has completed a run, so no duration is measured for it yet. Each completed run records its canonical duration in the execution log as `stage_completed function=execute_experiment elapsed_seconds=...`; append that measured value to this table after the first completed run of any experiment rather than estimating it.
 

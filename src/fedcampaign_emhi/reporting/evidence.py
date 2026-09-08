@@ -36,6 +36,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import Boolean, ConfigurationDigest
 from fedcampaign_emhi.experiments.execution import cell_record_paths, run_record_path
+from fedcampaign_emhi.reporting.experiment_exports import materialize_experiment_exports
 from fedcampaign_emhi.reporting.export import (
     export_reproducibility,
     load_dropout_boundary_conditions,
@@ -342,6 +343,15 @@ def materialize_verified_experiment_report(
         if overwrite_policy is OverwritePolicy.OVERWRITE or not figure_path.is_file():
             write_dropout_boundary_figure(figure_path, conditions)
         output_paths.extend((table_path, figure_path))
+    experiment_export_paths = materialize_experiment_exports(
+        loaded,
+        repository,
+        experiment_name,
+        evidence.seed_summary_paths,
+        evidence.scientific_cell_paths,
+        overwrite_policy is OverwritePolicy.OVERWRITE,
+    )
+    output_paths.extend(experiment_export_paths)
     analysis_hash = content_digest({"source_hashes": list(evidence.source_hashes)})
     dependency_fingerprint = material_fingerprint(
         evidence_export_boundary_digest(loaded.values),

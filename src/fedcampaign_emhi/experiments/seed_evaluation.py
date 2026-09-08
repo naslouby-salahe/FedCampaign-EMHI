@@ -1372,9 +1372,10 @@ def sensitivity_cell_slug(
     raise ValueError("sensitivity cell requires exactly one overridden factor")
 
 
-def materialize_context_and_estimator_sensitivity_cells(
+def _context_sensitivity_seed_diagnostics(
     loaded: LoadedScientificConfiguration,
     repository: Path,
+    seed: SeedValue,
 ) -> tuple[Path, ...]:
     experiment_name = ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY
     dataset_name = loaded.values.datasets.primary.name
@@ -1385,8 +1386,6 @@ def materialize_context_and_estimator_sensitivity_cells(
         preprocessing_paths(loaded, repository, dataset_name)
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
-    if not prepared.selected_client_ids:
-        return ()
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
@@ -1395,87 +1394,153 @@ def materialize_context_and_estimator_sensitivity_cells(
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
+    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    rank_path = materialize_marginal_ranks_with_retry(
+        loaded, repository, dataset_name, seed, score_path
+    )
+    base_fit_path = materialize_emhi_fit_with_retry(
+        loaded,
+        repository,
+        dataset_name,
+        seed,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        score_path,
+        rank_path,
+    )
+    scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
+    ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
+    base_fit = EMHIFitArtifactRecord.model_validate_json(base_fit_path.read_bytes())
+    base_metrics = _emhi_metrics_for_fit(
+        loaded, scores, ranks, base_fit, split, partitions, campaigns, target_local_pfa
+    )
+    upstream_ids = (
+        detector_score_artifact_id(dataset_name, seed),
+        marginal_rank_artifact_id(dataset_name, seed),
+        emhi_fit_artifact_id(dataset_name, seed, MethodName.FULL_FEDCAMPAIGN_EMHI),
+    )
     paths: list[Path] = []
-    for seed in loaded.values.randomness.real_development_roots:
-        score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
-        rank_path = materialize_marginal_ranks_with_retry(
-            loaded, repository, dataset_name, seed, score_path
-        )
-        base_fit_path = materialize_emhi_fit_with_retry(
+    for (
+        basis_override,
+        cell_override,
+        ridge_override,
+        method_override,
+        basis_size,
+        cell_count,
+        ridge_candidates,
+        context_method,
+        forced_no_abstention,
+    ) in conditions:
+        condition_started = perf_counter()
+        condition_fit = _sensitivity_condition_fit(
             loaded,
-            repository,
-            dataset_name,
-            seed,
-            MethodName.FULL_FEDCAMPAIGN_EMHI,
-            score_path,
-            rank_path,
-        )
-        scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
-        ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
-        base_fit = EMHIFitArtifactRecord.model_validate_json(base_fit_path.read_bytes())
-        base_metrics = _emhi_metrics_for_fit(
-            loaded, scores, ranks, base_fit, split, partitions, campaigns, target_local_pfa
-        )
-        for (
-            basis_override,
-            cell_override,
-            ridge_override,
-            method_override,
+            scores,
+            ranks,
+            split,
+            context_method,
+            maximum_order,
             basis_size,
             cell_count,
-            ridge_candidates,
-            context_method,
+            purification_enabled,
             forced_no_abstention,
-        ) in conditions:
-            condition_fit = _sensitivity_condition_fit(
-                loaded,
-                scores,
-                ranks,
-                split,
-                context_method,
-                maximum_order,
-                basis_size,
-                cell_count,
-                purification_enabled,
-                forced_no_abstention,
-                ridge_candidates,
-            )
-            condition_metrics = _emhi_metrics_for_fit(
-                loaded, scores, ranks, condition_fit, split, partitions, campaigns, target_local_pfa
-            )
-            source_paths = (score_path, rank_path, base_fit_path)
-            source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
-            payload: YamlNode = {
-                "seed": seed,
-                "basis_size_override": basis_override,
-                "context_cell_count_override": cell_override,
-                "forced_ridge_override": ridge_override,
-                "context_method_override": (
-                    None if method_override is None else method_override.value
-                ),
-                "condition": cast(YamlNode, condition_metrics.model_dump(mode="json")),
-                "base": cast(YamlNode, base_metrics.model_dump(mode="json")),
-                "source_result_ids": list(source_ids),
-            }
-            record = ContextEstimatorSensitivityCellRecord(
-                seed=seed,
-                basis_size_override=basis_override,
-                context_cell_count_override=cell_override,
-                forced_ridge_override=ridge_override,
-                context_method_override=method_override,
-                condition=condition_metrics,
-                base=base_metrics,
-                source_result_ids=source_ids,
-                dependency_fingerprint=material_fingerprint(
-                    nuisance_context_boundary_digest(loaded.values),
-                    tuple(file_sha256(path) for path in source_paths),
-                ),
-                content_digest=payload_digest(payload),
-            )
-            slug = sensitivity_cell_slug(
-                basis_override, cell_override, ridge_override, method_override
-            )
-            path = root / "diagnostics" / "sensitivity" / f"seed-{seed}" / f"{slug}.json"
-            write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
-            paths.append(path)
+            ridge_candidates,
+        )
+        condition_metrics = _emhi_metrics_for_fit(
+            loaded, scores, ranks, condition_fit, split, partitions, campaigns, target_local_pfa
+        )
+        source_paths = (score_path, rank_path, base_fit_path)
+        source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
+        payload: YamlNode = {
+            "seed": seed,
+            "basis_size_override": basis_override,
+            "context_cell_count_override": cell_override,
+            "forced_ridge_override": ridge_override,
+            "context_method_override": (None if method_override is None else method_override.value),
+            "condition": cast(YamlNode, condition_metrics.model_dump(mode="json")),
+            "base": cast(YamlNode, base_metrics.model_dump(mode="json")),
+            "source_result_ids": list(source_ids),
+        }
+        record = ContextEstimatorSensitivityCellRecord(
+            seed=seed,
+            basis_size_override=basis_override,
+            context_cell_count_override=cell_override,
+            forced_ridge_override=ridge_override,
+            context_method_override=method_override,
+            condition=condition_metrics,
+            base=base_metrics,
+            source_result_ids=source_ids,
+            dependency_fingerprint=material_fingerprint(
+                nuisance_context_boundary_digest(loaded.values),
+                tuple(file_sha256(path) for path in source_paths),
+            ),
+            content_digest=payload_digest(payload),
+        )
+        slug = sensitivity_cell_slug(basis_override, cell_override, ridge_override, method_override)
+        diagnostic_path = root / "diagnostics" / "sensitivity" / f"seed-{seed}" / f"{slug}.json"
+        content_hash = write_atomic_json(
+            diagnostic_path, cast(YamlNode, record.model_dump(mode="json")), staging
+        )
+        completion = CompletionRecord(
+            state=ExperimentState.COMPLETED,
+            mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
+            mandatory_output_hashes=(content_hash,),
+        )
+        cell = ScientificCellRecord(
+            experiment_name=experiment_name,
+            execution_role=ExecutionRole.DEVELOPMENT,
+            semantic_cell_path=f"{ExecutionRole.DEVELOPMENT.value}/{slug}/seed-{seed}",
+            method_name=None,
+            seed=seed,
+            state=ExperimentState.COMPLETED,
+            material_digest=loaded.material_digest,
+            selected_client_ids=prepared.selected_client_ids,
+            upstream_artifact_ids=upstream_ids,
+            dependency_fingerprint=record.dependency_fingerprint,
+            runtime_seconds=perf_counter() - condition_started,
+            peak_rss_bytes=resident_set_bytes(),
+            application_payload_bytes=diagnostic_path.stat().st_size,
+            completion_record=completion,
+        )
+        cell_path = root / "provenance" / "dependencies" / f"cell-{slug}-seed-{seed}.json"
+        write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+        paths.append(diagnostic_path)
+        campaigns_logger().info(
+            "sensitivity_cell_completed experiment=%s seed=%s cell=%s",
+            experiment_name.value,
+            seed,
+            slug,
+        )
     return tuple(paths)
+
+
+def _context_sensitivity_seed_worker(
+    task: tuple[LoadedScientificConfiguration, Path, SeedValue],
+) -> tuple[Path, ...]:
+    loaded, repository, seed = task
+    return _context_sensitivity_seed_diagnostics(loaded, repository, seed)
+
+
+def materialize_context_and_estimator_sensitivity_cells(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+) -> tuple[Path, ...]:
+    dataset_name = loaded.values.datasets.primary.name
+    prepared_path = preprocessing_paths(loaded, repository, dataset_name)[1]
+    prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
+    if not prepared.selected_client_ids:
+        return ()
+    seeds = loaded.values.randomness.real_development_roots
+    worker_count = max(1, min(len(seeds), os.cpu_count() or 1))
+    if worker_count == 1:
+        per_seed = tuple(
+            _context_sensitivity_seed_diagnostics(loaded, repository, seed) for seed in seeds
+        )
+        return tuple(path for paths in per_seed for path in paths)
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
+        per_seed = tuple(
+            pool.map(
+                _context_sensitivity_seed_worker,
+                ((loaded, repository, seed) for seed in seeds),
+            )
+        )
+    return tuple(path for paths in per_seed for path in paths)

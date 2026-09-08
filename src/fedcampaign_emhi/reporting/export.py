@@ -68,6 +68,20 @@ def seed_summary_csv(records: tuple[SeedSummaryRecord, ...]) -> DeterministicUtf
     return output.getvalue().encode("utf-8")
 
 
+def write_csv_artifact(destination: Path, content: DeterministicUtf8Bytes) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.with_suffix(destination.suffix + ".partial")
+    staging.write_bytes(content)
+    staging.replace(destination)
+
+
+def write_png_artifact(destination: Path, content: FigureBytes) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = destination.with_suffix(destination.suffix + ".partial")
+    staging.write_bytes(content)
+    staging.replace(destination)
+
+
 def write_seed_summary_table(destination: Path, records: tuple[SeedSummaryRecord, ...]) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_suffix(destination.suffix + ".partial")

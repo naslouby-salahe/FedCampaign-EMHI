@@ -215,25 +215,38 @@ def materialize_seed_statistics(
 ) -> tuple[Path, ...]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    summary_paths = tuple(sorted((root / "metrics" / "seed-summaries").glob("**/*.json")))
-    summaries = tuple(
-        SeedSummaryRecord.model_validate_json(path.read_bytes()) for path in summary_paths
-    )
-    method_groups = _group_method_summaries(summaries)
+    summary_root = root / "metrics" / "seed-summaries"
+    summary_paths = tuple(sorted(summary_root.glob("**/*.json")))
+    grouped: list[tuple[MethodName, list[tuple[Path, SeedSummaryRecord]]]] = []
+    for summary_path in summary_paths:
+        summary = SeedSummaryRecord.model_validate_json(summary_path.read_bytes())
+        existing_index = next(
+            (
+                index
+                for index, (method_name, _records) in enumerate(grouped)
+                if method_name is summary.method_name
+            ),
+            None,
+        )
+        if existing_index is None:
+            grouped.append((summary.method_name, [(summary_path, summary)]))
+        else:
+            method_name, records = grouped[existing_index]
+            grouped[existing_index] = (method_name, [*records, (summary_path, summary)])
     expected_confirmatory = loaded.values.randomness.real_confirmatory_roots
-    method_groups = [
+    method_groups = tuple(
         (method_name, records)
-        for method_name, records in method_groups
+        for method_name, records in grouped
         if confirmatory_completeness_within_tolerance(
             loaded,
             expected_confirmatory,
             tuple(
                 record.seed
-                for record in records
+                for _path, record in records
                 if record.execution_role is ExecutionRole.CONFIRMATORY
             ),
         )
-    ]
+    )
     if not method_groups:
         return ()
     raw_p_values: list[FalseAlarmRate] = []
@@ -242,18 +255,16 @@ def materialize_seed_statistics(
     sources: list[tuple[ArtifactIdentity, ...]] = []
     fingerprints: list[MaterialDependencyFingerprint] = []
     for _method_name, records in method_groups:
-        values = tuple(record.method_value for record in records)
+        values = tuple(record.method_value for _path, record in records)
         estimate = sum(values) / len(values)
         estimates.append(estimate)
-        source_ids = tuple(
-            source_id for record in records for source_id in record.source_evaluation_ids
-        )
+        source_ids = tuple(path.relative_to(repository).as_posix() for path, _record in records)
         sources.append(source_ids)
-        hashes = tuple(record.content_digest for record in records)
+        source_digests = tuple(file_sha256(path) for path, _record in records)
         fingerprints.append(
             material_fingerprint(
                 statistical_analysis_boundary_digest(loaded.values),
-                hashes,
+                source_digests,
             )
         )
         if len(values) < 2:
@@ -318,27 +329,6 @@ def materialize_seed_statistics(
         write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
         paths.append(path)
     return tuple(paths)
-
-
-def _group_method_summaries(
-    summaries: tuple[SeedSummaryRecord, ...],
-) -> tuple[tuple[MethodName, tuple[SeedSummaryRecord, ...]], ...]:
-    method_groups: list[tuple[MethodName, tuple[SeedSummaryRecord, ...]]] = []
-    for summary in summaries:
-        existing = next(
-            (
-                index
-                for index, (method_name, _records) in enumerate(method_groups)
-                if method_name is summary.method_name
-            ),
-            None,
-        )
-        if existing is None:
-            method_groups.append((summary.method_name, (summary,)))
-        else:
-            method_name, records = method_groups[existing]
-            method_groups[existing] = (method_name, (*records, summary))
-    return tuple(method_groups)
 
 
 def materialize_not_tested_primary_holm_statistic(
