@@ -60,7 +60,7 @@ fedcampaign run outside-campaign-contamination-boundary       (Duration: deferre
 fedcampaign run client-dropout-and-context-sparsity-boundary  (Duration: ≈ 2 h 13–19 min)
 fedcampaign run context-and-estimator-sensitivity             (Duration: ≈ 10 min 13 s)
 fedcampaign run primary-strict-odi-evaluation                 (Duration: not yet measured)
-fedcampaign run exclusion-mechanism-ablation                  (Duration: not yet measured)
+fedcampaign run exclusion-mechanism-ablation                  (Duration: 25 min 50 s — measured 2026-09-08; 80/80 cells completed, report exported)
 fedcampaign run purification-and-order-ablation               (Duration: 9 min 55 s — measured 2026-09-08; 80/80 cells completed, lifecycle validation pending report export)
 fedcampaign run strong-local-policy-challenge                 (Duration: ≈ 1 min 3 s)
 fedcampaign run benign-common-mode-robustness                 (Duration: not yet measured)
