@@ -1386,6 +1386,52 @@ def _campaign_detection_rate_for_method(
     return detection_rate, (score_path, rank_path, fit_path)
 
 
+def _benign_common_mode_positive_power_seed_worker(
+    task: tuple[
+        LoadedScientificConfiguration,
+        Path,
+        DatasetName,
+        SeedValue,
+        tuple[BenignHorizon, ...],
+        MetricRate,
+    ],
+) -> tuple[SeedValue, tuple[MetricRate, MetricRate, tuple[Path, ...]] | None]:
+    loaded, repository, dataset_name, seed, stress_windows, floor = task
+    experiment_name = ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS
+    emhi_dr_outcome = _campaign_detection_rate_for_method(
+        loaded,
+        repository,
+        experiment_name,
+        dataset_name,
+        MethodName.FULL_FEDCAMPAIGN_EMHI,
+        seed,
+    )
+    no_outside_dr_outcome = _campaign_detection_rate_for_method(
+        loaded,
+        repository,
+        experiment_name,
+        dataset_name,
+        MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
+        seed,
+    )
+    fcr_outcome = _benign_common_mode_seed_fcr(
+        loaded, repository, dataset_name, seed, stress_windows
+    )
+    if emhi_dr_outcome is None or no_outside_dr_outcome is None or fcr_outcome is None:
+        return seed, None
+    emhi_dr, emhi_dr_paths = emhi_dr_outcome
+    no_outside_dr, no_outside_dr_paths = no_outside_dr_outcome
+    emhi_fcr, raw_mean_fcr, fcr_paths = fcr_outcome
+    return (
+        seed,
+        (
+            outside_conditioning_power_loss(no_outside_dr, emhi_dr),
+            common_mode_suppression(emhi_fcr, raw_mean_fcr, floor),
+            (*emhi_dr_paths, *no_outside_dr_paths, *fcr_paths),
+        ),
+    )
+
+
 def materialize_benign_common_mode_positive_power_measurement(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -1429,35 +1475,28 @@ def materialize_benign_common_mode_positive_power_measurement(
     suppressions: list[MetricRate] = []
     source_paths: list[Path] = []
     covered_seeds: list[SeedValue] = []
-    for seed in loaded.values.randomness.real_confirmatory_roots:
-        emhi_dr_outcome = _campaign_detection_rate_for_method(
-            loaded,
-            repository,
-            experiment_name,
-            plan.dataset_name,
-            MethodName.FULL_FEDCAMPAIGN_EMHI,
-            seed,
-        )
-        no_outside_dr_outcome = _campaign_detection_rate_for_method(
-            loaded,
-            repository,
-            experiment_name,
-            plan.dataset_name,
-            MethodName.NO_OUTSIDE_CONTEXT_FULL_HIERARCHY,
-            seed,
-        )
-        fcr_outcome = _benign_common_mode_seed_fcr(
-            loaded, repository, plan.dataset_name, seed, stress_windows
-        )
-        if emhi_dr_outcome is None or no_outside_dr_outcome is None or fcr_outcome is None:
-            continue
-        emhi_dr, emhi_dr_paths = emhi_dr_outcome
-        no_outside_dr, no_outside_dr_paths = no_outside_dr_outcome
-        emhi_fcr, raw_mean_fcr, fcr_paths = fcr_outcome
-        power_losses.append(outside_conditioning_power_loss(no_outside_dr, emhi_dr))
-        suppressions.append(common_mode_suppression(emhi_fcr, raw_mean_fcr, floor))
-        source_paths.extend((*emhi_dr_paths, *no_outside_dr_paths, *fcr_paths))
-        covered_seeds.append(seed)
+    tasks = tuple(
+        (loaded, repository, plan.dataset_name, seed, stress_windows, floor)
+        for seed in loaded.values.randomness.real_confirmatory_roots
+    )
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(
+        max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
+    ) as pool:
+        outcomes = pool.map(_benign_common_mode_positive_power_seed_worker, tasks)
+        for seed, outcome in outcomes:
+            campaigns_logger().info(
+                "robustness_phase experiment=%s phase=positive_power_seed_completed seed=%s",
+                experiment_name.value,
+                seed,
+            )
+            if outcome is None:
+                continue
+            power_loss, suppression, seed_paths = outcome
+            power_losses.append(power_loss)
+            suppressions.append(suppression)
+            source_paths.extend(seed_paths)
+            covered_seeds.append(seed)
     if not confirmatory_completeness_within_tolerance(
         loaded, loaded.values.randomness.real_confirmatory_roots, tuple(covered_seeds)
     ):
