@@ -1,12 +1,15 @@
 import multiprocessing
 import os
 from collections import UserDict
-from collections.abc import Mapping
-from concurrent.futures import ProcessPoolExecutor
+from collections.abc import Iterator, Mapping
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, replace
+from json import loads
 from pathlib import Path
 from time import perf_counter
 from typing import cast
+
+from pydantic import TypeAdapter
 
 from fedcampaign_emhi.analysis.statistics import (
     hodges_lehmann_shift,
@@ -92,6 +95,7 @@ from fedcampaign_emhi.experiments.execution import (
     ExperimentExecutionResult,
     campaigns_logger,
     experiment_contract,
+    implementation_digest,
     publish_experiment_run_record,
 )
 from fedcampaign_emhi.experiments.registry import (
@@ -252,6 +256,72 @@ class SyntheticCellExecution:
     peak_rss_bytes: MemoryBytes
 
 
+_SYNTHETIC_EXECUTION_ADAPTER = TypeAdapter(SyntheticCellExecution)
+
+
+def _checkpoint_path(
+    root: Path, role: ExecutionRole, seed: SeedValue, method_name: MethodName | None
+) -> Path:
+    method_slug = (
+        "coordinate-validation" if method_name is None else method_artifact_stem(method_name)
+    )
+    return (
+        root / "provenance" / "checkpoints" / f"worker-{role.value}-{method_slug}-seed-{seed}.json"
+    )
+
+
+def _checkpoint_payload(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    role: ExecutionRole,
+    seed: SeedValue,
+    method_name: MethodName | None,
+    execution: SyntheticCellExecution,
+) -> YamlNode:
+    return {
+        "experiment_name": experiment_name.value,
+        "execution_role": role.value,
+        "seed": seed,
+        "method_name": None if method_name is None else method_name.value,
+        "material_digest": loaded.material_digest,
+        "implementation_digest": implementation_digest(repository),
+        "execution": cast(
+            YamlNode, _SYNTHETIC_EXECUTION_ADAPTER.dump_python(execution, mode="json")
+        ),
+    }
+
+
+def _load_reusable_checkpoint(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    role: ExecutionRole,
+    seed: SeedValue,
+    method_name: MethodName | None,
+    root: Path,
+) -> SyntheticCellExecution | None:
+    path = _checkpoint_path(root, role, seed, method_name)
+    if not path.is_file():
+        return None
+    try:
+        payload = loads(path.read_bytes())
+        expected_method = None if method_name is None else method_name.value
+        if (
+            payload["experiment_name"] != experiment_name.value
+            or payload["execution_role"] != role.value
+            or payload["seed"] != seed
+            or payload["method_name"] != expected_method
+            or payload["material_digest"] != loaded.material_digest
+            or payload["implementation_digest"] != implementation_digest(repository)
+        ):
+            return None
+        execution = _SYNTHETIC_EXECUTION_ADAPTER.validate_python(payload["execution"])
+        return None if execution.technical_failure else execution
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def execute_synthetic_cell_payload(
     loaded: LoadedScientificConfiguration,
     experiment_name: ExperimentName,
@@ -260,12 +330,26 @@ def execute_synthetic_cell_payload(
     method_name: MethodName | None,
 ) -> SyntheticCellExecution:
     started = perf_counter()
+    campaigns_logger().info(
+        "synthetic_worker_phase experiment=%s role=%s seed=%s method=%s phase=started",
+        experiment_name.value,
+        role.value,
+        seed,
+        "coordinate-validation" if method_name is None else method_name.value,
+    )
     finite_horizon_metrics: FiniteHorizonSeedMetrics | None = None
     composition_metrics: CompositionCandidateSeedMetrics | None = None
     technical_failure = False
     try:
         outcome = run_synthetic_cell_with_technical_retry(
             loaded, experiment_name, seed, method_name, role
+        )
+        campaigns_logger().info(
+            "synthetic_worker_phase experiment=%s role=%s seed=%s method=%s phase=primary_check_completed",
+            experiment_name.value,
+            role.value,
+            seed,
+            "coordinate-validation" if method_name is None else method_name.value,
         )
         if (
             experiment_name is ExperimentName.PURE_ORDER_SEPARATION_VALIDATION
@@ -388,8 +472,20 @@ def execute_synthetic_cell_payload(
                     ),
                 )
         if experiment_name is ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION:
+            campaigns_logger().info(
+                "synthetic_worker_phase experiment=%s role=%s seed=%s phase=finite_horizon_started",
+                experiment_name.value,
+                role.value,
+                seed,
+            )
             finite_horizon = evaluate_finite_horizon_common_mode_seed(loaded.values, seed)
             finite_horizon_metrics = finite_horizon.metrics
+            campaigns_logger().info(
+                "synthetic_worker_phase experiment=%s role=%s seed=%s phase=finite_horizon_completed",
+                experiment_name.value,
+                role.value,
+                seed,
+            )
             evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
             evidence["calibrated_finite_horizon"] = {
                 "calibrated_threshold": finite_horizon.metrics.calibrated_threshold,
@@ -503,10 +599,27 @@ def execute_synthetic_experiment(
     dispatched_order: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = list(
         dispatched_cells
     )
+    reusable: list[
+        tuple[tuple[ExecutionRole, SeedValue, MethodName | None], SyntheticCellExecution]
+    ] = []
+    pending_dispatches: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = []
+    for dispatch in dispatched_order:
+        role, seed, method_name = dispatch
+        checkpoint = (
+            None
+            if overwrite_policy is OverwritePolicy.OVERWRITE
+            else _load_reusable_checkpoint(
+                loaded, repository, experiment_name, role, seed, method_name, root
+            )
+        )
+        if checkpoint is None:
+            pending_dispatches.append(dispatch)
+        else:
+            reusable.append((dispatch, checkpoint))
     worker_count = max(
         1,
         min(
-            len(dispatched_order),
+            len(pending_dispatches),
             os.cpu_count() or 1,
             loaded.values.runtime.synthetic_concurrent_experiment_cells,
         ),
@@ -519,13 +632,14 @@ def execute_synthetic_experiment(
             dispatch_seed,
             dispatch_method,
         )
-        for dispatch_role, dispatch_seed, dispatch_method in dispatched_order
+        for dispatch_role, dispatch_seed, dispatch_method in pending_dispatches
     )
     campaigns_logger().info(
-        "experiment_cells experiment=%s cell_count=%d dispatched_count=%d worker_count=%d",
+        "experiment_cells experiment=%s cell_count=%d dispatched_count=%d reused_count=%d worker_count=%d",
         experiment_name.value,
         len(cells),
-        len(dispatched_order),
+        len(pending_dispatches),
+        len(reusable),
         worker_count,
     )
     self_explanation_slots: list[list[SelfExplanationObservation]] = [[] for _ in cells]
@@ -537,173 +651,198 @@ def execute_synthetic_experiment(
     hofd_slots: list[list[HofdEquivalenceObservation]] = [[] for _ in cells]
     completed = 0
     invalid = 0
-    fork_context = multiprocessing.get_context("fork")
-    with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
-        for (role, seed, method_name), execution in zip(
-            dispatched_order,
-            pool.map(execute_synthetic_worker_task, tasks, chunksize=1),
-            strict=True,
-        ):
-            state = execution.state
-            for cell_index in dispatched_cells[(role, seed, method_name)]:
-                _role, _seed, cell_method = cells[cell_index]
-                method_slug = (
-                    "coordinate-validation"
-                    if cell_method is None
-                    else method_artifact_stem(cell_method)
-                )
-                diagnostic_path = (
-                    root
-                    / "diagnostics"
-                    / "scientific"
-                    / _role.value
-                    / method_slug
-                    / f"seed-{_seed}.json"
-                )
-                diagnostic_payload: YamlNode = {
-                    "experiment_name": experiment_name.value,
-                    "execution_role": _role.value,
-                    "seed": _seed,
-                    "method_name": None if cell_method is None else cell_method.value,
-                    "state": state.value,
-                    "failed_checks": list(execution.outcome.failed_checks),
-                    "method_score": execution.outcome.method_score,
-                    "evidence": execution.outcome.evidence,
-                }
-                diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
-                outcome = execution.outcome
-                if (
-                    state is ExperimentState.COMPLETED
-                    and outcome.self_explanation_metrics is not None
-                ):
-                    self_explanation_slots[cell_index].append(
-                        SelfExplanationObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=outcome.self_explanation_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if state is ExperimentState.COMPLETED and outcome.pure_order_metrics is not None:
-                    pure_order_slots[cell_index].append(
-                        PureOrderObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=outcome.pure_order_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if (
-                    state is ExperimentState.COMPLETED
-                    and outcome.signed_theorem_metrics is not None
-                ):
-                    signed_theorem_slots[cell_index].append(
-                        SignedTheoremObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=outcome.signed_theorem_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if (
-                    state is ExperimentState.COMPLETED
-                    and execution.finite_horizon_metrics is not None
-                ):
-                    finite_horizon_slots[cell_index].append(
-                        FiniteHorizonObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=execution.finite_horizon_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if (
-                    state is ExperimentState.COMPLETED
-                    and outcome.estimator_feasibility_metrics is not None
-                ):
-                    estimator_feasibility_slots[cell_index].append(
-                        EstimatorFeasibilityObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=outcome.estimator_feasibility_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if state is ExperimentState.COMPLETED and outcome.hofd_metrics is not None:
-                    hofd_slots[cell_index].append(
-                        HofdEquivalenceObservation(
-                            execution_role=_role,
-                            seed=_seed,
-                            metric=outcome.hofd_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                if (
-                    state is ExperimentState.COMPLETED
-                    and execution.composition_metrics is not None
-                    and cell_method is not None
-                ):
-                    evidence = cast(Mapping[str, YamlNode], outcome.evidence)
-                    composition_slots[cell_index].append(
-                        CompositionCandidateObservation(
-                            method_name=cell_method,
-                            seed=_seed,
-                            standardized_target_order_error=cast(
-                                StandardizedError, evidence["standardized_target_order_error"]
-                            ),
-                            metric=execution.composition_metrics,
-                            diagnostic_path=diagnostic_path,
-                        )
-                    )
-                fingerprint = material_fingerprint(
-                    synthetic_cell_boundary_digest(loaded.values),
-                    (payload_digest(cast(YamlNode, {"seed": _seed, "method": method_slug})),),
-                )
-                completion = CompletionRecord(
-                    state=state,
-                    mandatory_output_paths=(diagnostic_path.relative_to(repository).as_posix(),),
-                    mandatory_output_hashes=(diagnostic_hash,),
-                )
-                cell = ScientificCellRecord(
-                    experiment_name=experiment_name,
-                    execution_role=_role,
-                    semantic_cell_path=f"{_role.value}/{method_slug}/seed-{_seed}",
-                    method_name=cell_method,
-                    seed=_seed,
-                    state=state,
-                    material_digest=loaded.material_digest,
-                    selected_client_ids=(),
-                    upstream_artifact_ids=(),
-                    dependency_fingerprint=fingerprint,
-                    runtime_seconds=execution.runtime_seconds,
-                    peak_rss_bytes=execution.peak_rss_bytes,
-                    application_payload_bytes=len(diagnostic_path.read_bytes()),
-                    completion_record=completion,
-                )
-                cell_path = (
-                    root
-                    / "provenance"
-                    / "dependencies"
-                    / f"cell-{_role.value}-{method_slug}-seed-{_seed}.json"
-                )
-                write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
-                if state is ExperimentState.COMPLETED:
-                    completed += 1
-                else:
-                    invalid += 1
-                campaigns_logger().info(
-                    "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
-                    " elapsed_seconds=%.3f completed_cells=%d invalid_cells=%d total_cells=%d",
-                    experiment_name.value,
-                    _role.value,
+
+    def executions() -> Iterator[
+        tuple[tuple[ExecutionRole, SeedValue, MethodName | None], SyntheticCellExecution]
+    ]:
+        yield from reusable
+        if not tasks:
+            return
+        fork_context = multiprocessing.get_context("fork")
+        with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
+            futures = {
+                pool.submit(execute_synthetic_worker_task, task): dispatch
+                for task, dispatch in zip(tasks, pending_dispatches, strict=True)
+            }
+            for future in as_completed(futures):
+                yield futures[future], future.result()
+
+    for (role, seed, method_name), execution in executions():
+        state = execution.state
+        for cell_index in dispatched_cells[(role, seed, method_name)]:
+            _role, _seed, cell_method = cells[cell_index]
+            method_slug = (
+                "coordinate-validation"
+                if cell_method is None
+                else method_artifact_stem(cell_method)
+            )
+            diagnostic_path = (
+                root
+                / "diagnostics"
+                / "scientific"
+                / _role.value
+                / method_slug
+                / f"seed-{_seed}.json"
+            )
+            diagnostic_payload: YamlNode = {
+                "experiment_name": experiment_name.value,
+                "execution_role": _role.value,
+                "seed": _seed,
+                "method_name": None if cell_method is None else cell_method.value,
+                "state": state.value,
+                "failed_checks": list(execution.outcome.failed_checks),
+                "method_score": execution.outcome.method_score,
+                "evidence": execution.outcome.evidence,
+            }
+            diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
+            checkpoint_path = _checkpoint_path(root, _role, _seed, cell_method)
+            checkpoint_hash = write_atomic_json(
+                checkpoint_path,
+                _checkpoint_payload(
+                    loaded,
+                    repository,
+                    experiment_name,
+                    _role,
                     _seed,
-                    "coordinate-validation" if cell_method is None else cell_method.value,
-                    state.value,
-                    execution.runtime_seconds,
-                    completed,
-                    invalid,
-                    len(cells),
+                    cell_method,
+                    execution,
+                ),
+                staging,
+            )
+            campaigns_logger().info(
+                "synthetic_checkpoint_published experiment=%s role=%s seed=%s method=%s",
+                experiment_name.value,
+                _role.value,
+                _seed,
+                "coordinate-validation" if cell_method is None else cell_method.value,
+            )
+            outcome = execution.outcome
+            if state is ExperimentState.COMPLETED and outcome.self_explanation_metrics is not None:
+                self_explanation_slots[cell_index].append(
+                    SelfExplanationObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=outcome.self_explanation_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
                 )
+            if state is ExperimentState.COMPLETED and outcome.pure_order_metrics is not None:
+                pure_order_slots[cell_index].append(
+                    PureOrderObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=outcome.pure_order_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            if state is ExperimentState.COMPLETED and outcome.signed_theorem_metrics is not None:
+                signed_theorem_slots[cell_index].append(
+                    SignedTheoremObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=outcome.signed_theorem_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            if state is ExperimentState.COMPLETED and execution.finite_horizon_metrics is not None:
+                finite_horizon_slots[cell_index].append(
+                    FiniteHorizonObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=execution.finite_horizon_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            if (
+                state is ExperimentState.COMPLETED
+                and outcome.estimator_feasibility_metrics is not None
+            ):
+                estimator_feasibility_slots[cell_index].append(
+                    EstimatorFeasibilityObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=outcome.estimator_feasibility_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            if state is ExperimentState.COMPLETED and outcome.hofd_metrics is not None:
+                hofd_slots[cell_index].append(
+                    HofdEquivalenceObservation(
+                        execution_role=_role,
+                        seed=_seed,
+                        metric=outcome.hofd_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            if (
+                state is ExperimentState.COMPLETED
+                and execution.composition_metrics is not None
+                and cell_method is not None
+            ):
+                evidence = cast(Mapping[str, YamlNode], outcome.evidence)
+                composition_slots[cell_index].append(
+                    CompositionCandidateObservation(
+                        method_name=cell_method,
+                        seed=_seed,
+                        standardized_target_order_error=cast(
+                            StandardizedError, evidence["standardized_target_order_error"]
+                        ),
+                        metric=execution.composition_metrics,
+                        diagnostic_path=diagnostic_path,
+                    )
+                )
+            fingerprint = material_fingerprint(
+                synthetic_cell_boundary_digest(loaded.values),
+                (payload_digest(cast(YamlNode, {"seed": _seed, "method": method_slug})),),
+            )
+            completion = CompletionRecord(
+                state=state,
+                mandatory_output_paths=(
+                    diagnostic_path.relative_to(repository).as_posix(),
+                    checkpoint_path.relative_to(repository).as_posix(),
+                ),
+                mandatory_output_hashes=(diagnostic_hash, checkpoint_hash),
+            )
+            cell = ScientificCellRecord(
+                experiment_name=experiment_name,
+                execution_role=_role,
+                semantic_cell_path=f"{_role.value}/{method_slug}/seed-{_seed}",
+                method_name=cell_method,
+                seed=_seed,
+                state=state,
+                material_digest=loaded.material_digest,
+                selected_client_ids=(),
+                upstream_artifact_ids=(),
+                dependency_fingerprint=fingerprint,
+                runtime_seconds=execution.runtime_seconds,
+                peak_rss_bytes=execution.peak_rss_bytes,
+                application_payload_bytes=len(diagnostic_path.read_bytes()),
+                completion_record=completion,
+            )
+            cell_path = (
+                root
+                / "provenance"
+                / "dependencies"
+                / f"cell-{_role.value}-{method_slug}-seed-{_seed}.json"
+            )
+            write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+            if state is ExperimentState.COMPLETED:
+                completed += 1
+            else:
+                invalid += 1
+            campaigns_logger().info(
+                "cell_completed experiment=%s role=%s seed=%s method=%s state=%s"
+                " elapsed_seconds=%.3f completed_cells=%d invalid_cells=%d total_cells=%d",
+                experiment_name.value,
+                _role.value,
+                _seed,
+                "coordinate-validation" if cell_method is None else cell_method.value,
+                state.value,
+                execution.runtime_seconds,
+                completed,
+                invalid,
+                len(cells),
+            )
     self_explanation_observations = tuple(
         observation for slot in self_explanation_slots for observation in slot
     )

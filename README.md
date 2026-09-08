@@ -40,6 +40,8 @@ fedcampaign report <experiment-name> --overwrite
 
 The CLI exposes execution controls only. It does not accept seed, method, coalition-order, basis, context, threshold, PFA, statistical, sensitivity, run-id, or lifecycle-step overrides.
 
+Normal `fedcampaign run <experiment-name>` invocations resume compatible completed work. Synthetic workers publish a durable checkpoint as soon as each cell finishes, so stopping the command and rerunning it without `--overwrite` preserves completed cells even when earlier-dispatched cells are still running. `--overwrite` intentionally bypasses reuse and starts the selected experiment again. Real-data execution also reuses its persisted score, rank, fit, and completed-cell artifacts.
+
 ## Campaign experiments
 
 Each registered experiment is executed by name with a single command. Run `fedcampaign status` before starting one and verify `fedcampaign status <experiment-name>` afterwards; materialize results with `fedcampaign report <experiment-name>`. Names are identical for `run`, `status`, and `report`.
@@ -48,13 +50,13 @@ Run the experiments in the dependency-aware campaign order below. The real-data 
 
 ```text
 fedcampaign run synthetic-module-validation                   (Duration: ≈ 3–5 s — measured; currently stale, re-run pending)
-fedcampaign run self-explanation-exclusion-validation         (Duration: not yet measured)
+fedcampaign run self-explanation-exclusion-validation         (Duration: 1 min 37 s — measured 2026-09-08; stale after sequential-runtime optimization, re-run pending)
 fedcampaign run estimator-support-and-context-feasibility     (Duration: not yet measured)
-fedcampaign run sequential-evidence-validation                (Duration: not yet measured)
+fedcampaign run sequential-evidence-validation                (Duration: deferred after 3 h 47 min plus a 1 min checkpoint/logging validation restart; 0/60 cells published before the controlled stops; completion-order checkpoints now preserve each finished cell)
 fedcampaign run pure-order-separation-validation              (Duration: not yet measured)
 fedcampaign run exclusion-matched-hofd-equivalence            (Duration: not yet measured)
 fedcampaign run strong-comparator-composition-challenge       (Duration: ≈ 4 min 11 s)
-fedcampaign run outside-campaign-contamination-boundary       (Duration: not yet measured)
+fedcampaign run outside-campaign-contamination-boundary       (Duration: deferred after 5 h 36 min with 0/60 cells published; wave-based lower-bound estimate ≥ 44 h 48 min total — resume later; completion-order checkpoints now preserve each finished cell)
 fedcampaign run client-dropout-and-context-sparsity-boundary  (Duration: ≈ 2 h 13–19 min)
 fedcampaign run context-and-estimator-sensitivity             (Duration: ≈ 10 min 13 s)
 fedcampaign run primary-strict-odi-evaluation                 (Duration: not yet measured)

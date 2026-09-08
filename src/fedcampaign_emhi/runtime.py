@@ -115,18 +115,18 @@ def log_stage(
         def wrapper(*args: _StageParams.args, **kwargs: _StageParams.kwargs) -> _StageResult:
             logger = component_logger(component_name)
             started = perf_counter()
-            logger.info("stage_started function=%s", func.__qualname__)
+            logger.debug("stage_started function=%s", func.__qualname__)
             try:
                 result = func(*args, **kwargs)
             except Exception as error:
-                logger.info(
+                logger.error(
                     "stage_failed function=%s elapsed_seconds=%.6f error=%s",
                     func.__qualname__,
                     perf_counter() - started,
                     error,
                 )
                 raise
-            logger.info(
+            logger.debug(
                 "stage_completed function=%s elapsed_seconds=%.6f",
                 func.__qualname__,
                 perf_counter() - started,

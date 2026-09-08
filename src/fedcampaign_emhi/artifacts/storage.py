@@ -133,6 +133,9 @@ EXPERIMENT_OUTPUT_TREES = {
     "checkpoints": ("training", "execution"),
     "diagnostics": ("scientific", "numerical", "runtime"),
     "logs": ("execution", "failures"),
+    "figures": ("main", "supplementary"),
+    "tables": ("main", "supplementary"),
+    "source_data": ("figures", "tables"),
     "provenance": ("configuration", "data", "seeds", "code", "environment", "dependencies"),
 }
 EXPERIMENT_RESULTS_TREES = {
@@ -238,6 +241,18 @@ def write_atomic_json(
     digest = hashlib.sha256(encoded).hexdigest()
     staging_path = staging_directory / f"{destination.name}.{digest}.partial"
     staging_path.write_bytes(encoded)
+    staging_path.replace(destination)
+    return digest
+
+
+def write_atomic_bytes(
+    destination: Path, payload: bytes, staging_directory: Path
+) -> ConfigurationDigest:
+    staging_directory.mkdir(parents=True, exist_ok=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(payload).hexdigest()
+    staging_path = staging_directory / f"{destination.name}.{digest}.partial"
+    staging_path.write_bytes(payload)
     staging_path.replace(destination)
     return digest
 

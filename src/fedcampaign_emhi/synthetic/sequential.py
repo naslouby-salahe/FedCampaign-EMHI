@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import isclose, isfinite
+from math import exp, isclose, isfinite, sqrt
 
 import numpy as np
 
@@ -18,11 +18,7 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     SignedTheoremCoordinate,
 )
-from fedcampaign_emhi.emhi.evidence import (
-    signed_evidence_factor,
-    signed_statistic,
-    signed_theorem_compensator,
-)
+from fedcampaign_emhi.emhi.evidence import signed_theorem_compensator
 from fedcampaign_emhi.emhi.sequential import next_global_state
 from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one
 from fedcampaign_emhi.emhi.thresholds import esr_threshold_from_arl_alpha
@@ -61,24 +57,35 @@ def _trajectory_restricted_stop(
     bet_lambda: BettingLambda,
     threshold: ESrThreshold,
 ) -> tuple[RecordCount, Boolean, Boolean]:
+    """Simulate one trajectory without changing the generator draw or stop semantics.
+
+    This is deliberately scalar: drawing a batch would consume values beyond an
+    early stop and change the stream assigned to subsequent trajectories.
+    """
     state = 0.0
     assumptions_hold = True
+    sqrt_three = sqrt(3.0)
+    compensator = (bet_lambda**2) * ((2.0 * clip_bound) ** 2) / 8.0
     for epoch in range(maximum_epochs):
-        ranks = (
-            float(generator.random()),
-            float(generator.random()),
-            float(generator.random()),
-        )
-        coordinate = signed_theorem_coordinate(ranks)
-        clipped = signed_statistic((coordinate,), (1.0,), clip_bound)
-        factor: EvidenceFactor = signed_evidence_factor(clipped, clip_bound, bet_lambda)
-        assumptions_hold = assumptions_hold and (
-            isfinite(coordinate)
-            and isfinite(clipped)
-            and -clip_bound <= clipped <= clip_bound
-            and isfinite(factor)
-            and factor >= 0.0
-        )
+        first = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
+        second = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
+        third = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
+        coordinate = first * second * third
+        if coordinate > clip_bound:
+            clipped = clip_bound
+        elif coordinate < -clip_bound:
+            clipped = -clip_bound
+        else:
+            clipped = coordinate
+        factor: EvidenceFactor = exp(bet_lambda * clipped - compensator)
+        if assumptions_hold:
+            assumptions_hold = (
+                isfinite(coordinate)
+                and isfinite(clipped)
+                and -clip_bound <= clipped <= clip_bound
+                and isfinite(factor)
+                and factor >= 0.0
+            )
         state = next_global_state(state, factor)
         if state >= threshold:
             return epoch + 1, True, assumptions_hold

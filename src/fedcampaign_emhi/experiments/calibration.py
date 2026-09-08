@@ -66,7 +66,12 @@ from fedcampaign_emhi.experiments.synthetic import (
     composition_reference_cell,
     composition_reference_rows,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, deterministic_digest, log_stage
+from fedcampaign_emhi.runtime import (
+    component_logger,
+    derive_component_seed,
+    deterministic_digest,
+    log_stage,
+)
 from fedcampaign_emhi.synthetic.generators import (
     equally_spaced_loadings,
     generate_common_mode_scores,
@@ -160,6 +165,7 @@ def _block(
 def evaluate_finite_horizon_common_mode_seed(
     config: ScientificConfig, seed: SeedValue
 ) -> FiniteHorizonSeedResult:
+    logger = component_logger("experiments.calibration")
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
     client_ids: tuple[ClientId, ...] = tuple(
         f"synthetic-common-mode-client-{index}" for index in range(client_count)
@@ -174,6 +180,15 @@ def evaluate_finite_horizon_common_mode_seed(
     specifications = tuple((True, index) for index in range(calibration_count)) + tuple(
         (False, index) for index in range(heldout_count)
     )
+    logger.info(
+        "finite_horizon_phase seed=%s phase=generate_blocks client_count=%d nuisance_epochs=%d calibration_horizons=%d heldout_horizons=%d horizon_epochs=%d",
+        seed,
+        client_count,
+        nuisance_count,
+        calibration_count,
+        heldout_count,
+        warmup + length,
+    )
     blocks = [_block(config, client_count, nuisance_count, _seed(seed, "nuisance", 0))]
     blocks.extend(
         _block(
@@ -185,6 +200,11 @@ def evaluate_finite_horizon_common_mode_seed(
         for calibration, index in specifications
     )
     rows = tuple(row for block in blocks for row in block)
+    logger.info(
+        "finite_horizon_phase seed=%s phase=blocks_generated row_count=%d",
+        seed,
+        len(rows),
+    )
     indexes = tuple(range(len(rows)))
     fingerprint = deterministic_digest(
         {"producer": "finite-horizon-common-mode", "seed": seed, "client_count": client_count}
@@ -219,6 +239,8 @@ def evaluate_finite_horizon_common_mode_seed(
     ranks = build_marginal_rank_artifact(
         scores, nuisance_epochs, config.context.rank_clip_epsilon, fingerprint
     )
+    logger.info("finite_horizon_phase seed=%s phase=ranks_built", seed)
+    logger.info("finite_horizon_phase seed=%s phase=emhi_fit_started", seed)
     fit = build_emhi_fit_artifact(
         config,
         scores,
@@ -233,6 +255,11 @@ def evaluate_finite_horizon_common_mode_seed(
         False,
         fingerprint,
     )
+    logger.info(
+        "finite_horizon_phase seed=%s phase=emhi_fit_completed coalition_count=%d",
+        seed,
+        len(fit.coalition_fits),
+    )
     offset = nuisance_count
     calibration_horizons: list[BenignHorizonRecord] = []
     heldout_horizons: list[BenignHorizonRecord] = []
@@ -242,6 +269,7 @@ def evaluate_finite_horizon_common_mode_seed(
             BenignHorizonRecord(start_epoch=scored[0], epoch_indexes=scored)
         )
         offset += warmup + length
+    logger.info("finite_horizon_phase seed=%s phase=operating_point_calibration_started", seed)
     operating = calibrate_global_operating_point(
         config,
         ranks,
@@ -258,6 +286,12 @@ def evaluate_finite_horizon_common_mode_seed(
         heldout_horizon_count=operating.heldout_horizon_count,
         heldout_false_stop_count=operating.heldout_false_stop_count,
         heldout_upper_pfa=operating.heldout_upper_pfa,
+    )
+    logger.info(
+        "finite_horizon_phase seed=%s phase=completed threshold=%s heldout_false_stops=%d",
+        seed,
+        metrics.calibrated_threshold,
+        metrics.heldout_false_stop_count,
     )
     return FiniteHorizonSeedResult(
         metrics=metrics,

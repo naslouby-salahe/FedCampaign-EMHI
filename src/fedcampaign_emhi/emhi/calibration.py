@@ -92,7 +92,7 @@ from fedcampaign_emhi.emhi.structure import (
     sorted_clipped_midrank,
     tensor_representation,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, log_stage
+from fedcampaign_emhi.runtime import component_logger, derive_component_seed, log_stage
 
 type FoldRankCache = UserDict[tuple[RecordCount, RecordCount], MarginalRankArtifactRecord]
 type OrderContextCache = UserDict[
@@ -952,6 +952,7 @@ def build_emhi_fit_artifact(
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
     coalition_subset: tuple[CoalitionMembers, ...] | None = None,
 ) -> EMHIFitArtifactRecord:
+    logger = component_logger("emhi.calibration")
     cell_count = _effective_cell_count(context_method, cell_count)
     candidates = (
         config.projection.ridge_candidates if ridge_candidates is None else ridge_candidates
@@ -960,6 +961,13 @@ def build_emhi_fit_artifact(
         enumerate_coalitions(split.selected_client_ids, maximum_order)
         if coalition_subset is None
         else coalition_subset
+    )
+    logger.info(
+        "emhi_fit_phase seed=%s method=%s phase=started coalition_count=%d nuisance_epoch_count=%d",
+        ranks.root_seed,
+        method_name.value,
+        len(coalitions),
+        len(split.nuisance_fit_epochs),
     )
     order_contexts = tuple(
         _fit_order_context(
@@ -982,7 +990,8 @@ def build_emhi_fit_artifact(
     order_context_cache: OrderContextCache = UserDict[
         tuple[RecordCount, RecordCount, CoalitionOrder], OrderContextFitRecord
     ]()
-    for coalition in coalitions:
+    progress_interval = max(1, len(coalitions) // 20)
+    for coalition_index, coalition in enumerate(coalitions, start=1):
         order_context = next(
             context for context in order_contexts if context.coalition_order is coalition.order
         )
@@ -1057,6 +1066,21 @@ def build_emhi_fit_artifact(
                 ),
             )
         )
+        if coalition_index % progress_interval == 0 or coalition_index == len(coalitions):
+            logger.info(
+                "emhi_fit_phase seed=%s method=%s phase=coalition_progress completed_coalitions=%d total_coalitions=%d coalition_order=%d",
+                ranks.root_seed,
+                method_name.value,
+                coalition_index,
+                len(coalitions),
+                coalition.order,
+            )
+    logger.info(
+        "emhi_fit_phase seed=%s method=%s phase=completed coalition_count=%d",
+        ranks.root_seed,
+        method_name.value,
+        len(coalition_fits),
+    )
     return EMHIFitArtifactRecord(
         dataset_name=ranks.dataset_name,
         root_seed=ranks.root_seed,
