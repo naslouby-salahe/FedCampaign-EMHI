@@ -64,7 +64,7 @@ fedcampaign run exclusion-mechanism-ablation                  (Duration: 25 min 
 fedcampaign run purification-and-order-ablation               (Duration: 9 min 55 s — measured 2026-09-08; 80/80 cells completed, lifecycle validation pending report export)
 fedcampaign run strong-local-policy-challenge                 (Duration: ≈ 1 min 3 s)
 fedcampaign run benign-common-mode-robustness                 (Duration: 39 min 17 s — measured 2026-09-08; 80/80 cells completed, report exported)
-fedcampaign run secondary-controlled-trace-generalization     (Duration: not yet measured)
+fedcampaign run secondary-controlled-trace-generalization     (Duration: ≈ 0.33 s compatible-artifact reuse — measured 2026-09-08; 120/120 cells already completed, report exported)
 fedcampaign run coalition-scalability                         (Duration: not yet measured)
 ```
 
