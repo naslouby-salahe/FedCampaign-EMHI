@@ -146,6 +146,45 @@ from fedcampaign_emhi.experiments.technical_retry import with_technical_retry
 from fedcampaign_emhi.runtime import derive_component_seed
 
 
+def _reusable_completed_real_cell(
+    repository: Path,
+    cell_path: Path,
+    experiment_name: ExperimentName,
+    execution_role: ExecutionRole,
+    method_name: MethodName,
+    seed: SeedValue,
+    material_digest: str,
+    dependency_fingerprint: str,
+) -> bool:
+    if not cell_path.is_file():
+        return False
+    try:
+        cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+    except ValueError:
+        return False
+    completion = cell.completion_record
+    if (
+        cell.experiment_name is not experiment_name
+        or cell.execution_role is not execution_role
+        or cell.method_name is not method_name
+        or cell.seed != seed
+        or cell.state is not ExperimentState.COMPLETED
+        or cell.material_digest != material_digest
+        or cell.dependency_fingerprint != dependency_fingerprint
+        or completion.state is not ExperimentState.COMPLETED
+        or len(completion.mandatory_output_paths) != len(completion.mandatory_output_hashes)
+    ):
+        return False
+    return bool(completion.mandatory_output_paths) and all(
+        (path := repository / relative_path).is_file() and file_sha256(path) == expected_hash
+        for relative_path, expected_hash in zip(
+            completion.mandatory_output_paths,
+            completion.mandatory_output_hashes,
+            strict=True,
+        )
+    )
+
+
 def _evaluate_emhi_seed_cell(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -189,6 +228,33 @@ def _evaluate_emhi_seed_cell(
             *(file_sha256(path) for path in required_paths),
         ),
     )
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    method_slug = method_artifact_stem(method_name)
+    cell_path = (
+        root
+        / "provenance"
+        / "dependencies"
+        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json"
+    )
+    if _reusable_completed_real_cell(
+        repository,
+        cell_path,
+        experiment_name,
+        execution_role,
+        method_name,
+        seed,
+        loaded.material_digest,
+        fingerprint,
+    ):
+        campaigns_logger().info(
+            "reuse_decision artifact=evaluation_cell experiment=%s role=%s seed=%s method=%s decision=reused",
+            experiment_name.value,
+            execution_role.value,
+            seed,
+            method_name.value,
+        )
+        return cell_path
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
     fit = EMHIFitArtifactRecord.model_validate_json(fit_path.read_bytes())
@@ -223,10 +289,7 @@ def _evaluate_emhi_seed_cell(
         if heldout_epochs <= 0
         else false_campaigns_per_ten_thousand_benign_epochs(heldout_false_stops, heldout_epochs)
     )
-    layout = build_artifact_layout(loaded, repository)
-    root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
-    method_slug = method_artifact_stem(method_name)
     evaluation_id = evaluation_artifact_id(
         experiment_name,
         execution_role,
@@ -310,12 +373,6 @@ def _evaluate_emhi_seed_cell(
         peak_rss_bytes=resident_set_bytes(),
         application_payload_bytes=len(raw_path.read_bytes()),
         completion_record=completion,
-    )
-    cell_path = (
-        root
-        / "provenance"
-        / "dependencies"
-        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json"
     )
     write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     return cell_path
