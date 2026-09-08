@@ -51,7 +51,7 @@ Run the experiments in the dependency-aware campaign order below. The real-data 
 ```text
 fedcampaign run synthetic-module-validation                   (Duration: ≈ 3–5 s — measured; currently stale, re-run pending)
 fedcampaign run self-explanation-exclusion-validation         (Duration: 2 min 8 s — measured 2026-09-08; 60/60 cells completed, lifecycle validated, report exported)
-fedcampaign run estimator-support-and-context-feasibility     (Duration: not yet measured)
+fedcampaign run estimator-support-and-context-feasibility     (Duration: 15 min 22 s — measured 2026-09-08; 60/60 cells completed, checkpointed, and ready for lifecycle validation)
 fedcampaign run sequential-evidence-validation                (Duration: deferred after 3 h 47 min plus a 1 min checkpoint/logging validation restart; 0/60 cells published before the controlled stops; completion-order checkpoints now preserve each finished cell)
 fedcampaign run pure-order-separation-validation              (Duration: not yet measured)
 fedcampaign run exclusion-matched-hofd-equivalence            (Duration: not yet measured)
