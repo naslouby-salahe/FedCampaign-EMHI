@@ -108,7 +108,7 @@ from fedcampaign_emhi.evaluation.sequential import (
     trajectory_context_coverage,
 )
 from fedcampaign_emhi.experiments.execution import campaigns_logger
-from fedcampaign_emhi.runtime import deterministic_digest, log_stage
+from fedcampaign_emhi.runtime import component_logger, deterministic_digest, log_stage
 from fedcampaign_emhi.synthetic.feasibility import (
     EstimatorFeasibilityMetrics,
     evaluate_estimator_feasibility_seed,
@@ -342,10 +342,19 @@ def _evaluate_hofd_equivalence_seed(
             }
         )
     )
+    logger = component_logger("experiments.synthetic")
+    total_conditions = len(orders) * len(supports)
+    logger.info(
+        "hofd_equivalence_phase seed=%s phase=condition_schedule condition_count=%d supports=%s",
+        seed,
+        total_conditions,
+        supports,
+    )
     condition_records: list[YamlNode] = []
     condition_metrics: list[HofdEquivalenceConditionMetrics] = []
     failures: list[ComponentName] = []
     offset = 0
+    condition_index = 0
     for order in orders:
         width = order
         cell = PureOrderCell(
@@ -356,6 +365,16 @@ def _evaluate_hofd_equivalence_seed(
             enabled_orders=frozenset((order,)),
         )
         for support in supports:
+            condition_index += 1
+            condition_started = perf_counter()
+            logger.info(
+                "hofd_equivalence_phase seed=%s phase=condition_started condition_index=%d total_conditions=%d order=%d support=%d",
+                seed,
+                condition_index,
+                total_conditions,
+                order,
+                support,
+            )
             nuisance_rows = tuple(
                 sample_independent_uniform_ranks(client_count, seed + offset + index)[:width]
                 for index in range(support)
@@ -561,6 +580,15 @@ def _evaluate_hofd_equivalence_seed(
                     "stopping_time_difference": stop_difference,
                     "detection_indicator_difference": detection_difference,
                 }
+            )
+            logger.info(
+                "hofd_equivalence_phase seed=%s phase=condition_completed condition_index=%d total_conditions=%d order=%d support=%d elapsed_seconds=%.3f",
+                seed,
+                condition_index,
+                total_conditions,
+                order,
+                support,
+                perf_counter() - condition_started,
             )
     return SyntheticCellOutcome(
         tuple(failures),
