@@ -59,7 +59,7 @@ fedcampaign run strong-comparator-composition-challenge       (Duration: ≈ 4 m
 fedcampaign run outside-campaign-contamination-boundary       (Duration: deferred after 5 h 36 min with 0/60 cells published; wave-based lower-bound estimate ≥ 44 h 48 min total — resume later; completion-order checkpoints now preserve each finished cell)
 fedcampaign run client-dropout-and-context-sparsity-boundary  (Duration: ≈ 2 h 13–19 min)
 fedcampaign run context-and-estimator-sensitivity             (Duration: ≈ 10 min 13 s)
-fedcampaign run primary-strict-odi-evaluation                 (Duration: not yet measured)
+fedcampaign run primary-strict-odi-evaluation                 (Duration: 5 min 57 s — measured 2026-09-08; 200/200 cells completed, report exported)
 fedcampaign run exclusion-mechanism-ablation                  (Duration: 25 min 50 s — measured 2026-09-08; 80/80 cells completed, report exported)
 fedcampaign run purification-and-order-ablation               (Duration: 9 min 55 s — measured 2026-09-08; 80/80 cells completed, lifecycle validation pending report export)
 fedcampaign run strong-local-policy-challenge                 (Duration: ≈ 1 min 3 s)

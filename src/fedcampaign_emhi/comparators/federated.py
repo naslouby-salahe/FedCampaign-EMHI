@@ -1,3 +1,4 @@
+import logging
 import socket
 import threading
 import time
@@ -49,6 +50,10 @@ from fedcampaign_emhi.models.autoencoder import (
     train_autoencoder_epochs,
 )
 from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
+
+# Flower's per-message INFO transport output obscures the campaign's structured
+# seed/method progress records.  Keep warnings and errors visible.
+logging.getLogger("flwr").setLevel(logging.WARNING)
 
 PARTICIPATION_COMPONENT_NAME = "fedavg_autoencoder_participation"
 SERVER_ROUND_CONFIG_KEY = "server_round"
