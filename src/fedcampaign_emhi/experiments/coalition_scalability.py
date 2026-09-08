@@ -38,7 +38,7 @@ from fedcampaign_emhi.evaluation.scalability import (
     summarize_scalability,
 )
 from fedcampaign_emhi.experiments.technical_retry import with_technical_retry
-from fedcampaign_emhi.runtime import deterministic_utf8_bytes
+from fedcampaign_emhi.runtime import component_logger, deterministic_utf8_bytes
 
 
 def confirmatory_timing_seed_sequence(
@@ -69,6 +69,7 @@ def materialize_coalition_scalability_summaries(
     maximum_order = config.study.maximum_coalition_order
     maximum_latency = config.materiality.reference_harness.p95_latency_maximum_seconds
     maximum_failure_rate = config.materiality.maximum_pooled_numerical_failure_rate
+    logger = component_logger("experiments.coalition_scalability")
     cell_paths: list[Path] = []
     identity = capture_timing_environment_identity()
     environment_digest = hashlib.sha256(deterministic_utf8_bytes(identity)).hexdigest()
@@ -92,9 +93,23 @@ def materialize_coalition_scalability_summaries(
             raise ValueError("derived coalition count must match the registry coalition count")
         payload_bytes = application_payload_bytes_per_epoch(client_count)
         seeds = confirmatory_timing_seed_sequence(config)
+        logger.info(
+            "scalability_phase phase=client_count_started client_count=%d coalition_count=%d seed_count=%d repetitions=%d",
+            client_count,
+            coalitions,
+            len(seeds),
+            config.scalability_timing.measured_repetitions_per_seed_client_count,
+        )
 
         collected: list[ScalabilityMeasurement] = []
-        for seed in seeds:
+        for seed_index, seed in enumerate(seeds, start=1):
+            logger.info(
+                "scalability_phase phase=seed_started client_count=%d seed=%d seed_index=%d total_seeds=%d",
+                client_count,
+                seed,
+                seed_index,
+                len(seeds),
+            )
             seed_started = perf_counter()
             seed_measurements = collect_scalability_seed_measurements(loaded, client_count, seed)
             seed_elapsed = perf_counter() - seed_started
@@ -155,6 +170,14 @@ def materialize_coalition_scalability_summaries(
                 / f"cell-confirmatory-k-{client_count}-seed-{seed}.json"
             )
             write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
+            logger.info(
+                "scalability_phase phase=seed_checkpoint_published client_count=%d seed=%d seed_index=%d total_seeds=%d elapsed_seconds=%.3f",
+                client_count,
+                seed,
+                seed_index,
+                len(seeds),
+                seed_elapsed,
+            )
             cell_paths.append(cell_path)
             collected.extend(seed_measurements)
         measurements = tuple(collected)
@@ -194,4 +217,9 @@ def materialize_coalition_scalability_summaries(
         }
         path = root / "metrics" / "aggregate" / f"k-{client_count}.json"
         write_atomic_json(path, payload, staging)
+        logger.info(
+            "scalability_phase phase=client_count_completed client_count=%d seed_count=%d",
+            client_count,
+            len(seeds),
+        )
     return tuple(cell_paths)
