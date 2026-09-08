@@ -1,5 +1,8 @@
 import json
+import multiprocessing
+import os
 from collections.abc import Mapping
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -91,7 +94,7 @@ from fedcampaign_emhi.evaluation.sequential import (
     global_stop_epoch,
     horizon_trajectory,
 )
-from fedcampaign_emhi.experiments.execution import campaign_dataset
+from fedcampaign_emhi.experiments.execution import campaign_dataset, campaigns_logger
 from fedcampaign_emhi.experiments.registry import (
     confirmatory_completeness_within_tolerance,
 )
@@ -940,6 +943,46 @@ def _benign_common_mode_seed_difference(
     return reduction, paths
 
 
+def _benign_common_mode_seed_difference_worker(
+    task: tuple[
+        LoadedScientificConfiguration,
+        Path,
+        DatasetName,
+        SeedValue,
+        tuple[BenignHorizon, ...],
+    ],
+) -> tuple[SeedValue, tuple[MetricRate, tuple[Path, ...]] | None]:
+    loaded, repository, dataset_name, seed, stress_windows = task
+    return seed, _benign_common_mode_seed_difference(
+        loaded, repository, dataset_name, seed, stress_windows
+    )
+
+
+def _count_stress_false_declaration_rates_worker(
+    task: tuple[
+        LoadedScientificConfiguration,
+        Path,
+        DatasetName,
+        SeedValue,
+        RobustnessCountMultiplier,
+    ],
+) -> tuple[
+    RobustnessCountMultiplier,
+    SeedValue,
+    tuple[MetricRate, MetricRate, tuple[Path, ...]] | None,
+]:
+    loaded, repository, dataset_name, seed, factor = task
+    return (
+        factor,
+        seed,
+        _count_stress_false_declaration_rates(loaded, repository, dataset_name, seed, factor),
+    )
+
+
+def _robustness_worker_count(task_count: int) -> int:
+    return max(1, min(task_count, os.cpu_count() or 1))
+
+
 def materialize_benign_common_mode_statistic(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -982,16 +1025,27 @@ def materialize_benign_common_mode_statistic(
     differences: list[MetricRate] = []
     source_paths: list[Path] = []
     covered_seeds: list[SeedValue] = []
-    for seed in expected_confirmatory:
-        outcome = _benign_common_mode_seed_difference(
-            loaded, repository, plan.dataset_name, seed, stress_windows
-        )
-        if outcome is None:
-            continue
-        difference, seed_paths = outcome
-        differences.append(difference)
-        source_paths.extend(seed_paths)
-        covered_seeds.append(seed)
+    tasks = tuple(
+        (loaded, repository, plan.dataset_name, seed, stress_windows)
+        for seed in expected_confirmatory
+    )
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(
+        max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
+    ) as pool:
+        outcomes = pool.map(_benign_common_mode_seed_difference_worker, tasks)
+        for seed, outcome in outcomes:
+            campaigns_logger().info(
+                "robustness_phase experiment=%s phase=common_mode_fcr_seed_completed seed=%s",
+                experiment_name.value,
+                seed,
+            )
+            if outcome is None:
+                continue
+            difference, seed_paths = outcome
+            differences.append(difference)
+            source_paths.extend(seed_paths)
+            covered_seeds.append(seed)
     if not confirmatory_completeness_within_tolerance(
         loaded, expected_confirmatory, tuple(covered_seeds)
     ):
@@ -1226,11 +1280,23 @@ def materialize_benign_common_mode_count_stress_diagnostics(
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     staging = layout.roots.outputs_root / "cache" / "staging"
+    tasks = tuple(
+        (loaded, repository, plan.dataset_name, seed, factor)
+        for factor in loaded.values.robustness.benign_count_multiplication_factors
+        for seed in loaded.values.randomness.real_confirmatory_roots
+    )
     paths: list[Path] = []
-    for factor in loaded.values.robustness.benign_count_multiplication_factors:
-        for seed in loaded.values.randomness.real_confirmatory_roots:
-            outcome = _count_stress_false_declaration_rates(
-                loaded, repository, plan.dataset_name, seed, factor
+    fork_context = multiprocessing.get_context("fork")
+    with ProcessPoolExecutor(
+        max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
+    ) as pool:
+        outcomes = pool.map(_count_stress_false_declaration_rates_worker, tasks)
+        for factor, seed, outcome in outcomes:
+            campaigns_logger().info(
+                "robustness_phase experiment=%s phase=count_stress_seed_completed factor=%s seed=%s",
+                experiment_name.value,
+                factor,
+                seed,
             )
             if outcome is None:
                 continue
