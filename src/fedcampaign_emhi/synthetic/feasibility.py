@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import UserDict
 from dataclasses import dataclass
 from math import sqrt
+from time import perf_counter
 
 import numpy as np
 
@@ -51,7 +52,7 @@ from fedcampaign_emhi.emhi.projection import (
     unregularized_gram_condition_number,
 )
 from fedcampaign_emhi.emhi.structure import (
-    coalition_conditioned_residual_rank,
+    batch_clipped_midrank,
     shifted_legendre_phi_one,
     tensor_representation,
 )
@@ -63,7 +64,7 @@ from fedcampaign_emhi.evaluation.metrics import (
     projection_nrmse,
     standardized_null_bias,
 )
-from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
+from fedcampaign_emhi.runtime import component_logger, derive_component_seed, thirty_two_bit_seed
 
 
 @dataclass(frozen=True)
@@ -183,10 +184,50 @@ def feasibility_conditions(
 def evaluate_estimator_feasibility_seed(
     config: ScientificConfig, seed: SeedValue, execution_role: ExecutionRole
 ) -> tuple[EstimatorFeasibilityEvaluation, ...]:
-    return tuple(
-        EstimatorFeasibilityEvaluation(
-            condition,
-            evaluate_estimator_feasibility_condition(
+    logger = component_logger("synthetic.feasibility")
+    conditions = feasibility_conditions(config, execution_role)
+    reusable_baselines: dict[
+        tuple[CoalitionOrder, EstimatorSupportLevel, BasisSize, CellCount],
+        EstimatorFeasibilityMetrics,
+    ] = {}
+    evaluations: list[EstimatorFeasibilityEvaluation] = []
+    logger.info(
+        "estimator_feasibility_phase seed=%s role=%s phase=condition_schedule condition_count=%d",
+        seed,
+        execution_role.value,
+        len(conditions),
+    )
+    for condition_index, condition in enumerate(conditions, start=1):
+        condition_key = (
+            condition.order,
+            condition.support_per_context,
+            condition.basis_size,
+            condition.cell_count,
+        )
+        started = perf_counter()
+        baseline = reusable_baselines.get(condition_key)
+        reused = (
+            condition.forced_no_abstention
+            and condition.ridge_candidates is None
+            and baseline is not None
+            and not baseline.numerical_failure
+        )
+        logger.info(
+            "estimator_feasibility_phase seed=%s role=%s phase=condition_started condition_index=%d total_conditions=%d condition=%s support=%d basis_size=%d cell_count=%d reused_baseline=%s",
+            seed,
+            execution_role.value,
+            condition_index,
+            len(conditions),
+            condition.identifier,
+            condition.support_per_context,
+            condition.basis_size,
+            condition.cell_count,
+            reused,
+        )
+        metrics = (
+            baseline
+            if reused and baseline is not None
+            else evaluate_estimator_feasibility_condition(
                 config,
                 seed,
                 condition.order,
@@ -195,10 +236,26 @@ def evaluate_estimator_feasibility_seed(
                 condition.cell_count,
                 condition.ridge_candidates,
                 condition.forced_no_abstention,
-            ),
+            )
         )
-        for condition in feasibility_conditions(config, execution_role)
-    )
+        if (
+            not condition.forced_no_abstention
+            and condition.ridge_candidates is None
+            and not metrics.numerical_failure
+        ):
+            reusable_baselines[condition_key] = metrics
+        evaluations.append(EstimatorFeasibilityEvaluation(condition, metrics))
+        logger.info(
+            "estimator_feasibility_phase seed=%s role=%s phase=condition_completed condition_index=%d total_conditions=%d condition=%s elapsed_seconds=%.3f numerical_failure=%s",
+            seed,
+            execution_role.value,
+            condition_index,
+            len(conditions),
+            condition.identifier,
+            perf_counter() - started,
+            metrics.numerical_failure,
+        )
+    return tuple(evaluations)
 
 
 def _numerical_failure_metrics(
@@ -330,22 +387,29 @@ def _residual_ranks(
                     if assignment == cell
                 )
             )
-    return tuple(
-        None
-        if assignment is None
-        else (
-            tuple(
-                coalition_conditioned_residual_rank(
-                    ranks[rank_index],
-                    references[assignment, member_index],
-                    config.context.rank_clip_epsilon,
-                )
-                for member_index, rank_index in enumerate(target_indexes)
-            ),
-            assignment,
+    residuals: list[tuple[tuple[RankValue, ...], BinIndex] | None] = [
+        None for _ in sequence.ranks
+    ]
+    for cell in range(len(centroids)):
+        row_indexes = tuple(
+            index for index, assignment in enumerate(assignments) if assignment == cell
         )
-        for ranks, assignment in zip(sequence.ranks, assignments, strict=True)
-    )
+        if not row_indexes:
+            continue
+        member_residuals = tuple(
+            batch_clipped_midrank(
+                tuple(sequence.ranks[index][rank_index] for index in row_indexes),
+                references[cell, member_index],
+                config.context.rank_clip_epsilon,
+            )
+            for member_index, rank_index in enumerate(target_indexes)
+        )
+        for position, row_index in enumerate(row_indexes):
+            residuals[row_index] = (
+                tuple(values[position] for values in member_residuals),
+                cell,
+            )
+    return tuple(residuals)
 
 
 def evaluate_estimator_feasibility_condition(
@@ -358,6 +422,7 @@ def evaluate_estimator_feasibility_condition(
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
     forced_no_abstention: Boolean = False,
 ) -> EstimatorFeasibilityMetrics:
+    logger = component_logger("synthetic.feasibility")
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
     clients = tuple(f"synthetic-client-{index:02d}" for index in range(client_count))
     nuisance_seed = _component_seed(
@@ -390,6 +455,15 @@ def evaluate_estimator_feasibility_condition(
     nuisance = generate_deterministic_context_support(
         clients, order, cell_count, support_per_context, nuisance_seed
     )
+    logger.info(
+        "estimator_feasibility_phase seed=%s phase=nuisance_generated order=%d support=%d basis_size=%d cell_count=%d row_count=%d",
+        seed,
+        order,
+        support_per_context,
+        basis_size,
+        cell_count,
+        len(nuisance.ranks),
+    )
     histograms = _histogram_rows(config, nuisance)
     centroids = _centroids(config, nuisance, order, cell_count, histograms, context_seed)
     if centroids is None:
@@ -402,6 +476,15 @@ def evaluate_estimator_feasibility_condition(
     tensors = tuple(tensor_representation(item[0], basis_size) for item in usable)
     try:
         condition_number = unregularized_gram_condition_number(design_rows)
+        logger.info(
+            "estimator_feasibility_phase seed=%s phase=nuisance_calibration_started order=%d support=%d basis_size=%d cell_count=%d usable_rows=%d",
+            seed,
+            order,
+            support_per_context,
+            basis_size,
+            cell_count,
+            len(usable),
+        )
         calibration = calibrate_innovations_on_nuisance_fit(
             design_rows,
             tensors,
@@ -411,10 +494,28 @@ def evaluate_estimator_feasibility_condition(
             config.projection.zero_ridge_svd_relative_cutoff,
             config.projection.atom_scale_floor,
         )
+        logger.info(
+            "estimator_feasibility_phase seed=%s phase=nuisance_calibration_completed order=%d support=%d basis_size=%d cell_count=%d calibration_available=%s",
+            seed,
+            order,
+            support_per_context,
+            basis_size,
+            cell_count,
+            calibration is not None,
+        )
     except (ArithmeticError, ValueError):
         return _numerical_failure_metrics()
     if calibration is None or condition_number > config.projection.maximum_gram_condition_number:
         return _numerical_failure_metrics(condition_number)
+    logger.info(
+        "estimator_feasibility_phase seed=%s phase=evaluation_started order=%d support=%d basis_size=%d cell_count=%d evaluation_samples_per_context=%d",
+        seed,
+        order,
+        support_per_context,
+        basis_size,
+        cell_count,
+        config.synthetic.sample_sizes.estimator_evaluation_samples_per_context_seed,
+    )
     evaluation = generate_deterministic_context_support(
         clients,
         order,
@@ -441,6 +542,15 @@ def evaluate_estimator_feasibility_condition(
             config.projection.atom_scale_floor,
         )
         for atom in atoms
+    )
+    logger.info(
+        "estimator_feasibility_phase seed=%s phase=evaluation_atoms_completed order=%d support=%d basis_size=%d cell_count=%d supported_rows=%d",
+        seed,
+        order,
+        support_per_context,
+        basis_size,
+        cell_count,
+        len(supported),
     )
     coordinate_count = len(standardized[0])
     mean_atom = tuple(
