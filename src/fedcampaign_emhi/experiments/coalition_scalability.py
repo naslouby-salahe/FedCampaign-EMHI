@@ -1,8 +1,9 @@
 import hashlib
+import json
 from dataclasses import asdict
 from pathlib import Path
 from time import perf_counter
-from typing import cast
+from typing import Any, cast
 
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
@@ -11,6 +12,7 @@ from fedcampaign_emhi.artifacts.records import (
 )
 from fedcampaign_emhi.artifacts.storage import (
     build_artifact_layout,
+    file_sha256,
     payload_digest,
     write_atomic_json,
 )
@@ -103,6 +105,45 @@ def materialize_coalition_scalability_summaries(
 
         collected: list[ScalabilityMeasurement] = []
         for seed_index, seed in enumerate(seeds, start=1):
+            seed_path = root / "metrics" / "per_seed" / f"k-{client_count}-seed-{seed}.json"
+            cell_path = (
+                root
+                / "provenance"
+                / "dependencies"
+                / f"cell-confirmatory-k-{client_count}-seed-{seed}.json"
+            )
+            if cell_path.is_file() and seed_path.is_file():
+                try:
+                    existing = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
+                    outputs = existing.completion_record.mandatory_output_paths
+                    hashes = existing.completion_record.mandatory_output_hashes
+                    payload = cast(dict[str, Any], json.loads(seed_path.read_bytes()))
+                    reusable = (
+                        existing.state is ExperimentState.COMPLETED
+                        and existing.material_digest == loaded.material_digest
+                        and len(outputs) == len(hashes) == 1
+                        and repository / outputs[0] == seed_path
+                        and file_sha256(seed_path) == hashes[0]
+                        and payload["client_count"] == client_count
+                        and payload["seed"] == seed
+                    )
+                    if reusable:
+                        measurements = tuple(
+                            ScalabilityMeasurement(**measurement)
+                            for measurement in payload["measurements"]
+                        )
+                        collected.extend(measurements)
+                        cell_paths.append(cell_path)
+                        logger.info(
+                            "scalability_phase phase=seed_checkpoint_reused client_count=%d seed=%d seed_index=%d total_seeds=%d",
+                            client_count,
+                            seed,
+                            seed_index,
+                            len(seeds),
+                        )
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    pass
             logger.info(
                 "scalability_phase phase=seed_started client_count=%d seed=%d seed_index=%d total_seeds=%d",
                 client_count,
@@ -127,7 +168,6 @@ def materialize_coalition_scalability_summaries(
                     cast(YamlNode, asdict(measurement)) for measurement in seed_measurements
                 ],
             }
-            seed_path = root / "metrics" / "per_seed" / f"k-{client_count}-seed-{seed}.json"
             seed_hash = write_atomic_json(seed_path, seed_payload, staging)
             fingerprint = material_fingerprint(
                 payload_digest(
@@ -162,12 +202,6 @@ def materialize_coalition_scalability_summaries(
                 peak_rss_bytes=seed_peak_rss,
                 application_payload_bytes=len(seed_path.read_bytes()),
                 completion_record=completion,
-            )
-            cell_path = (
-                root
-                / "provenance"
-                / "dependencies"
-                / f"cell-confirmatory-k-{client_count}-seed-{seed}.json"
             )
             write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
             logger.info(
