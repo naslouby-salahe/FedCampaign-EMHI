@@ -1215,10 +1215,7 @@ def materialize_hofd_equivalence_statistics(
         / "exclusion-matched-hofd-equivalence.json"
     )
     staging = layout.roots.outputs_root / "cache" / "staging"
-    dumped = cast(YamlNode, record.model_dump(mode="json"))
-    if isinstance(dumped, dict):
-        dumped = {**dumped, "conditions": conditions}
-    write_atomic_json(path, dumped, staging)
+    write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
 
