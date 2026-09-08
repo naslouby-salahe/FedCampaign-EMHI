@@ -332,7 +332,7 @@ def _context_row(
     coalition: CoalitionMembers,
     epoch_index: EpochIndexValue,
     context_method: ContextMethodName,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
+    permitted_lag_epochs: frozenset[EpochIndexValue] | None,
     *,
     shuffled_lag_epoch: EpochIndexValue | None = None,
 ) -> ContextTrainingRow | None:
@@ -402,7 +402,7 @@ def _fit_order_context(
     coalition_order: CoalitionOrder,
     context_method: ContextMethodName,
     cell_count: CellCount,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
+    permitted_lag_epochs: frozenset[EpochIndexValue] | None,
 ) -> OrderContextFitRecord:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return OrderContextFitRecord(
@@ -518,7 +518,7 @@ def _context_cell_epoch_assignment(
     centroids: tuple[tuple[HistogramBinMass, ...], ...],
     cell_count: CellCount,
     context_method: ContextMethodName,
-    permitted_lag_epochs: tuple[EpochIndexValue, ...] | None,
+    permitted_lag_epochs: frozenset[EpochIndexValue] | None,
 ) -> tuple[tuple[EpochIndexValue, ...], ...]:
     if context_method is ContextMethodName.NO_OUTSIDE_CONTEXT:
         return (epochs,)
@@ -676,6 +676,7 @@ def _cross_fitted_coalition_statistics(
     for start, end in blocked_fold_bounds(len(nuisance_epochs), fold_count):
         held_epochs = nuisance_epochs[start:end]
         training_epochs = nuisance_epochs[:start] + nuisance_epochs[end:]
+        training_epoch_set = frozenset(training_epochs)
         fold_key = (start, end)
         fold_ranks = fold_rank_cache.get(fold_key)
         if fold_ranks is None:
@@ -697,7 +698,7 @@ def _cross_fitted_coalition_statistics(
                 coalition.order,
                 context_method,
                 cell_count,
-                training_epochs,
+                training_epoch_set,
             )
             order_context_cache[order_context_key] = order_context
         if order_context.state is not FitStatus.FITTED:
@@ -711,7 +712,7 @@ def _cross_fitted_coalition_statistics(
             order_context.centroids,
             centroid_count,
             context_method,
-            training_epochs,
+            training_epoch_set,
         )
         held_lag_lookup = (
             shuffled_outside_context_lag_lookup(
