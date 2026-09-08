@@ -53,7 +53,7 @@ fedcampaign run synthetic-module-validation                   (Duration: ≈ 3�
 fedcampaign run self-explanation-exclusion-validation         (Duration: 2 min 8 s — measured 2026-09-08; 60/60 cells completed, lifecycle validated, report exported)
 fedcampaign run estimator-support-and-context-feasibility     (Duration: 15 min 22 s — measured 2026-09-08; 60/60 cells completed, checkpointed, and ready for lifecycle validation)
 fedcampaign run sequential-evidence-validation                (Duration: deferred after 3 h 47 min plus a 1 min checkpoint/logging validation restart; 0/60 cells published before the controlled stops; completion-order checkpoints now preserve each finished cell)
-fedcampaign run pure-order-separation-validation              (Duration: not yet measured)
+fedcampaign run pure-order-separation-validation              (Duration: deferred after ≈ 10 min; 8/840 cells checkpointed; estimated ≈ 6–10 h total with 10 workers)
 fedcampaign run exclusion-matched-hofd-equivalence            (Duration: not yet measured)
 fedcampaign run strong-comparator-composition-challenge       (Duration: ≈ 4 min 11 s)
 fedcampaign run outside-campaign-contamination-boundary       (Duration: deferred after 5 h 36 min with 0/60 cells published; wave-based lower-bound estimate ≥ 44 h 48 min total — resume later; completion-order checkpoints now preserve each finished cell)
