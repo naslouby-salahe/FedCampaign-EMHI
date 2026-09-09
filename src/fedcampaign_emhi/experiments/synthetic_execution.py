@@ -2,7 +2,7 @@ import multiprocessing
 import os
 from collections import UserDict
 from collections.abc import Iterator, Mapping
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, replace
 from json import loads
 from pathlib import Path
@@ -313,11 +313,14 @@ def _load_reusable_checkpoint(
             or payload["seed"] != seed
             or payload["method_name"] != expected_method
             or payload["material_digest"] != loaded.material_digest
-            or payload["implementation_digest"] != implementation_digest(repository)
         ):
             return None
         execution = _SYNTHETIC_EXECUTION_ADAPTER.validate_python(payload["execution"])
-        return None if execution.technical_failure else execution
+        return (
+            None
+            if execution.technical_failure or execution.state is not ExperimentState.COMPLETED
+            else execution
+        )
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -664,8 +667,26 @@ def execute_synthetic_experiment(
                 pool.submit(execute_synthetic_worker_task, task): dispatch
                 for task, dispatch in zip(tasks, pending_dispatches, strict=True)
             }
-            for future in as_completed(futures):
-                yield futures[future], future.result()
+            remaining = set(futures)
+            started = perf_counter()
+            while remaining:
+                finished, remaining = wait(
+                    remaining,
+                    timeout=60.0,
+                    return_when=FIRST_COMPLETED,
+                )
+                if not finished:
+                    campaigns_logger().info(
+                        "experiment_progress experiment=%s finished_dispatches=%d "
+                        "remaining_dispatches=%d elapsed_seconds=%.3f",
+                        experiment_name.value,
+                        len(futures) - len(remaining),
+                        len(remaining),
+                        perf_counter() - started,
+                    )
+                    continue
+                for future in finished:
+                    yield futures[future], future.result()
 
     for (role, seed, method_name), execution in executions():
         state = execution.state

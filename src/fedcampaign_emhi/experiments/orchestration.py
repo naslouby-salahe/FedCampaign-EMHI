@@ -31,7 +31,6 @@ from fedcampaign_emhi.experiments.execution import (
     campaigns_logger,
     cell_record_paths,
     experiment_contract,
-    implementation_digest,
     publish_experiment_run_record,
     run_record_path,
 )
@@ -118,7 +117,6 @@ def _existing_completed_run(
         return None
     if (
         record.material_digest != loaded.material_digest
-        or record.implementation_digest != implementation_digest(repository)
         or record.state is not ExperimentState.COMPLETED
     ):
         return None

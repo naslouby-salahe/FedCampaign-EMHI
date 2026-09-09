@@ -141,3 +141,45 @@ def test_synthetic_checkpoint_retries_a_technical_failure(
         )
         is None
     )
+
+
+def test_synthetic_checkpoint_retries_a_scientifically_invalid_result(
+    production_configuration: LoadedScientificConfiguration,
+    repo_root: Path,
+    tmp_path: Path,
+) -> None:
+    execution = SyntheticCellExecution(
+        state=ExperimentState.INVALID,
+        outcome=SyntheticCellOutcome(("validation failed",), None),
+        finite_horizon_metrics=None,
+        composition_metrics=None,
+        technical_failure=False,
+        runtime_seconds=1.0,
+        peak_rss_bytes=1,
+    )
+    write_atomic_json(
+        _checkpoint_path(tmp_path, ExecutionRole.DEVELOPMENT, 1, None),
+        _checkpoint_payload(
+            production_configuration,
+            repo_root,
+            ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION,
+            ExecutionRole.DEVELOPMENT,
+            1,
+            None,
+            execution,
+        ),
+        tmp_path / "staging",
+    )
+
+    assert (
+        _load_reusable_checkpoint(
+            production_configuration,
+            repo_root,
+            ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION,
+            ExecutionRole.DEVELOPMENT,
+            1,
+            None,
+            tmp_path,
+        )
+        is None
+    )

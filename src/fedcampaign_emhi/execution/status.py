@@ -67,8 +67,6 @@ def _run_record_state(
         record = ExperimentRunRecord.model_validate_json(path.read_bytes())
     except (ValidationError, ValueError):
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
-    if record.material_digest != loaded.material_digest:
-        return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
     cell_paths = cell_record_paths(layout.experiment_outputs_root(experiment_name))
     if not cell_paths:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
@@ -95,8 +93,6 @@ def _cell_validation_failure(
         cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
     except (ValidationError, ValueError):
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
-    if cell.material_digest != loaded.material_digest:
-        return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
     if cell.state is not ExperimentState.COMPLETED:
         return cell.state, ArtifactLifecycleState.INCOMPLETE
     if len(cell.completion_record.mandatory_output_paths) != len(
