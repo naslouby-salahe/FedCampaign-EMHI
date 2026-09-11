@@ -1,4 +1,5 @@
 from collections import UserDict
+from collections.abc import Callable
 from heapq import heappush, heapreplace
 from math import isfinite
 
@@ -952,6 +953,8 @@ def build_emhi_fit_artifact(
     dependency_fingerprint: MaterialDependencyFingerprint,
     ridge_candidates: tuple[RidgePenalty, ...] | None = None,
     coalition_subset: tuple[CoalitionMembers, ...] | None = None,
+    reusable_coalition_fits: tuple[CoalitionFitRecord, ...] = (),
+    on_coalition_fit: Callable[[CoalitionFitRecord], None] | None = None,
 ) -> EMHIFitArtifactRecord:
     logger = component_logger("emhi.calibration")
     cell_count = _effective_cell_count(context_method, cell_count)
@@ -985,6 +988,9 @@ def build_emhi_fit_artifact(
         if coalition_order <= maximum_order
     )
     coalition_fits: list[CoalitionFitRecord] = []
+    reusable_by_members = {
+        (fit.coalition_order, fit.coalition_client_ids): fit for fit in reusable_coalition_fits
+    }
     fold_rank_cache: FoldRankCache = UserDict[
         tuple[RecordCount, RecordCount], MarginalRankArtifactRecord
     ]()
@@ -993,18 +999,23 @@ def build_emhi_fit_artifact(
     ]()
     progress_interval = max(1, len(coalitions) // 20)
     for coalition_index, coalition in enumerate(coalitions, start=1):
+        existing = reusable_by_members.get((coalition.order, coalition.client_ids))
+        if existing is not None:
+            coalition_fits.append(existing)
+            continue
         order_context = next(
             context for context in order_contexts if context.coalition_order is coalition.order
         )
         if order_context.state is not FitStatus.FITTED:
-            coalition_fits.append(
-                CoalitionFitRecord(
-                    coalition_client_ids=coalition.client_ids,
-                    coalition_order=coalition.order,
-                    cells=(),
-                    state=FitStatus.INSUFFICIENT_DATA,
-                )
+            fitted_coalition = CoalitionFitRecord(
+                coalition_client_ids=coalition.client_ids,
+                coalition_order=coalition.order,
+                cells=(),
+                state=FitStatus.INSUFFICIENT_DATA,
             )
+            coalition_fits.append(fitted_coalition)
+            if on_coalition_fit is not None:
+                on_coalition_fit(fitted_coalition)
             continue
         cell_epoch_lists = _context_cell_epoch_assignment(
             config,
@@ -1055,18 +1066,19 @@ def build_emhi_fit_artifact(
                     statistics,
                 )
             )
-        coalition_fits.append(
-            CoalitionFitRecord(
-                coalition_client_ids=coalition.client_ids,
-                coalition_order=coalition.order,
-                cells=tuple(cells),
-                state=(
-                    FitStatus.FITTED
-                    if any(cell.state is FitStatus.FITTED for cell in cells)
-                    else FitStatus.INSUFFICIENT_DATA
-                ),
-            )
+        fitted_coalition = CoalitionFitRecord(
+            coalition_client_ids=coalition.client_ids,
+            coalition_order=coalition.order,
+            cells=tuple(cells),
+            state=(
+                FitStatus.FITTED
+                if any(cell.state is FitStatus.FITTED for cell in cells)
+                else FitStatus.INSUFFICIENT_DATA
+            ),
         )
+        coalition_fits.append(fitted_coalition)
+        if on_coalition_fit is not None:
+            on_coalition_fit(fitted_coalition)
         if coalition_index % progress_interval == 0 or coalition_index == len(coalitions):
             logger.info(
                 "emhi_fit_phase seed=%s method=%s phase=coalition_progress completed_coalitions=%d total_coalitions=%d coalition_order=%d",

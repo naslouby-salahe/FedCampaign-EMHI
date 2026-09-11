@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import combinations
+from json import loads
 from math import sqrt
 from pathlib import Path
 from time import perf_counter
@@ -10,11 +11,14 @@ from fedcampaign_emhi.artifacts.records import (
     BenignHorizonRecord,
     BenignPartitionRecord,
     ClientDetectorScoreStream,
+    CoalitionFitRecord,
     DatasetSplitRecord,
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
     MarginalRankArtifactRecord,
+    PartialEmhiFitRecord,
 )
+from fedcampaign_emhi.artifacts.storage import write_atomic_json
 from fedcampaign_emhi.comparators.contracts import native_target_order
 from fedcampaign_emhi.comparators.runtime import (
     ComparatorFittedState,
@@ -163,7 +167,7 @@ def _block(
 
 @log_stage("experiments.calibration")
 def evaluate_finite_horizon_common_mode_seed(
-    config: ScientificConfig, seed: SeedValue
+    config: ScientificConfig, seed: SeedValue, fit_checkpoint_root: Path | None = None
 ) -> FiniteHorizonSeedResult:
     logger = component_logger("experiments.calibration")
     client_count = config.experiments.pure_order_separation_validation.primary_client_count
@@ -241,6 +245,60 @@ def evaluate_finite_horizon_common_mode_seed(
     )
     logger.info("finite_horizon_phase seed=%s phase=ranks_built", seed)
     logger.info("finite_horizon_phase seed=%s phase=emhi_fit_started", seed)
+    partial_directory = (
+        None
+        if fit_checkpoint_root is None
+        else fit_checkpoint_root / f"seed-{seed}" / "coalition-fits"
+    )
+    reusable_fits: list[CoalitionFitRecord] = []
+    if partial_directory is not None and partial_directory.is_dir():
+        for path in sorted(partial_directory.glob("*.json")):
+            try:
+                partial = PartialEmhiFitRecord.model_validate(loads(path.read_bytes()))
+            except ValueError:
+                continue
+            if (
+                partial.root_seed == seed
+                and partial.method_name is MethodName.FULL_FEDCAMPAIGN_EMHI
+                and partial.context_method is ContextMethodName.EXACT_COALITION_EXCLUSION
+                and partial.maximum_order == CoalitionOrder(config.study.maximum_coalition_order)
+                and partial.dependency_fingerprint == fingerprint
+            ):
+                reusable_fits.append(partial.coalition_fit)
+    if partial_directory is not None:
+        logger.info(
+            "finite_horizon_phase seed=%s phase=emhi_checkpoint_recovery "
+            "reused_coalitions=%d checkpoint_directory=%s",
+            seed,
+            len(reusable_fits),
+            partial_directory,
+        )
+
+    def checkpoint_fit(coalition_fit: CoalitionFitRecord) -> None:
+        if partial_directory is None:
+            return
+        partial = PartialEmhiFitRecord(
+            root_seed=seed,
+            method_name=MethodName.FULL_FEDCAMPAIGN_EMHI,
+            context_method=ContextMethodName.EXACT_COALITION_EXCLUSION,
+            maximum_order=CoalitionOrder(config.study.maximum_coalition_order),
+            dependency_fingerprint=fingerprint,
+            coalition_fit=coalition_fit,
+        )
+        members = "-".join(coalition_fit.coalition_client_ids)
+        write_atomic_json(
+            partial_directory / f"order-{coalition_fit.coalition_order}-{members}.json",
+            partial.model_dump(mode="json"),
+            partial_directory / ".staging",
+        )
+        logger.info(
+            "finite_horizon_phase seed=%s phase=emhi_coalition_checkpointed "
+            "coalition_order=%d coalition_size=%d",
+            seed,
+            coalition_fit.coalition_order,
+            len(coalition_fit.coalition_client_ids),
+        )
+
     fit = build_emhi_fit_artifact(
         config,
         scores,
@@ -254,6 +312,8 @@ def evaluate_finite_horizon_common_mode_seed(
         True,
         False,
         fingerprint,
+        reusable_coalition_fits=tuple(reusable_fits),
+        on_coalition_fit=checkpoint_fit,
     )
     logger.info(
         "finite_horizon_phase seed=%s phase=emhi_fit_completed coalition_count=%d",
@@ -270,16 +330,12 @@ def evaluate_finite_horizon_common_mode_seed(
         )
         offset += warmup + length
     logger.info("finite_horizon_phase seed=%s phase=operating_point_calibration_started", seed)
-    operating = calibrate_global_operating_point(
-        config,
-        ranks,
-        fit,
-        BenignPartitionRecord(
-            dataset_name=DatasetName.TON_IOT_NETWORK,
-            calibration_horizons=tuple(calibration_horizons),
-            heldout_horizons=tuple(heldout_horizons),
-        ),
+    partitions = BenignPartitionRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        calibration_horizons=tuple(calibration_horizons),
+        heldout_horizons=tuple(heldout_horizons),
     )
+    operating = calibrate_global_operating_point(config, ranks, fit, partitions)
     metrics = FiniteHorizonSeedMetrics(
         calibrated_threshold=operating.threshold,
         calibration_horizon_count=operating.calibration_horizon_count,

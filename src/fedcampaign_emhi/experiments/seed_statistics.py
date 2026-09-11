@@ -1,5 +1,4 @@
 import json
-import multiprocessing
 import os
 from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
@@ -34,6 +33,7 @@ from fedcampaign_emhi.artifacts.records import (
     DetectorScoreArtifactRecord,
     EMHIFitArtifactRecord,
     MarginalRankArtifactRecord,
+    OrderThreeScopeRecord,
     PreparedDatasetRecord,
     SeedSummaryRecord,
     StatisticalRecord,
@@ -59,6 +59,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     MethodName,
     PrimaryHolmHypothesis,
+    SecondaryHolmHypothesis,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -71,6 +72,7 @@ from fedcampaign_emhi.domain.types import (
     FalseAlarmRate,
     FeatureValue,
     MaterialDependencyFingerprint,
+    MaterialOdiContribution,
     MetricRate,
     MetricValue,
     RecordCount,
@@ -79,6 +81,7 @@ from fedcampaign_emhi.domain.types import (
     RobustScaler,
     SeedValue,
     ThresholdValue,
+    WorkerCount,
 )
 from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.metrics import (
@@ -94,7 +97,11 @@ from fedcampaign_emhi.evaluation.sequential import (
     global_stop_epoch,
     horizon_trajectory,
 )
-from fedcampaign_emhi.experiments.execution import campaign_dataset, campaigns_logger
+from fedcampaign_emhi.experiments.execution import (
+    campaign_dataset,
+    campaigns_logger,
+    fork_multiprocessing_context,
+)
 from fedcampaign_emhi.experiments.registry import (
     confirmatory_completeness_within_tolerance,
 )
@@ -666,7 +673,7 @@ def materialize_confirmatory_odi_inferences(
     for family_experiment, hypothesis, comparator_method in SECONDARY_HOLM_STATISTICS:
         if family_experiment is not experiment_name:
             continue
-        _materialize_paired_confirmatory_odi_contrast(
+        contrast = _materialize_paired_confirmatory_odi_contrast(
             loaded,
             repository,
             experiment_name,
@@ -674,6 +681,49 @@ def materialize_confirmatory_odi_inferences(
             comparator_method,
             "paired_strict_odi_rate_advantage",
         )
+        if (
+            experiment_name is ExperimentName.PURIFICATION_AND_ORDER_ABLATION
+            and hypothesis is SecondaryHolmHypothesis.FULL_VERSUS_ORDER_AT_MOST_TWO
+            and contrast is not None
+        ):
+            materialize_order_three_scope_outcome(loaded, repository, experiment_name, contrast)
+
+
+def materialize_order_three_scope_outcome(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    contrast: StatisticalRecord,
+) -> Path:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    threshold: MaterialOdiContribution = (
+        loaded.values.materiality.order_three_real.minimum_material_odi_contribution
+    )
+    contribution: MaterialOdiContribution = contrast.estimate
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "real_order_three_contribution": contribution,
+        "minimum_material_odi_contribution": threshold,
+        "material_scope_supported": contribution >= threshold,
+        "source_result_ids": list(contrast.source_result_ids),
+    }
+    record = OrderThreeScopeRecord(
+        experiment_name=experiment_name,
+        real_order_three_contribution=contribution,
+        minimum_material_odi_contribution=threshold,
+        material_scope_supported=contribution >= threshold,
+        source_result_ids=contrast.source_result_ids,
+        dependency_fingerprint=contrast.dependency_fingerprint,
+        content_digest=payload_digest(payload),
+    )
+    path = root / "statistics" / "effects" / "order-three-scope.json"
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / "cache" / "staging",
+    )
+    return path
 
 
 def _write_null_odi_hypothesis_record(
@@ -979,7 +1029,7 @@ def _count_stress_false_declaration_rates_worker(
     )
 
 
-def _robustness_worker_count(task_count: int) -> int:
+def _robustness_worker_count(task_count: RecordCount) -> WorkerCount:
     return max(1, min(task_count, os.cpu_count() or 1))
 
 
@@ -1029,7 +1079,7 @@ def materialize_benign_common_mode_statistic(
         (loaded, repository, plan.dataset_name, seed, stress_windows)
         for seed in expected_confirmatory
     )
-    fork_context = multiprocessing.get_context("fork")
+    fork_context = fork_multiprocessing_context()
     with ProcessPoolExecutor(
         max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
     ) as pool:
@@ -1286,7 +1336,7 @@ def materialize_benign_common_mode_count_stress_diagnostics(
         for seed in loaded.values.randomness.real_confirmatory_roots
     )
     paths: list[Path] = []
-    fork_context = multiprocessing.get_context("fork")
+    fork_context = fork_multiprocessing_context()
     with ProcessPoolExecutor(
         max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
     ) as pool:
@@ -1479,7 +1529,7 @@ def materialize_benign_common_mode_positive_power_measurement(
         (loaded, repository, plan.dataset_name, seed, stress_windows, floor)
         for seed in loaded.values.randomness.real_confirmatory_roots
     )
-    fork_context = multiprocessing.get_context("fork")
+    fork_context = fork_multiprocessing_context()
     with ProcessPoolExecutor(
         max_workers=_robustness_worker_count(len(tasks)), mp_context=fork_context
     ) as pool:

@@ -233,3 +233,4 @@ docs/.fedcampaign-execution/
 # Local Graphify AST/HTML artifacts
 graphify-out/
 docs/.graphify-audit/
+docs/.fedcampaign-audit/

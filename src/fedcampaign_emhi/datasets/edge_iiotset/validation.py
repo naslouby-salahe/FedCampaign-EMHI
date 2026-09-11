@@ -1,6 +1,3 @@
-import hashlib
-from pathlib import Path
-
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.eligibility import build_eligibility_records
 from fedcampaign_emhi.datasets.partitions import epoch_index
@@ -10,7 +7,6 @@ from fedcampaign_emhi.domain.types import (
     ClientBenignTally,
     ClientCount,
     ClientId,
-    ConfigurationDigest,
     EdgeIiotsetFlowRecord,
     EpochIndexValue,
     EpochSeconds,
@@ -37,14 +33,6 @@ def missing_required_columns(
 
 def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
     return not missing_required_columns(observed_columns)
-
-
-def adapter_material_code_fingerprint() -> ConfigurationDigest:
-    digest = hashlib.sha256()
-    directory = Path(__file__).resolve().parent
-    for name in ("canonicalization.py", "loading.py", "ground_truth.py", "validation.py"):
-        digest.update((directory / name).read_bytes())
-    return digest.hexdigest()
 
 
 def record_is_benign(record: EdgeIiotsetFlowRecord) -> Boolean:

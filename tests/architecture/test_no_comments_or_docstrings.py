@@ -1,4 +1,6 @@
 import ast
+import tokenize
+from io import BytesIO
 from pathlib import Path
 
 from tests.architecture.ast_scans import python_files as discover_python_files
@@ -19,10 +21,9 @@ def comment_or_docstring_violations(path: Path) -> list[str]:
             docstring = ast.get_docstring(node, clean=False)
             if docstring:
                 violations.append(f"{path}:{getattr(node, 'lineno', 1)}:docstring")
-    for index, line in enumerate(source.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            violations.append(f"{path}:{index}:comment")
+    for token in tokenize.tokenize(BytesIO(source.encode("utf-8")).readline):
+        if token.type == tokenize.COMMENT:
+            violations.append(f"{path}:{token.start[0]}:comment")
     return violations
 
 
@@ -37,6 +38,12 @@ def test_no_comments_or_docstrings(repo_root: Path) -> None:
 def test_no_comments_or_docstrings_fails_on_fixture(tmp_path: Path) -> None:
     fixture = tmp_path / "bad.py"
     fixture.write_text('"""module docstring"""\n# comment\nvalue = 1\n', encoding="utf-8")
+    assert comment_or_docstring_violations(fixture)
+
+
+def test_no_comments_or_docstrings_fails_on_trailing_comment_fixture(tmp_path: Path) -> None:
+    fixture = tmp_path / "bad_trailing.py"
+    fixture.write_text("value = 1  # trailing comment\n", encoding="utf-8")
     assert comment_or_docstring_violations(fixture)
 
 

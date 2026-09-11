@@ -49,6 +49,8 @@ from fedcampaign_emhi.domain.types import (
     FeatureDimension,
     FeatureFraction,
     FederatedRoundCount,
+    FigureDimensionInches,
+    FigureDotsPerInch,
     FiniteHorizonCalibrationCount,
     FiniteHorizonHeldoutNullCount,
     FoldCount,
@@ -73,6 +75,7 @@ from fedcampaign_emhi.domain.types import (
     Percentile,
     PositiveEpochCount,
     Probability,
+    ProgressLogIntervalSeconds,
     ProjectionNrmse,
     PureOrderEvaluationSampleCount,
     Quantile,
@@ -689,6 +692,7 @@ class RuntimeConfig(FrozenConfigModel):
     automatic_technical_retries_after_initial_failure: RetryCount
     required_confirmatory_missing_cell_tolerance: MissingCellTolerance
     synthetic_concurrent_experiment_cells: ConcurrentExperimentCellCount
+    progress_log_interval_seconds: ProgressLogIntervalSeconds
 
 
 class SyntheticModuleValidationConfig(FrozenConfigModel):
@@ -718,8 +722,15 @@ class ReportingPrecisionConfig(FrozenConfigModel):
     p_value_lower_display_threshold: Probability
 
 
+class ReportingFigureConfig(FrozenConfigModel):
+    width_inches: FigureDimensionInches
+    height_inches: FigureDimensionInches
+    dots_per_inch: FigureDotsPerInch
+
+
 class ReportingConfig(FrozenConfigModel):
     precision: ReportingPrecisionConfig
+    figures: ReportingFigureConfig
 
 
 class ScientificConfig(FrozenConfigModel):

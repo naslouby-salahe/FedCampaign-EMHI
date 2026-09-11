@@ -19,6 +19,7 @@ from fedcampaign_emhi.domain.types import (
     ArtifactRoots,
     ConfigurationDigest,
     DeterministicUtf8Bytes,
+    FigureBytes,
     MaterialDependencyFingerprint,
     RelativePath,
     SeedValue,
@@ -246,7 +247,7 @@ def write_atomic_json(
 
 
 def write_atomic_bytes(
-    destination: Path, payload: bytes, staging_directory: Path
+    destination: Path, payload: DeterministicUtf8Bytes | FigureBytes, staging_directory: Path
 ) -> ConfigurationDigest:
     staging_directory.mkdir(parents=True, exist_ok=True)
     destination.parent.mkdir(parents=True, exist_ok=True)

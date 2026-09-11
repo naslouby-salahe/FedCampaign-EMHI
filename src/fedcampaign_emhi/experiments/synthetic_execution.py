@@ -1,8 +1,7 @@
-import multiprocessing
 import os
 from collections import UserDict
-from collections.abc import Iterator, Mapping
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from collections.abc import Iterator, Mapping, MutableMapping
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass, replace
 from json import loads
 from pathlib import Path
@@ -67,6 +66,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
+    ConfigurationDigest,
     MemoryBytes,
     MetricValue,
     RecordCount,
@@ -95,7 +95,7 @@ from fedcampaign_emhi.experiments.execution import (
     ExperimentExecutionResult,
     campaigns_logger,
     experiment_contract,
-    implementation_digest,
+    fork_multiprocessing_context,
     publish_experiment_run_record,
 )
 from fedcampaign_emhi.experiments.registry import (
@@ -259,7 +259,20 @@ class SyntheticCellExecution:
 _SYNTHETIC_EXECUTION_ADAPTER = TypeAdapter(SyntheticCellExecution)
 
 
-def _checkpoint_path(
+@dataclass(frozen=True)
+class _SyntheticCheckpointPayload:
+    experiment_name: ExperimentName
+    execution_role: ExecutionRole
+    seed: SeedValue
+    method_name: MethodName | None
+    material_digest: ConfigurationDigest
+    execution: SyntheticCellExecution
+
+
+_CHECKPOINT_PAYLOAD_ADAPTER = TypeAdapter(_SyntheticCheckpointPayload)
+
+
+def checkpoint_path(
     root: Path, role: ExecutionRole, seed: SeedValue, method_name: MethodName | None
 ) -> Path:
     method_slug = (
@@ -270,9 +283,8 @@ def _checkpoint_path(
     )
 
 
-def _checkpoint_payload(
+def checkpoint_payload(
     loaded: LoadedScientificConfiguration,
-    repository: Path,
     experiment_name: ExperimentName,
     role: ExecutionRole,
     seed: SeedValue,
@@ -285,43 +297,40 @@ def _checkpoint_payload(
         "seed": seed,
         "method_name": None if method_name is None else method_name.value,
         "material_digest": loaded.material_digest,
-        "implementation_digest": implementation_digest(repository),
         "execution": cast(
             YamlNode, _SYNTHETIC_EXECUTION_ADAPTER.dump_python(execution, mode="json")
         ),
     }
 
 
-def _load_reusable_checkpoint(
+def load_reusable_checkpoint(
     loaded: LoadedScientificConfiguration,
-    repository: Path,
     experiment_name: ExperimentName,
     role: ExecutionRole,
     seed: SeedValue,
     method_name: MethodName | None,
     root: Path,
 ) -> SyntheticCellExecution | None:
-    path = _checkpoint_path(root, role, seed, method_name)
+    path = checkpoint_path(root, role, seed, method_name)
     if not path.is_file():
         return None
     try:
-        payload = loads(path.read_bytes())
-        expected_method = None if method_name is None else method_name.value
+        checkpoint = _CHECKPOINT_PAYLOAD_ADAPTER.validate_python(loads(path.read_bytes()))
         if (
-            payload["experiment_name"] != experiment_name.value
-            or payload["execution_role"] != role.value
-            or payload["seed"] != seed
-            or payload["method_name"] != expected_method
-            or payload["material_digest"] != loaded.material_digest
+            checkpoint.experiment_name != experiment_name
+            or checkpoint.execution_role != role
+            or checkpoint.seed != seed
+            or checkpoint.method_name != method_name
+            or checkpoint.material_digest != loaded.material_digest
         ):
             return None
-        execution = _SYNTHETIC_EXECUTION_ADAPTER.validate_python(payload["execution"])
+        execution = checkpoint.execution
         return (
             None
             if execution.technical_failure or execution.state is not ExperimentState.COMPLETED
             else execution
         )
-    except (KeyError, TypeError, ValueError):
+    except ValueError:
         return None
 
 
@@ -331,6 +340,7 @@ def execute_synthetic_cell_payload(
     role: ExecutionRole,
     seed: SeedValue,
     method_name: MethodName | None,
+    fit_checkpoint_root: Path | None = None,
 ) -> SyntheticCellExecution:
     started = perf_counter()
     campaigns_logger().info(
@@ -481,7 +491,13 @@ def execute_synthetic_cell_payload(
                 role.value,
                 seed,
             )
-            finite_horizon = evaluate_finite_horizon_common_mode_seed(loaded.values, seed)
+            finite_horizon = evaluate_finite_horizon_common_mode_seed(
+                loaded.values,
+                seed,
+                None
+                if fit_checkpoint_root is None
+                else fit_checkpoint_root / "finite-horizon-emhi",
+            )
             finite_horizon_metrics = finite_horizon.metrics
             campaigns_logger().info(
                 "synthetic_worker_phase experiment=%s role=%s seed=%s phase=finite_horizon_completed",
@@ -560,10 +576,13 @@ def execute_synthetic_worker_task(
         ExecutionRole,
         SeedValue,
         MethodName | None,
+        Path | None,
     ],
 ) -> SyntheticCellExecution:
-    loaded, experiment_name, role, seed, method_name = task
-    return execute_synthetic_cell_payload(loaded, experiment_name, role, seed, method_name)
+    loaded, experiment_name, role, seed, method_name, fit_checkpoint_root = task
+    return execute_synthetic_cell_payload(
+        loaded, experiment_name, role, seed, method_name, fit_checkpoint_root
+    )
 
 
 def _synthetic_dispatch_method(
@@ -611,9 +630,7 @@ def execute_synthetic_experiment(
         checkpoint = (
             None
             if overwrite_policy is OverwritePolicy.OVERWRITE
-            else _load_reusable_checkpoint(
-                loaded, repository, experiment_name, role, seed, method_name, root
-            )
+            else load_reusable_checkpoint(loaded, experiment_name, role, seed, method_name, root)
         )
         if checkpoint is None:
             pending_dispatches.append(dispatch)
@@ -634,6 +651,7 @@ def execute_synthetic_experiment(
             dispatch_role,
             dispatch_seed,
             dispatch_method,
+            root,
         )
         for dispatch_role, dispatch_seed, dispatch_method in pending_dispatches
     )
@@ -661,18 +679,30 @@ def execute_synthetic_experiment(
         yield from reusable
         if not tasks:
             return
-        fork_context = multiprocessing.get_context("fork")
+        fork_context = fork_multiprocessing_context()
         with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
-            futures = {
-                pool.submit(execute_synthetic_worker_task, task): dispatch
-                for task, dispatch in zip(tasks, pending_dispatches, strict=True)
-            }
-            remaining = set(futures)
+            pending = iter(zip(tasks, pending_dispatches, strict=True))
+            futures: MutableMapping[
+                Future[SyntheticCellExecution],
+                tuple[ExecutionRole, SeedValue, MethodName | None],
+            ] = {}
+
+            def submit_one() -> bool:
+                try:
+                    task, dispatch = next(pending)
+                except StopIteration:
+                    return False
+                futures[pool.submit(execute_synthetic_worker_task, task)] = dispatch
+                return True
+
+            for _index in range(min(len(tasks), worker_count * 2)):
+                submit_one()
             started = perf_counter()
-            while remaining:
-                finished, remaining = wait(
-                    remaining,
-                    timeout=60.0,
+            finished_count = 0
+            while futures:
+                finished, _pending = wait(
+                    futures,
+                    timeout=loaded.values.runtime.progress_log_interval_seconds,
                     return_when=FIRST_COMPLETED,
                 )
                 if not finished:
@@ -680,13 +710,16 @@ def execute_synthetic_experiment(
                         "experiment_progress experiment=%s finished_dispatches=%d "
                         "remaining_dispatches=%d elapsed_seconds=%.3f",
                         experiment_name.value,
-                        len(futures) - len(remaining),
-                        len(remaining),
+                        finished_count,
+                        len(tasks) - finished_count,
                         perf_counter() - started,
                     )
                     continue
                 for future in finished:
-                    yield futures[future], future.result()
+                    dispatch = futures.pop(future)
+                    finished_count += 1
+                    submit_one()
+                    yield dispatch, future.result()
 
     for (role, seed, method_name), execution in executions():
         state = execution.state
@@ -716,12 +749,11 @@ def execute_synthetic_experiment(
                 "evidence": execution.outcome.evidence,
             }
             diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
-            checkpoint_path = _checkpoint_path(root, _role, _seed, cell_method)
+            cell_checkpoint_path = checkpoint_path(root, _role, _seed, cell_method)
             checkpoint_hash = write_atomic_json(
-                checkpoint_path,
-                _checkpoint_payload(
+                cell_checkpoint_path,
+                checkpoint_payload(
                     loaded,
-                    repository,
                     experiment_name,
                     _role,
                     _seed,
@@ -820,7 +852,7 @@ def execute_synthetic_experiment(
                 state=state,
                 mandatory_output_paths=(
                     diagnostic_path.relative_to(repository).as_posix(),
-                    checkpoint_path.relative_to(repository).as_posix(),
+                    cell_checkpoint_path.relative_to(repository).as_posix(),
                 ),
                 mandatory_output_hashes=(diagnostic_hash, checkpoint_hash),
             )

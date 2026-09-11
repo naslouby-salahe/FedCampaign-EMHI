@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 from fedcampaign_emhi.artifacts.records import (
     ContextEstimatorSensitivityCellRecord,
     ContextEstimatorSensitivityMetrics,
+    ScalabilityAggregateRecord,
     ScientificCellRecord,
     SeedSummaryRecord,
     StrongComparatorCompositionRecord,
@@ -166,6 +167,42 @@ def seed_odi_csv_bytes(summaries: tuple[SeedSummaryRecord, ...]) -> Deterministi
                 summary.seed,
                 summary.method_value,
                 summary.campaign_count,
+            )
+        )
+    return output.getvalue().encode("utf-8")
+
+
+def scalability_aggregate_csv_bytes(
+    records: tuple[ScalabilityAggregateRecord, ...],
+) -> DeterministicUtf8Bytes:
+    output = StringIO(newline="")
+    writer = _csv_writer(output)
+    writer.writerow(
+        (
+            "client_count",
+            "p95_server_latency_seconds",
+            "p95_end_to_end_latency_seconds",
+            "numerical_failure_rate",
+            "numerical_failure_rate_within_bound",
+            "latency_within_target",
+            "local_timing_operating_point_available",
+            "global_timing_operating_point_available",
+            "state",
+        )
+    )
+    ordered = tuple(sorted(records, key=lambda item: item.client_count))
+    for record in ordered:
+        writer.writerow(
+            (
+                record.client_count,
+                record.p95_server_latency_seconds,
+                record.p95_end_to_end_latency_seconds,
+                record.numerical_failure_rate,
+                record.numerical_failure_rate_within_bound,
+                record.latency_within_target,
+                record.local_timing_operating_point_available,
+                record.global_timing_operating_point_available,
+                record.state.value,
             )
         )
     return output.getvalue().encode("utf-8")
@@ -387,6 +424,7 @@ def materialize_experiment_exports(
     experiment_name: ExperimentName,
     seed_summary_paths: tuple[Path, ...],
     cell_paths: tuple[Path, ...],
+    aggregate_metric_paths: tuple[Path, ...],
     overwrite: Boolean,
 ) -> tuple[Path, ...]:
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
@@ -427,4 +465,14 @@ def materialize_experiment_exports(
         if overwrite or not figure_path.is_file():
             write_png_artifact(figure_path, sensitivity_figure_bytes(records))
         return table_path, figure_path
+    if experiment_name is ExperimentName.COALITION_SCALABILITY:
+        root = _results_root(repository, experiment_name)
+        table_path = root / "tables" / "main" / "scalability-summary.csv"
+        aggregates = tuple(
+            ScalabilityAggregateRecord.model_validate_json(path.read_bytes())
+            for path in aggregate_metric_paths
+        )
+        if overwrite or not table_path.is_file():
+            write_csv_artifact(table_path, scalability_aggregate_csv_bytes(aggregates))
+        return (table_path,)
     return ()

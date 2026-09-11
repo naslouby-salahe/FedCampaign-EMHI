@@ -1,12 +1,8 @@
-import hashlib
-from pathlib import Path
-
 from fedcampaign_emhi.datasets.eligibility import build_eligibility_records
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ClientBenignTally,
     ClientCount,
-    ConfigurationDigest,
     NormalizedEventToken,
     PositiveEpochCount,
     PrimaryClientSelection,
@@ -32,14 +28,6 @@ def missing_required_columns(
 
 def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
     return not missing_required_columns(observed_columns)
-
-
-def adapter_material_code_fingerprint() -> ConfigurationDigest:
-    digest = hashlib.sha256()
-    directory = Path(__file__).resolve().parent
-    for name in ("canonicalization.py", "loading.py", "ground_truth.py", "validation.py"):
-        digest.update((directory / name).read_bytes())
-    return digest.hexdigest()
 
 
 def select_primary_clients_from_tallies(

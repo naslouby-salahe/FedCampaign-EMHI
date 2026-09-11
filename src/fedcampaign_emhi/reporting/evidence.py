@@ -16,8 +16,10 @@ from fedcampaign_emhi.artifacts.provenance import (
 )
 from fedcampaign_emhi.artifacts.records import (
     ExperimentRunRecord,
+    OrderThreeScopeRecord,
     PrimaryHolmFamilyRecord,
     ReportSourceRecord,
+    ScalabilityAggregateRecord,
     ScientificCellRecord,
     StatisticalRecord,
 )
@@ -54,7 +56,9 @@ class VerifiedExperimentEvidence:
     run_record: ExperimentRunRecord
     seed_summary_paths: tuple[Path, ...]
     statistical_record_paths: tuple[Path, ...]
+    materiality_effect_paths: tuple[Path, ...]
     scientific_cell_paths: tuple[Path, ...]
+    aggregate_metric_paths: tuple[Path, ...]
     source_hashes: tuple[ConfigurationDigest, ...]
 
 
@@ -106,6 +110,21 @@ def _validate_statistical_records(
 ) -> None:
     for statistical_path in statistical_paths:
         verified_statistical_record(loaded, repository, statistical_path)
+
+
+def _validate_aggregate_metrics(aggregate_paths: tuple[Path, ...]) -> None:
+    for aggregate_path in aggregate_paths:
+        record = ScalabilityAggregateRecord.model_validate_json(aggregate_path.read_bytes())
+        if record.state is not ExperimentState.COMPLETED:
+            raise ValueError(f"aggregate metric {aggregate_path} is not completed")
+
+
+def validate_materiality_effect_records(repository: Path, effect_paths: tuple[Path, ...]) -> None:
+    for effect_path in effect_paths:
+        record = OrderThreeScopeRecord.model_validate_json(effect_path.read_bytes())
+        source_paths = tuple(repository / source_id for source_id in record.source_result_ids)
+        if not source_paths or any(not source_path.is_file() for source_path in source_paths):
+            raise ValueError(f"materiality effect record {effect_path} has missing source results")
 
 
 def required_primary_holm_statistics(
@@ -242,7 +261,12 @@ def select_verified_evidence(
     record_path = run_record_path(loaded, repository, experiment_name)
     if not record_path.is_file():
         raise FileNotFoundError(f"missing run record for {experiment_name.value}")
-    run_record = ExperimentRunRecord.model_validate_json(record_path.read_bytes())
+    try:
+        run_record = ExperimentRunRecord.model_validate_json(record_path.read_bytes())
+    except ValueError as error:
+        raise ValueError(
+            f"experiment {experiment_name.value} is stale for the active configuration"
+        ) from error
     if run_record.state is not ExperimentState.COMPLETED:
         raise ValueError(f"experiment {experiment_name.value} is not completed")
     if run_record.material_digest != loaded.material_digest:
@@ -257,10 +281,14 @@ def select_verified_evidence(
             }
         )
     )
-    statistical_paths = _json_files(root / "statistics")
+    statistical_paths = _json_files(root / "statistics" / "tests")
     _validate_statistical_records(loaded, repository, statistical_paths)
+    effect_paths = _json_files(root / "statistics" / "effects")
+    validate_materiality_effect_records(repository, effect_paths)
+    aggregate_paths = _json_files(root / "metrics" / "aggregate")
+    _validate_aggregate_metrics(aggregate_paths)
     cell_paths = cell_record_paths(root)
-    required = seed_paths + statistical_paths + cell_paths
+    required = seed_paths + statistical_paths + effect_paths + aggregate_paths + cell_paths
     if not cell_paths:
         raise ValueError(f"experiment {experiment_name.value} lacks scientific cell records")
     for cell_path in cell_paths:
@@ -269,7 +297,9 @@ def select_verified_evidence(
         run_record=run_record,
         seed_summary_paths=seed_paths,
         statistical_record_paths=statistical_paths,
+        materiality_effect_paths=effect_paths,
         scientific_cell_paths=cell_paths,
+        aggregate_metric_paths=aggregate_paths,
         source_hashes=tuple(file_sha256(path) for path in required),
     )
 
@@ -349,6 +379,7 @@ def materialize_verified_experiment_report(
         experiment_name,
         evidence.seed_summary_paths,
         evidence.scientific_cell_paths,
+        evidence.aggregate_metric_paths,
         overwrite_policy is OverwritePolicy.OVERWRITE,
     )
     output_paths.extend(experiment_export_paths)

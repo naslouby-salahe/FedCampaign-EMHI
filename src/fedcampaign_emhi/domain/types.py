@@ -77,6 +77,8 @@ BinIndex = NonNegativeInt
 ScientificChoiceCount = NonNegativeInt
 DeterministicUtf8Bytes = Annotated[bytes, Field()]
 FigureBytes = Annotated[bytes, Field()]
+FigureDimensionInches = PositiveFloat
+FigureDotsPerInch = PositiveInt
 Boolean = Annotated[bool, Field()]
 ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
@@ -91,6 +93,7 @@ EvidenceFactor = NonNegativeFloat
 ThresholdValue = PositiveFloat
 LatencySeconds = NonNegativeFloat
 RuntimeSeconds = NonNegativeFloat
+ProgressLogIntervalSeconds = PositiveFloat
 CompensatorValue = NonNegativeFloat
 GlobalEvidenceState = NonNegativeFloat
 ESrThreshold = PositiveFloat
@@ -202,7 +205,6 @@ ConfigurationDigest = Annotated[
     StringConstraints(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
 ]
 MaterialDependencyFingerprint = ConfigurationDigest
-SourceRevisionIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]

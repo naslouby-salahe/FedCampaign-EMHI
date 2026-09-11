@@ -1,7 +1,8 @@
-import hashlib
 import logging
+import multiprocessing
 from collections.abc import Mapping
 from dataclasses import dataclass
+from multiprocessing.context import ForkContext
 from pathlib import Path
 from typing import cast
 
@@ -30,7 +31,6 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ComponentName,
-    ConfigurationDigest,
     RecordCount,
     YamlKeyPath,
 )
@@ -44,6 +44,10 @@ from fedcampaign_emhi.runtime import component_logger
 
 def campaigns_logger() -> logging.Logger:
     return component_logger("experiments")
+
+
+def fork_multiprocessing_context() -> ForkContext:
+    return multiprocessing.get_context("fork")
 
 
 def campaign_dataset(
@@ -132,15 +136,6 @@ def cell_record_paths(experiment_root: Path) -> tuple[Path, ...]:
     )
 
 
-def implementation_digest(repository: Path) -> ConfigurationDigest:
-    source_root = repository / "src" / "fedcampaign_emhi"
-    digest = hashlib.sha256()
-    for source_path in sorted(source_root.rglob("*.py")):
-        digest.update(source_path.relative_to(source_root).as_posix().encode("utf-8"))
-        digest.update(source_path.read_bytes())
-    return digest.hexdigest()
-
-
 def publish_experiment_run_record(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -156,7 +151,6 @@ def publish_experiment_run_record(
     record = ExperimentRunRecord(
         experiment_name=experiment_name,
         material_digest=loaded.material_digest,
-        implementation_digest=implementation_digest(repository),
         overwrite_policy=overwrite_policy,
         resume_sequence=RESUME_SEQUENCE,
         state=state,

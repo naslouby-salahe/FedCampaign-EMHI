@@ -1,4 +1,5 @@
 from math import isfinite
+from pathlib import Path
 from typing import cast
 
 import numpy as np
@@ -11,9 +12,9 @@ from fedcampaign_emhi.emhi.sequential import next_global_state
 from fedcampaign_emhi.experiments.calibration import evaluate_finite_horizon_common_mode_seed
 from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
 from fedcampaign_emhi.synthetic.sequential import (
-    _trajectory_restricted_stop,  # pyright: ignore[reportPrivateUsage]
     evaluate_signed_theorem_seed,
     signed_theorem_coordinate,
+    trajectory_restricted_stop,
 )
 
 
@@ -29,7 +30,7 @@ def test_restricted_trajectory_specialization_preserves_rng_and_stop_semantics()
     optimized_generator = np.random.default_rng(29)
     reference_generator = np.random.default_rng(29)
 
-    optimized = _trajectory_restricted_stop(
+    optimized = trajectory_restricted_stop(
         optimized_generator, maximum_epochs, clip_bound, bet_lambda, threshold
     )
     state = 0.0
@@ -110,7 +111,9 @@ def test_sequential_experiment_materializes_signed_theorem_seed_evidence() -> No
     assert outcome.evidence is not None
 
 
-def test_finite_horizon_route_uses_the_fitted_operational_path_on_small_configuration() -> None:
+def test_finite_horizon_route_uses_the_fitted_operational_path_on_small_configuration(
+    tmp_path: Path,
+) -> None:
     loaded = load_production_configuration()
     sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
         update={
@@ -144,8 +147,12 @@ def test_finite_horizon_route_uses_the_fitted_operational_path_on_small_configur
         }
     )
 
-    result = evaluate_finite_horizon_common_mode_seed(config, 11)
+    checkpoint_root = tmp_path / "fit-checkpoints"
+    result = evaluate_finite_horizon_common_mode_seed(config, 11, checkpoint_root)
+    resumed = evaluate_finite_horizon_common_mode_seed(config, 11, checkpoint_root)
 
     assert result.assumptions_hold
+    assert resumed == result
     assert result.metrics.calibration_horizon_count == 1
     assert result.metrics.heldout_horizon_count == 1
+    assert len(tuple(checkpoint_root.glob("seed-11/coalition-fits/*.json"))) == 14

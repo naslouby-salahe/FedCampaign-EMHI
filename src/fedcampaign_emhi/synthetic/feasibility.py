@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import UserDict
+from collections.abc import MutableMapping
 from dataclasses import dataclass
 from math import sqrt
 from time import perf_counter
@@ -186,7 +187,7 @@ def evaluate_estimator_feasibility_seed(
 ) -> tuple[EstimatorFeasibilityEvaluation, ...]:
     logger = component_logger("synthetic.feasibility")
     conditions = feasibility_conditions(config, execution_role)
-    reusable_baselines: dict[
+    reusable_baselines: MutableMapping[
         tuple[CoalitionOrder, EstimatorSupportLevel, BasisSize, CellCount],
         EstimatorFeasibilityMetrics,
     ] = {}
@@ -387,9 +388,7 @@ def _residual_ranks(
                     if assignment == cell
                 )
             )
-    residuals: list[tuple[tuple[RankValue, ...], BinIndex] | None] = [
-        None for _ in sequence.ranks
-    ]
+    residuals: list[tuple[tuple[RankValue, ...], BinIndex] | None] = [None for _ in sequence.ranks]
     for cell in range(len(centroids)):
         row_indexes = tuple(
             index for index, assignment in enumerate(assignments) if assignment == cell

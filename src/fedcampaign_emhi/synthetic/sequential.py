@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import exp, isclose, isfinite, sqrt
+from math import isclose, isfinite
 
 import numpy as np
 
@@ -18,7 +18,11 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     SignedTheoremCoordinate,
 )
-from fedcampaign_emhi.emhi.evidence import signed_theorem_compensator
+from fedcampaign_emhi.emhi.evidence import (
+    signed_evidence_factor,
+    signed_statistic,
+    signed_theorem_compensator,
+)
 from fedcampaign_emhi.emhi.sequential import next_global_state
 from fedcampaign_emhi.emhi.structure import shifted_legendre_phi_one
 from fedcampaign_emhi.emhi.thresholds import esr_threshold_from_arl_alpha
@@ -50,34 +54,24 @@ def signed_theorem_coordinate(
     return coordinate
 
 
-def _trajectory_restricted_stop(
+def trajectory_restricted_stop(
     generator: np.random.Generator,
     maximum_epochs: PositiveEpochCount,
     clip_bound: EvidenceClipBound,
     bet_lambda: BettingLambda,
     threshold: ESrThreshold,
 ) -> tuple[RecordCount, Boolean, Boolean]:
-    """Simulate one trajectory without changing the generator draw or stop semantics.
-
-    This is deliberately scalar: drawing a batch would consume values beyond an
-    early stop and change the stream assigned to subsequent trajectories.
-    """
     state = 0.0
     assumptions_hold = True
-    sqrt_three = sqrt(3.0)
-    compensator = (bet_lambda**2) * ((2.0 * clip_bound) ** 2) / 8.0
     for epoch in range(maximum_epochs):
-        first = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
-        second = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
-        third = sqrt_three * ((2.0 * float(generator.random())) - 1.0)
-        coordinate = first * second * third
-        if coordinate > clip_bound:
-            clipped = clip_bound
-        elif coordinate < -clip_bound:
-            clipped = -clip_bound
-        else:
-            clipped = coordinate
-        factor: EvidenceFactor = exp(bet_lambda * clipped - compensator)
+        ranks = (
+            float(generator.random()),
+            float(generator.random()),
+            float(generator.random()),
+        )
+        coordinate = signed_theorem_coordinate(ranks)
+        clipped = signed_statistic((coordinate,), (1.0,), clip_bound)
+        factor: EvidenceFactor = signed_evidence_factor(clipped, clip_bound, bet_lambda)
         if assumptions_hold:
             assumptions_hold = (
                 isfinite(coordinate)
@@ -104,7 +98,7 @@ def evaluate_signed_theorem_seed(
     assumptions_hold = isclose(experiment.null_theta, 0.0, rel_tol=0.0, abs_tol=0.0)
     compensator = signed_theorem_compensator(evidence.clip_bound, evidence.bet_lambda)
     for _trajectory in range(experiment.trajectories_per_seed):
-        stop, did_stop, trajectory_assumptions_hold = _trajectory_restricted_stop(
+        stop, did_stop, trajectory_assumptions_hold = trajectory_restricted_stop(
             generator,
             experiment.maximum_trajectory_epochs,
             evidence.clip_bound,

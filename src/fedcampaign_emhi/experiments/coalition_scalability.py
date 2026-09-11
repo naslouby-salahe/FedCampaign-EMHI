@@ -1,13 +1,14 @@
 import hashlib
-import json
 from dataclasses import asdict
 from pathlib import Path
 from time import perf_counter
-from typing import Any, cast
+from typing import cast
 
 from fedcampaign_emhi.artifacts.provenance import material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     CompletionRecord,
+    ScalabilityAggregateRecord,
+    ScalabilitySeedCacheRecord,
     ScientificCellRecord,
 )
 from fedcampaign_emhi.artifacts.storage import (
@@ -117,20 +118,22 @@ def materialize_coalition_scalability_summaries(
                     existing = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
                     outputs = existing.completion_record.mandatory_output_paths
                     hashes = existing.completion_record.mandatory_output_hashes
-                    payload = cast(dict[str, Any], json.loads(seed_path.read_bytes()))
+                    seed_cache = ScalabilitySeedCacheRecord.model_validate_json(
+                        seed_path.read_bytes()
+                    )
                     reusable = (
                         existing.state is ExperimentState.COMPLETED
                         and existing.material_digest == loaded.material_digest
                         and len(outputs) == len(hashes) == 1
                         and repository / outputs[0] == seed_path
                         and file_sha256(seed_path) == hashes[0]
-                        and payload["client_count"] == client_count
-                        and payload["seed"] == seed
+                        and seed_cache.client_count == client_count
+                        and seed_cache.seed == seed
                     )
                     if reusable:
                         measurements = tuple(
-                            ScalabilityMeasurement(**measurement)
-                            for measurement in payload["measurements"]
+                            ScalabilityMeasurement(**measurement.model_dump())
+                            for measurement in seed_cache.measurements
                         )
                         collected.extend(measurements)
                         cell_paths.append(cell_path)
@@ -142,7 +145,7 @@ def materialize_coalition_scalability_summaries(
                             len(seeds),
                         )
                         continue
-                except (KeyError, TypeError, ValueError):
+                except ValueError:
                     pass
             logger.info(
                 "scalability_phase phase=seed_started client_count=%d seed=%d seed_index=%d total_seeds=%d",
@@ -225,32 +228,30 @@ def materialize_coalition_scalability_summaries(
         scored_rate = None
         if summary.median_server_latency_seconds > 0.0:
             scored_rate = throughput(coalitions, summary.median_server_latency_seconds)
-        payload: YamlNode = {
-            "client_count": client_count,
-            "timing_seed_role": ExecutionRole.CONFIRMATORY.value,
-            "timing_seed_count": len(seeds),
-            "timing_environment_digest": environment_digest,
-            "expected_coalitions": coalitions,
-            "application_payload_bytes_per_epoch": payload_bytes,
-            "median_server_latency_seconds": summary.median_server_latency_seconds,
-            "p95_server_latency_seconds": summary.p95_server_latency_seconds,
-            "median_end_to_end_latency_seconds": summary.median_end_to_end_latency_seconds,
-            "p95_end_to_end_latency_seconds": summary.p95_end_to_end_latency_seconds,
-            "numerical_failure_rate": summary.numerical_failure_rate,
-            "throughput": scored_rate,
-            "local_timing_operating_point_available": (
-                summary.local_timing_operating_point_available
-            ),
-            "global_timing_operating_point_available": (
+        aggregate = ScalabilityAggregateRecord(
+            client_count=client_count,
+            timing_seed_role=ExecutionRole.CONFIRMATORY,
+            timing_seed_count=len(seeds),
+            timing_environment_digest=environment_digest,
+            expected_coalitions=coalitions,
+            application_payload_bytes_per_epoch=payload_bytes,
+            median_server_latency_seconds=summary.median_server_latency_seconds,
+            p95_server_latency_seconds=summary.p95_server_latency_seconds,
+            median_end_to_end_latency_seconds=summary.median_end_to_end_latency_seconds,
+            p95_end_to_end_latency_seconds=summary.p95_end_to_end_latency_seconds,
+            numerical_failure_rate=summary.numerical_failure_rate,
+            throughput=scored_rate,
+            local_timing_operating_point_available=(summary.local_timing_operating_point_available),
+            global_timing_operating_point_available=(
                 summary.global_timing_operating_point_available
             ),
-            "latency_within_target": summary.latency_within_target,
-            "numerical_failure_rate_within_bound": summary.numerical_failure_rate_within_bound,
-            "artifact_fit_seconds": summary.artifact_fit_seconds,
-            "state": summary.state.value,
-        }
+            latency_within_target=summary.latency_within_target,
+            numerical_failure_rate_within_bound=summary.numerical_failure_rate_within_bound,
+            artifact_fit_seconds=summary.artifact_fit_seconds,
+            state=summary.state,
+        )
         path = root / "metrics" / "aggregate" / f"k-{client_count}.json"
-        write_atomic_json(path, payload, staging)
+        write_atomic_json(path, cast(YamlNode, aggregate.model_dump(mode="json")), staging)
         logger.info(
             "scalability_phase phase=client_count_completed client_count=%d seed_count=%d",
             client_count,

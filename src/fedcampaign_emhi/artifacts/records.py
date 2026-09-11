@@ -35,7 +35,9 @@ from fedcampaign_emhi.domain.types import (
     InnovationCoordinate,
     InnovationDeviation,
     InnovationMean,
+    LatencySeconds,
     MaterialDependencyFingerprint,
+    MaterialOdiContribution,
     MetricValue,
     NuisanceCoefficient,
     NumericalFloor,
@@ -55,6 +57,7 @@ from fedcampaign_emhi.domain.types import (
     StandardizedError,
     StandardizedNullBias,
     StatisticValue,
+    ThroughputPerSecond,
 )
 
 
@@ -117,9 +120,53 @@ class DropoutBoundaryDiagnosticRecord(FrozenConfigModel):
 class ExperimentRunRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     material_digest: ConfigurationDigest
-    implementation_digest: ConfigurationDigest
     overwrite_policy: OverwritePolicy
     resume_sequence: tuple[ResumeStep, ...]
+    state: ExperimentState
+
+
+class ScalabilityMeasurementRecord(FrozenConfigModel):
+    client_count: ClientCount
+    seed: SeedValue
+    repetition: RecordCount
+    server_latency_seconds: LatencySeconds
+    end_to_end_latency_seconds: LatencySeconds
+    peak_rss_bytes: ByteCount
+    application_payload_bytes: ByteCount
+    numerical_failure_count: RecordCount
+    attempted_cell_count: RecordCount
+    local_timing_operating_point_available: Boolean
+    global_timing_operating_point_available: Boolean
+    artifact_fit_seconds: LatencySeconds
+
+
+class ScalabilitySeedCacheRecord(FrozenConfigModel):
+    client_count: ClientCount
+    seed: SeedValue
+    execution_role: ExecutionRole
+    timing_environment_digest: ConfigurationDigest
+    repetition_count: RecordCount
+    measurements: tuple[ScalabilityMeasurementRecord, ...]
+
+
+class ScalabilityAggregateRecord(FrozenConfigModel):
+    client_count: ClientCount
+    timing_seed_role: ExecutionRole
+    timing_seed_count: RecordCount
+    timing_environment_digest: ConfigurationDigest
+    expected_coalitions: RecordCount
+    application_payload_bytes_per_epoch: RecordCount
+    median_server_latency_seconds: LatencySeconds
+    p95_server_latency_seconds: LatencySeconds
+    median_end_to_end_latency_seconds: LatencySeconds
+    p95_end_to_end_latency_seconds: LatencySeconds
+    numerical_failure_rate: Probability
+    throughput: ThroughputPerSecond | None
+    local_timing_operating_point_available: Boolean
+    global_timing_operating_point_available: Boolean
+    latency_within_target: Boolean
+    numerical_failure_rate_within_bound: Boolean
+    artifact_fit_seconds: LatencySeconds
     state: ExperimentState
 
 
@@ -262,6 +309,15 @@ class CoalitionFitRecord(FrozenConfigModel):
     state: FitStatus
 
 
+class PartialEmhiFitRecord(FrozenConfigModel):
+    root_seed: SeedValue
+    method_name: MethodName
+    context_method: ContextMethodName
+    maximum_order: CoalitionOrder
+    dependency_fingerprint: MaterialDependencyFingerprint
+    coalition_fit: CoalitionFitRecord
+
+
 class EMHIFitArtifactRecord(FrozenConfigModel):
     dataset_name: DatasetName
     root_seed: SeedValue
@@ -320,6 +376,16 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
     meets_threshold: Boolean
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class OrderThreeScopeRecord(FrozenConfigModel):
+    experiment_name: ExperimentName
+    real_order_three_contribution: MaterialOdiContribution
+    minimum_material_odi_contribution: MaterialOdiContribution
+    material_scope_supported: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest

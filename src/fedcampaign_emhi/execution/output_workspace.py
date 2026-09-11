@@ -12,7 +12,7 @@ from fedcampaign_emhi.artifacts.storage import (
     write_atomic_bytes,
     write_atomic_json,
 )
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
+from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ReportingFigureConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import ExperimentName
 from fedcampaign_emhi.domain.types import ConfigurationDigest, DeterministicUtf8Bytes, FigureBytes
@@ -22,7 +22,9 @@ from fedcampaign_emhi.experiments.execution import cell_record_paths
 def _table_bytes(cells: tuple[ScientificCellRecord, ...]) -> DeterministicUtf8Bytes:
     output = StringIO(newline="")
     rows = writer(output, lineterminator="\n")
-    rows.writerow(("role", "seed", "method", "state", "runtime_seconds", "peak_rss_bytes", "diagnostic"))
+    rows.writerow(
+        ("role", "seed", "method", "state", "runtime_seconds", "peak_rss_bytes", "diagnostic")
+    )
     for cell in cells:
         diagnostic = cell.completion_record.mandatory_output_paths[0]
         rows.writerow(
@@ -39,15 +41,16 @@ def _table_bytes(cells: tuple[ScientificCellRecord, ...]) -> DeterministicUtf8By
     return output.getvalue().encode("utf-8")
 
 
-def _runtime_figure(cells: tuple[ScientificCellRecord, ...]) -> FigureBytes:
-    figure = Figure(figsize=(9, 4.5))
+def _runtime_figure(
+    cells: tuple[ScientificCellRecord, ...], figure_config: ReportingFigureConfig
+) -> FigureBytes:
+    figure = Figure(figsize=(figure_config.width_inches, figure_config.height_inches))
     FigureCanvasAgg(figure)
     axes = figure.add_subplot(1, 1, 1)
     positions = list(range(len(cells)))
     runtimes = [cell.runtime_seconds for cell in cells]
     labels = [
-        f"{cell.execution_role.value[0]}:{'' if cell.seed is None else cell.seed}"
-        for cell in cells
+        f"{cell.execution_role.value[0]}:{'' if cell.seed is None else cell.seed}" for cell in cells
     ]
     axes.plot(positions, runtimes, "o", color="black", markersize=3)
     axes.set_xlabel("execution cell")
@@ -57,7 +60,7 @@ def _runtime_figure(cells: tuple[ScientificCellRecord, ...]) -> FigureBytes:
     axes.set_title("Fresh run cell execution evidence")
     figure.tight_layout()
     output = BytesIO()
-    figure.savefig(output, format="png", dpi=180)
+    figure.savefig(output, format="png", dpi=figure_config.dots_per_inch)
     return output.getvalue()
 
 
@@ -76,7 +79,9 @@ def materialize_run_output_workspace(
     table_path = root / "tables" / "main" / "cell-evidence.csv"
     figure_path = root / "figures" / "main" / "cell-runtime.png"
     table_hash = write_atomic_bytes(table_path, _table_bytes(cells), staging)
-    figure_hash = write_atomic_bytes(figure_path, _runtime_figure(cells), staging)
+    figure_hash = write_atomic_bytes(
+        figure_path, _runtime_figure(cells, loaded.values.reporting.figures), staging
+    )
     sources: tuple[ConfigurationDigest, ...] = tuple(file_sha256(path) for path in paths)
     index_path = root / "provenance" / "artifacts" / "run-output-index.json"
     payload: YamlNode = {

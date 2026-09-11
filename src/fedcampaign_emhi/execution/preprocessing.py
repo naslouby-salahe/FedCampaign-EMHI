@@ -1,5 +1,4 @@
 import hashlib
-import inspect
 import logging
 from collections.abc import MutableMapping
 from dataclasses import dataclass
@@ -42,9 +41,6 @@ from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
 )
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
-from fedcampaign_emhi.datasets.edge_iiotset.validation import (
-    adapter_material_code_fingerprint as edge_adapter_material_code_fingerprint,
-)
 from fedcampaign_emhi.datasets.edge_iiotset.validation import select_secondary_clients
 from fedcampaign_emhi.datasets.inventory import (
     configured_raw_directory,
@@ -70,9 +66,6 @@ from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
 )
 from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_network_ground_truth
 from fedcampaign_emhi.datasets.ton_iot_network.loading import validate_ton_iot_network_csv_schema
-from fedcampaign_emhi.datasets.ton_iot_network.validation import (
-    adapter_material_code_fingerprint as ton_adapter_material_code_fingerprint,
-)
 from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_clients_from_tallies
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
@@ -358,23 +351,13 @@ def _expected_fingerprints(
             },
         )
     )
-    adapter_digest = (
-        ton_adapter_material_code_fingerprint()
-        if dataset_name is DatasetName.TON_IOT_NETWORK
-        else edge_adapter_material_code_fingerprint()
-    )
     prepared_fingerprint = material_fingerprint(
         prepared_configuration,
-        (
-            inventory_fingerprint,
-            adapter_digest,
-            _layer_code_digest(PreprocessingLayer.PREPARED),
-            _layer_code_digest(PreprocessingLayer.SPLITS),
-        ),
+        (inventory_fingerprint,),
     )
     split_fingerprint = material_fingerprint(
         prepared_configuration,
-        (prepared_fingerprint, _layer_code_digest(PreprocessingLayer.SPLITS)),
+        (prepared_fingerprint,),
     )
     partition_configuration = payload_digest(
         cast(
@@ -384,7 +367,7 @@ def _expected_fingerprints(
     )
     partition_fingerprint = material_fingerprint(
         partition_configuration,
-        (split_fingerprint, _layer_code_digest(PreprocessingLayer.PARTITIONS)),
+        (split_fingerprint,),
     )
     campaign_configuration = payload_digest(
         cast(
@@ -397,12 +380,7 @@ def _expected_fingerprints(
     )
     campaign_fingerprint = material_fingerprint(
         campaign_configuration,
-        (
-            prepared_fingerprint,
-            split_fingerprint,
-            partition_fingerprint,
-            _layer_code_digest(PreprocessingLayer.CAMPAIGN_REGISTRY),
-        ),
+        (prepared_fingerprint, split_fingerprint, partition_fingerprint),
     )
     return (
         inventory_fingerprint,
@@ -419,31 +397,6 @@ def _dataset_configuration_payload(
     if dataset_name is DatasetName.TON_IOT_NETWORK:
         return cast(YamlNode, loaded.values.datasets.primary.model_dump(mode="json"))
     return cast(YamlNode, loaded.values.datasets.secondary.model_dump(mode="json"))
-
-
-def _layer_code_digest(layer: PreprocessingLayer) -> ConfigurationDigest:
-    if layer is PreprocessingLayer.INVENTORY:
-        sources = (inspect.getsource(inventory_raw_directory), inspect.getsource(_inventory_record))
-    elif layer is PreprocessingLayer.PREPARED:
-        sources = (
-            inspect.getsource(_deduplicate_edge_records),
-            inspect.getsource(_prepare_ton_epochs_from_csv),
-            inspect.getsource(_duckdb_count),
-            inspect.getsource(_prepare_edge_epochs),
-            inspect.getsource(_dense_prepared_epochs),
-            inspect.getsource(_scale_prepared),
-            inspect.getsource(_prepared_epoch),
-        )
-    elif layer is PreprocessingLayer.SPLITS:
-        sources = (inspect.getsource(_split_from_prepared),)
-    elif layer is PreprocessingLayer.PARTITIONS:
-        sources = (inspect.getsource(_partitions_from_split),)
-    else:
-        sources = (inspect.getsource(_campaigns_from_prepared),)
-    digest = hashlib.sha256()
-    for source in sources:
-        digest.update(source.encode("utf-8"))
-    return digest.hexdigest()
 
 
 def _layer_is_reusable(

@@ -411,6 +411,7 @@ runtime:
   automatic_technical_retries_after_initial_failure: 2
   required_confirmatory_missing_cell_tolerance: 0
   synthetic_concurrent_experiment_cells: 10
+  progress_log_interval_seconds: 60.0
 
 synthetic_module_validation:
   exact_identity_tolerance: 1.0e-14
@@ -430,3 +431,7 @@ reporting:
     milliseconds_and_seconds_decimals: 2
     adjusted_p_values_decimals: 4
     p_value_lower_display_threshold: 0.0001
+  figures:
+    width_inches: 9.0
+    height_inches: 4.5
+    dots_per_inch: 180

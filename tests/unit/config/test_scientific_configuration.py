@@ -408,7 +408,8 @@ def test_locked_comparator_experiment_statistics_and_runtime(
     assert values.scalability_timing.result_quantile == 0.95
     assert values.runtime.automatic_technical_retries_after_initial_failure == 2
     assert values.runtime.required_confirmatory_missing_cell_tolerance == 0
-    assert values.runtime.synthetic_concurrent_experiment_cells == 6
+    assert values.runtime.synthetic_concurrent_experiment_cells == 10
+    assert values.runtime.progress_log_interval_seconds == 60.0
     assert values.artifacts.outputs_root == "outputs"
     assert values.artifacts.results_root == "results"
 
@@ -423,6 +424,10 @@ def test_locked_reporting_precision(
     assert precision.milliseconds_and_seconds_decimals == 2
     assert precision.adjusted_p_values_decimals == 4
     assert precision.p_value_lower_display_threshold == 0.0001
+    figures = production_configuration.values.reporting.figures
+    assert figures.width_inches == 9.0
+    assert figures.height_inches == 4.5
+    assert figures.dots_per_inch == 180
 
 
 def test_schema_round_trip_matches_production_yaml(repo_root: Path) -> None:

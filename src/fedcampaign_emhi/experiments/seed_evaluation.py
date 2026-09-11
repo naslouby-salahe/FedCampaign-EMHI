@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
@@ -75,12 +74,14 @@ from fedcampaign_emhi.domain.types import (
     BasisSize,
     Boolean,
     CellCount,
+    ConfigurationDigest,
     ContextCoverage,
     CusumState,
     DetectorScore,
     EpochIndexValue,
     FalseAlarmRate,
     FeatureValue,
+    MaterialDependencyFingerprint,
     OdiIndicator,
     OdiRateAdvantage,
     OperationalLeadEpochs,
@@ -127,6 +128,7 @@ from fedcampaign_emhi.experiments.execution import (
     campaigns_logger,
     emhi_method_specification,
     experiment_contract,
+    fork_multiprocessing_context,
 )
 from fedcampaign_emhi.experiments.registry import (
     ExperimentContract,
@@ -153,9 +155,9 @@ def _reusable_completed_real_cell(
     execution_role: ExecutionRole,
     method_name: MethodName,
     seed: SeedValue,
-    material_digest: str,
-    dependency_fingerprint: str,
-) -> bool:
+    material_digest: ConfigurationDigest,
+    dependency_fingerprint: MaterialDependencyFingerprint,
+) -> Boolean:
     if not cell_path.is_file():
         return False
     try:
@@ -1082,7 +1084,7 @@ def execute_real_emhi_methods(
                 loaded, repository, experiment_name, dataset_name, role, seed, supported, missing
             )
         return completed, ()
-    fork_context = multiprocessing.get_context("fork")
+    fork_context = fork_multiprocessing_context()
     with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
         for seed_completions in pool.map(
             _execute_real_seed_worker,
@@ -1592,7 +1594,7 @@ def materialize_context_and_estimator_sensitivity_cells(
             _context_sensitivity_seed_diagnostics(loaded, repository, seed) for seed in seeds
         )
         return tuple(path for paths in per_seed for path in paths)
-    fork_context = multiprocessing.get_context("fork")
+    fork_context = fork_multiprocessing_context()
     with ProcessPoolExecutor(max_workers=worker_count, mp_context=fork_context) as pool:
         per_seed = tuple(
             pool.map(

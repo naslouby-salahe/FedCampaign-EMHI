@@ -51,8 +51,6 @@ from fedcampaign_emhi.models.autoencoder import (
 )
 from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
-# Flower's per-message INFO transport output obscures the campaign's structured
-# seed/method progress records.  Keep warnings and errors visible.
 logging.getLogger("flwr").setLevel(logging.WARNING)
 
 PARTICIPATION_COMPONENT_NAME = "fedavg_autoencoder_participation"

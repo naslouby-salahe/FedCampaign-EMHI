@@ -26,7 +26,7 @@ def test_code_quality() -> None:
         [
             str(Path(sys.executable).parent / "semgrep"),
             "--config",
-            ".semgrep/architecture.yml",
+            ".semgrep.yml",
             "--error",
             "--quiet",
             "src",

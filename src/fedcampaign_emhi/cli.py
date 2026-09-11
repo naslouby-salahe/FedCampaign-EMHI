@@ -1,7 +1,3 @@
-from hashlib import sha256
-from pathlib import Path
-from subprocess import run
-
 import typer
 
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout
@@ -21,8 +17,6 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
     Boolean,
-    ConfigurationDigest,
-    SourceRevisionIdentity,
 )
 from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.execution.preprocessing import (
@@ -51,25 +45,6 @@ def main() -> None:
     application()
 
 
-def _git_commit(repository: Path) -> SourceRevisionIdentity:
-    completed = run(
-        ["git", "-C", str(repository), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return "unavailable"
-    return completed.stdout.strip()
-
-
-def _lock_digest(repository: Path) -> ConfigurationDigest:
-    lock_path = repository / "uv.lock"
-    if not lock_path.is_file():
-        return "unavailable"
-    return sha256(lock_path.read_bytes()).hexdigest()
-
-
 def doctor_command() -> None:
     configure_structured_logging()
     emit = typer.echo
@@ -95,8 +70,6 @@ def doctor_command() -> None:
     else:
         next_action = "fedcampaign report"
     emit(f"repository={repository}")
-    emit(f"git_commit={_git_commit(repository)}")
-    emit(f"dependency_lock_digest={_lock_digest(repository)}")
     emit(f"configuration={loaded.source_path}")
     emit(f"material_digest={readiness.material_digest}")
     emit(f"production_configuration_valid={readiness.production_configuration_valid}")

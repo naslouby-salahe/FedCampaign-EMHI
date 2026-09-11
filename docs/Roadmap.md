@@ -65,7 +65,7 @@ Repository and Environment Validation
 → Failure-Boundary and Scalability Evaluation
 → Analysis Code Validation
 → Confirmatory Statistical Synthesis
-→ Claim Registry Materialization
+→ Claim Support Assessment
 → Manuscript Evidence Materialization
 ```
 
@@ -1199,6 +1199,14 @@ scalability_timing:
 runtime:
   automatic_technical_retries_after_initial_failure: 2
   required_confirmatory_missing_cell_tolerance: 0
+  synthetic_concurrent_experiment_cells: 10
+  progress_log_interval_seconds: 60.0
+
+synthetic_module_validation:
+  exact_identity_tolerance: 1.0e-14
+  repeatability_tolerance: 1.0e-14
+  expected_fixture_count: 33
+  expected_generator_check_count: 8
 
 artifacts:
   outputs_root: outputs
@@ -1212,6 +1220,10 @@ reporting:
     milliseconds_and_seconds_decimals: 2
     adjusted_p_values_decimals: 4
     p_value_lower_display_threshold: 0.0001
+  figures:
+    width_inches: 9.0
+    height_inches: 4.5
+    dots_per_inch: 180
 ```
 
 ## Scientific definitions, derivations, and fixed method rules
@@ -2086,15 +2098,19 @@ The latency criterion applies to the complete end-to-end reference harness defin
 
 ### Runtime and retry configuration
 
-The number of automatic technical retries after the initial failure is `runtime.automatic_technical_retries_after_initial_failure`. Claim-bearing synthesis permits at most `runtime.required_confirmatory_missing_cell_tolerance` missing required confirmatory cells.
+The number of automatic technical retries after the initial failure is `runtime.automatic_technical_retries_after_initial_failure`. Claim-bearing synthesis permits at most `runtime.required_confirmatory_missing_cell_tolerance` missing required confirmatory cells. Worker concurrency for synthetic-cell dispatch is `runtime.synthetic_concurrent_experiment_cells`. The progress-heartbeat logging interval for long-running worker-pool execution is `runtime.progress_log_interval_seconds`; it governs only log cadence and has no scientific or completion semantics.
 
 Every technical retry uses identical scientific inputs and seeds. A valid completed cell is skipped by default. A stale, incomplete, or failed cell is rebuilt at the same semantic identity. Invalidation is limited to the affected artifact and its downstream descendants. Unrelated code or configuration changes do not invalidate unaffected artifacts. Recomputing a parent without changing its material identity preserves compatible descendants. `--overwrite` forces target recomputation without forcing unrelated prerequisites.
 
 A retry may resume from any complete compatible checkpoint or upstream artifact; it must not restart an expensive ancestor merely because a downstream step failed.
 
+### Synthetic module validation configuration
+
+The Synthetic Module Validation experiment's acceptance gates remain authoritative under `synthetic_module_validation`. `exact_identity_tolerance` bounds the maximum absolute deviation permitted in the deterministic-identity invariant checks; `repeatability_tolerance` bounds the deviation permitted between two independent runs of the same deterministic seed; `expected_fixture_count` and `expected_generator_check_count` are the exact number of invariant fixtures and generator checks the validation run must execute for the experiment to be `Completed` rather than `Invalid`.
+
 ### Reporting configuration
 
-Reporting decimal precision remains authoritative under `reporting.precision`. Confidence bounds use the same displayed precision as their estimate. The primary ODI table row order is exactly the method order in `experiments.primary_strict_odi_evaluation.methods` and is derived rather than separately configured.
+Reporting decimal precision remains authoritative under `reporting.precision`. Confidence bounds use the same displayed precision as their estimate. The primary ODI table row order is exactly the method order in `experiments.primary_strict_odi_evaluation.methods` and is derived rather than separately configured. Rendered-figure dimensions and resolution remain authoritative under `reporting.figures`.
 
 No significance stars are used. Machine-readable results always retain full precision. These are fixed reporting rules, not configuration choices.
 
@@ -2162,8 +2178,6 @@ every acquired file path
 every acquired file SHA-256
 every acquired file byte count
 ground-truth source SHA-256
-adapter material code fingerprint
-adapter producer code commit for traceability
 ```
 
 Checksum values published by the distributing repository may be recorded as external cross-checks, but SHA-256 computed over the actual local raw files is the execution identity.
@@ -2234,8 +2248,6 @@ every acquired file path
 every acquired file SHA-256
 every acquired file byte count
 ground-truth source SHA-256
-adapter material code fingerprint
-adapter producer code commit for traceability
 ```
 
 Checksum values published by the distributing repository may be recorded as external cross-checks, but SHA-256 computed over the actual local raw files is the execution identity.
@@ -3730,7 +3742,7 @@ R_{ODI,\text{full}} -
 R_{ODI,\le2}.
 $$
 
-Order-Three Scope requires this mean paired difference to be at least the configured real-order-3 materiality threshold in addition to synthetic/estimator support.
+Order-Three Scope requires this mean paired difference to be at least the configured real-order-3 materiality threshold in addition to synthetic/estimator support. This comparison is persisted at `statistics/effects/order-three-scope.json` alongside the `Full FedCampaign-EMHI vs Order at Most Two` secondary Holm contrast it derives from, and is included in `report`'s verified evidence for this experiment.
 
 ## 13.11 Context and Estimator Sensitivity
 
@@ -3964,6 +3976,8 @@ Metrics:
 Scalability support is based on confirmatory timing seeds. For every configured K, pooled numerical failure rate must not exceed `materiality.maximum_pooled_numerical_failure_rate` and the seed-level p95 reference-harness end-to-end latencies must aggregate by the configured `scalability_timing.result_quantile`; the resulting reported p95 must not exceed `materiality.reference_harness.p95_latency_maximum_seconds`.
 
 All claim-bearing K cells must execute under one common timing environment satisfying Section 19.3. Results are explicitly conditional on that recorded reference environment and do not imply real network latency or production deployment performance.
+
+The per-K pooled metrics above are persisted at `metrics/aggregate/k-{client_count}.json`, validated for staleness and completeness, and materialized into `report`'s verified evidence as `tables/main/scalability-summary.csv`.
 
 
 ---
@@ -4373,153 +4387,15 @@ project/
 │   │           ├── configuration/                 # Configuration slices, protocol identities, and deterministic configuration digests.
 │   │           ├── data/                          # Dataset, preprocessing, split, client, campaign, and upstream-data identities.
 │   │           ├── seeds/                         # Root seeds, deterministic substream identities, and stochastic-process ownership.
-│   │           ├── code/                          # Source revision and material code fingerprints affecting scientific artifacts.
-│   │           ├── environment/                   # Full software, dependency, hardware, CUDA, and runtime environment capture.
 │   │           └── dependencies/                  # Upstream digests, dependency relationships, compatibility, and stale-descendant information.
 │   │
 │   └── cache/                                     # Non-authoritative recomputable workspace; cached content can never establish scientific validity.
 │       ├── preprocessing/                         # Recomputable cache for deterministic raw-to-prepared transformations.
 │       ├── staging/                                # Atomic-write staging for products before rename.
 │       └── derived/                                # Other recomputable cache data; never treated as evidence.
-├── src/fedcampaign_emhi/                           # Typed implementation package (roadmap §16 module contracts).
-│   ├── domain/                                    # enums.py, types.py
-│   ├── config/                                    # schema.py, loading.py, validation.py
-│   ├── artifacts/                                 # records.py, storage.py, provenance.py
-│   ├── runtime.py                                 # deterministic digests, seeds, structured logging
-│   ├── datasets/                                  # preprocessing.py, inventory.py, partitions.py, campaigns.py, eligibility.py
-│   │   ├── edge_iiotset/                           # loading, canonicalization, validation, ground truth
-│   │   └── ton_iot_network/                        # loading, canonicalization, validation, ground truth
-│   ├── execution/                                 # preprocessing.py, planning.py, runner.py, status.py
-│   ├── models/                                    # autoencoder.py (PyTorch), classical.py
-│   ├── detection.py
-│   ├── emhi/                                      # structure, contexts, projection, innovations, calibration, thresholds, evidence, sequential
-│   ├── comparators/                               # contracts, dependence, fusion, federated (Flower), runtime
-│   ├── synthetic/                                 # generators, self_explanation, pure_order, feasibility, sequential
-│   ├── experiments/                               # registry, execution, technical_retry, synthetic_execution, synthetic, calibration,
-│   │                                              # seed_materialization, seed_evaluation, seed_statistics,
-│   │                                              # coalition_scalability, robustness, orchestration
-│   ├── evaluation/                                # records, sequential, metrics, scalability, validation
-│   ├── analysis/                                  # statistics, results
-│   ├── reporting/                                 # evidence.py, export.py (Matplotlib figures)
-│   └── cli.py                                     # thin Typer orchestration only
-│└── tests/
-    ├── conftest.py
-    │
-    ├── architecture/
-    │   ├── test_dependency_boundaries.py
-    │   │   — Enforces allowed dependency directions between architectural layers and prevents architectural responsibility violations.
-    │   │
-    │   ├── test_public_type_boundaries.py
-    │   │   — Ensures public, domain, and application APIs use explicit meaningful types rather than loosely typed interfaces or inappropriate raw primitives.
-    │   │
-    │   ├── test_no_any_dict_object.py
-    │   │   — Rejects inappropriate use of Any, object, and anonymous dict-based domain/configuration/artifact payloads, except narrowly justified external-library boundaries.
-    │   │
-    │   ├── test_no_primitive_leaks.py
-    │   │   — Detects inappropriate str/int/float/bool/list/dict primitives crossing domain or architectural boundaries, including primitive public inputs and outputs where meaningful domain types should be used.
-    │   │
-    │   ├── test_no_hardcoded_values.py
-    │   │   — Detects hardcoded scientific, experimental, statistical, dataset, seed, threshold, algorithm, protocol, and other governed values outside their authoritative owner.
-    │   │
-    │   ├── test_configuration_ownership.py
-    │   │   — Ensures configuration values have one authoritative owner and are not repeated or copied into constants, implementation code, CLI defaults, tests, or parallel configuration structures.
-    │   │
-    │   ├── test_no_duplicate_constants.py
-    │   │   — Detects duplicate constants and equivalent independently maintained values across the repository.
-    │   │
-    │   ├── test_dead_code.py
-    │   │   — Detects dead, unused, unreachable, obsolete, and superseded production modules, classes, functions, methods, constants, and other symbols.
-    │   │
-    │   ├── test_enum_integrity.py
-    │   │   — Detects unused enums and ensures authoritative enums are actually used rather than being bypassed by equivalent free-form strings or duplicate identities.
-    │   │
-    │   ├── test_no_test_only_production_code.py
-    │   │   — Detects production code that exists or is referenced only for tests and has no legitimate production use.
-    │   │
-    │   ├── test_no_redirects_shims_reexports.py
-    │   │   — Rejects obsolete redirect modules, compatibility shims, legacy aliases, transitional wrappers, and unnecessary re-export-only modules.
-    │   │
-    │   ├── test_naming_policy.py
-    │   │   — Enforces descriptive names for modules, classes, functions, methods, variables, and parameters; rejects vague, generic, strange, misleading, or unjustifiably short names and abbreviations.
-    │   │
-    │   ├── test_canonical_vocabulary.py
-    │   │   — Enforces canonical project, scientific, algorithm, dataset, policy, experiment, artifact, and architectural terminology and rejects stale aliases, obsolete terminology, opaque names, and artificial version naming.
-    │   │
-    │   ├── test_no_comments_or_docstrings.py
-    │   │   — Rejects Python source comments and module/class/function/method docstrings.
-    │   │
-    │   ├── test_no_todos_or_temporary_code.py
-    │   │   — Rejects TODO, FIXME, HACK, XXX, commented-out implementations, temporary markers, unfinished code residue, and similar development leftovers.
-    │   │
-    │   ├── test_static_typing.py
-    │   │   — Runs repository-wide strict Pyright across production and tests so Pyright/Pylance-visible typing violations fail the test suite.
-    │   │
-    │   ├── test_code_quality.py
-    │   │   — Enforces Ruff formatting and linting so unformatted or lint-invalid Python code cannot remain in the repository.
-    │   │
-    │   └── test_dependency_hygiene.py
-    │       — Enforces dependency hygiene and detects unused, missing, or incorrectly declared dependencies.
-    │
-    ├── unit/
-    │   ├── domain/
-    │   ├── config/
-    │   ├── datasets/
-    │   │   ├── ton_iot_network/
-    │   │   └── edge_iiotset/
-    │   ├── models/
-    │   ├── detection/
-    │   ├── emhi/
-    │   ├── comparators/
-    │   ├── synthetic/
-    │   ├── experiments/
-    │   ├── evaluation/
-    │   ├── analysis/
-    │   ├── artifacts/
-    │   ├── execution/
-    │   ├── runtime/
-    │   ├── reporting/
-    │   └── cli/
-    │
-    ├── scientific/
-    │   ├── test_data_invariants.py
-    │   ├── test_emii_exclusion_invariants.py
-    │   ├── test_pure_order_invariants.py
-    │   ├── test_projection_and_crossfit_invariants.py
-    │   ├── test_sequential_evidence_contracts.py
-    │   ├── test_odi_and_campaign_contracts.py
-    │   ├── test_experiment_contracts.py
-    │   └── test_claim_conditions.py
-    │
-    ├── integration/
-    │   ├── preprocessing/
-    │   │   ├── test_ton_iot_network_pipeline.py
-    │   │   └── test_edge_iiotset_pipeline.py
-    │   ├── detection/
-    │   │   └── test_detector_score_policy_pipeline.py
-    │   ├── scientific_pipeline/
-    │   │   ├── test_emhi_fit_calibrate_evaluate.py
-    │   │   ├── test_comparator_pipeline.py
-    │   │   └── test_synthetic_validation_pipeline.py
-    │   ├── execution/
-    │   │   ├── test_artifact_reuse.py
-    │   │   ├── test_selective_invalidation.py
-    │   │   └── test_checkpoint_recovery.py
-    │   ├── reporting/
-    │   │   └── test_verified_evidence_materialization.py
-    │   └── cli/
-    │       └── test_command_ownership.py
-    │
-    ├── e2e/
-    │   ├── test_preprocess_plan_smoke.py
-    │   ├── test_run_status_report.py
-    │   ├── test_reuse_recovery_and_overwrite.py
-    │   └── test_confirmatory_execution.py
-    │
-    └── smoke/
-        └── test_smoke.py
 ```
 
-The package and directory responsibilities shown in this tree are part of the implementation architecture. Scientific behavior remains governed by the corresponding roadmap contracts; moving a responsibility across these boundaries is not permitted when it would change scientific behavior or artifact ownership.
+`src/fedcampaign_emhi/` is the typed implementation package and `tests/` mirrors its scientific, execution, and architecture responsibilities. Neither this roadmap nor any other document prescribes exact module filenames or package topology; the architecture tests in `tests/architecture/` enforce the required dependency layering, responsibility boundaries, and typing/naming/hygiene rules mechanically, and implementation modules may be organized, split, or consolidated freely as long as those enforced boundaries and the scientific contracts elsewhere in this roadmap continue to hold.
 
 The only public executable is:
 
@@ -4572,8 +4448,6 @@ A command never retrains, rescores, recalibrates, or reanalyzes solely because t
 ## 16.1 `doctor`
 
 Read-only. Reports repository/environment readiness; raw dataset inventory and checksums; preprocessing and selected-client eligibility; benign partition and calibrated finite-horizon horizon feasibility; campaign-registry readiness; experiment/dependency status; compatible reusable artifacts; stale artifacts and their first mismatching dependency; affected descendants; confirmatory-cell completeness; and the next valid action. It never modifies artifacts.
-
-Repository commit and full dependency-lock identity are displayed for traceability but are not, by themselves, reasons to mark every artifact stale.
 
 ## 16.2 `preprocess`
 
@@ -4761,7 +4635,7 @@ After payload validation, its stable active identity is:
 artifact_identity = SHA256(semantic_role || semantic_coordinates || dependency_fingerprint || canonical(content_hashes))
 ```
 
-Technical attempt IDs, timestamps, staging locations, and producer commit labels do not enter `artifact_identity`. Recomputing the same semantic artifact from the same material dependencies to the same validated content therefore preserves its identity.
+Technical attempt IDs, timestamps, and staging locations do not enter `artifact_identity`. Recomputing the same semantic artifact from the same material dependencies to the same validated content therefore preserves its identity.
 
 The material dependency record contains only dependencies capable of changing the artifact's scientific or computational value. Depending on artifact type, these include:
 
@@ -4774,24 +4648,17 @@ The material dependency record contains only dependencies capable of changing th
 * context, basis, projection, cross-fitting, calibration, threshold, support, or local-policy definitions for downstream fitted artifacts;
 * experiment condition coordinates that materially alter the computation;
 * analysis method, multiplicity family, bootstrap/permutation settings, and analysis seed for statistical artifacts;
-* relevant source-component fingerprints for the code paths that produce the artifact;
-* versions of external libraries that materially participate in that computation when version changes can alter the produced value;
-* runtime/hardware identity only for artifacts whose scientific quantity is runtime- or hardware-dependent, especially confirmatory timing/scalability evidence.
+* versions of external libraries that materially participate in that computation when version changes can alter the produced value.
 
-Relevant source-component fingerprints cover the scientific implementation components transitively executed by the artifact producer. They must not default to hashing the complete repository. The implementation must maintain an auditable mapping from each artifact family to its material code components so that changes to unrelated modules do not cause global invalidation.
+The following do not invalidate an artifact by themselves:
 
-The following are recorded for traceability but are not universal invalidators by themselves:
-
-* repository commit hash;
-* full dependency-lock hash;
-* source files outside the producing artifact's material code path;
 * tests that do not alter runtime behavior;
 * comments, documentation, formatting, and type-only changes with no runtime effect;
 * report templates and figure cosmetics for upstream scientific artifacts;
 * log formatting;
 * timestamps, attempt numbers, paths, and machine-local cache locations.
 
-A repository commit change invalidates an artifact only when it changes one or more material code-component fingerprints for that artifact. A dependency-lock change invalidates an artifact only when a materially used dependency version or behavior relevant to that artifact changes.
+Recomputing an artifact producer without changing any of its declared material dependencies preserves the artifact's identity; unrelated implementation changes are never, by themselves, invalidation triggers.
 
 ## 17.4 Provenance compatibility, atomic completion, and reuse
 
@@ -4831,7 +4698,7 @@ Invalidation follows dependency edges, not repository-wide provenance equality.
 
 When a parent artifact changes material identity, every active descendant whose dependency record references the old parent identity becomes stale. Staleness is propagated transitively. Unrelated siblings and ancestors remain valid.
 
-When a parent is recomputed but its material content identity and dependency fingerprint are unchanged, existing descendants remain compatible and must not be invalidated merely because the parent was produced in a new technical attempt or repository commit.
+When a parent is recomputed but its material content identity and dependency fingerprint are unchanged, existing descendants remain compatible and must not be invalidated merely because the parent was produced in a new technical attempt.
 
 ## 17.6 Experiment and cell states
 
@@ -5101,7 +4968,6 @@ dataset_source_identity
 preprocessing_semantic_path
 preprocessing_hash
 dependency_fingerprint
-material_code_fingerprints
 material_dependency_versions
 content_hashes
 completion_record
@@ -5165,7 +5031,6 @@ method_name
 outer_condition_coordinates
 seed
 state
-authoritative_configuration_hash_trace_only
 material_scientific_configuration_hash
 dataset_hashes
 preprocessing_hash nullable
@@ -5175,11 +5040,7 @@ upstream_artifact_identities
 fitted_artifact_paths
 fitted_artifact_hashes
 dependency_fingerprint
-material_code_fingerprints
 material_dependency_versions
-producer_code_commit
-full_dependency_lock_hash_trace_only
-runtime_environment_identity
 warnings
 abstention_count
 numerical_failure_count
@@ -5191,9 +5052,7 @@ mandatory_output_hashes
 completion_record
 ```
 
-`producer_code_commit` and `full_dependency_lock_hash_trace_only` preserve reproducibility context. Compatibility is determined by the material dependency fingerprint and declared upstream identities, not by requiring global equality of those trace-only fields.
-
-The runtime-environment identity retains the observed Python/OS/CPU/RAM and GPU/driver/CUDA fields where applicable. It participates in validity only for computations whose declared scientific quantity depends on that environment, especially timing/scalability evidence or a dependency whose numerical behavior is proven material. Technical timestamps may be recorded but are not keys.
+Compatibility is determined by the material dependency fingerprint and declared upstream identities. Technical timestamps may be recorded but are not keys.
 
 ## 18.6 Scientific result and analysis records
 
@@ -5257,7 +5116,7 @@ Project-wide `report` materializes reproducibility evidence under:
 
 The exact public CLI sequence, resolved experiment-plan snapshot, semantic-cell index, artifact dependency index, environment/hardware/runtime metadata, and completion/confirmatory execution metadata are stored under `execution/`; dataset checksum, release, preprocessing, and client-map identities under `datasets/`; seed identities under `seeds/`; dependency-lock copy and source-revision identities under `software/`; and the authoritative scientific configuration plus its material configuration digest under `configuration/`.
 
-The reproducibility export may contain multiple producer commits when a scientifically unchanged campaign was resumed after implementation fixes. Each scientific artifact remains traceable to the exact code and material dependency fingerprint that produced it; the existence of multiple commits does not imply that unaffected artifacts were recomputed.
+Each scientific artifact remains traceable to the exact material dependency fingerprint that produced it, even when a scientifically unchanged campaign was resumed across multiple technical execution attempts; a resumed campaign does not imply that unaffected artifacts were recomputed.
 
 ---
 
