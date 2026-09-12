@@ -1,4 +1,8 @@
-from fedcampaign_emhi.domain.enums import CoalitionOrder, ExecutionRole
+from fedcampaign_emhi.domain.enums import (
+    CoalitionOrder,
+    EstimatorFeasibilityConditionName,
+    ExecutionRole,
+)
 from fedcampaign_emhi.synthetic.feasibility import (
     evaluate_estimator_feasibility_condition,
     feasibility_conditions,
@@ -77,7 +81,9 @@ def test_feasibility_grid_keeps_confirmatory_primary_distinct_from_development_s
     confirmatory = feasibility_conditions(config, ExecutionRole.CONFIRMATORY)
     development = feasibility_conditions(config, ExecutionRole.DEVELOPMENT)
 
-    assert tuple(condition.identifier for condition in confirmatory) == ("primary-order-three",)
+    assert tuple(condition.identifier for condition in confirmatory) == (
+        EstimatorFeasibilityConditionName.PRIMARY_ORDER_THREE,
+    )
     assert len(development) > len(confirmatory)
     assert any(condition.identifier.startswith("forced-ridge") for condition in development)
     assert any(condition.identifier.startswith("context-sensitivity") for condition in development)

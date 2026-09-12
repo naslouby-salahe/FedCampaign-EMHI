@@ -11,12 +11,12 @@ from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     DatasetName,
     PartitionRole,
+    SmokeFixtureName,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ConfigurationDigest,
     MetricValue,
-    OwnershipStatement,
     RankReference,
     RecordCount,
     SeedValue,
@@ -54,11 +54,6 @@ from fedcampaign_emhi.runtime import log_stage
 
 
 @dataclass(frozen=True)
-class SmokeFixtureName:
-    label: OwnershipStatement
-
-
-@dataclass(frozen=True)
 class SmokeValidationResult:
     passed: Boolean
     failures: tuple[SmokeFixtureName, ...]
@@ -83,38 +78,6 @@ class FixtureCollector:
 
 def _check(fixture_name: SmokeFixtureName, condition: Boolean, collector: FixtureCollector) -> None:
     collector.record(fixture_name, condition)
-
-
-MIDRANK_TIES = SmokeFixtureName("midrank ties")  # TODO: should be enum
-RANK_CLIPPING_LOW = SmokeFixtureName("rank clipping low")  # TODO: should be enum
-RANK_CLIPPING_HIGH = SmokeFixtureName("rank clipping high")  # TODO: should be enum
-HISTOGRAM_BINS = SmokeFixtureName("histogram bins")  # TODO: should be enum
-EXACT_EXCLUSION = SmokeFixtureName("exact exclusion")  # TODO: should be enum
-INCLUSIVE_CONTEXT = SmokeFixtureName("inclusive context")  # TODO: should be enum
-LEAVE_ONE_OUT = SmokeFixtureName("leave-one-out")  # TODO: should be enum
-PARTIAL_TRIPLE = SmokeFixtureName("partial triple")  # TODO: should be enum
-LAG_SEMANTICS = SmokeFixtureName("lag semantics")  # TODO: should be enum
-KMEANS_TIE = SmokeFixtureName("kmeans tie")  # TODO: should be enum
-PROJECTION_DIMENSIONS = SmokeFixtureName("projection dimensions")  # TODO: should be enum
-BASIS_WIDTH = SmokeFixtureName("basis width")  # TODO: should be enum
-RIDGE_TIE = SmokeFixtureName("ridge tie selects larger lambda within tolerance")  # TODO: should be enum
-ABSTENTION_BOUNDARY = SmokeFixtureName("abstention boundary fixture")  # TODO: should be enum
-BLOCKED_FOLD_SIZES = SmokeFixtureName("blocked fold sizes")  # TODO: should be enum
-FOLD_BOUNDS = SmokeFixtureName("fold bounds")  # TODO: should be enum
-CROSSFIT_FOLDS = SmokeFixtureName("cross-fitted calibration folds")  # TODO: should be enum
-SIGNED_POSITIVE = SmokeFixtureName("signed positive factor")  # TODO: should be enum
-SIGNED_NEGATIVE = SmokeFixtureName("signed negative factor")  # TODO: should be enum
-OPERATIONAL_NORM = SmokeFixtureName("operational norm factor")  # TODO: should be enum
-SUPPORT_UNION = SmokeFixtureName("support union")  # TODO: should be enum
-FINITE_HORIZON_CANDIDATES = SmokeFixtureName("finite horizon candidates")  # TODO: should be enum
-LOCAL_PERSISTENCE = SmokeFixtureName("local persistence triggers at epoch 3")  # TODO: should be enum
-STRICT_ODI = SmokeFixtureName("strict ODI")  # TODO: should be enum
-SAME_EPOCH_TIE_ODI = SmokeFixtureName("same-epoch tie ODI")  # TODO: should be enum
-NULL_NO_STOP_STORAGE = SmokeFixtureName("null no-stop storage")  # TODO: should be enum
-SEMANTIC_IDEMPOTENCY = SmokeFixtureName("semantic idempotency digests")  # TODO: should be enum
-CAMPAIGN_MERGE = SmokeFixtureName("campaign merge fixture")  # TODO: should be enum
-CAMPAIGN_DURATION = SmokeFixtureName("campaign duration")  # TODO: should be enum
-NEUTRAL_AGGREGATE = SmokeFixtureName("within-order neutral aggregate")  # TODO: should be enum
 
 
 @dataclass(frozen=True)
@@ -143,15 +106,15 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     exact_tolerance = loaded.values.synthetic_module_validation.exact_identity_tolerance
 
     tie_rank = midrank(0.5, RankReference(scores=(0.0, 0.5, 0.5, 1.0)))
-    _check(MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, collector)
+    _check(SmokeFixtureName.MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, collector)
 
     _check(
-        RANK_CLIPPING_LOW,  # TODO: should be enum
+        SmokeFixtureName.RANK_CLIPPING_LOW,
         clip_rank(0.0, context.rank_clip_epsilon) == context.rank_clip_epsilon,
         collector,
     )
     _check(
-        RANK_CLIPPING_HIGH,  # TODO: should be enum
+        SmokeFixtureName.RANK_CLIPPING_HIGH,
         abs(clip_rank(1.0, context.rank_clip_epsilon) - (1.0 - context.rank_clip_epsilon)) <= 0.0,
         collector,
     )
@@ -160,14 +123,14 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         histogram_bin_index(rank, context.outside_histogram_bin_count)
         for rank in (0.01, 0.13, 0.99)
     )
-    _check(HISTOGRAM_BINS, bin_indices == (0, 1, 7), collector)
+    _check(SmokeFixtureName.HISTOGRAM_BINS, bin_indices == (0, 1, 7), collector)
     histogram_masses = tuple(
         bin_indices.count(index) / len(bin_indices)
         for index in range(context.outside_histogram_bin_count)
     )
     expected_masses = (1 / 3, 1 / 3, 0.0, 0.0, 0.0, 0.0, 0.0, 1 / 3)
     _check(
-        SmokeFixtureName("histogram normalized mass"),
+        SmokeFixtureName.HISTOGRAM_NORMALIZED_MASS,
         histogram_masses == expected_masses[: context.outside_histogram_bin_count],
         collector,
     )
@@ -175,23 +138,27 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     selected = loaded.values.synthetic_module_validation.exclusion_fixture_selected_clients
     coalition = loaded.values.synthetic_module_validation.exclusion_fixture_coalition
     _check(
-        EXACT_EXCLUSION,
+        SmokeFixtureName.EXACT_EXCLUSION,
         exact_exclusion_members(selected, coalition) == ("c4", "c5", "c6"),
         failures,
     )
-    _check(INCLUSIVE_CONTEXT, inclusive_context_members(selected, coalition) == selected, failures)
     _check(
-        LEAVE_ONE_OUT,
+        SmokeFixtureName.INCLUSIVE_CONTEXT,
+        inclusive_context_members(selected, coalition) == selected,
+        failures,
+    )
+    _check(
+        SmokeFixtureName.LEAVE_ONE_OUT,
         leave_one_out_context_members(selected, coalition) == ("c2", "c3", "c4", "c5", "c6"),
         failures,
     )
     _check(
-        PARTIAL_TRIPLE,
+        SmokeFixtureName.PARTIAL_TRIPLE,
         partial_coalition_context_members(selected, coalition) == ("c3", "c4", "c5", "c6"),
         failures,
     )
     _check(
-        LAG_SEMANTICS,
+        SmokeFixtureName.LAG_SEMANTICS,
         lagged_context_epoch(5, context.outside_lag_epochs) == 4,
         failures,
     )
@@ -200,7 +167,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     tied_cell = assign_context_cell(
         (1.0, 0.0), tie_centroids, context.kmeans.assignment_tie_tolerance
     )
-    _check(KMEANS_TIE, tied_cell == 0, failures)
+    _check(SmokeFixtureName.KMEANS_TIE, tied_cell == 0, failures)
 
     dimension_checks = (
         tensor_dimension(basis_size, CoalitionOrder.ONE) == 3,
@@ -210,9 +177,11 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         proper_subset_design_column_count(CoalitionOrder.TWO, basis_size) == 7,
         proper_subset_design_column_count(CoalitionOrder.THREE, basis_size) == 37,
     )
-    _check(PROJECTION_DIMENSIONS, all(dimension_checks), failures)
+    _check(SmokeFixtureName.PROJECTION_DIMENSIONS, all(dimension_checks), failures)
 
-    _check(BASIS_WIDTH, len(bounded_basis(0.5, basis_size)) == basis_size, failures)
+    _check(
+        SmokeFixtureName.BASIS_WIDTH, len(bounded_basis(0.5, basis_size)) == basis_size, failures
+    )
 
     ridge_candidates = projection.ridge_candidates
     ridge_selected = select_ridge_penalty(
@@ -221,7 +190,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         projection.selection_tie_tolerance_mse,
     )
     _check(
-        RIDGE_TIE,
+        SmokeFixtureName.RIDGE_TIE,
         abs(ridge_selected - max(ridge_candidates)) <= projection.selection_tie_tolerance_mse,
         failures,
     )
@@ -229,7 +198,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         ridge_candidates[-3:-1], (0.05, 0.05), projection.selection_tie_tolerance_mse
     )
     _check(
-        SmokeFixtureName("ridge tie exact instance"),
+        SmokeFixtureName.RIDGE_TIE_EXACT_INSTANCE,
         exact_tie_selected == 0.1,
         failures,
     )
@@ -241,41 +210,41 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         context.minimum_support_epochs.order_three,
     )
     _check(
-        ABSTENTION_BOUNDARY,
+        SmokeFixtureName.ABSTENTION_BOUNDARY,
         399 < order_three_minimum <= 400,
         failures,
     )
     _check(
-        SmokeFixtureName("abstention boundary exact minimum"),
+        SmokeFixtureName.ABSTENTION_BOUNDARY_EXACT_MINIMUM,
         order_three_minimum == context.minimum_support_epochs.order_three
         and order_three_minimum == 400,
         failures,
     )
 
     folds = blocked_fold_sizes(11, 5)
-    _check(BLOCKED_FOLD_SIZES, folds == (3, 2, 2, 2, 2), failures)
+    _check(SmokeFixtureName.BLOCKED_FOLD_SIZES, folds == (3, 2, 2, 2, 2), failures)
     bounds = blocked_fold_bounds(11, 5)
     _check(
-        FOLD_BOUNDS,
+        SmokeFixtureName.FOLD_BOUNDS,
         bounds == ((0, 3), (3, 5), (5, 7), (7, 9), (9, 11)),
         failures,
     )
 
     crossfit_splits = fold_observation_indexes(4, 2)
     _check(
-        CROSSFIT_FOLDS,
+        SmokeFixtureName.CROSSFIT_FOLDS,
         crossfit_splits[0] == ((2, 3), (0, 1)) and crossfit_splits[1] == ((0, 1), (2, 3)),
         failures,
     )
 
     _check(
-        SIGNED_POSITIVE,
+        SmokeFixtureName.SIGNED_POSITIVE,
         abs(signed_evidence_factor(1.0, evidence.clip_bound, evidence.bet_lambda) - exp(0.375))
         < 1e-15,
         failures,
     )
     _check(
-        SIGNED_NEGATIVE,
+        SmokeFixtureName.SIGNED_NEGATIVE,
         abs(signed_evidence_factor(-1.0, evidence.clip_bound, evidence.bet_lambda) - exp(-0.625))
         < 1e-15,
         failures,
@@ -284,13 +253,13 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     norm_factor = operational_evidence_factor(
         (3.0, 4.0), 5.0, projection.norm_reference_floor, evidence.clip_bound, evidence.bet_lambda
     )
-    _check(OPERATIONAL_NORM, abs(norm_factor - exp(-0.125)) < 1e-15, failures)
+    _check(SmokeFixtureName.OPERATIONAL_NORM, abs(norm_factor - exp(-0.125)) < 1e-15, failures)
 
     window_union = trailing_support_window_client_ids(
         (("c1", "c2"), ("c2", "c3")), distributed_support.trailing_window_epochs
     )
     _check(
-        SUPPORT_UNION,
+        SmokeFixtureName.SUPPORT_UNION,
         window_union == ("c1", "c2", "c3")
         and distributed_support_predicate(window_union, distributed_support.minimum_clients),
         failures,
@@ -307,7 +276,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         evidence.calibrated_finite_horizon.target_pfa,
     )
     _check(
-        FINITE_HORIZON_CANDIDATES,
+        SmokeFixtureName.FINITE_HORIZON_CANDIDATES,
         all(
             isclose(candidate, expected, rel_tol=0.0, abs_tol=0.0)
             for candidate, expected in zip(
@@ -320,15 +289,17 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     )
 
     persistence_epoch = first_local_stop_epoch((True, False, True), 2, 3)
-    _check(LOCAL_PERSISTENCE, persistence_epoch == 2, failures)
+    _check(SmokeFixtureName.LOCAL_PERSISTENCE, persistence_epoch == 2, failures)
 
-    _check(STRICT_ODI, strict_odi_outcome(4, (5, 8)).indicator == 1, failures)
-    _check(SAME_EPOCH_TIE_ODI, strict_odi_outcome(5, (5, 8)).indicator == 0, failures)
+    _check(SmokeFixtureName.STRICT_ODI, strict_odi_outcome(4, (5, 8)).indicator == 1, failures)
+    _check(
+        SmokeFixtureName.SAME_EPOCH_TIE_ODI, strict_odi_outcome(5, (5, 8)).indicator == 0, failures
+    )
 
     horizon = loaded.values.campaign.evaluation_horizon_epochs
     offset = evidence.no_stop_plot_offset_epochs
     _check(
-        NULL_NO_STOP_STORAGE,
+        SmokeFixtureName.NULL_NO_STOP_STORAGE,
         censored_plot_value(horizon, offset) == horizon + offset == 61,
         failures,
     )
@@ -339,12 +310,16 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     )
     digest_a: ConfigurationDigest = content_digest(semantic_record.semantic_payload())
     digest_b: ConfigurationDigest = content_digest(semantic_record.semantic_payload())
-    _check(SEMANTIC_IDEMPOTENCY, digest_a == digest_b and len(digest_a) == 64, failures)
+    _check(
+        SmokeFixtureName.SEMANTIC_IDEMPOTENCY,
+        digest_a == digest_b and len(digest_a) == 64,
+        failures,
+    )
 
     merged = merge_malicious_runs((1, 2, 4, 20), 2)
-    _check(CAMPAIGN_MERGE, merged == ((1, 4), (20, 20)), failures)
-    _check(CAMPAIGN_DURATION, campaign_duration_epochs(1, 4) == 4, failures)
-    _check(NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)
+    _check(SmokeFixtureName.CAMPAIGN_MERGE, merged == ((1, 4), (20, 20)), failures)
+    _check(SmokeFixtureName.CAMPAIGN_DURATION, campaign_duration_epochs(1, 4) == 4, failures)
+    _check(SmokeFixtureName.NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)
 
     identity_errors = (
         abs(tie_rank - 0.5),

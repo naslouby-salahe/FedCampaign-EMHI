@@ -41,6 +41,7 @@ from fedcampaign_emhi.detection import (
 from fedcampaign_emhi.domain.enums import (
     ArtifactFilenamePattern,
     ArtifactPathSegment,
+    ArtifactReuseDecision,
     CoalitionOrder,
     DatasetName,
     ExecutionRole,
@@ -51,6 +52,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    Boolean,
     EpochIndexValue,
     FalseAlarmRate,
     OdiIndicator,
@@ -131,6 +133,12 @@ def required_preprocessing_artifacts(
     return preprocessing_paths(loaded, repository, campaign_dataset(loaded, experiment_name))
 
 
+def reuse_decision_from_reusability(reusable: Boolean) -> ArtifactReuseDecision:
+    if reusable:
+        return ArtifactReuseDecision.REUSED
+    return ArtifactReuseDecision.REBUILT
+
+
 def _materialize_detector_scores(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -154,17 +162,22 @@ def _materialize_detector_scores(
             existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
         except ValueError:
             existing = None
-        if existing is not None and existing.dependency_fingerprint == fingerprint:
+        reusable = existing is not None and existing.dependency_fingerprint == fingerprint
+        reuse_decision = reuse_decision_from_reusability(reusable)
+        if reusable:
             campaigns_logger().info(
-                "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=reused",
+                "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=%s",
                 dataset_name.value,
                 root_seed,
+                reuse_decision.value,
             )
             return destination
+    reuse_decision = reuse_decision_from_reusability(False)
     campaigns_logger().info(
-        "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=rebuilt",
+        "reuse_decision artifact=detector_scores dataset=%s seed=%s decision=%s",
         dataset_name.value,
         root_seed,
+        reuse_decision.value,
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
@@ -222,17 +235,22 @@ def _materialize_marginal_ranks(
             existing = MarginalRankArtifactRecord.model_validate_json(destination.read_bytes())
         except ValueError:
             existing = None
-        if existing is not None and existing.dependency_fingerprint == fingerprint:
+        reusable = existing is not None and existing.dependency_fingerprint == fingerprint
+        reuse_decision = reuse_decision_from_reusability(reusable)
+        if reusable:
             campaigns_logger().info(
-                "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=reused",
+                "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=%s",
                 dataset_name.value,
                 root_seed,
+                reuse_decision.value,
             )
             return destination
+    reuse_decision = reuse_decision_from_reusability(False)
     campaigns_logger().info(
-        "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=rebuilt",
+        "reuse_decision artifact=marginal_ranks dataset=%s seed=%s decision=%s",
         dataset_name.value,
         root_seed,
+        reuse_decision.value,
     )
     record = build_marginal_rank_artifact(
         scores,
@@ -310,19 +328,24 @@ def _materialize_emhi_fit(
             existing = EMHIFitArtifactRecord.model_validate_json(destination.read_bytes())
         except ValueError:
             existing = None
-        if existing is not None and existing.dependency_fingerprint == fingerprint:
+        reusable = existing is not None and existing.dependency_fingerprint == fingerprint
+        reuse_decision = reuse_decision_from_reusability(reusable)
+        if reusable:
             campaigns_logger().info(
-                "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=reused",
+                "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=%s",
                 dataset_name.value,
                 root_seed,
                 method_name.value,
+                reuse_decision.value,
             )
             return destination
+    reuse_decision = reuse_decision_from_reusability(False)
     campaigns_logger().info(
-        "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=rebuilt",
+        "reuse_decision artifact=emhi_fit dataset=%s seed=%s method=%s decision=%s",
         dataset_name.value,
         root_seed,
         method_name.value,
+        reuse_decision.value,
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())

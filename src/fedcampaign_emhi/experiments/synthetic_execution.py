@@ -167,12 +167,12 @@ def execute_synthetic_module_validation(
     )
     diagnostic_payload: YamlNode = {
         "state": state.value,
-        "invariant_failures": [failure.label for failure in invariant_criterion.failures],
+        "invariant_failures": [failure.value for failure in invariant_criterion.failures],
         "generator_failures": list(generator_criterion.failed_checks),
         "executed_fixture_count": len(invariant_criterion.executed_fixture_names),
         "expected_fixture_count": invariant_criterion.expected_fixture_count,
         "executed_fixture_names": [
-            fixture.label for fixture in invariant_criterion.executed_fixture_names
+            fixture.value for fixture in invariant_criterion.executed_fixture_names
         ],
         "maximum_absolute_identity_error": invariant_criterion.maximum_absolute_identity_error,
         "exact_identity_tolerance": invariant_criterion.exact_identity_tolerance,

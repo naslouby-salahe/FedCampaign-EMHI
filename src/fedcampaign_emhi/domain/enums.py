@@ -164,6 +164,16 @@ class PreprocessOrigin(StrEnum):
     REUSE_ALL = "reuse_all"
 
 
+class ReuseDecision(StrEnum):
+    RECONSTRUCTED = "reconstructed"
+    REUSED = "reused"
+
+
+class ArtifactReuseDecision(StrEnum):
+    REUSED = "reused"
+    REBUILT = "rebuilt"
+
+
 class ResumeStep(StrEnum):
     VALIDATE_REQUIRED_ARTIFACTS = "validate required existing artifacts"
     REUSE_COMPATIBLE_ANCESTORS = "reuse compatible ancestors"
@@ -279,6 +289,46 @@ class ResultMethodName(StrEnum):
 
 class SyntheticComparison(StrEnum):
     EXCLUSION_MATCHED_HOFD = "paired exclusion-matched EMHI and HOFD atoms and sequential routes"
+
+
+class SmokeFixtureName(StrEnum):
+    MIDRANK_TIES = "midrank ties"
+    RANK_CLIPPING_LOW = "rank clipping low"
+    RANK_CLIPPING_HIGH = "rank clipping high"
+    HISTOGRAM_BINS = "histogram bins"
+    HISTOGRAM_NORMALIZED_MASS = "histogram normalized mass"
+    EXACT_EXCLUSION = "exact exclusion"
+    INCLUSIVE_CONTEXT = "inclusive context"
+    LEAVE_ONE_OUT = "leave-one-out"
+    PARTIAL_TRIPLE = "partial triple"
+    LAG_SEMANTICS = "lag semantics"
+    KMEANS_TIE = "kmeans tie"
+    PROJECTION_DIMENSIONS = "projection dimensions"
+    BASIS_WIDTH = "basis width"
+    RIDGE_TIE = "ridge tie selects larger lambda within tolerance"
+    RIDGE_TIE_EXACT_INSTANCE = "ridge tie exact instance"
+    ABSTENTION_BOUNDARY = "abstention boundary fixture"
+    ABSTENTION_BOUNDARY_EXACT_MINIMUM = "abstention boundary exact minimum"
+    BLOCKED_FOLD_SIZES = "blocked fold sizes"
+    FOLD_BOUNDS = "fold bounds"
+    CROSSFIT_FOLDS = "cross-fitted calibration folds"
+    SIGNED_POSITIVE = "signed positive factor"
+    SIGNED_NEGATIVE = "signed negative factor"
+    OPERATIONAL_NORM = "operational norm factor"
+    SUPPORT_UNION = "support union"
+    FINITE_HORIZON_CANDIDATES = "finite horizon candidates"
+    LOCAL_PERSISTENCE = "local persistence triggers at epoch 3"
+    STRICT_ODI = "strict ODI"
+    SAME_EPOCH_TIE_ODI = "same-epoch tie ODI"
+    NULL_NO_STOP_STORAGE = "null no-stop storage"
+    SEMANTIC_IDEMPOTENCY = "semantic idempotency digests"
+    CAMPAIGN_MERGE = "campaign merge fixture"
+    CAMPAIGN_DURATION = "campaign duration"
+    NEUTRAL_AGGREGATE = "within-order neutral aggregate"
+
+
+class EstimatorFeasibilityConditionName(StrEnum):
+    PRIMARY_ORDER_THREE = "primary-order-three"
 
 
 class AutoencoderSeedComponent(StrEnum):

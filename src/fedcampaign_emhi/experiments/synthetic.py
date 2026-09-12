@@ -33,6 +33,7 @@ from fedcampaign_emhi.domain.enums import (
     ContextMethodName,
     DatasetName,
     DetectorFamily,
+    EstimatorFeasibilityConditionName,
     ExecutionRole,
     ExperimentName,
     GeneratorName,
@@ -1141,7 +1142,7 @@ def _estimator_feasibility_outcome(
     primary = next(
         evaluation
         for evaluation in evaluations
-        if evaluation.condition.identifier == "primary-order-three"  # TODO: should be enum
+        if evaluation.condition.identifier is EstimatorFeasibilityConditionName.PRIMARY_ORDER_THREE
     )
     metrics = primary.metrics
     return SyntheticCellOutcome(

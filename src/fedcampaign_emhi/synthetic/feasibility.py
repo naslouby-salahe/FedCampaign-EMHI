@@ -13,6 +13,7 @@ from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
+    EstimatorFeasibilityConditionName,
     ExecutionRole,
     LatentMarkovState,
     SeedCoordinateName,
@@ -83,7 +84,7 @@ class EstimatorFeasibilityMetrics:
 
 @dataclass(frozen=True)
 class EstimatorFeasibilityCondition:
-    identifier: ComponentName
+    identifier: ComponentName | EstimatorFeasibilityConditionName
     order: CoalitionOrder
     support_per_context: EstimatorSupportLevel
     basis_size: BasisSize
@@ -103,7 +104,7 @@ def feasibility_conditions(
 ) -> tuple[EstimatorFeasibilityCondition, ...]:
     primary_support = config.context.minimum_support_epochs.order_three
     primary = EstimatorFeasibilityCondition(
-        "primary-order-three",  # TODO: should be enum
+        EstimatorFeasibilityConditionName.PRIMARY_ORDER_THREE,
         CoalitionOrder.THREE,
         primary_support,
         config.basis.primary_size,

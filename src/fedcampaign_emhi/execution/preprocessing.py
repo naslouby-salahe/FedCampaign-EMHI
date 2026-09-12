@@ -84,6 +84,7 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
     PreprocessingLayer,
     RecordExclusionReason,
+    ReuseDecision,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
@@ -286,7 +287,7 @@ def _execute_dataset(
             "reuse_decision layer=%s dataset=%s decision=%s",
             decision.layer.value,
             decision.dataset_name.value,
-            "reconstructed" if decision.reconstructed else "reused",  # TODO: should be enum
+            decision.reuse_decision.value,
         )
     return start_layer, tuple(decisions)
 
@@ -300,8 +301,7 @@ def _all_reused_decisions(
         PreprocessingLayerDecision(
             dataset_name=dataset_name,
             layer=layer,
-            reused=True,
-            reconstructed=False,
+            reuse_decision=ReuseDecision.REUSED,
             previous_fingerprint=previous_fingerprints[index],
             current_fingerprint=expected_fingerprints[index],
             invalidated_descendant_ids=(),
@@ -330,8 +330,7 @@ def _build_layer_decision(
     decision = PreprocessingLayerDecision(
         dataset_name=dataset_name,
         layer=layer,
-        reused=not reconstructed,
-        reconstructed=reconstructed,
+        reuse_decision=(ReuseDecision.RECONSTRUCTED if reconstructed else ReuseDecision.REUSED),
         previous_fingerprint=previous,
         current_fingerprint=current,
         invalidated_descendant_ids=_downstream_invalidation(

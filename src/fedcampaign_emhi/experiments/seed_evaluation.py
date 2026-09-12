@@ -64,6 +64,7 @@ from fedcampaign_emhi.domain.enums import (
     ArtifactMetadataKey,
     ArtifactPathSegment,
     ArtifactProducer,
+    ArtifactReuseDecision,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -150,6 +151,7 @@ from fedcampaign_emhi.experiments.seed_materialization import (
     materialize_emhi_fit_with_retry,
     materialize_marginal_ranks_with_retry,
     preprocessing_paths,
+    reuse_decision_from_reusability,
 )
 from fedcampaign_emhi.experiments.technical_retry import with_technical_retry
 from fedcampaign_emhi.runtime import derive_component_seed
@@ -248,23 +250,27 @@ def _evaluate_emhi_seed_cell(
             role=execution_role, method=method_slug, seed=seed
         )
     )
-    if _reusable_completed_real_cell(
-        repository,
-        cell_path,
-        experiment_name,
-        execution_role,
-        method_name,
-        seed,
-        loaded.material_digest,
-        fingerprint,
-    ):
-        campaigns_logger().info(
-            "reuse_decision artifact=evaluation_cell experiment=%s role=%s seed=%s method=%s decision=reused",
-            experiment_name.value,
-            execution_role.value,
+    reuse_decision = reuse_decision_from_reusability(
+        _reusable_completed_real_cell(
+            repository,
+            cell_path,
+            experiment_name,
+            execution_role,
+            method_name,
             seed,
-            method_name.value,
+            loaded.material_digest,
+            fingerprint,
         )
+    )
+    campaigns_logger().info(
+        "reuse_decision artifact=evaluation_cell experiment=%s role=%s seed=%s method=%s decision=%s",
+        experiment_name.value,
+        execution_role.value,
+        seed,
+        method_name.value,
+        reuse_decision.value,
+    )
+    if reuse_decision is ArtifactReuseDecision.REUSED:
         return cell_path
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())

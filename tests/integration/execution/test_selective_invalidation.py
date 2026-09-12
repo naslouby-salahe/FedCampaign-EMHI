@@ -6,6 +6,7 @@ from fedcampaign_emhi.domain.enums import (
     DownstreamArtifactKind,
     OverwritePolicy,
     PreprocessingLayer,
+    ReuseDecision,
 )
 from fedcampaign_emhi.execution.preprocessing import (
     execute_preprocess,
@@ -49,12 +50,14 @@ def test_reuse_overwrite_and_identity_change(tmp_path: Path) -> None:
         loaded, tmp_path, DatasetName.TON_IOT_NETWORK, OverwritePolicy.REUSE_COMPATIBLE
     )
     assert first.requested_datasets == (DatasetName.TON_IOT_NETWORK,)
-    assert all(decision.reconstructed for decision in first.decisions)
+    assert all(
+        decision.reuse_decision is ReuseDecision.RECONSTRUCTED for decision in first.decisions
+    )
     assert all(not decision.invalidated_descendant_ids for decision in first.decisions)
     second = execute_preprocess(
         loaded, tmp_path, DatasetName.TON_IOT_NETWORK, OverwritePolicy.REUSE_COMPATIBLE
     )
-    assert all(decision.reused for decision in second.decisions)
+    assert all(decision.reuse_decision is ReuseDecision.REUSED for decision in second.decisions)
     assert second.reconstruct_from == ((DatasetName.TON_IOT_NETWORK, None),)
     registry = (
         tmp_path
@@ -70,14 +73,24 @@ def test_reuse_overwrite_and_identity_change(tmp_path: Path) -> None:
     assert third.reconstruct_from == (
         (DatasetName.TON_IOT_NETWORK, PreprocessingLayer.CAMPAIGN_REGISTRY),
     )
-    reused_layers = tuple(decision.layer for decision in third.decisions if decision.reused)
-    rebuilt_layers = tuple(decision.layer for decision in third.decisions if decision.reconstructed)
+    reused_layers = tuple(
+        decision.layer
+        for decision in third.decisions
+        if decision.reuse_decision is ReuseDecision.REUSED
+    )
+    rebuilt_layers = tuple(
+        decision.layer
+        for decision in third.decisions
+        if decision.reuse_decision is ReuseDecision.RECONSTRUCTED
+    )
     assert PreprocessingLayer.INVENTORY in reused_layers
     assert PreprocessingLayer.CAMPAIGN_REGISTRY in rebuilt_layers
     overwrite = execute_preprocess(
         loaded, tmp_path, DatasetName.TON_IOT_NETWORK, OverwritePolicy.OVERWRITE
     )
-    assert all(decision.reconstructed for decision in overwrite.decisions)
+    assert all(
+        decision.reuse_decision is ReuseDecision.RECONSTRUCTED for decision in overwrite.decisions
+    )
     assert all(not decision.invalidated_descendant_ids for decision in overwrite.decisions)
     (raw / "Network_dataset_1.csv").write_text(
         "ts,src_ip,proto,service,label,type\n2,10.0.0.2,tcp,http,0,normal\n"

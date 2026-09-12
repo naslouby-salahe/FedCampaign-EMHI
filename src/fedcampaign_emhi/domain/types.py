@@ -16,6 +16,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     PreprocessingLayer,
     RecordExclusionReason,
+    ReuseDecision,
     SeedCoordinateName,
 )
 
@@ -209,7 +210,6 @@ ConfigurationDigest = Annotated[
     StringConstraints(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
 ]
 MaterialDependencyFingerprint = ConfigurationDigest
-OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
 NormalizedEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
@@ -319,8 +319,7 @@ class LocalPolicyArtifact:
 class PreprocessingLayerDecision:
     dataset_name: DatasetName
     layer: PreprocessingLayer
-    reused: Boolean
-    reconstructed: Boolean
+    reuse_decision: ReuseDecision
     previous_fingerprint: MaterialDependencyFingerprint | None
     current_fingerprint: MaterialDependencyFingerprint
     invalidated_descendant_ids: tuple[ArtifactIdentity, ...]

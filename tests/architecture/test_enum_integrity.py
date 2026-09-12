@@ -7,9 +7,11 @@ from tests.architecture.ast_scans import SRC_ROOT, parametrize_source_files, sou
 
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
+    ArtifactReuseDecision,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
+    EstimatorFeasibilityConditionName,
     ExperimentName,
     ExperimentState,
     FitStatus,
@@ -21,7 +23,9 @@ from fedcampaign_emhi.domain.enums import (
     PartitionRole,
     PrimaryHolmHypothesis,
     RecordExclusionReason,
+    ReuseDecision,
     SecondaryHolmHypothesis,
+    SmokeFixtureName,
 )
 
 ENUMS = (
@@ -41,6 +45,10 @@ ENUMS = (
     SecondaryHolmHypothesis,
     GroundTruthClass,
     RecordExclusionReason,
+    ReuseDecision,
+    SmokeFixtureName,
+    EstimatorFeasibilityConditionName,
+    ArtifactReuseDecision,
 )
 VALUE_TO_ENUM: dict[str, str] = {}
 for enum_type in ENUMS:
