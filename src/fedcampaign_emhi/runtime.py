@@ -81,7 +81,7 @@ def assess_implementation_readiness(
     )
 
 
-STRUCTURED_LOG_ROOT_LOGGER_NAME = "fedcampaign_emhi"
+STRUCTURED_LOG_ROOT_LOGGER_NAME = "fedcampaign_emhi"  # TODO: should be enum
 _structured_logging_configured = False
 
 

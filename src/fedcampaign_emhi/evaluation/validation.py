@@ -85,36 +85,36 @@ def _check(fixture_name: SmokeFixtureName, condition: Boolean, collector: Fixtur
     collector.record(fixture_name, condition)
 
 
-MIDRANK_TIES = SmokeFixtureName("midrank ties")
-RANK_CLIPPING_LOW = SmokeFixtureName("rank clipping low")
-RANK_CLIPPING_HIGH = SmokeFixtureName("rank clipping high")
-HISTOGRAM_BINS = SmokeFixtureName("histogram bins")
-EXACT_EXCLUSION = SmokeFixtureName("exact exclusion")
-INCLUSIVE_CONTEXT = SmokeFixtureName("inclusive context")
-LEAVE_ONE_OUT = SmokeFixtureName("leave-one-out")
-PARTIAL_TRIPLE = SmokeFixtureName("partial triple")
-LAG_SEMANTICS = SmokeFixtureName("lag semantics")
-KMEANS_TIE = SmokeFixtureName("kmeans tie")
-PROJECTION_DIMENSIONS = SmokeFixtureName("projection dimensions")
-BASIS_WIDTH = SmokeFixtureName("basis width")
-RIDGE_TIE = SmokeFixtureName("ridge tie selects larger lambda within tolerance")
-ABSTENTION_BOUNDARY = SmokeFixtureName("abstention boundary fixture")
-BLOCKED_FOLD_SIZES = SmokeFixtureName("blocked fold sizes")
-FOLD_BOUNDS = SmokeFixtureName("fold bounds")
-CROSSFIT_FOLDS = SmokeFixtureName("cross-fitted calibration folds")
-SIGNED_POSITIVE = SmokeFixtureName("signed positive factor")
-SIGNED_NEGATIVE = SmokeFixtureName("signed negative factor")
-OPERATIONAL_NORM = SmokeFixtureName("operational norm factor")
-SUPPORT_UNION = SmokeFixtureName("support union")
-FINITE_HORIZON_CANDIDATES = SmokeFixtureName("finite horizon candidates")
-LOCAL_PERSISTENCE = SmokeFixtureName("local persistence triggers at epoch 3")
-STRICT_ODI = SmokeFixtureName("strict ODI")
-SAME_EPOCH_TIE_ODI = SmokeFixtureName("same-epoch tie ODI")
-NULL_NO_STOP_STORAGE = SmokeFixtureName("null no-stop storage")
-SEMANTIC_IDEMPOTENCY = SmokeFixtureName("semantic idempotency digests")
-CAMPAIGN_MERGE = SmokeFixtureName("campaign merge fixture")
-CAMPAIGN_DURATION = SmokeFixtureName("campaign duration")
-NEUTRAL_AGGREGATE = SmokeFixtureName("within-order neutral aggregate")
+MIDRANK_TIES = SmokeFixtureName("midrank ties")  # TODO: should be enum
+RANK_CLIPPING_LOW = SmokeFixtureName("rank clipping low")  # TODO: should be enum
+RANK_CLIPPING_HIGH = SmokeFixtureName("rank clipping high")  # TODO: should be enum
+HISTOGRAM_BINS = SmokeFixtureName("histogram bins")  # TODO: should be enum
+EXACT_EXCLUSION = SmokeFixtureName("exact exclusion")  # TODO: should be enum
+INCLUSIVE_CONTEXT = SmokeFixtureName("inclusive context")  # TODO: should be enum
+LEAVE_ONE_OUT = SmokeFixtureName("leave-one-out")  # TODO: should be enum
+PARTIAL_TRIPLE = SmokeFixtureName("partial triple")  # TODO: should be enum
+LAG_SEMANTICS = SmokeFixtureName("lag semantics")  # TODO: should be enum
+KMEANS_TIE = SmokeFixtureName("kmeans tie")  # TODO: should be enum
+PROJECTION_DIMENSIONS = SmokeFixtureName("projection dimensions")  # TODO: should be enum
+BASIS_WIDTH = SmokeFixtureName("basis width")  # TODO: should be enum
+RIDGE_TIE = SmokeFixtureName("ridge tie selects larger lambda within tolerance")  # TODO: should be enum
+ABSTENTION_BOUNDARY = SmokeFixtureName("abstention boundary fixture")  # TODO: should be enum
+BLOCKED_FOLD_SIZES = SmokeFixtureName("blocked fold sizes")  # TODO: should be enum
+FOLD_BOUNDS = SmokeFixtureName("fold bounds")  # TODO: should be enum
+CROSSFIT_FOLDS = SmokeFixtureName("cross-fitted calibration folds")  # TODO: should be enum
+SIGNED_POSITIVE = SmokeFixtureName("signed positive factor")  # TODO: should be enum
+SIGNED_NEGATIVE = SmokeFixtureName("signed negative factor")  # TODO: should be enum
+OPERATIONAL_NORM = SmokeFixtureName("operational norm factor")  # TODO: should be enum
+SUPPORT_UNION = SmokeFixtureName("support union")  # TODO: should be enum
+FINITE_HORIZON_CANDIDATES = SmokeFixtureName("finite horizon candidates")  # TODO: should be enum
+LOCAL_PERSISTENCE = SmokeFixtureName("local persistence triggers at epoch 3")  # TODO: should be enum
+STRICT_ODI = SmokeFixtureName("strict ODI")  # TODO: should be enum
+SAME_EPOCH_TIE_ODI = SmokeFixtureName("same-epoch tie ODI")  # TODO: should be enum
+NULL_NO_STOP_STORAGE = SmokeFixtureName("null no-stop storage")  # TODO: should be enum
+SEMANTIC_IDEMPOTENCY = SmokeFixtureName("semantic idempotency digests")  # TODO: should be enum
+CAMPAIGN_MERGE = SmokeFixtureName("campaign merge fixture")  # TODO: should be enum
+CAMPAIGN_DURATION = SmokeFixtureName("campaign duration")  # TODO: should be enum
+NEUTRAL_AGGREGATE = SmokeFixtureName("within-order neutral aggregate")  # TODO: should be enum
 
 
 @dataclass(frozen=True)
@@ -146,12 +146,12 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     _check(MIDRANK_TIES, abs(tie_rank - 0.5) <= 0.0, collector)
 
     _check(
-        RANK_CLIPPING_LOW,
+        RANK_CLIPPING_LOW,  # TODO: should be enum
         clip_rank(0.0, context.rank_clip_epsilon) == context.rank_clip_epsilon,
         collector,
     )
     _check(
-        RANK_CLIPPING_HIGH,
+        RANK_CLIPPING_HIGH,  # TODO: should be enum
         abs(clip_rank(1.0, context.rank_clip_epsilon) - (1.0 - context.rank_clip_epsilon)) <= 0.0,
         collector,
     )

@@ -2,10 +2,10 @@ import unicodedata
 
 from fedcampaign_emhi.domain.types import Boolean, NormalizedEventToken
 
-UNKNOWN_PROTOCOL_GROUP = "UNKNOWN_PROTOCOL"
-PROTOCOL_GROUP_PREFIXES = ("arp.", "http.", "tcp.", "udp.", "icmp.", "mqtt.", "mbtcp.")
-UNRESOLVED_PROTOCOL_PAYLOADS = ("", "-", "0", "0.0", "0.0.0.0")
-UNKNOWN_NORMALIZED_EVENT_TYPE = f"PROTOCOL::{UNKNOWN_PROTOCOL_GROUP}"
+UNKNOWN_PROTOCOL_GROUP = "UNKNOWN_PROTOCOL"  # TODO: should be enum
+PROTOCOL_GROUP_PREFIXES = ("arp.", "http.", "tcp.", "udp.", "icmp.", "mqtt.", "mbtcp.")  # TODO: should be enum
+UNRESOLVED_PROTOCOL_PAYLOADS = ("", "-", "0", "0.0", "0.0.0.0")  # TODO: should be enum
+UNKNOWN_NORMALIZED_EVENT_TYPE = f"PROTOCOL::{UNKNOWN_PROTOCOL_GROUP}"  # TODO: should be enum
 
 
 def protocol_payload_is_resolvable(payload: NormalizedEventToken | None) -> Boolean:

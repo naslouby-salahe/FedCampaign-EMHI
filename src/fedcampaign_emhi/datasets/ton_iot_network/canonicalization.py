@@ -7,9 +7,9 @@ from fedcampaign_emhi.domain.types import (
     NormalizedEventToken,
 )
 
-UNKNOWN_PROTOCOL_TOKEN = "UNKNOWN_PROTO"
-UNKNOWN_SERVICE_TOKEN = "UNKNOWN_SERVICE"
-ZEEK_MISSING_FIELD_TOKEN = "-"
+UNKNOWN_PROTOCOL_TOKEN = "UNKNOWN_PROTO"  # TODO: should be enum
+UNKNOWN_SERVICE_TOKEN = "UNKNOWN_SERVICE"  # TODO: should be enum
+ZEEK_MISSING_FIELD_TOKEN = "-"  # TODO: should be enum
 
 
 def normalize_token(

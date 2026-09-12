@@ -32,7 +32,7 @@ from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
 from fedcampaign_emhi.runtime import assess_implementation_readiness, configure_structured_logging
 
-RESUME_SEQUENCE_PREFIX = "resume_sequence="
+RESUME_SEQUENCE_PREFIX = "resume_sequence="  # TODO: should be enum
 
 application = typer.Typer(
     add_completion=False,
