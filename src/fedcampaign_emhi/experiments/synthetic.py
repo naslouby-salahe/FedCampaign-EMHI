@@ -1141,7 +1141,7 @@ def _estimator_feasibility_outcome(
     primary = next(
         evaluation
         for evaluation in evaluations
-        if evaluation.condition.identifier == "primary-order-three"
+        if evaluation.condition.identifier == "primary-order-three"  # TODO: should be enum
     )
     metrics = primary.metrics
     return SyntheticCellOutcome(

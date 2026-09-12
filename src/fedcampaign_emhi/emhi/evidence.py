@@ -31,7 +31,7 @@ def clip_statistic(
 def signed_theorem_compensator(
     clip_bound: EvidenceClipBound, bet_lambda: BettingLambda
 ) -> CompensatorValue:
-    return (bet_lambda**2) * ((2.0 * clip_bound) ** 2) / 8.0
+    return (bet_lambda**2) * ((2.0 * clip_bound) ** 2) / 8.0  # TODO: should be constant
 
 
 def evidence_factor(

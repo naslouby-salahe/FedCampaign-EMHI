@@ -103,7 +103,7 @@ def feasibility_conditions(
 ) -> tuple[EstimatorFeasibilityCondition, ...]:
     primary_support = config.context.minimum_support_epochs.order_three
     primary = EstimatorFeasibilityCondition(
-        "primary-order-three",
+        "primary-order-three",  # TODO: should be enum
         CoalitionOrder.THREE,
         primary_support,
         config.basis.primary_size,

@@ -55,15 +55,15 @@ def proper_subset_design_row(
     if order < 1:
         raise ValueError("proper-subset design requires at least one coalition member")
     expected = proper_subset_design_shape(CoalitionOrder(order), basis_size)
-    intercept = (1.0,)
-    if order == 1:
+    intercept = (1.0,)  # TODO: should be constant
+    if order == 1:  # TODO: should be constant
         if len(intercept) != expected.design_column_count:
             raise ValueError("order-one proper-subset design shape mismatch")
         return intercept
     singletons: list[BasisCoordinate] = []
     for rank in member_ranks:
         singletons.extend(bounded_basis(rank, basis_size))
-    if order == 2:
+    if order == 2:  # TODO: should be constant
         row = intercept + tuple(singletons)
         if len(row) != expected.design_column_count:
             raise ValueError("order-two proper-subset design shape mismatch")

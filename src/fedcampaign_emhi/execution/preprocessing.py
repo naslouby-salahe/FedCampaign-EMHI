@@ -286,7 +286,7 @@ def _execute_dataset(
             "reuse_decision layer=%s dataset=%s decision=%s",
             decision.layer.value,
             decision.dataset_name.value,
-            "reconstructed" if decision.reconstructed else "reused",
+            "reconstructed" if decision.reconstructed else "reused",  # TODO: should be enum
         )
     return start_layer, tuple(decisions)
 

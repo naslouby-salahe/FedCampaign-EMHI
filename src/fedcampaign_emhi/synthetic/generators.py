@@ -51,7 +51,7 @@ def generate_unit_variance_autoregressive_latent(
     if epoch_count <= 0:
         raise ValueError("autoregressive latent generation requires a positive epoch count")
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
-    innovation_scale = sqrt(1.0 - (autoregressive_coefficient**2))
+    innovation_scale = sqrt(1.0 - (autoregressive_coefficient**2))  # TODO: should be constant
     latent = float(generator.standard_normal())
     series: list[LatentState] = [latent]
     for _epoch in range(epoch_count - 1):
@@ -101,7 +101,7 @@ def apply_marginal_score_shift(
 def gaussian_copula_pair(correlation: Correlation, seed: SeedValue) -> tuple[RankValue, RankValue]:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     first = float(generator.standard_normal())
-    residual_scale = sqrt(1.0 - (correlation**2))
+    residual_scale = sqrt(1.0 - (correlation**2))  # TODO: should be constant
     second = (correlation * first) + (residual_scale * float(generator.standard_normal()))
     return (standard_normal_cdf(first), standard_normal_cdf(second))
 
@@ -109,7 +109,7 @@ def gaussian_copula_pair(correlation: Correlation, seed: SeedValue) -> tuple[Ran
 def round_half_up(non_negative_count: FractionalClientCount) -> ClientCount:
     if non_negative_count < 0.0:
         raise ValueError("round_half_up is defined for non-negative counts")
-    return floor(non_negative_count + 0.5)
+    return floor(non_negative_count + 0.5)  # TODO: should be constant
 
 
 def contaminated_outside_count(fraction: Probability, complement_size: ClientCount) -> ClientCount:
@@ -128,7 +128,7 @@ def contaminate_rank(
     rank: RankValue, outside_rank_shift: ScoreShift, rank_clip_epsilon: NumericalFloor
 ) -> RankValue:
     shifted = rank + outside_rank_shift
-    upper = 1.0 - rank_clip_epsilon
+    upper = 1.0 - rank_clip_epsilon  # TODO: should be constant
     if shifted > upper:
         return upper
     return shifted
@@ -139,7 +139,7 @@ def availability_mask(
 ) -> tuple[ClientId, ...]:
     generator = np.random.default_rng(thirty_two_bit_seed(seed))
     available: list[ClientId] = []
-    stay_probability = 1.0 - unavailable_fraction
+    stay_probability = 1.0 - unavailable_fraction  # TODO: should be constant
     for client_id in client_ids:
         if float(generator.random()) < stay_probability:
             available.append(client_id)
