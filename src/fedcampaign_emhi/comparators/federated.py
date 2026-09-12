@@ -58,8 +58,8 @@ from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
 logging.getLogger("flwr").setLevel(logging.WARNING)
 
-CONNECT_DEADLINE_SECONDS = 30  # TODO: should be constant
-CONNECT_RETRY_SLEEP_SECONDS = 0.5  # TODO: should be constant
+CONNECT_DEADLINE_SECONDS = 30
+CONNECT_RETRY_SLEEP_SECONDS = 0.5
 
 
 def fedavg_participant_indexes(

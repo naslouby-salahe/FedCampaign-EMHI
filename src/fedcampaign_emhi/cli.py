@@ -15,6 +15,7 @@ from fedcampaign_emhi.domain.enums import (
     OverwritePolicy,
     PreprocessingLayer,
     PreprocessOrigin,
+    ReuseDecision,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -32,7 +33,7 @@ from fedcampaign_emhi.experiments.registry import RESUME_SEQUENCE, assert_known_
 from fedcampaign_emhi.reporting.evidence import materialize_report_scope
 from fedcampaign_emhi.runtime import assess_implementation_readiness, configure_structured_logging
 
-RESUME_SEQUENCE_PREFIX = "resume_sequence="  # TODO: should be enum
+RESUME_SEQUENCE_PREFIX = "resume_sequence="
 
 application = typer.Typer(
     add_completion=False,
@@ -116,8 +117,16 @@ def preprocess_command(
     for dataset, start_layer in record.reconstruct_from:
         origin = start_layer if start_layer is not None else PreprocessOrigin.REUSE_ALL
         typer.echo(f"reconstruct_from.{dataset.value}={origin}")
-    reused = tuple(decision.layer.value for decision in record.decisions if decision.reused)
-    rebuilt = tuple(decision.layer.value for decision in record.decisions if decision.reconstructed)
+    reused = tuple(
+        decision.layer.value
+        for decision in record.decisions
+        if decision.reuse_decision is ReuseDecision.REUSED
+    )
+    rebuilt = tuple(
+        decision.layer.value
+        for decision in record.decisions
+        if decision.reuse_decision is ReuseDecision.RECONSTRUCTED
+    )
     typer.echo("reused_layers=" + ",".join(reused))
     typer.echo("rebuilt_layers=" + ",".join(rebuilt))
     invalidated = tuple(

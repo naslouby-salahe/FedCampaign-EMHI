@@ -82,12 +82,12 @@ def partial_coalition_context_members(
     ordered = sorted(coalition_client_ids)
     if len(ordered) < 2:
         raise ValueError("partial coalition exclusion requires at least two members")
-    removed_count = 2 if len(ordered) >= 3 else 1  # TODO: should be constant
+    removed_count = 2 if len(ordered) >= 3 else 1
     removed = tuple(ordered[:removed_count])
     return complement_members(selected_client_ids, removed)
 
 
-NO_OUTSIDE_CONTEXT_CELL_COUNT = 1  # TODO: should be constant
+NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
 
 
 def shuffled_context_permutation(

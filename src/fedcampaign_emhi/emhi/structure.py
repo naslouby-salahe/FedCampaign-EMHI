@@ -74,7 +74,7 @@ def proper_subset_members(coalition: CoalitionMembers) -> tuple[CoalitionMembers
 def clip_rank(rank: RankValue, epsilon: NumericalFloor) -> RankValue:
     if rank < epsilon:
         return epsilon
-    upper = 1.0 - epsilon  # TODO: should be constant
+    upper = 1.0 - epsilon
     if rank > upper:
         return upper
     return rank
@@ -86,7 +86,7 @@ def midrank(score: DetectorScore, reference: RankReference) -> RankValue:
         raise ValueError("rank reference must contain at least one score")
     less = sum(1 for reference_score in reference.scores if reference_score < score)
     equal = sum(1 for reference_score in reference.scores if reference_score == score)
-    return (less + (0.5 * equal) + 0.5) / (observation_count + 1)  # TODO: should be constant
+    return (less + (0.5 * equal) + 0.5) / (observation_count + 1)
 
 
 def clipped_midrank(
@@ -235,17 +235,17 @@ def shifted_legendre_phi_four(rank: RankValue) -> BasisCoordinate:
 
 
 def bounded_basis(rank: RankValue, basis_size: BasisSize) -> tuple[BasisCoordinate, ...]:
-    if basis_size == 1:  # TODO: should be constant
+    if basis_size == 1:
         return (shifted_legendre_phi_one(rank),)
-    if basis_size == 2:  # TODO: should be constant
+    if basis_size == 2:
         return (shifted_legendre_phi_one(rank), shifted_legendre_phi_two(rank))
-    if basis_size == 3:  # TODO: should be constant
+    if basis_size == 3:
         return (
             shifted_legendre_phi_one(rank),
             shifted_legendre_phi_two(rank),
             shifted_legendre_phi_three(rank),
         )
-    if basis_size == 4:  # TODO: should be constant
+    if basis_size == 4:
         return (
             shifted_legendre_phi_one(rank),
             shifted_legendre_phi_two(rank),

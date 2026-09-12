@@ -26,10 +26,10 @@ from fedcampaign_emhi.runtime import derive_component_seed, log_stage, thirty_tw
 AUTOENCODER_ENCODER_WIDTH: LayerWidth = 32
 AUTOENCODER_LATENT_WIDTH: LayerWidth = 8
 AUTOENCODER_DECODER_WIDTH: LayerWidth = 32
-RELU_XAVIER_GAIN: XavierGain = math.sqrt(2.0)  # TODO: should be constant
-OUTPUT_XAVIER_GAIN: XavierGain = 1.0  # TODO: should be constant
+RELU_XAVIER_GAIN: XavierGain = math.sqrt(2.0)
+OUTPUT_XAVIER_GAIN: XavierGain = 1.0
 
-THREAD_COUNT = 1  # TODO: should be constant
+THREAD_COUNT = 1
 torch.set_num_threads(THREAD_COUNT)
 
 
