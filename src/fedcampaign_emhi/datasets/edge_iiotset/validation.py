@@ -17,10 +17,10 @@ from fedcampaign_emhi.domain.types import (
 )
 
 REQUIRED_EDGE_IIOTSET_COLUMNS = (
-    "frame.time",
-    "ip.src_host",
-    "Attack_label",
-    "Attack_type",
+    "frame.time", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "ip.src_host", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "Attack_label", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "Attack_type", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
 )
 
 

@@ -53,9 +53,9 @@ from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
 logging.getLogger("flwr").setLevel(logging.WARNING)
 
-PARTICIPATION_COMPONENT_NAME = "fedavg_autoencoder_participation"
-SERVER_ROUND_CONFIG_KEY = "server_round"
-CLIENT_INDEX_CONFIG_KEY = "client_index"
+PARTICIPATION_COMPONENT_NAME = "fedavg_autoencoder_participation" #TODO: should be enum not hardcoded string
+SERVER_ROUND_CONFIG_KEY = "server_round" #TODO: should be enum not hardcoded string
+CLIENT_INDEX_CONFIG_KEY = "client_index" #TODO: should be enum not hardcoded string
 CONNECT_DEADLINE_SECONDS = 30
 CONNECT_RETRY_SLEEP_SECONDS = 0.5
 
@@ -74,7 +74,7 @@ def fedavg_participant_indexes(
             dataset=None,
             client_ids=client_ids,
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="round_index", scalar=round_index),),
+            condition_coordinates=(SeedCoordinate(name="round_index", scalar=round_index),), #TODO: should be enum, not hardcoded string
         )
     )
     participation_order = np.random.default_rng(thirty_two_bit_seed(selection_seed)).permutation(
@@ -263,7 +263,7 @@ class FedAvgClient(fl.client.NumPyClient):
             server_round - 1,
         )
         if self.client_index not in participating:
-            return list(self.parameters), 0, {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)}
+            return list(self.parameters), 0, {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)} #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
         network = self._network()
         epoch_offset = (server_round - 1) * self.local_epochs_per_round
         train_autoencoder_epochs(
@@ -284,7 +284,7 @@ class FedAvgClient(fl.client.NumPyClient):
         return (
             list(self.parameters),
             self.row_count,
-            {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)},
+            {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)}, #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
         )
 
     def evaluate(

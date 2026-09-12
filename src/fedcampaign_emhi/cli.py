@@ -112,7 +112,7 @@ def preprocess_command(
     typer.echo(f"overwrite={overwrite}")
     typer.echo("datasets=" + ",".join(name.value for name in requested_datasets(selected)))
     for dataset, start_layer in record.reconstruct_from:
-        origin = start_layer.value if start_layer is not None else "reuse_all"
+        origin = start_layer.value if start_layer is not None else "reuse_all" #TODO: should be enum not hardcoded string
         typer.echo(f"reconstruct_from.{dataset.value}={origin}")
     reused = tuple(decision.layer.value for decision in record.decisions if decision.reused)
     rebuilt = tuple(decision.layer.value for decision in record.decisions if decision.reconstructed)
@@ -262,13 +262,13 @@ def report_command(
             typer.echo(f"report_artifact={path}")
 
 
-application.command("doctor")(doctor_command)
-application.command("preprocess")(preprocess_command)
-application.command("plan")(plan_command)
-application.command("smoke")(smoke_command)
-application.command("run")(run_command)
-application.command("status")(status_command)
-application.command("report")(report_command)
+application.command("doctor")(doctor_command) #TODO: should be enum not hardcoded string
+application.command("preprocess")(preprocess_command) #TODO: should be enum not hardcoded string
+application.command("plan")(plan_command) #TODO: should be enum not hardcoded string
+application.command("smoke")(smoke_command) #TODO: should be enum not hardcoded string
+application.command("run")(run_command) #TODO: should be enum not hardcoded string
+application.command("status")(status_command) #TODO: should be enum not hardcoded string
+application.command("report")(report_command) #TODO: should be enum not hardcoded string
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ def primary_holm_family_artifact_path(
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
     return (
-        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "primary-holm.json"
+        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "primary-holm.json" #TODO: should be enums not hardcoded strings
     )
 
 
@@ -61,7 +61,7 @@ def secondary_holm_family_artifact_path(
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
     return (
-        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "secondary-holm.json"
+        layout.roots.outputs_root / "artifacts" / "derived" / "multiplicity" / "secondary-holm.json" #TODO: should be enums not hardcoded strings
     )
 
 
@@ -84,7 +84,7 @@ def _family_record_ids(
         experiment_name: frozenset(
             identifier
             for path in sorted(
-                (layout.experiment_outputs_root(experiment_name) / "statistics").rglob("*.json")
+                (layout.experiment_outputs_root(experiment_name) / "statistics").rglob("*.json") #TODO: should be enums not hardcoded strings
             )
             if (identifier := _record_hypothesis_identifier(path)) is not None
         )
@@ -278,7 +278,7 @@ def materialize_primary_holm_family(
     paths: list[Path] = []
     inputs: list[HolmHypothesisInput] = []
     for experiment_name, hypothesis in PRIMARY_HOLM_STATISTICS:
-        root = layout.experiment_outputs_root(experiment_name) / "statistics"
+        root = layout.experiment_outputs_root(experiment_name) / "statistics" #TODO: should be enums not hardcoded strings
         matching = tuple(
             path
             for path in sorted(root.rglob("*.json"))
@@ -334,7 +334,7 @@ def materialize_primary_holm_family(
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -347,7 +347,7 @@ def materialize_secondary_holm_family(
     paths: list[Path] = []
     inputs: list[HolmHypothesisInput] = []
     for experiment_name, hypothesis, _method in SECONDARY_HOLM_STATISTICS:
-        root = layout.experiment_outputs_root(experiment_name) / "statistics"
+        root = layout.experiment_outputs_root(experiment_name) / "statistics" #TODO: should be enums not hardcoded strings
         matching = tuple(
             path
             for path in sorted(root.rglob("*.json"))
@@ -403,6 +403,6 @@ def materialize_secondary_holm_family(
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path

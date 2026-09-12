@@ -97,14 +97,14 @@ def preprocessing_paths(
     dataset_name: DatasetName,
 ) -> tuple[Path, Path, Path, Path, Path]:
     layout = build_artifact_layout(loaded, repository)
-    root = layout.roots.outputs_root / "preprocessing"
+    root = layout.roots.outputs_root / "preprocessing" #TODO: should be enums not hardcoded strings
     stem = dataset_directory_stem(dataset_name)
     return (
-        root / "inventories" / f"{stem}.json",
-        root / "prepared" / f"{stem}.json",
-        root / "splits" / f"{stem}.json",
-        root / "metadata" / f"{stem}-benign-partitions.json",
-        root / "metadata" / f"{stem}-campaign-registry.json",
+        root / "inventories" / f"{stem}.json", #TODO: should be enums not hardcoded strings
+        root / "prepared" / f"{stem}.json", #TODO: should be enums not hardcoded strings
+        root / "splits" / f"{stem}.json", #TODO: should be enums not hardcoded strings
+        root / "metadata" / f"{stem}-benign-partitions.json", #TODO: should be enums not hardcoded strings
+        root / "metadata" / f"{stem}-campaign-registry.json", #TODO: should be enums not hardcoded strings
     )
 
 
@@ -168,7 +168,7 @@ def _materialize_detector_scores(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     write_artifact_manifest(
         loaded,
@@ -232,7 +232,7 @@ def _materialize_marginal_ranks(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     write_artifact_manifest(
         loaded,
@@ -333,7 +333,7 @@ def _materialize_emhi_fit(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     write_artifact_manifest(
         loaded,

@@ -597,10 +597,10 @@ def _prepare_ton_epochs_from_csv(
     distinct_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid})")
     discrepancy_count = _duckdb_count(
         connection,
-        f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'normal') OR (binary_label=1 AND lower(attack_type)='normal')",
+        f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'normal') OR (binary_label=1 AND lower(attack_type)='normal')", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
     )
     eligibility_rows = connection.execute(
-        f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='normal' GROUP BY client_id",
+        f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='normal' GROUP BY client_id", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
         [epoch_seconds],
     ).fetchall()
     tallies = tuple(
@@ -1040,7 +1040,7 @@ def _materialize_layer(
     payload = cast(YamlNode, record.model_dump(mode="json"))
     content_digest = payload_digest(payload)
     product_path = _product_path(layout, dataset_name, layer)
-    staging = layout.roots.outputs_root / "cache" / "staging"
+    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
     write_atomic_json(product_path, payload, staging)
     index = PREPROCESSING_LAYER_ORDER.index(layer)
     upstream_ids = ()
@@ -1069,16 +1069,16 @@ def _product_path(
     layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
 ) -> Path:
     stem = dataset_directory_stem(dataset_name)
-    root = layout.roots.outputs_root / "preprocessing"
+    root = layout.roots.outputs_root / "preprocessing" #TODO: should be enums not hardcoded strings
     if layer is PreprocessingLayer.INVENTORY:
-        return root / "inventories" / f"{stem}.json"
+        return root / "inventories" / f"{stem}.json" #TODO: should be enums not hardcoded strings
     if layer is PreprocessingLayer.PREPARED:
-        return root / "prepared" / f"{stem}.json"
+        return root / "prepared" / f"{stem}.json" #TODO: should be enums not hardcoded strings
     if layer is PreprocessingLayer.SPLITS:
-        return root / "splits" / f"{stem}.json"
+        return root / "splits" / f"{stem}.json" #TODO: should be enums not hardcoded strings
     if layer is PreprocessingLayer.PARTITIONS:
-        return root / "metadata" / f"{stem}-benign-partitions.json"
-    return root / "metadata" / f"{stem}-campaign-registry.json"
+        return root / "metadata" / f"{stem}-benign-partitions.json" #TODO: should be enums not hardcoded strings
+    return root / "metadata" / f"{stem}-campaign-registry.json" #TODO: should be enums not hardcoded strings
 
 
 def _manifest_path(
@@ -1087,9 +1087,9 @@ def _manifest_path(
     stem = dataset_directory_stem(dataset_name)
     return (
         layout.roots.outputs_root
-        / "preprocessing"
-        / "metadata"
-        / f"{stem}-{layer.value}-manifest.json"
+        / "preprocessing" #TODO: should be enums not hardcoded strings
+        / "metadata" #TODO: should be enums not hardcoded strings
+        / f"{stem}-{layer.value}-manifest.json" #TODO: should be enums not hardcoded strings
     )
 
 

@@ -80,8 +80,8 @@ FigureBytes = Annotated[bytes, Field()]
 FigureDimensionInches = PositiveFloat
 FigureDotsPerInch = PositiveInt
 Boolean = Annotated[bool, Field()]
-ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
+ResumeStep = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+YamlKeyPath = Annotated[str, StringConstraints(min_length=1)] #TODO: convert to enum
 ScoreShift = FiniteFloat
 Correlation = Annotated[float, Field(ge=-1.0, le=1.0)]
 LatentAutoregressiveCoefficient = UnitInterval
@@ -191,7 +191,7 @@ ClientId = Annotated[
     StringConstraints(min_length=1, max_length=128, strip_whitespace=True),
 ]
 RelativePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-ArtifactFilename = Annotated[
+ArtifactFilename = Annotated[ #TODO: convert to enum
     str,
     StringConstraints(
         min_length=1,
@@ -205,16 +205,16 @@ ConfigurationDigest = Annotated[
     StringConstraints(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"),
 ]
 MaterialDependencyFingerprint = ConfigurationDigest
-OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-NormalizedEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-AttackTypeName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-SeedCoordinateName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
-ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+OwnershipStatement = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+ConfigSourcePath = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+ComponentName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+NormalizedEventToken = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+AttackTypeName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+SeedCoordinateName = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
+ArtifactIdentity = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)] #TODO: convert to enum
 ByteCount = NonNegativeInt
 Sha256Hex = ConfigurationDigest
-ThirtyTwoBitSeed = Annotated[int, Field(ge=0, lt=4_294_967_296)]
+ThirtyTwoBitSeed = Annotated[int, Field(ge=0, lt=4_294_967_296)] #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
 LoopbackPortNumber = Annotated[int, Field(ge=1, le=65_535)]
 
 

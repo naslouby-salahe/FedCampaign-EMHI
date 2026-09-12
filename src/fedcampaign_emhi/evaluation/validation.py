@@ -172,8 +172,8 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         collector,
     )
 
-    selected = ("c1", "c2", "c3", "c4", "c5", "c6")
-    coalition = ("c1", "c2", "c3")
+    selected = ("c1", "c2", "c3", "c4", "c5", "c6") #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    coalition = ("c1", "c2", "c3") #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
     _check(
         EXACT_EXCLUSION,
         exact_exclusion_members(selected, coalition) == ("c4", "c5", "c6"),

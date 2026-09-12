@@ -594,7 +594,7 @@ def _evaluate_hofd_equivalence_seed(
         tuple(failures),
         None,
         {
-            "comparison": "paired exclusion-matched EMHI and HOFD atoms and sequential routes",
+            "comparison": "paired exclusion-matched EMHI and HOFD atoms and sequential routes", #TODO: should be enums not hardcoded strings
             "context_cell_count": experiment.context_cell_count,
             "conditions": condition_records,
         },
@@ -1026,7 +1026,7 @@ def _dropout_sparsity_record(
             "client_streams": filtered_streams,
             "dependency_fingerprint": deterministic_digest(
                 {
-                    "producer": "client-dropout-sparsity-filtered-ranks",
+                    "producer": "client-dropout-sparsity-filtered-ranks", #TODO: should be enums not hardcoded strings
                     "seed": seed,
                     "client_count": client_count,
                     "unavailable_fraction": fraction,
@@ -1245,7 +1245,7 @@ def _strong_comparator_outcome(
         tuple(mixed_failures),
         standardized_score,
         {
-            "implementation_state": "native_order_score_complete",
+            "implementation_state": "native_order_score_complete", #TODO: should be enums not hardcoded strings
             "native_target_order": order,
             "standardized_target_order_score": standardized_score,
             "standardized_target_order_error": abs(
@@ -1361,7 +1361,7 @@ def _pure_order_outcome(
                 "target_order": cell.target_order,
                 "enabled_orders": sorted(cell.enabled_orders),
                 "purity_valid": report.is_valid,
-                "scoring_state": "execution-layer-fitted-grid",
+                "scoring_state": "execution-layer-fitted-grid", #TODO: should be enums not hardcoded strings
             }
         )
     return SyntheticCellOutcome(
@@ -1370,7 +1370,7 @@ def _pure_order_outcome(
         {
             "condition_count": len(records),
             "conditions": records,
-            "implementation_state": "execution-layer-grid",
+            "implementation_state": "execution-layer-grid", #TODO: should be enums not hardcoded strings
         },
         pure_order_metrics=None,
     )

@@ -287,7 +287,7 @@ def _restart_seed(base_seed: SeedValue, restart_index: KmeansInitializationCount
             dataset=None,
             client_ids=(),
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="restart_index", scalar=restart_index),),
+            condition_coordinates=(SeedCoordinate(name="restart_index", scalar=restart_index),), #TODO: should be enum, not hardcoded string
         )
     )
 

@@ -176,8 +176,8 @@ def resolve_comparator_scoring_method(
     filename = loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
     path = (
         layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
-        / "artifacts"
-        / "derived"
+        / "artifacts" #TODO: should be enums not hardcoded strings
+        / "derived" #TODO: should be enums not hardcoded strings
         / filename
     )
     if not path.is_file():

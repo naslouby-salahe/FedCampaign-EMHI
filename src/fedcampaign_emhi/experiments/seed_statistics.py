@@ -151,11 +151,11 @@ def _raw_evaluation_operating_point(
     root = layout.experiment_outputs_root(experiment_name)
     path = (
         root
-        / "evaluations"
-        / "raw"
+        / "evaluations" #TODO: should be enums not hardcoded strings
+        / "raw" #TODO: should be enums not hardcoded strings
         / ExecutionRole.CONFIRMATORY.value
         / method_artifact_stem(method_name)
-        / f"seed-{seed}.json"
+        / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
     )
     if not path.is_file():
         return None
@@ -225,7 +225,7 @@ def materialize_seed_statistics(
 ) -> tuple[Path, ...]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    summary_root = root / "metrics" / "seed-summaries"
+    summary_root = root / "metrics" / "seed-summaries" #TODO: should be enums not hardcoded strings
     summary_paths = tuple(sorted(summary_root.glob("**/*.json")))
     grouped: list[tuple[MethodName, list[tuple[Path, SeedSummaryRecord]]]] = []
     for summary_path in summary_paths:
@@ -295,7 +295,7 @@ def materialize_seed_statistics(
         tuple(method_name.value for method_name, _records in method_groups),
         tuple(raw_p_values),
     )
-    staging = layout.roots.outputs_root / "cache" / "staging"
+    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
     paths: list[Path] = []
     for index, (method_name, records) in enumerate(method_groups):
         interval = intervals[index]
@@ -303,7 +303,7 @@ def materialize_seed_statistics(
         payload: YamlNode = {
             "experiment_name": experiment_name.value,
             "method_name": method_name.value,
-            "metric_name": "strict_odi_rate",
+            "metric_name": "strict_odi_rate", #TODO: should be enums not hardcoded strings
             "estimate": estimates[index],
             "raw_p_value": raw_p_values[index],
             "adjusted_p_value": adjusted[index],
@@ -332,9 +332,9 @@ def materialize_seed_statistics(
         )
         path = (
             root
-            / "statistics"
+            / "statistics" #TODO: should be enums not hardcoded strings
             / "seed-level"
-            / f"{method_artifact_stem(method_name)}-strict-odi-rate.json"
+            / f"{method_artifact_stem(method_name)}-strict-odi-rate.json" #TODO: should be enums not hardcoded strings
         )
         write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
         paths.append(path)
@@ -375,8 +375,8 @@ def materialize_not_tested_primary_holm_statistic(
         sorted(
             (
                 root
-                / "evaluations"
-                / "raw"
+                / "evaluations" #TODO: should be enums not hardcoded strings
+                / "raw" #TODO: should be enums not hardcoded strings
                 / ExecutionRole.CONFIRMATORY.value
                 / method_artifact_stem(MethodName.FULL_FEDCAMPAIGN_EMHI)
             ).glob("*.json")
@@ -421,11 +421,11 @@ def materialize_not_tested_primary_holm_statistic(
         ),
         content_digest=payload_digest(payload),
     )
-    path = root / "statistics" / "tests" / "primary-holm-not-tested.json"
+    path = root / "statistics" / "tests" / "primary-holm-not-tested.json" #TODO: should be enums not hardcoded strings
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -437,7 +437,7 @@ def _hypothesis_artifact_stem(identifier: ComponentName) -> RelativePath:
 def _load_seed_summaries(
     root: Path,
 ) -> tuple[tuple[Path, SeedSummaryRecord], ...]:
-    summary_root = root / "metrics" / "seed-summaries"
+    summary_root = root / "metrics" / "seed-summaries" #TODO: should be enums not hardcoded strings
     paths = tuple(sorted(summary_root.glob("**/*.json")))
     return tuple((path, SeedSummaryRecord.model_validate_json(path.read_bytes())) for path in paths)
 
@@ -572,14 +572,14 @@ def _materialize_paired_confirmatory_odi_contrast(
         )
         path = (
             root
-            / "statistics"
-            / "tests"
-            / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+            / "statistics" #TODO: should be enums not hardcoded strings
+            / "tests" #TODO: should be enums not hardcoded strings
+            / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json" #TODO: should be enums not hardcoded strings
         )
         write_atomic_json(
             path,
             cast(YamlNode, record.model_dump(mode="json")),
-            layout.roots.outputs_root / "cache" / "staging",
+            layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
         )
         return record
     paired_with_difference = tuple(
@@ -639,12 +639,12 @@ def _materialize_paired_confirmatory_odi_contrast(
         content_digest=payload_digest(payload),
     )
     path = (
-        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json" #TODO: should be enums not hardcoded strings
     )
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return record
 
@@ -717,11 +717,11 @@ def materialize_order_three_scope_outcome(
         dependency_fingerprint=contrast.dependency_fingerprint,
         content_digest=payload_digest(payload),
     )
-    path = root / "statistics" / "effects" / "order-three-scope.json"
+    path = root / "statistics" / "effects" / "order-three-scope.json" #TODO: should be enums not hardcoded strings
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -773,12 +773,12 @@ def _write_null_odi_hypothesis_record(
         content_digest=payload_digest(payload),
     )
     path = (
-        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json"
+        root / "statistics" / "tests" / f"{_hypothesis_artifact_stem(hypothesis_identifier)}.json" #TODO: should be enums not hardcoded strings
     )
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -790,7 +790,7 @@ def materialize_strong_local_odi_statistic(
     experiment_name = ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    not_tested_path = root / "statistics" / "tests" / "primary-holm-not-tested.json"
+    not_tested_path = root / "statistics" / "tests" / "primary-holm-not-tested.json" #TODO: should be enums not hardcoded strings
     if not_tested_path.is_file():
         return None
     summaries = _load_seed_summaries(root)
@@ -840,7 +840,7 @@ def materialize_strong_local_odi_statistic(
     payload: YamlNode = {
         "experiment_name": experiment_name.value,
         "hypothesis_identifier": hypothesis_identifier.value,
-        "metric_name": "strong_local_strict_odi_rate",
+        "metric_name": "strong_local_strict_odi_rate", #TODO: should be enums not hardcoded strings
         "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         "independent_unit_count": len(shifted),
         "estimate": estimate,
@@ -871,11 +871,11 @@ def materialize_strong_local_odi_statistic(
         ),
         content_digest=payload_digest(payload),
     )
-    path = root / "statistics" / "tests" / "strong-local-odi-above-minimum.json"
+    path = root / "statistics" / "tests" / "strong-local-odi-above-minimum.json" #TODO: should be enums not hardcoded strings
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -1115,7 +1115,7 @@ def materialize_benign_common_mode_statistic(
     payload: YamlNode = {
         "experiment_name": experiment_name.value,
         "hypothesis_identifier": PrimaryHolmHypothesis.COMMON_MODE_FALSE_CAMPAIGN_REDUCTION.value,
-        "metric_name": "false_campaign_reduction",
+        "metric_name": "false_campaign_reduction", #TODO: should be enums not hardcoded strings
         "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         "independent_unit_count": len(differences),
         "estimate": estimate,
@@ -1148,11 +1148,11 @@ def materialize_benign_common_mode_statistic(
     )
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    path = root / "statistics" / "tests" / "common-mode-false-campaign-reduction.json"
+    path = root / "statistics" / "tests" / "common-mode-false-campaign-reduction.json" #TODO: should be enums not hardcoded strings
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path
 
@@ -1329,7 +1329,7 @@ def materialize_benign_common_mode_count_stress_diagnostics(
         return ()
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging"
+    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
     tasks = tuple(
         (loaded, repository, plan.dataset_name, seed, factor)
         for factor in loaded.values.robustness.benign_count_multiplication_factors
@@ -1372,7 +1372,7 @@ def materialize_benign_common_mode_count_stress_diagnostics(
                 ),
                 content_digest=payload_digest(payload),
             )
-            path = root / "diagnostics" / "count-stress" / f"factor-{factor}" / f"seed-{seed}.json"
+            path = root / "diagnostics" / "count-stress" / f"factor-{factor}" / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
             write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
             paths.append(path)
     return tuple(paths)
@@ -1580,10 +1580,10 @@ def materialize_benign_common_mode_positive_power_measurement(
     )
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    path = root / "diagnostics" / "positive-power" / "measurement.json"
+    path = root / "diagnostics" / "positive-power" / "measurement.json" #TODO: should be enums not hardcoded strings
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
     return path

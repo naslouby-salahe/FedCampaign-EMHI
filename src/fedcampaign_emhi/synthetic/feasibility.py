@@ -291,10 +291,10 @@ def _component_seed(
             client_ids=(),
             coalition_ids=(),
             condition_coordinates=(
-                SeedCoordinate(name="coalition_order", scalar=order),
-                SeedCoordinate(name="support_per_context", scalar=support_per_context),
-                SeedCoordinate(name="basis_size", scalar=basis_size),
-                SeedCoordinate(name="context_cell_count", scalar=cell_count),
+                SeedCoordinate(name="coalition_order", scalar=order), #TODO: should be enum, not hardcoded string
+                SeedCoordinate(name="support_per_context", scalar=support_per_context), #TODO: should be enum, not hardcoded string
+                SeedCoordinate(name="basis_size", scalar=basis_size), #TODO: should be enum, not hardcoded string
+                SeedCoordinate(name="context_cell_count", scalar=cell_count), #TODO: should be enum, not hardcoded string
             ),
         )
     )

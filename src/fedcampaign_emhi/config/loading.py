@@ -29,15 +29,15 @@ from fedcampaign_emhi.domain.types import (
     RankValue,
 )
 
-PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path("configs/fedcampaign-emhi.yaml")
-TESTS_CONFIGURATION_RELATIVE_PATH = Path("configs/tests.yml")
-SMOKE_CONFIGURATION_RELATIVE_PATH = Path("configs/smoke.yml")
+PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path("configs/fedcampaign-emhi.yaml") #TODO: use enums instead of hardcoded strings
+TESTS_CONFIGURATION_RELATIVE_PATH = Path("configs/tests.yml") #TODO: use enums instead of hardcoded strings
+SMOKE_CONFIGURATION_RELATIVE_PATH = Path("configs/smoke.yml") #TODO: use enums instead of hardcoded strings
 
 
 def repository_root(start: Path | None = None) -> Path:
     cursor = (start or Path.cwd()).resolve()
     for candidate in (cursor, *cursor.parents):
-        marker = candidate / "pyproject.toml"
+        marker = candidate / "pyproject.toml" #TODO: use enums instead of hardcoded strings
         production = candidate / PRODUCTION_CONFIGURATION_RELATIVE_PATH
         if marker.is_file() and production.is_file():
             return candidate

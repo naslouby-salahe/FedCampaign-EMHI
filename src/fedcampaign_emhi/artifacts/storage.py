@@ -27,21 +27,21 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.runtime import deterministic_digest, deterministic_utf8_bytes
 
 OUTPUTS_PREPROCESSING_CHILDREN = (
-    "inventories",
-    "validation",
-    "prepared",
-    "splits",
-    "features",
-    "metadata",
+    "inventories", #TODO: should be enums not hardcoded strings
+    "validation", #TODO: should be enums not hardcoded strings
+    "prepared", #TODO: should be enums not hardcoded strings
+    "splits", #TODO: should be enums not hardcoded strings
+    "features", #TODO: should be enums not hardcoded strings
+    "metadata", #TODO: should be enums not hardcoded strings
 )
 
 
 def dataset_directory_stem(dataset_name: DatasetName) -> ArtifactIdentity:
-    return dataset_name.value.replace(" ", "_")
+    return dataset_name.value.replace(" ", "_") #TODO: should be enums not hardcoded strings
 
 
 def layer_artifact_id(dataset_name: DatasetName, layer: PreprocessingLayer) -> ArtifactIdentity:
-    return f"preprocess.{dataset_directory_stem(dataset_name)}.{layer.value}"
+    return f"preprocess.{dataset_directory_stem(dataset_name)}.{layer.value}" #TODO: should be enums not hardcoded strings
 
 
 def method_artifact_stem(method_name: MethodName) -> RelativePath:
@@ -49,17 +49,17 @@ def method_artifact_stem(method_name: MethodName) -> RelativePath:
 
 
 def detector_score_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"detector-scores.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+    return f"detector-scores.{dataset_directory_stem(dataset_name)}.seed-{root_seed}" #TODO: should be enums not hardcoded strings
 
 
 def marginal_rank_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"marginal-ranks.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+    return f"marginal-ranks.{dataset_directory_stem(dataset_name)}.seed-{root_seed}" #TODO: should be enums not hardcoded strings
 
 
 def emhi_fit_artifact_id(
     dataset_name: DatasetName, root_seed: SeedValue, method_name: MethodName
 ) -> ArtifactIdentity:
-    return f"emhi-fit.{dataset_directory_stem(dataset_name)}.seed-{root_seed}.{method_artifact_stem(method_name)}"
+    return f"emhi-fit.{dataset_directory_stem(dataset_name)}.seed-{root_seed}.{method_artifact_stem(method_name)}" #TODO: should be enums not hardcoded strings
 
 
 def detector_score_artifact_path(
@@ -71,10 +71,10 @@ def detector_score_artifact_path(
     layout = build_artifact_layout(loaded, repository)
     return (
         layout.roots.outputs_root
-        / "artifacts"
-        / "scores"
+        / "artifacts" #TODO: should be enums not hardcoded strings
+        / "scores" #TODO: should be enums not hardcoded strings
         / dataset_directory_stem(dataset_name)
-        / f"seed-{root_seed}.json"
+        / f"seed-{root_seed}.json" #TODO: should be enums not hardcoded strings
     )
 
 
@@ -87,10 +87,10 @@ def marginal_rank_artifact_path(
     layout = build_artifact_layout(loaded, repository)
     return (
         layout.roots.outputs_root
-        / "artifacts"
-        / "fitted"
+        / "artifacts" #TODO: should be enums not hardcoded strings
+        / "fitted" #TODO: should be enums not hardcoded strings
         / dataset_directory_stem(dataset_name)
-        / f"seed-{root_seed}-marginal-ranks.json"
+        / f"seed-{root_seed}-marginal-ranks.json" #TODO: should be enums not hardcoded strings
     )
 
 
@@ -104,55 +104,55 @@ def emhi_fit_artifact_path(
     layout = build_artifact_layout(loaded, repository)
     return (
         layout.roots.outputs_root
-        / "artifacts"
-        / "fitted"
+        / "artifacts" #TODO: should be enums not hardcoded strings
+        / "fitted" #TODO: should be enums not hardcoded strings
         / dataset_directory_stem(dataset_name)
-        / f"seed-{root_seed}"
-        / f"{method_artifact_stem(method_name)}.json"
+        / f"seed-{root_seed}" #TODO: should be enums not hardcoded strings
+        / f"{method_artifact_stem(method_name)}.json" #TODO: should be enums not hardcoded strings
     )
 
 
 OUTPUTS_ARTIFACT_CHILDREN = (
-    "models",
-    "scores",
-    "fitted",
-    "baselines",
-    "derived",
+    "models", #TODO: should be enums not hardcoded strings
+    "scores", #TODO: should be enums not hardcoded strings
+    "fitted", #TODO: should be enums not hardcoded strings
+    "baselines", #TODO: should be enums not hardcoded strings
+    "derived", #TODO: should be enums not hardcoded strings
 )
 OUTPUTS_CACHE_CHILDREN = (
-    "preprocessing",
-    "models",
-    "evaluation",
-    "analysis",
-    "staging",
+    "preprocessing", #TODO: should be enums not hardcoded strings
+    "models", #TODO: should be enums not hardcoded strings
+    "evaluation", #TODO: should be enums not hardcoded strings
+    "analysis", #TODO: should be enums not hardcoded strings
+    "staging", #TODO: should be enums not hardcoded strings
 )
 EXPERIMENT_OUTPUT_TREES = {
-    "artifacts": ("fitted", "predictions", "derived"),
-    "evaluations": ("records", "comparisons", "aggregates"),
-    "metrics": ("per_seed", "per_condition", "aggregate"),
-    "statistics": ("tests", "confidence_intervals", "effects", "multiplicity"),
-    "checkpoints": ("training", "execution"),
-    "diagnostics": ("scientific", "numerical", "runtime"),
-    "logs": ("execution", "failures"),
-    "figures": ("main", "supplementary"),
-    "tables": ("main", "supplementary"),
-    "source_data": ("figures", "tables"),
-    "provenance": ("configuration", "data", "seeds", "code", "environment", "dependencies"),
+    "artifacts": ("fitted", "predictions", "derived"), #TODO: should be enums not hardcoded strings
+    "evaluations": ("records", "comparisons", "aggregates"), #TODO: should be enums not hardcoded strings
+    "metrics": ("per_seed", "per_condition", "aggregate"), #TODO: should be enums not hardcoded strings
+    "statistics": ("tests", "confidence_intervals", "effects", "multiplicity"), #TODO: should be enums not hardcoded strings
+    "checkpoints": ("training", "execution"), #TODO: should be enums not hardcoded strings
+    "diagnostics": ("scientific", "numerical", "runtime"), #TODO: should be enums not hardcoded strings
+    "logs": ("execution", "failures"), #TODO: should be enums not hardcoded strings
+    "figures": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "tables": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "source_data": ("figures", "tables"), #TODO: should be enums not hardcoded strings
+    "provenance": ("configuration", "data", "seeds", "code", "environment", "dependencies"), #TODO: should be enums not hardcoded strings
 }
 EXPERIMENT_RESULTS_TREES = {
-    "figures": ("main", "supplementary"),
-    "tables": ("main", "supplementary"),
-    "metrics": ("primary", "secondary", "summary"),
-    "statistics": ("tests", "confidence_intervals", "effects", "multiplicity"),
-    "source_data": ("figures", "tables"),
+    "figures": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "tables": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "metrics": ("primary", "secondary", "summary"), #TODO: should be enums not hardcoded strings
+    "statistics": ("tests", "confidence_intervals", "effects", "multiplicity"), #TODO: should be enums not hardcoded strings
+    "source_data": ("figures", "tables"), #TODO: should be enums not hardcoded strings
 }
 PROJECT_SUMMARY_TREES = {
-    "figures": ("main", "supplementary"),
-    "tables": ("main", "supplementary"),
-    "metrics": ("primary", "summary"),
-    "statistics": ("comparisons", "confidence_intervals", "effects", "multiplicity"),
-    "source_data": ("figures", "tables"),
-    "reproducibility": ("configuration", "datasets", "seeds", "software", "execution"),
+    "figures": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "tables": ("main", "supplementary"), #TODO: should be enums not hardcoded strings
+    "metrics": ("primary", "summary"), #TODO: should be enums not hardcoded strings
+    "statistics": ("comparisons", "confidence_intervals", "effects", "multiplicity"), #TODO: should be enums not hardcoded strings
+    "source_data": ("figures", "tables"), #TODO: should be enums not hardcoded strings
+    "reproducibility": ("configuration", "datasets", "seeds", "software", "execution"), #TODO: should be enums not hardcoded strings
 }
 
 
@@ -161,10 +161,10 @@ class ArtifactLayout:
     roots: ArtifactRoots
 
     def experiment_outputs_root(self, experiment_name: ExperimentName) -> Path:
-        return self.roots.outputs_root / "experiments" / experiment_name.value
+        return self.roots.outputs_root / "experiments" / experiment_name.value #TODO: should be enums not hardcoded strings
 
     def experiment_results_root(self, experiment_name: ExperimentName) -> Path:
-        return self.roots.results_root / "experiments" / experiment_name.value
+        return self.roots.results_root / "experiments" / experiment_name.value #TODO: should be enums not hardcoded strings
 
     def required_directories(self) -> tuple[Path, ...]:
         outputs_root = self.roots.namespace_root(ArtifactNamespace.OUTPUTS)
@@ -172,18 +172,18 @@ class ArtifactLayout:
         paths: list[Path] = [
             outputs_root,
             results_root,
-            outputs_root / "preprocessing",
-            outputs_root / "artifacts",
-            outputs_root / "experiments",
-            outputs_root / "cache",
-            results_root / "experiments",
-            results_root / "project_summary",
+            outputs_root / "preprocessing", #TODO: should be enums not hardcoded strings
+            outputs_root / "artifacts", #TODO: should be enums not hardcoded strings
+            outputs_root / "experiments", #TODO: should be enums not hardcoded strings
+            outputs_root / "cache", #TODO: should be enums not hardcoded strings
+            results_root / "experiments", #TODO: should be enums not hardcoded strings
+            results_root / "project_summary", #TODO: should be enums not hardcoded strings
         ]
         paths.extend(
-            _child_directories(outputs_root / "preprocessing", OUTPUTS_PREPROCESSING_CHILDREN)
+            _child_directories(outputs_root / "preprocessing", OUTPUTS_PREPROCESSING_CHILDREN) #TODO: should be enums not hardcoded strings
         )
-        paths.extend(_child_directories(outputs_root / "artifacts", OUTPUTS_ARTIFACT_CHILDREN))
-        paths.extend(_child_directories(outputs_root / "cache", OUTPUTS_CACHE_CHILDREN))
+        paths.extend(_child_directories(outputs_root / "artifacts", OUTPUTS_ARTIFACT_CHILDREN)) #TODO: should be enums not hardcoded strings
+        paths.extend(_child_directories(outputs_root / "cache", OUTPUTS_CACHE_CHILDREN)) #TODO: should be enums not hardcoded strings
         for experiment_name in ExperimentName:
             experiment_output = self.experiment_outputs_root(experiment_name)
             paths.append(experiment_output)
@@ -191,7 +191,7 @@ class ArtifactLayout:
             experiment_result = self.experiment_results_root(experiment_name)
             paths.append(experiment_result)
             paths.extend(_nested_directories(experiment_result, EXPERIMENT_RESULTS_TREES))
-        paths.extend(_nested_directories(results_root / "project_summary", PROJECT_SUMMARY_TREES))
+        paths.extend(_nested_directories(results_root / "project_summary", PROJECT_SUMMARY_TREES)) #TODO: should be enums not hardcoded strings
         return tuple(paths)
 
 
@@ -279,7 +279,7 @@ def write_artifact_manifest(
         lifecycle_state=ArtifactLifecycleState.VALID,
     )
     write_atomic_json(
-        destination.with_suffix(".manifest.json"),
+        destination.with_suffix(".manifest.json"), #TODO: should be enums not hardcoded strings
         manifest.model_dump(mode="json"),
-        layout.roots.outputs_root / "cache" / "staging",
+        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )

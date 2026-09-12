@@ -121,18 +121,18 @@ def run_record_path(
     layout = build_artifact_layout(loaded, repository)
     return (
         layout.experiment_outputs_root(experiment_name)
-        / "provenance"
-        / "dependencies"
-        / "run-record.json"
+        / "provenance" #TODO: should be enums not hardcoded strings
+        / "dependencies" #TODO: should be enums not hardcoded strings
+        / "run-record.json" #TODO: should be enums not hardcoded strings
     )
 
 
 def cell_record_paths(experiment_root: Path) -> tuple[Path, ...]:
-    directory = experiment_root / "provenance" / "dependencies"
+    directory = experiment_root / "provenance" / "dependencies" #TODO: should be enums not hardcoded strings
     if not directory.is_dir():
         return ()
     return tuple(
-        sorted(path for path in directory.glob("*.json") if path.name != "run-record.json")
+        sorted(path for path in directory.glob("*.json") if path.name != "run-record.json") #TODO: should be enums not hardcoded strings
     )
 
 
@@ -146,7 +146,7 @@ def publish_experiment_run_record(
     if state in {ExperimentState.NOT_STARTED, ExperimentState.READY}:
         raise ValueError("run records require an active, blocked, or terminal execution state")
     layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging"
+    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
     destination = run_record_path(loaded, repository, experiment_name)
     record = ExperimentRunRecord(
         experiment_name=experiment_name,

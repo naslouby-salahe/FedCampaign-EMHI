@@ -244,7 +244,7 @@ def evaluate_self_explanation_seed(
     latent = generate_unit_variance_autoregressive_latent(
         epoch_count,
         config.generators.common_mode.latent_ar_coefficient,
-        _component_seed(seed, "latent"),
+        _component_seed(seed, "latent"), #TODO: should be enum, not hardcoded string
     )
     loadings = equally_spaced_loadings(
         client_count_maximum,
@@ -255,7 +255,7 @@ def evaluate_self_explanation_seed(
         latent,
         loadings,
         config.generators.common_mode.client_noise_standard_deviation,
-        _component_seed(seed, "noise"),
+        _component_seed(seed, "noise"), #TODO: should be enum, not hardcoded string
     )
     measurements: list[SelfExplanationMeasurement] = []
     primary_exact_derivative: EffectCoefficient | None = None

@@ -10,12 +10,12 @@ from fedcampaign_emhi.domain.types import (
 )
 
 REQUIRED_TON_IOT_NETWORK_COLUMNS = (
-    "ts",
-    "src_ip",
-    "proto",
-    "service",
-    "label",
-    "type",
+    "ts", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "src_ip", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "proto", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "service", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "label", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+    "type", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
 )
 
 

@@ -1,7 +1,7 @@
 from fedcampaign_emhi.domain.enums import GroundTruthClass
 from fedcampaign_emhi.domain.types import AttackTypeName, BinaryClassLabel, GroundTruthLabel
 
-BENIGN_ATTACK_TYPE = "normal"
+BENIGN_ATTACK_TYPE = "normal" #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
 
 
 def ton_iot_network_ground_truth(

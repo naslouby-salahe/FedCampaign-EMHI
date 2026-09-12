@@ -287,7 +287,7 @@ def evaluate_finite_horizon_common_mode_seed(
         )
         members = "-".join(coalition_fit.coalition_client_ids)
         write_atomic_json(
-            partial_directory / f"order-{coalition_fit.coalition_order}-{members}.json",
+            partial_directory / f"order-{coalition_fit.coalition_order}-{members}.json", #TODO: should be enums not hardcoded strings
             partial.model_dump(mode="json"),
             partial_directory / ".staging",
         )
@@ -649,7 +649,7 @@ def _pure_order_fit(
     )
     fingerprint = deterministic_digest(
         {
-            "producer": "pure-order-artifact",
+            "producer": "pure-order-artifact", #TODO: should be enums not hardcoded strings
             "seed": artifact.scores.root_seed,
             "method": cell.method.value,
         }

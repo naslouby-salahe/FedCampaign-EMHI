@@ -180,7 +180,7 @@ def _export_verified_holm_family(
     write_atomic_json(
         export_path,
         cast(YamlNode, record.model_dump(mode="json")),
-        build_artifact_layout(loaded, repository).roots.outputs_root / "cache" / "staging",
+        build_artifact_layout(loaded, repository).roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
     )
 
 
@@ -192,10 +192,10 @@ def export_verified_primary_holm_family(
     layout = build_artifact_layout(loaded, repository)
     export_path = (
         layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "primary-holm.json"
+        / "project_summary" #TODO: should be enums not hardcoded strings
+        / "statistics" #TODO: should be enums not hardcoded strings
+        / "multiplicity" #TODO: should be enums not hardcoded strings
+        / "primary-holm.json" #TODO: should be enums not hardcoded strings
     )
     _export_verified_holm_family(
         loaded,
@@ -215,10 +215,10 @@ def export_verified_secondary_holm_family(
     layout = build_artifact_layout(loaded, repository)
     export_path = (
         layout.roots.results_root
-        / "project_summary"
-        / "statistics"
-        / "multiplicity"
-        / "secondary-holm.json"
+        / "project_summary" #TODO: should be enums not hardcoded strings
+        / "statistics" #TODO: should be enums not hardcoded strings
+        / "multiplicity" #TODO: should be enums not hardcoded strings
+        / "secondary-holm.json" #TODO: should be enums not hardcoded strings
     )
     _export_verified_holm_family(
         loaded,
@@ -276,16 +276,16 @@ def select_verified_evidence(
     seed_paths = tuple(
         sorted(
             {
-                *(_json_files(root / "metrics" / "per_seed")),
-                *(_json_files(root / "metrics" / "seed-summaries")),
+                *(_json_files(root / "metrics" / "per_seed")), #TODO: should be enums not hardcoded strings
+                *(_json_files(root / "metrics" / "seed-summaries")), #TODO: should be enums not hardcoded strings
             }
         )
     )
-    statistical_paths = _json_files(root / "statistics" / "tests")
+    statistical_paths = _json_files(root / "statistics" / "tests") #TODO: should be enums not hardcoded strings
     _validate_statistical_records(loaded, repository, statistical_paths)
-    effect_paths = _json_files(root / "statistics" / "effects")
+    effect_paths = _json_files(root / "statistics" / "effects") #TODO: should be enums not hardcoded strings
     validate_materiality_effect_records(repository, effect_paths)
-    aggregate_paths = _json_files(root / "metrics" / "aggregate")
+    aggregate_paths = _json_files(root / "metrics" / "aggregate") #TODO: should be enums not hardcoded strings
     _validate_aggregate_metrics(aggregate_paths)
     cell_paths = cell_record_paths(root)
     required = seed_paths + statistical_paths + effect_paths + aggregate_paths + cell_paths
@@ -348,11 +348,11 @@ def materialize_verified_experiment_report(
     evidence = select_verified_evidence(loaded, repository, experiment_name)
     layout = build_artifact_layout(loaded, repository)
     result_root = layout.experiment_results_root(experiment_name)
-    source_path = result_root / "source_data" / "tables" / "evidence-source.json"
+    source_path = result_root / "source_data" / "tables" / "evidence-source.json" #TODO: should be enums not hardcoded strings
     output_paths: list[Path] = []
     if evidence.seed_summary_paths:
-        table_path = result_root / "tables" / "main" / "seed-summary.csv"
-        figure_path = result_root / "figures" / "main" / "paired-differences.png"
+        table_path = result_root / "tables" / "main" / "seed-summary.csv" #TODO: should be enums not hardcoded strings
+        figure_path = result_root / "figures" / "main" / "paired-differences.png" #TODO: should be enums not hardcoded strings
         summaries = load_seed_summaries(evidence.seed_summary_paths)
         if overwrite_policy is OverwritePolicy.OVERWRITE or not table_path.is_file():
             write_seed_summary_table(table_path, summaries)
@@ -363,8 +363,8 @@ def materialize_verified_experiment_report(
                 write_paired_difference_figure(figure_path, paired)
             output_paths.append(figure_path)
     if experiment_name is ExperimentName.CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY:
-        table_path = result_root / "tables" / "main" / "dropout-boundary.csv"
-        figure_path = result_root / "figures" / "main" / "dropout-boundary.png"
+        table_path = result_root / "tables" / "main" / "dropout-boundary.csv" #TODO: should be enums not hardcoded strings
+        figure_path = result_root / "figures" / "main" / "dropout-boundary.png" #TODO: should be enums not hardcoded strings
         conditions = load_dropout_boundary_conditions(
             dropout_boundary_diagnostic_paths(repository, evidence.scientific_cell_paths)
         )
@@ -396,7 +396,7 @@ def materialize_verified_experiment_report(
         ),
         source_artifact_hashes=evidence.source_hashes,
     )
-    staging = layout.roots.outputs_root / "cache" / "staging"
+    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
     if overwrite_policy is OverwritePolicy.OVERWRITE or not report_source_is_reusable(
         source_path, source_record
     ):

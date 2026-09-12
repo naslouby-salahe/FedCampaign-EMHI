@@ -36,11 +36,11 @@ def batch_permutation_seed(
 ) -> SeedValue:
     identity = SeedDerivationIdentity(
         base_seed=root_seed,
-        component_name="autoencoder_batch_permutation",
+        component_name="autoencoder_batch_permutation", #TODO: should be enum, not hardcoded string
         dataset=None,
         client_ids=(client_id,),
         coalition_ids=(),
-        condition_coordinates=(SeedCoordinate(name="training_epoch", scalar=training_epoch),),
+        condition_coordinates=(SeedCoordinate(name="training_epoch", scalar=training_epoch),), #TODO: should be enum, not hardcoded string
     )
     return derive_component_seed(identity)
 

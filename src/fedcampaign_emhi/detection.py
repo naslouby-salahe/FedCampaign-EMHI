@@ -157,7 +157,7 @@ def score_autoencoder(
     )
 
 
-@log_stage("detection")
+@log_stage("detection") #TODO: should be enum not hardcoded string
 def fit_client_detector(
     config: ScientificConfig,
     detector_family: DetectorFamily,
@@ -285,7 +285,7 @@ def score_client(
     )
 
 
-@log_stage("detection")
+@log_stage("detection") #TODO: should be enum not hardcoded string
 def build_detector_score_artifact(
     config: ScientificConfig,
     prepared: PreparedDatasetRecord,

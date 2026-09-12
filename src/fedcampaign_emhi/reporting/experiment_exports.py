@@ -384,17 +384,17 @@ def sensitivity_figure_bytes(
 
 
 def _results_root(repository: Path, experiment_name: ExperimentName) -> Path:
-    return repository / "results" / "experiments" / experiment_name.value
+    return repository / "results" / "experiments" / experiment_name.value #TODO: should be enums not hardcoded strings
 
 
 def _selection_artifact_path(loaded: LoadedScientificConfiguration, repository: Path) -> Path:
     return (
         repository
-        / "outputs"
-        / "experiments"
+        / "outputs" #TODO: should be enums not hardcoded strings
+        / "experiments" #TODO: should be enums not hardcoded strings
         / ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE.value
-        / "artifacts"
-        / "derived"
+        / "artifacts" #TODO: should be enums not hardcoded strings
+        / "derived" #TODO: should be enums not hardcoded strings
         / loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
     )
 
@@ -429,8 +429,8 @@ def materialize_experiment_exports(
 ) -> tuple[Path, ...]:
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
         root = _results_root(repository, experiment_name)
-        table_path = root / "tables" / "main" / "comparator-composition.csv"
-        figure_path = root / "figures" / "main" / "comparator-composition-error.png"
+        table_path = root / "tables" / "main" / "comparator-composition.csv" #TODO: should be enums not hardcoded strings
+        figure_path = root / "figures" / "main" / "comparator-composition-error.png" #TODO: should be enums not hardcoded strings
         record = load_verified_selection_record(_selection_artifact_path(loaded, repository))
         if overwrite or not table_path.is_file():
             write_csv_artifact(table_path, composition_table_bytes(record))
@@ -439,8 +439,8 @@ def materialize_experiment_exports(
         return table_path, figure_path
     if experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
         root = _results_root(repository, experiment_name)
-        table_path = root / "tables" / "main" / "strong-local-odi.csv"
-        figure_path = root / "figures" / "main" / "strong-local-odi.png"
+        table_path = root / "tables" / "main" / "strong-local-odi.csv" #TODO: should be enums not hardcoded strings
+        figure_path = root / "figures" / "main" / "strong-local-odi.png" #TODO: should be enums not hardcoded strings
         summaries = tuple(
             SeedSummaryRecord.model_validate_json(path.read_bytes()) for path in seed_summary_paths
         )
@@ -457,8 +457,8 @@ def materialize_experiment_exports(
         return table_path, figure_path
     if experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
         root = _results_root(repository, experiment_name)
-        table_path = root / "tables" / "main" / "sensitivity-summary.csv"
-        figure_path = root / "figures" / "main" / "sensitivity-detection.png"
+        table_path = root / "tables" / "main" / "sensitivity-summary.csv" #TODO: should be enums not hardcoded strings
+        figure_path = root / "figures" / "main" / "sensitivity-detection.png" #TODO: should be enums not hardcoded strings
         records = _sensitivity_records(repository, cell_paths)
         if overwrite or not table_path.is_file():
             write_csv_artifact(table_path, sensitivity_table_bytes(records))
@@ -467,7 +467,7 @@ def materialize_experiment_exports(
         return table_path, figure_path
     if experiment_name is ExperimentName.COALITION_SCALABILITY:
         root = _results_root(repository, experiment_name)
-        table_path = root / "tables" / "main" / "scalability-summary.csv"
+        table_path = root / "tables" / "main" / "scalability-summary.csv" #TODO: should be enums not hardcoded strings
         aggregates = tuple(
             ScalabilityAggregateRecord.model_validate_json(path.read_bytes())
             for path in aggregate_metric_paths
