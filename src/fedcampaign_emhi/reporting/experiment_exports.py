@@ -162,7 +162,7 @@ def seed_odi_csv_bytes(summaries: tuple[SeedSummaryRecord, ...]) -> Deterministi
             "campaign_count",
         )
     )
-    ordered = tuple(sorted(summaries, key=lambda item: (int(item.seed), item.execution_role.value)))
+    ordered = tuple(sorted(summaries, key=lambda item: (item.seed, item.execution_role)))
     for summary in ordered:
         writer.writerow(
             (
@@ -220,7 +220,7 @@ def seed_odi_figure_bytes(
     figure = Figure(figsize=(6, 4))
     FigureCanvasAgg(figure)
     axes = figure.add_subplot(1, 1, 1)
-    ordered = tuple(sorted(summaries, key=lambda item: (int(item.seed), item.execution_role.value)))
+    ordered = tuple(sorted(summaries, key=lambda item: (item.seed, item.execution_role)))
     axes.plot(
         range(len(ordered)),
         [summary.method_value for summary in ordered],

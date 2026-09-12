@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from math import isfinite, sqrt
 from pathlib import Path
 from time import perf_counter
@@ -68,6 +69,7 @@ from fedcampaign_emhi.domain.types import (
     StandardizedDrift,
     StoppingTimeDifferenceEpochs,
     ThresholdValue,
+    YamlKeyPath,
 )
 from fedcampaign_emhi.emhi.calibration import (
     build_emhi_fit_artifact,
@@ -215,7 +217,7 @@ class HofdEquivalenceObservation:
 class SyntheticCellOutcome:
     failed_checks: tuple[ComponentName, ...]
     method_score: DetectorScore | None
-    evidence: YamlNode = None
+    evidence: Mapping[YamlKeyPath, YamlNode] = field(default_factory=lambda: {})
     self_explanation_metrics: SelfExplanationSeedMetrics | None = None
     pure_order_metrics: PureOrderSeedMetrics | None = None
     signed_theorem_metrics: SignedTheoremSeedMetrics | None = None

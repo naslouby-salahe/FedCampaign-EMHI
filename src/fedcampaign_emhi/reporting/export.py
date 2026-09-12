@@ -32,7 +32,12 @@ from fedcampaign_emhi.domain.enums import (
     PreprocessingLayer,
     RepositoryFileName,
 )
-from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, FigureBytes, MetricValue
+from fedcampaign_emhi.domain.types import (
+    DeterministicUtf8Bytes,
+    FigureBytes,
+    MetricValue,
+    PairedDifference,
+)
 from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan
 from fedcampaign_emhi.runtime import log_stage
 
@@ -97,7 +102,7 @@ def write_seed_summary_table(destination: Path, records: tuple[SeedSummaryRecord
     staging.replace(destination)
 
 
-def paired_difference_figure_bytes(paired_differences: tuple[MetricValue, ...]) -> FigureBytes:
+def paired_difference_figure_bytes(paired_differences: tuple[PairedDifference, ...]) -> FigureBytes:
     if not paired_differences:
         raise ValueError("paired-difference figure requires paired seed summaries")
     figure = Figure(figsize=(6, 3))
@@ -119,9 +124,7 @@ def write_paired_difference_figure(
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_suffix(destination.suffix + ".partial")
     paired_differences = tuple(
-        float(record.paired_difference)
-        for record in records
-        if record.paired_difference is not None
+        record.paired_difference for record in records if record.paired_difference is not None
     )
     staging.write_bytes(paired_difference_figure_bytes(paired_differences))
     staging.replace(destination)

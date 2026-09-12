@@ -9,7 +9,9 @@ from tests.architecture.ast_scans import (
     annotation_primitives,
     domain_bound_names,
     production_python_files_via_walk,
+    redundant_conversion_violations_for_fields,
     redundant_domain_conversion_violations,
+    scalar_domain_field_primitives,
     source_files,
 )
 
@@ -83,3 +85,30 @@ def test_boundary_yaml_node_alias_is_allowed(tmp_path: Path) -> None:
     alias = tree.body[0]
     assert isinstance(alias, ast.TypeAlias)
     assert annotation_primitives(alias.value) == []
+
+
+def test_no_redundant_domain_conversion_rejects_unwrapped_model_field() -> None:
+    tree = ast.parse(
+        "def order(items):\n    return tuple(int(summary.seed) for summary in items)\n"
+    )
+    violations = redundant_conversion_violations_for_fields(
+        tree, "consumer.py", {"seed": frozenset({"int"})}
+    )
+    assert violations == ["consumer.py:2: int(summary.seed)"]
+
+
+def test_no_redundant_domain_conversion_accepts_foreign_model_field() -> None:
+    tree = ast.parse(
+        "def order(items):\n"
+        "    return tuple(float(summary.paired_difference) for summary in items)\n"
+    )
+    violations = redundant_conversion_violations_for_fields(
+        tree, "consumer.py", {"seed": frozenset({"int"})}
+    )
+    assert violations == []
+
+
+def test_ambiguous_domain_field_names_are_excluded_from_the_field_map() -> None:
+    field_primitives = scalar_domain_field_primitives()
+    assert field_primitives.get("seed") == frozenset({"int"})
+    assert "native_target_order" not in field_primitives

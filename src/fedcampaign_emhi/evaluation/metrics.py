@@ -16,6 +16,7 @@ from fedcampaign_emhi.domain.types import (
     EpochIndexValue,
     EvidenceFactor,
     EvidenceShare,
+    IndicatorDifference,
     InnovationCoordinate,
     InnovationMean,
     LogEvidenceGrowth,
@@ -235,7 +236,7 @@ def paired_stopping_time_difference(
 
 def paired_detection_indicator_difference(
     emhi_detected: Boolean, comparison_detected: Boolean
-) -> OdiIndicator:
+) -> IndicatorDifference:
     return emhi_detected - comparison_detected
 
 

@@ -1,6 +1,6 @@
 import os
 from collections import UserDict
-from collections.abc import Iterator, Mapping, MutableMapping
+from collections.abc import Iterator, MutableMapping
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass, replace
 from json import loads
@@ -411,7 +411,7 @@ def execute_synthetic_cell_payload(
             )
             grid_complete = all(fitted.artifact_path_complete for _cell, fitted in fitted_grid)
             if grid_complete:
-                evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                evidence = dict(outcome.evidence)
                 evidence["exact_exclusion_artifact_grid_complete"] = grid_complete
                 evidence["implementation_state"] = "fitted_emhi_artifact_grid"
                 evidence["fitted_emhi_scores"] = [
@@ -477,7 +477,7 @@ def execute_synthetic_cell_payload(
                 if cell in expected_comparator_cells
             )
             if comparator_completed:
-                evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+                evidence = dict(outcome.evidence)
                 evidence["native_comparator_scores"] = [
                     {
                         "generator": cell.generator.value,
@@ -528,7 +528,7 @@ def execute_synthetic_cell_payload(
                 role.value,
                 seed,
             )
-            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+            evidence = dict(outcome.evidence)
             evidence["calibrated_finite_horizon"] = {
                 "calibrated_threshold": finite_horizon.metrics.calibrated_threshold,
                 "calibration_horizon_count": finite_horizon.metrics.calibration_horizon_count,
@@ -559,7 +559,7 @@ def execute_synthetic_cell_payload(
             composition_metrics = evaluate_composition_candidate_seed(
                 loaded.values, method_name, seed
             )
-            evidence = dict(cast(Mapping[str, YamlNode], outcome.evidence))
+            evidence = dict(outcome.evidence)
             evidence["composition_calibration"] = {
                 "calibrated_threshold": composition_metrics.calibrated_threshold,
                 "calibration_horizon_count": composition_metrics.calibration_horizon_count,
@@ -769,7 +769,7 @@ def execute_synthetic_experiment(
                 "state": state.value,
                 "failed_checks": list(execution.outcome.failed_checks),
                 "method_score": execution.outcome.method_score,
-                "evidence": execution.outcome.evidence,
+                "evidence": None if not execution.outcome.evidence else execution.outcome.evidence,
             }
             diagnostic_hash = write_atomic_json(diagnostic_path, diagnostic_payload, staging)
             cell_checkpoint_path = checkpoint_path(root, _role, _seed, cell_method)
@@ -855,7 +855,7 @@ def execute_synthetic_experiment(
                 and execution.composition_metrics is not None
                 and cell_method is not None
             ):
-                evidence = cast(Mapping[str, YamlNode], outcome.evidence)
+                evidence = outcome.evidence
                 composition_slots[cell_index].append(
                     CompositionCandidateObservation(
                         method_name=cell_method,

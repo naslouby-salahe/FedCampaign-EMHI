@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from math import log
 from pathlib import Path
 from time import perf_counter
@@ -53,11 +54,14 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
     Boolean,
+    CampaignEvaluationRow,
     EpochIndexValue,
     FalseAlarmRate,
+    HeldoutBenignEvaluationRow,
     OdiIndicator,
     RuntimeSeconds,
     SeedValue,
+    YamlKeyPath,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
 from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact
@@ -457,8 +461,8 @@ def build_campaign_rows(
     fit: EMHIFitArtifactRecord,
     campaigns: CampaignRegistryRecord,
     calibration: OperationalCalibration,
-) -> tuple[tuple[YamlNode, ...], tuple[OdiIndicator, ...]]:
-    rows: list[YamlNode] = []
+) -> tuple[tuple[CampaignEvaluationRow, ...], tuple[OdiIndicator, ...]]:
+    rows: list[CampaignEvaluationRow] = []
     odi_values: list[OdiIndicator] = []
     for campaign in campaigns.campaigns:
         row, indicator = _campaign_row(loaded, scores, ranks, fit, calibration, campaign)
@@ -474,7 +478,7 @@ def _campaign_row(
     fit: EMHIFitArtifactRecord,
     calibration: OperationalCalibration,
     campaign: CampaignRecord,
-) -> tuple[YamlNode, OdiIndicator]:
+) -> tuple[CampaignEvaluationRow, OdiIndicator]:
     threshold = calibration.global_operating_point.threshold
     started = perf_counter()
     trajectory = campaign_trajectory(loaded.values, ranks, fit, campaign)
@@ -531,37 +535,63 @@ def _campaign_row(
     )
     scored_coalitions = 0 if stop_row is None else stop_row.scored_coalition_count
     return (
-        {
-            "start_epoch": campaign.start_epoch,
-            "end_epoch": campaign.end_epoch,
-            "participating_client_ids": list(campaign.participating_client_ids),
-            "global_stop_epoch": global_stop,
-            "local_stop_epochs": list(local_stops),
-            "local_min_stop_epoch": earliest_local,
-            "strict_odi": indicator,
-            "statistical_lead_epochs": statistical,
-            "operational_lead_epochs": operational,
-            "global_detected_within_horizon": odi.global_detection_indicator,
-            "local_detected_within_horizon": 0 if earliest_local is None else 1,
-            "paired_stopping_time_difference": (
+        CampaignEvaluationRow(
+            start_epoch=campaign.start_epoch,
+            end_epoch=campaign.end_epoch,
+            participating_client_ids=campaign.participating_client_ids,
+            global_stop_epoch=global_stop,
+            local_stop_epochs=local_stops,
+            local_min_stop_epoch=earliest_local,
+            strict_odi=indicator,
+            statistical_lead_epochs=statistical,
+            operational_lead_epochs=operational,
+            global_detected_within_horizon=odi.global_detection_indicator,
+            paired_stopping_time_difference=(
                 None
                 if global_stop is None or earliest_local is None
                 else paired_stopping_time_difference(global_stop, earliest_local)
             ),
-            "paired_detection_indicator_difference": paired_detection_indicator_difference(
+            paired_detection_indicator_difference=paired_detection_indicator_difference(
                 bool(odi.global_detection_indicator), earliest_local is not None
             ),
-            "decisive_order": decisive,
-            "order_evidence_share": order_share,
-            "mean_log_evidence_growth": log_growth,
-            "context_coverage": coverage,
-            "abstention_rate": 1.0 - coverage,
-            "server_latency_seconds": elapsed,
-            "end_to_end_latency_seconds": elapsed,
-            "throughput": None if elapsed <= 0.0 else throughput(scored_coalitions, elapsed),
-        },
+            decisive_order=decisive,
+            order_evidence_share=order_share,
+            mean_log_evidence_growth=log_growth,
+            context_coverage=coverage,
+            server_latency_seconds=elapsed,
+            end_to_end_latency_seconds=elapsed,
+            throughput=None if elapsed <= 0.0 else throughput(scored_coalitions, elapsed),
+        ),
         indicator,
     )
+
+
+def campaign_evaluation_row_payload(
+    row: CampaignEvaluationRow,
+) -> Mapping[YamlKeyPath, YamlNode]:
+    return {
+        "start_epoch": row.start_epoch,
+        "end_epoch": row.end_epoch,
+        "participating_client_ids": list(row.participating_client_ids),
+        "global_stop_epoch": row.global_stop_epoch,
+        "local_stop_epochs": list(row.local_stop_epochs),
+        "local_min_stop_epoch": row.local_min_stop_epoch,
+        "strict_odi": row.strict_odi,
+        "statistical_lead_epochs": row.statistical_lead_epochs,
+        "operational_lead_epochs": row.operational_lead_epochs,
+        "global_detected_within_horizon": row.global_detected_within_horizon,
+        "local_detected_within_horizon": 0 if row.local_min_stop_epoch is None else 1,
+        "paired_stopping_time_difference": row.paired_stopping_time_difference,
+        "paired_detection_indicator_difference": row.paired_detection_indicator_difference,
+        "decisive_order": row.decisive_order,
+        "order_evidence_share": row.order_evidence_share,
+        "mean_log_evidence_growth": row.mean_log_evidence_growth,
+        "context_coverage": row.context_coverage,
+        "abstention_rate": 1.0 - row.context_coverage,
+        "server_latency_seconds": row.server_latency_seconds,
+        "end_to_end_latency_seconds": row.end_to_end_latency_seconds,
+        "throughput": row.throughput,
+    }
 
 
 def build_heldout_rows(
@@ -571,7 +601,7 @@ def build_heldout_rows(
     partitions: BenignPartitionRecord,
     calibration: OperationalCalibration,
     trajectory_cache: TrajectoryCache,
-) -> tuple[YamlNode, ...]:
+) -> tuple[HeldoutBenignEvaluationRow, ...]:
     threshold = calibration.global_operating_point.threshold
     if threshold is None:
         return ()
@@ -584,21 +614,35 @@ def build_heldout_rows(
         trajectory_cache=trajectory_cache,
     )
     return tuple(
-        {
-            "split_role": PartitionRole.HELDOUT_BENIGN.value,
-            "horizon_index": index,
-            "start_epoch": horizon.start_epoch,
-            "threshold": threshold,
-            "false_campaign": 0 if stop_epoch is None else 1,
-            "first_stop_epoch": stop_epoch,
-            "context_coverage": trajectory_context_coverage(trajectory),
-            "abstention_rate": 1.0 - trajectory_context_coverage(trajectory),
-            "global_evidence_factor": (
+        HeldoutBenignEvaluationRow(
+            split_role=PartitionRole.HELDOUT_BENIGN,
+            horizon_index=index,
+            start_epoch=horizon.start_epoch,
+            threshold=threshold,
+            first_stop_epoch=stop_epoch,
+            context_coverage=trajectory_context_coverage(trajectory),
+            global_evidence_factor=(
                 1.0 if not trajectory.epochs else trajectory.epochs[-1].global_evidence_factor
             ),
-        }
+        )
         for index, (horizon, trajectory, stop_epoch) in enumerate(records)
     )
+
+
+def heldout_benign_row_payload(
+    row: HeldoutBenignEvaluationRow,
+) -> Mapping[YamlKeyPath, YamlNode]:
+    return {
+        "split_role": row.split_role.value,
+        "horizon_index": row.horizon_index,
+        "start_epoch": row.start_epoch,
+        "threshold": row.threshold,
+        "false_campaign": 0 if row.first_stop_epoch is None else 1,
+        "first_stop_epoch": row.first_stop_epoch,
+        "context_coverage": row.context_coverage,
+        "abstention_rate": 1.0 - row.context_coverage,
+        "global_evidence_factor": row.global_evidence_factor,
+    }
 
 
 def evaluation_artifact_id(

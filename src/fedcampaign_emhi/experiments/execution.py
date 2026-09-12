@@ -1,6 +1,5 @@
 import logging
 import multiprocessing
-from collections.abc import Mapping
 from dataclasses import dataclass
 from multiprocessing.context import ForkContext
 from pathlib import Path
@@ -34,7 +33,6 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     ComponentName,
     RecordCount,
-    YamlKeyPath,
 )
 from fedcampaign_emhi.experiments.registry import (
     RESUME_SEQUENCE,
@@ -163,9 +161,3 @@ def publish_experiment_run_record(
     )
     write_atomic_json(destination, cast(YamlNode, record.model_dump(mode="json")), staging)
     return destination
-
-
-def as_mapping(payload: YamlNode) -> Mapping[YamlKeyPath, YamlNode]:
-    if not isinstance(payload, Mapping):
-        raise ValueError("evaluation payload must be a mapping")
-    return payload

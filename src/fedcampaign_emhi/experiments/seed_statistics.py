@@ -85,6 +85,7 @@ from fedcampaign_emhi.domain.types import (
     MetricValue,
     OdiRateAdvantage,
     OperationalLeadEpochs,
+    PersistedCampaignOdiSupport,
     RecordCount,
     RelativePath,
     RobustnessCountMultiplier,
@@ -202,9 +203,7 @@ def _method_has_eligible_operating_point(
     heldout_upper = operating_point.get("heldout_upper_pfa")
     if not isinstance(heldout_upper, int | float):
         return False
-    return float(heldout_upper) <= float(
-        loaded.values.evidence.calibrated_finite_horizon.target_pfa
-    )
+    return float(heldout_upper) <= loaded.values.evidence.calibrated_finite_horizon.target_pfa
 
 
 def _paired_methods_have_eligible_operating_points(
@@ -763,7 +762,7 @@ def _raw_evaluation_campaigns(
     experiment_name: ExperimentName,
     method_name: MethodName,
     seed: SeedValue,
-) -> tuple[Mapping[str, YamlNode], ...]:
+) -> tuple[PersistedCampaignOdiSupport, ...]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
     path = (
@@ -782,7 +781,26 @@ def _raw_evaluation_campaigns(
     campaigns = payload.get("campaigns")
     if not isinstance(campaigns, list):
         return ()
-    return tuple(campaign for campaign in campaigns if isinstance(campaign, Mapping))
+    return tuple(
+        _persisted_campaign_odi_support(campaign)
+        for campaign in campaigns
+        if isinstance(campaign, Mapping)
+    )
+
+
+def _persisted_campaign_odi_support(
+    campaign: Mapping[str, YamlNode],
+) -> PersistedCampaignOdiSupport:
+    indicator = campaign["strict_odi"]
+    if not isinstance(indicator, int) or isinstance(indicator, bool):
+        raise ValueError("persisted campaign 'strict_odi' must be an integer indicator")
+    lead = campaign["operational_lead_epochs"]
+    if lead is not None and (not isinstance(lead, int | float) or isinstance(lead, bool)):
+        raise ValueError("persisted campaign 'operational_lead_epochs' must be numeric or null")
+    return PersistedCampaignOdiSupport(
+        strict_odi=indicator,
+        operational_lead_epochs=None if lead is None else float(lead),
+    )
 
 
 def materialize_primary_strict_odi_support(
@@ -825,9 +843,8 @@ def materialize_primary_strict_odi_support(
         for campaign in _raw_evaluation_campaigns(
             loaded, repository, experiment_name, MethodName.FULL_FEDCAMPAIGN_EMHI, seed
         ):
-            lead = campaign.get("operational_lead_epochs")
-            if campaign.get("strict_odi") == 1 and isinstance(lead, int | float):
-                successful_leads.append(float(lead))
+            if campaign.strict_odi == 1 and campaign.operational_lead_epochs is not None:
+                successful_leads.append(campaign.operational_lead_epochs)
     median_lead: OperationalLeadEpochs | None = (
         None if not successful_leads else median(successful_leads)
     )
@@ -1614,15 +1631,11 @@ def _campaign_detection_rate_for_method(
         target_local_pfa,
     )
     rows, _odi_values = build_campaign_rows(loaded, scores, ranks, fit, campaigns, calibration)
-    typed_rows = tuple(cast(Mapping[str, YamlNode], row) for row in rows)
-    if not typed_rows:
+    if not rows:
         return None
     relative_stops = tuple(
-        None
-        if row["global_stop_epoch"] is None
-        else cast(EpochIndexValue, row["global_stop_epoch"])
-        - cast(EpochIndexValue, row["start_epoch"])
-        for row in typed_rows
+        None if row.global_stop_epoch is None else row.global_stop_epoch - row.start_epoch
+        for row in rows
     )
     detection_rate = campaign_detection_rate(
         relative_stops,

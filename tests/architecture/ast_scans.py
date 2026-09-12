@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import functools
 import os
 from pathlib import Path
 
@@ -248,6 +249,7 @@ def package_of(rel: str) -> str:
     return rel.split("/")[0]
 
 
+@functools.lru_cache(maxsize=1)
 def domain_type_names() -> frozenset[str]:
     tree = module_ast(DOMAIN_TYPES_FILE)
     names: set[str] = set()
@@ -331,22 +333,216 @@ def domain_bound_names(tree: ast.Module) -> set[str]:
     return bound
 
 
-def redundant_domain_conversion_violations(path: Path) -> list[str]:
+SCALAR_CONSTRUCTOR_NAMES = frozenset({"int", "float", "str", "bool"})
+SORT_KEY_KEYWORD_NAMES = frozenset({"key", "cmp"})
+BASE_PRIMITIVE_NAMES = frozenset({"int", "float", "str", "bool", "bytes"})
+
+
+def parent_map(tree: ast.Module) -> dict[int, ast.AST]:
+    parents: dict[int, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[id(child)] = node
+    return parents
+
+
+def enclosing_expression_context(node: ast.expr, parents: dict[int, ast.AST]) -> ast.AST | None:
+    current: ast.AST = node
+    parent = parents.get(id(current))
+    while parent is not None:
+        if isinstance(parent, ast.Attribute) and parent.value is current:
+            current, parent = parent, parents.get(id(parent))
+            continue
+        if isinstance(parent, ast.Subscript) and parent.value is current:
+            current, parent = parent, parents.get(id(parent))
+            continue
+        if isinstance(parent, ast.Call) and parent.func is current:
+            current, parent = parent, parents.get(id(parent))
+            continue
+        if isinstance(parent, ast.Lambda) and parent.body is current:
+            current, parent = parent, parents.get(id(parent))
+            continue
+        break
+    return parent
+
+
+def computation_position(node: ast.expr, parents: dict[int, ast.AST]) -> str | None:
+    parent = enclosing_expression_context(node, parents)
+    if parent is None:
+        return None
+    if isinstance(parent, ast.Compare):
+        return "comparison operand"
+    if isinstance(parent, ast.keyword) and parent.arg in SORT_KEY_KEYWORD_NAMES:
+        return f"'{parent.arg}' key"
+    if isinstance(parent, ast.Subscript) and parent.slice is node:
+        return "subscript index"
+    if (
+        isinstance(parent, ast.Call)
+        and isinstance(parent.func, ast.Name)
+        and parent.func.id in SCALAR_CONSTRUCTOR_NAMES
+        and any(argument is node for argument in parent.args)
+    ):
+        return f"{parent.func.id}(...) operand"
+    if isinstance(parent, ast.BinOp) and not isinstance(parent.op, ast.Div):
+        if isinstance(parent.op, ast.Mod) and isinstance(parent.left, ast.Constant):
+            return None
+        return "arithmetic operand"
+    return None
+
+
+def enum_value_unwrapping_violations(path: Path) -> list[str]:
     tree = module_ast(path)
     relative = path.relative_to(SRC_ROOT).as_posix() if path.is_relative_to(SRC_ROOT) else path.name
+    parents = parent_map(tree)
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr == "value":
+            position = computation_position(node, parents)
+            if position is not None:
+                violations.append(f"{relative}:{node.lineno}: .value in {position}")
+    return sorted(violations)
+
+
+def cast_annotation_violations(path: Path) -> list[str]:
+    tree = module_ast(path)
+    relative = path.relative_to(SRC_ROOT).as_posix() if path.is_relative_to(SRC_ROOT) else path.name
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id != "cast" or not node.args:
+            continue
+        primitives = annotation_primitives(node.args[0])
+        if primitives:
+            target = ast.unparse(node.args[0])
+            violations.append(f"{relative}:{node.lineno}: cast to primitive '{target}'")
+    return sorted(violations)
+
+
+def _alias_targets(tree: ast.Module) -> dict[str, ast.expr]:
+    targets: dict[str, ast.expr] = {}
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            targets[node.targets[0].id] = node.value
+        elif isinstance(node, ast.TypeAlias):
+            targets[node.name.id] = node.value
+    return targets
+
+
+def _base_primitive(
+    node: ast.expr, targets: dict[str, ast.expr], seen: frozenset[str]
+) -> str | None:
+    if isinstance(node, ast.Name):
+        if node.id in BASE_PRIMITIVE_NAMES:
+            return node.id
+        if node.id in targets and node.id not in seen:
+            return _base_primitive(targets[node.id], targets, seen | {node.id})
+        return None
+    if isinstance(node, ast.Attribute):
+        return node.attr if node.attr in BASE_PRIMITIVE_NAMES else None
+    if isinstance(node, ast.Subscript):
+        if isinstance(node.value, ast.Name) and node.value.id == "Annotated":
+            slice_node = node.slice
+            inner = slice_node.elts[0] if isinstance(slice_node, ast.Tuple) else slice_node
+            return _base_primitive(inner, targets, seen)
+        return None
+    return None
+
+
+@functools.lru_cache(maxsize=1)
+def domain_alias_base_primitives() -> dict[str, str]:
+    targets = _alias_targets(module_ast(DOMAIN_TYPES_FILE))
+    primitives: dict[str, str] = {}
+    for name, value in targets.items():
+        if not name[:1].isupper():
+            continue
+        primitive = _base_primitive(value, targets, frozenset({name}))
+        if primitive is not None:
+            primitives[name] = primitive
+    return primitives
+
+
+@functools.lru_cache(maxsize=1)
+def domain_alias_names() -> frozenset[str]:
+    return frozenset(domain_type_names())
+
+
+def scalar_domain_alias(node: ast.expr | None) -> str | None:
+    if node is None:
+        return None
+    if isinstance(node, ast.Name) and node.id in domain_alias_names():
+        return node.id
+    if isinstance(node, ast.Attribute) and node.attr in domain_alias_names():
+        return node.attr
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name):
+        if node.value.id == "Annotated":
+            slice_node = node.slice
+            inner = slice_node.elts[0] if isinstance(slice_node, ast.Tuple) else slice_node
+            return scalar_domain_alias(inner)
+        return None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return scalar_domain_alias(node.left) or scalar_domain_alias(node.right)
+    return None
+
+
+@functools.lru_cache(maxsize=1)
+def scalar_domain_field_primitives() -> dict[str, frozenset[str]]:
+    primitives = domain_alias_base_primitives()
+    collected: dict[str, set[str]] = {}
+    ambiguous: set[str] = set()
+    for path in source_files():
+        for node in ast.walk(module_ast(path)):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            if not (is_dataclass(node) or is_pydantic_model(node)):
+                continue
+            for field_name, annotation in field_annotations(node):
+                alias = scalar_domain_alias(annotation)
+                if alias is None or alias not in primitives:
+                    ambiguous.add(field_name)
+                    continue
+                collected.setdefault(field_name, set()).add(primitives[alias])
+    return {
+        name: frozenset(values)
+        for name, values in collected.items()
+        if name not in ambiguous and len(values) == 1
+    }
+
+
+def redundant_conversion_violations_for_fields(
+    tree: ast.Module, relative: str, field_primitives: dict[str, frozenset[str]]
+) -> list[str]:
     bound = domain_bound_names(tree)
     violations: list[str] = []
     for node in ast.walk(tree):
         if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in {"int", "float", "str", "bool"}
-            and len(node.args) == 1
-            and isinstance(node.args[0], ast.Name)
-            and node.args[0].id in bound
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Name)
+            or node.func.id not in SCALAR_CONSTRUCTOR_NAMES
+            or len(node.args) != 1
         ):
-            violations.append(f"{relative}:{node.lineno}: {node.func.id}({node.args[0].id})")
+            continue
+        argument = node.args[0]
+        if isinstance(argument, ast.Name) and argument.id in bound:
+            violations.append(f"{relative}:{node.lineno}: {node.func.id}({argument.id})")
+            continue
+        if isinstance(argument, ast.Attribute):
+            bases = field_primitives.get(argument.attr)
+            if bases is not None and bases == frozenset({node.func.id}):
+                expression = ast.unparse(argument)
+                violations.append(f"{relative}:{node.lineno}: {node.func.id}({expression})")
     return sorted(violations)
+
+
+def redundant_domain_conversion_violations(path: Path) -> list[str]:
+    relative = path.relative_to(SRC_ROOT).as_posix() if path.is_relative_to(SRC_ROOT) else path.name
+    return redundant_conversion_violations_for_fields(
+        module_ast(path), relative, scalar_domain_field_primitives()
+    )
 
 
 def production_python_files_via_walk() -> tuple[Path, ...]:

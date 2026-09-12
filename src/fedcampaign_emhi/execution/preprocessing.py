@@ -695,7 +695,7 @@ def _duckdb_count(
     result = connection.execute(statement).fetchone()
     if result is None:
         raise ValueError("DuckDB aggregate query returned no result")
-    return int(cast(tuple[int], result)[0])
+    return cast(tuple[RecordCount], result)[0]
 
 
 def _ton_iot_exclusion_reason_counts(
@@ -717,7 +717,7 @@ def _ton_iot_exclusion_reason_counts(
     ).fetchone()
     if result is None:
         raise ValueError("DuckDB exclusion-reason query returned no result")
-    counts = cast(tuple[int, int, int, int], result)
+    counts = cast(tuple[RecordCount, RecordCount, RecordCount, RecordCount], result)
     reasons = (
         RecordExclusionReason.UNUSABLE_HOST_IDENTITY,
         RecordExclusionReason.UNPARSEABLE_TIMESTAMP,
@@ -766,7 +766,7 @@ def _exclusion_reason_counts(
         tallies[exclusion.reason] = tallies.get(exclusion.reason, 0) + 1
     return tuple(
         ExcludedRecordReasonCount(reason=reason, record_count=count)
-        for reason, count in sorted(tallies.items(), key=lambda item: item[0].value)
+        for reason, count in sorted(tallies.items(), key=lambda item: item[0])
     )
 
 

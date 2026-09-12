@@ -1,5 +1,4 @@
 import os
-from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from time import perf_counter
@@ -83,7 +82,6 @@ from fedcampaign_emhi.domain.types import (
     Boolean,
     CellCount,
     ConfigurationDigest,
-    ContextCoverage,
     CusumState,
     DetectorScore,
     EpochIndexValue,
@@ -92,7 +90,6 @@ from fedcampaign_emhi.domain.types import (
     MaterialDependencyFingerprint,
     OdiIndicator,
     OdiRateAdvantage,
-    OperationalLeadEpochs,
     RankValue,
     RecordCount,
     RelativePath,
@@ -131,7 +128,6 @@ from fedcampaign_emhi.evaluation.sequential import (
     statistical_lead,
 )
 from fedcampaign_emhi.experiments.execution import (
-    as_mapping,
     campaign_dataset,
     campaigns_logger,
     emhi_method_specification,
@@ -145,7 +141,9 @@ from fedcampaign_emhi.experiments.seed_materialization import (
     build_campaign_rows,
     build_heldout_rows,
     calibration_payload,
+    campaign_evaluation_row_payload,
     evaluation_artifact_id,
+    heldout_benign_row_payload,
     local_pfa_target,
     materialize_detector_scores_with_retry,
     materialize_emhi_fit_with_retry,
@@ -298,8 +296,7 @@ def _evaluate_emhi_seed_cell(
         calibration,
     )
     heldout_rows = build_heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
-    heldout_maps = tuple(as_mapping(row) for row in heldout_rows)
-    heldout_false_stops = sum(cast(int, row["false_campaign"]) for row in heldout_maps)
+    heldout_false_stops = sum(1 for row in heldout_rows if row.first_stop_epoch is not None)
     heldout_epochs = sum(len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons)
     false_campaign_rate = (
         None
@@ -330,8 +327,10 @@ def _evaluate_emhi_seed_cell(
         "seed": seed,
         "dependency_fingerprint": fingerprint,
         "calibration": calibration_payload(calibration),
-        PartitionRole.HELDOUT_BENIGN.value: list(heldout_rows),
-        "campaigns": list(campaign_rows),
+        PartitionRole.HELDOUT_BENIGN.value: [
+            heldout_benign_row_payload(row) for row in heldout_rows
+        ],
+        "campaigns": [campaign_evaluation_row_payload(row) for row in campaign_rows],
         "seed_strict_odi_rate": None if not odi_values else seed_level_odi_rate(odi_values),
         "false_campaigns_per_ten_thousand_benign_epochs": false_campaign_rate,
     }
@@ -1325,20 +1324,19 @@ def _emhi_metrics_for_fit(
     campaign_rows, odi_values = build_campaign_rows(
         loaded, scores, ranks, fit, campaigns, calibration
     )
-    rows = tuple(cast(Mapping[str, YamlNode], row) for row in campaign_rows)
     detection_rate = (
-        sum(cast(int, row["global_detected_within_horizon"]) for row in rows) / len(rows)
-        if rows
+        sum(row.global_detected_within_horizon for row in campaign_rows) / len(campaign_rows)
+        if campaign_rows
         else 0.0
     )
     strict_odi_rate = sum(odi_values) / len(odi_values) if odi_values else 0.0
     leads = tuple(
-        cast(OperationalLeadEpochs, row["operational_lead_epochs"])
-        for row in rows
-        if row["operational_lead_epochs"] is not None
+        row.operational_lead_epochs
+        for row in campaign_rows
+        if row.operational_lead_epochs is not None
     )
     operational_lead_mean = sum(leads) / len(leads) if leads else None
-    coverages = tuple(cast(ContextCoverage, row["context_coverage"]) for row in rows)
+    coverages = tuple(row.context_coverage for row in campaign_rows)
     context_coverage = sum(coverages) / len(coverages) if coverages else 0.0
     total_cells = sum(len(coalition_fit.cells) for coalition_fit in fit.coalition_fits)
     failed_cells = sum(

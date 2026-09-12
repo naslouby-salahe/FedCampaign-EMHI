@@ -14,6 +14,7 @@ from fedcampaign_emhi.domain.enums import (
     DetectorFamily,
     ExperimentState,
     GroundTruthClass,
+    PartitionRole,
     PreprocessingLayer,
     RecordExclusionReason,
     ReuseDecision,
@@ -73,6 +74,7 @@ RecordCount = NonNegativeInt
 HashBucketCount = PositiveInt
 HashBucketIndex = NonNegativeInt
 PermutationIndex = NonNegativeInt
+HeldoutHorizonIndex = NonNegativeInt
 BinaryClassLabel = Annotated[int, Field(ge=0, le=1)]
 OdiIndicator = Annotated[int, Field(ge=0, le=1)]
 GlobalDetectionIndicator = Annotated[int, Field(ge=0, le=1)]
@@ -463,6 +465,49 @@ class CrossFittedInnovationCalibration:
     standardized_held_fold_innovations: tuple[tuple[FiniteFloat, ...], ...]
     complete_nuisance_coefficients: tuple[tuple[FiniteFloat, ...], ...]
     selected_ridge_penalty: RidgePenalty
+
+
+IndicatorDifference = Annotated[int, Field(ge=-1, le=1)]
+
+
+@dataclass(frozen=True)
+class CampaignEvaluationRow:
+    start_epoch: EpochIndexValue
+    end_epoch: EpochIndexValue
+    participating_client_ids: tuple[ClientId, ...]
+    global_stop_epoch: EpochIndexValue | None
+    local_stop_epochs: tuple[EpochIndexValue | None, ...]
+    local_min_stop_epoch: EpochIndexValue | None
+    strict_odi: OdiIndicator
+    statistical_lead_epochs: OperationalLeadEpochs | None
+    operational_lead_epochs: OperationalLeadEpochs | None
+    global_detected_within_horizon: GlobalDetectionIndicator
+    paired_stopping_time_difference: StoppingTimeDifference | None
+    paired_detection_indicator_difference: IndicatorDifference
+    decisive_order: CoalitionOrder | None
+    order_evidence_share: EvidenceShare | None
+    mean_log_evidence_growth: LogEvidenceGrowth | None
+    context_coverage: ContextCoverage
+    server_latency_seconds: RuntimeSeconds
+    end_to_end_latency_seconds: RuntimeSeconds
+    throughput: ThroughputPerSecond | None
+
+
+@dataclass(frozen=True)
+class HeldoutBenignEvaluationRow:
+    split_role: PartitionRole
+    horizon_index: HeldoutHorizonIndex
+    start_epoch: EpochIndexValue
+    threshold: ThresholdValue
+    first_stop_epoch: EpochIndexValue | None
+    context_coverage: ContextCoverage
+    global_evidence_factor: EvidenceFactor
+
+
+@dataclass(frozen=True)
+class PersistedCampaignOdiSupport:
+    strict_odi: OdiIndicator
+    operational_lead_epochs: OperationalLeadEpochs | None
 
 
 MetricValue = FiniteFloat
