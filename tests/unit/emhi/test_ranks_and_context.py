@@ -1,14 +1,22 @@
 import inspect
 
+from fedcampaign_emhi.artifacts.records import (
+    ClientMarginalRankStream,
+    MarginalRankArtifactRecord,
+)
+from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
+    FitStatus,
 )
 from fedcampaign_emhi.domain.types import (
+    CoalitionMembers,
     ContextTrainingRow,
     RankReference,
 )
+from fedcampaign_emhi.emhi.calibration import fit_order_context
 from fedcampaign_emhi.emhi.contexts import (
     assign_context_cell,
     cap_context_training_rows,
@@ -83,6 +91,60 @@ def test_context_row_cap_is_independent_of_iteration_order() -> None:
     assert identity.coalition_order is CoalitionOrder.ONE
     assert identity.context_method is ContextMethodName.EXACT_COALITION_EXCLUSION
     assert identity.experiment_seed == 11
+
+
+def _rank_stream(client_id: str, epoch_indexes: tuple[int, ...]) -> ClientMarginalRankStream:
+    ranks = tuple((index + 1) / (len(epoch_indexes) + 2) for index in range(len(epoch_indexes)))
+    return ClientMarginalRankStream(
+        client_id=client_id,
+        nuisance_reference_scores=tuple(float(index) for index in epoch_indexes),
+        epoch_indexes=epoch_indexes,
+        ranks=ranks,
+    )
+
+
+def test_fit_order_context_row_cap_is_independent_of_epoch_iteration_order() -> None:
+    epoch_indexes = tuple(range(0, 11))
+    ranks = MarginalRankArtifactRecord(
+        dataset_name=DatasetName.TON_IOT_NETWORK,
+        root_seed=1,
+        selected_client_ids=("a", "b", "c"),
+        client_streams=(
+            _rank_stream("a", epoch_indexes),
+            _rank_stream("b", epoch_indexes),
+            _rank_stream("c", epoch_indexes),
+        ),
+        dependency_fingerprint="f" * 64,
+    )
+    config = load_production_configuration().values
+    small_cap_kmeans = config.context.kmeans.model_copy(update={"max_fit_rows": 2})
+    small_cap_context = config.context.model_copy(update={"kmeans": small_cap_kmeans})
+    config = config.model_copy(update={"context": small_cap_context})
+    coalitions = (CoalitionMembers(client_ids=("a",), order=CoalitionOrder.ONE),)
+    nuisance_epochs = tuple(range(1, 11))
+    ascending = fit_order_context(
+        config,
+        ranks,
+        coalitions,
+        nuisance_epochs,
+        CoalitionOrder.ONE,
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        1,
+        None,
+    )
+    descending = fit_order_context(
+        config,
+        ranks,
+        coalitions,
+        tuple(reversed(nuisance_epochs)),
+        CoalitionOrder.ONE,
+        ContextMethodName.EXACT_COALITION_EXCLUSION,
+        1,
+        None,
+    )
+    assert ascending.state is FitStatus.FITTED
+    assert descending.state is FitStatus.FITTED
+    assert ascending.centroids == descending.centroids
 
 
 def test_centroid_assignment_uses_euclidean_distance_and_smaller_index_ties() -> None:

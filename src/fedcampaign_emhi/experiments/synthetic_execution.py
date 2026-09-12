@@ -11,6 +11,7 @@ from typing import cast
 from pydantic import TypeAdapter
 
 from fedcampaign_emhi.analysis.statistics import (
+    clopper_pearson_two_sided_interval,
     hodges_lehmann_shift,
     interval_establishes_equivalence,
     mean_bca_one_sided_lower_bound,
@@ -1399,6 +1400,9 @@ def materialize_estimator_feasibility_statistics(
     metrics = tuple(observation.metric.primary for observation in confirmatory)
     failure_count = sum(metric.numerical_failure for metric in metrics)
     failure_rate = failure_count / len(metrics)
+    failure_rate_lower, failure_rate_upper = clopper_pearson_two_sided_interval(
+        failure_count, len(metrics), loaded.values.statistics.confidence_level
+    )
     materiality = loaded.values.materiality
     meets_threshold = (
         sum(metric.context_coverage for metric in metrics) / len(metrics)
@@ -1423,6 +1427,8 @@ def materialize_estimator_feasibility_statistics(
         "numerical_failure_count": failure_count,
         "attempted_condition_count": len(metrics),
         "pooled_numerical_failure_rate": failure_rate,
+        "pooled_numerical_failure_rate_confidence_lower": failure_rate_lower,
+        "pooled_numerical_failure_rate_confidence_upper": failure_rate_upper,
         "meets_threshold": meets_threshold,
         "source_result_ids": list(source_ids),
     }
@@ -1436,6 +1442,8 @@ def materialize_estimator_feasibility_statistics(
         numerical_failure_count=failure_count,
         attempted_condition_count=len(metrics),
         pooled_numerical_failure_rate=failure_rate,
+        pooled_numerical_failure_rate_confidence_lower=failure_rate_lower,
+        pooled_numerical_failure_rate_confidence_upper=failure_rate_upper,
         meets_threshold=meets_threshold,
         source_result_ids=source_ids,
         dependency_fingerprint=material_fingerprint(

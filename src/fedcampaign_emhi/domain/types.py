@@ -492,6 +492,7 @@ def registry_entry_integrity_checksum(
 class ClientMaliciousEpochs:
     client_id: ClientId
     malicious_epochs: tuple[EpochIndexValue, ...]
+    earliest_observed_epoch: EpochIndexValue
 
 
 @dataclass(frozen=True)

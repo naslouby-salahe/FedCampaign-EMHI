@@ -109,6 +109,18 @@ def derive_scientific_values(config: ScientificConfig) -> DerivedScientificValue
     )
 
 
+def _validate_disjoint_seed_namespaces(config: ScientificConfig) -> None:
+    randomness = config.randomness
+    if set(randomness.synthetic_development_roots) & set(randomness.synthetic_confirmatory_roots):
+        raise ConfigurationValidationError(
+            "synthetic_development_roots and synthetic_confirmatory_roots must be disjoint"
+        )
+    if set(randomness.real_development_roots) & set(randomness.real_confirmatory_roots):
+        raise ConfigurationValidationError(
+            "real_development_roots and real_confirmatory_roots must be disjoint"
+        )
+
+
 def load_scientific_configuration(
     path: Path,
     profile: ConfigurationProfile,
@@ -116,6 +128,8 @@ def load_scientific_configuration(
     payload = _load_mapping(path)
     reject_forbidden_derived_keys(payload)
     config = ScientificConfig.model_validate(payload)
+    if profile is not ConfigurationProfile.SMOKE:
+        _validate_disjoint_seed_namespaces(config)
     derived = derive_scientific_values(config)
     digest = configuration_digest(config)
     return LoadedScientificConfiguration(

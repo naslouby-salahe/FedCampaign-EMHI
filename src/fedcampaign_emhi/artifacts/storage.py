@@ -166,7 +166,6 @@ EXPERIMENT_OUTPUT_TREES = {
         ArtifactPathSegment.CONFIGURATION,
         ArtifactPathSegment.DATA,
         ArtifactPathSegment.SEEDS,
-        ArtifactPathSegment.CODE,
         ArtifactPathSegment.ENVIRONMENT,
         ArtifactPathSegment.DEPENDENCIES,
     ),

@@ -469,3 +469,51 @@ def test_ridge_candidates_must_include_zero(repo_root: Path) -> None:
     payload["projection"]["ridge_candidates"] = [0.0001, 0.001]
     with pytest.raises(ValidationError):
         ScientificConfig.model_validate(payload)
+
+
+def test_production_seed_namespaces_are_disjoint(
+    production_configuration: LoadedScientificConfiguration,
+) -> None:
+    randomness = production_configuration.values.randomness
+    assert not set(randomness.synthetic_development_roots) & set(
+        randomness.synthetic_confirmatory_roots
+    )
+    assert not set(randomness.real_development_roots) & set(randomness.real_confirmatory_roots)
+
+
+def test_overlapping_synthetic_seed_namespaces_are_rejected(
+    tmp_path: Path, repo_root: Path
+) -> None:
+    payload = deepcopy(
+        yaml.safe_load((repo_root / "configs" / "fedcampaign-emhi.yaml").read_text())
+    )
+    payload["randomness"]["synthetic_confirmatory_roots"] = list(
+        payload["randomness"]["synthetic_development_roots"]
+    )
+    corrupted_path = tmp_path / "overlapping-synthetic-seeds.yaml"
+    corrupted_path.write_text(yaml.safe_dump(payload))
+    with pytest.raises(ConfigurationValidationError):
+        load_scientific_configuration(corrupted_path, ConfigurationProfile.PRODUCTION)
+
+
+def test_overlapping_real_seed_namespaces_are_rejected(tmp_path: Path, repo_root: Path) -> None:
+    payload = deepcopy(
+        yaml.safe_load((repo_root / "configs" / "fedcampaign-emhi.yaml").read_text())
+    )
+    payload["randomness"]["real_confirmatory_roots"] = list(
+        payload["randomness"]["real_development_roots"]
+    )
+    corrupted_path = tmp_path / "overlapping-real-seeds.yaml"
+    corrupted_path.write_text(yaml.safe_dump(payload))
+    with pytest.raises(ConfigurationValidationError):
+        load_scientific_configuration(corrupted_path, ConfigurationProfile.PRODUCTION)
+
+
+def test_smoke_configuration_is_exempt_from_seed_namespace_disjointness(
+    repo_root: Path,
+) -> None:
+    loaded = load_smoke_configuration(repo_root)
+    randomness = loaded.values.randomness
+    assert set(randomness.synthetic_development_roots) & set(
+        randomness.synthetic_confirmatory_roots
+    )

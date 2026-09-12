@@ -43,6 +43,8 @@ def test_estimator_feasibility_statistics_aggrecriterion_primary_confirmatory_me
     assert record.independent_unit_count == len(observations)
     assert record.mean_context_coverage == 1.0
     assert record.pooled_numerical_failure_rate == 0.0
+    assert record.pooled_numerical_failure_rate_confidence_lower == 0.0
+    assert 0.0 < record.pooled_numerical_failure_rate_confidence_upper < 1.0
     assert record.meets_threshold is True
 
 

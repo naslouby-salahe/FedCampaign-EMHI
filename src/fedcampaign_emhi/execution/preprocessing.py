@@ -18,6 +18,8 @@ from fedcampaign_emhi.artifacts.records import (
     DatasetInventoryFileRecord,
     DatasetInventoryRecord,
     DatasetSplitRecord,
+    DatasetStructuralDiscrepancyRecord,
+    ExcludedRecordReasonCount,
     PreparedDatasetRecord,
     PreparedEpochRecord,
 )
@@ -40,7 +42,10 @@ from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     record_enters_epoch_event_count,
 )
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
-from fedcampaign_emhi.datasets.edge_iiotset.loading import iter_edge_iiotset_csv_entries
+from fedcampaign_emhi.datasets.edge_iiotset.loading import (
+    edge_iiotset_frame_time_discrepancies,
+    iter_edge_iiotset_csv_entries,
+)
 from fedcampaign_emhi.datasets.edge_iiotset.validation import select_secondary_clients
 from fedcampaign_emhi.datasets.inventory import (
     configured_raw_directory,
@@ -78,6 +83,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     OverwritePolicy,
     PreprocessingLayer,
+    RecordExclusionReason,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
@@ -435,7 +441,7 @@ def _resolve_materialization(
     inventory_digest: ConfigurationDigest,
     start_layer: PreprocessingLayer,
 ) -> DatasetMaterialization:
-    inventory = _inventory_record(dataset_name, raw_inventory, inventory_digest)
+    inventory = _inventory_record(dataset_name, raw_directory, raw_inventory, inventory_digest)
     start_index = PREPROCESSING_LAYER_ORDER.index(start_layer)
     if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PREPARED):
         prepared, split = _build_prepared_and_split(loaded, raw_directory, dataset_name)
@@ -462,8 +468,20 @@ def _resolve_materialization(
     )
 
 
+def _dataset_structural_discrepancies(
+    dataset_name: DatasetName, raw_directory: Path
+) -> tuple[DatasetStructuralDiscrepancyRecord, ...]:
+    if dataset_name is not DatasetName.EDGE_IIOTSET:
+        return ()
+    discrepancies: list[DatasetStructuralDiscrepancyRecord] = []
+    for path in _csv_paths(raw_directory):
+        discrepancies.extend(edge_iiotset_frame_time_discrepancies(path))
+    return tuple(discrepancies)
+
+
 def _inventory_record(
     dataset_name: DatasetName,
+    raw_directory: Path,
     inventory_entries: tuple[FileInventoryEntry, ...],
     inventory_digest: ConfigurationDigest,
 ) -> DatasetInventoryRecord:
@@ -477,6 +495,7 @@ def _inventory_record(
             )
             for entry in inventory_entries
         ),
+        discrepancies=_dataset_structural_discrepancies(dataset_name, raw_directory),
         content_digest=inventory_digest,
     )
 
@@ -555,6 +574,7 @@ def _build_prepared_and_split(
             selection.eligible_client_ids,
             selection.has_sufficient_clients,
             len(exclusions),
+            _exclusion_reason_counts(exclusions),
             duplicate_count,
             discrepancy_count,
         )
@@ -592,9 +612,9 @@ def _prepare_ton_epochs_from_csv(
         + "], header=true, all_varchar=true, union_by_name=true)"
     )
     valid = """
-        SELECT DISTINCT CAST(ts AS DOUBLE) AS timestamp_seconds, trim(src_ip) AS client_id,
+        SELECT DISTINCT try_cast(ts AS DOUBLE) AS timestamp_seconds, trim(src_ip) AS client_id,
             trim(coalesce(proto, '')) AS protocol_token, trim(coalesce(service, '')) AS service_token,
-            CAST(label AS BIGINT) AS binary_label, trim(type) AS attack_type
+            try_cast(label AS BIGINT) AS binary_label, trim(type) AS attack_type
         FROM raw
         WHERE try_cast(ts AS DOUBLE) IS NOT NULL AND trim(coalesce(src_ip, '')) NOT IN ('', '-')
             AND try_cast(label AS BIGINT) IS NOT NULL AND trim(coalesce(type, '')) <> ''
@@ -604,6 +624,7 @@ def _prepare_ton_epochs_from_csv(
     raw_count = _duckdb_count(connection, "SELECT count(*) FROM raw")
     valid_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid_rows})")
     distinct_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid})")
+    excluded_reason_counts = _ton_iot_exclusion_reason_counts(connection)
     discrepancy_count = _duckdb_count(
         connection,
         f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'{benign_attack_type}') OR (binary_label=1 AND lower(attack_type)='{benign_attack_type}')",
@@ -663,6 +684,7 @@ def _prepare_ton_epochs_from_csv(
         has_sufficient_clients=selection.has_sufficient_clients,
         epochs=epochs,
         excluded_record_count=raw_count - valid_count,
+        excluded_record_reason_counts=excluded_reason_counts,
         duplicate_record_count=valid_count - distinct_count,
         ground_truth_discrepancy_count=discrepancy_count,
     )
@@ -675,6 +697,39 @@ def _duckdb_count(
     if result is None:
         raise ValueError("DuckDB aggregate query returned no result")
     return int(cast(tuple[int], result)[0])
+
+
+def _ton_iot_exclusion_reason_counts(
+    connection: duckdb.DuckDBPyConnection,
+) -> tuple[ExcludedRecordReasonCount, ...]:
+    unusable_host = "trim(coalesce(src_ip, '')) IN ('', '-')"
+    unparseable_timestamp = "try_cast(ts AS DOUBLE) IS NULL"
+    structurally_invalid = "try_cast(label AS BIGINT) IS NULL"
+    missing_field = "trim(coalesce(type, '')) = ''"
+    result = connection.execute(
+        "SELECT "
+        f"count(*) FILTER (WHERE {unusable_host}), "
+        f"count(*) FILTER (WHERE NOT ({unusable_host}) AND {unparseable_timestamp}), "
+        f"count(*) FILTER (WHERE NOT ({unusable_host}) AND NOT ({unparseable_timestamp}) "
+        f"AND {structurally_invalid}), "
+        f"count(*) FILTER (WHERE NOT ({unusable_host}) AND NOT ({unparseable_timestamp}) "
+        f"AND NOT ({structurally_invalid}) AND {missing_field}) "
+        "FROM raw"
+    ).fetchone()
+    if result is None:
+        raise ValueError("DuckDB exclusion-reason query returned no result")
+    counts = cast(tuple[int, int, int, int], result)
+    reasons = (
+        RecordExclusionReason.UNUSABLE_HOST_IDENTITY,
+        RecordExclusionReason.UNPARSEABLE_TIMESTAMP,
+        RecordExclusionReason.STRUCTURALLY_INVALID_EVENT,
+        RecordExclusionReason.MISSING_FIELD_VALUE,
+    )
+    return tuple(
+        ExcludedRecordReasonCount(reason=reason, record_count=count)
+        for reason, count in zip(reasons, counts, strict=True)
+        if count > 0
+    )
 
 
 @log_stage("execution.preprocessing")
@@ -704,6 +759,18 @@ def _payload_identity(parts: tuple[NormalizedEventToken, ...]) -> NormalizedEven
     return payload_digest(cast(YamlNode, list(parts)))
 
 
+def _exclusion_reason_counts(
+    exclusions: tuple[ExcludedRecord, ...],
+) -> tuple[ExcludedRecordReasonCount, ...]:
+    tallies: MutableMapping[RecordExclusionReason, RecordCount] = {}
+    for exclusion in exclusions:
+        tallies[exclusion.reason] = tallies.get(exclusion.reason, 0) + 1
+    return tuple(
+        ExcludedRecordReasonCount(reason=reason, record_count=count)
+        for reason, count in sorted(tallies.items(), key=lambda item: item[0].value)
+    )
+
+
 def _increment_bucket(
     counts: tuple[RecordCount, ...], bucket_index: HashBucketIndex
 ) -> tuple[RecordCount, ...]:
@@ -719,6 +786,7 @@ def _prepare_edge_epochs(
     eligible_client_ids: tuple[ClientId, ...],
     has_sufficient_clients: Boolean,
     excluded_count: RecordCount,
+    excluded_reason_counts: tuple[ExcludedRecordReasonCount, ...],
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
 ) -> PreparedDatasetRecord:
@@ -766,6 +834,7 @@ def _prepare_edge_epochs(
         has_sufficient_clients=has_sufficient_clients,
         epochs=epochs,
         excluded_record_count=excluded_count,
+        excluded_record_reason_counts=excluded_reason_counts,
         duplicate_record_count=duplicate_count,
         ground_truth_discrepancy_count=discrepancy_count,
     )
@@ -994,6 +1063,9 @@ def _campaigns_from_prepared(
                 row.epoch_index
                 for row in prepared.epochs
                 if row.client_id == client_id and row.ground_truth is GroundTruthClass.MALICIOUS
+            ),
+            earliest_observed_epoch=min(
+                row.epoch_index for row in prepared.epochs if row.client_id == client_id
             ),
         )
         for client_id in split.selected_client_ids

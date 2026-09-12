@@ -227,6 +227,7 @@ __marimo__/
 docs/.tmp-*/
 
 # Temporary architecture-audit working state
+docs/.audit/
 docs/.audit-temp/
 docs/.fedcampaign-execution/
 

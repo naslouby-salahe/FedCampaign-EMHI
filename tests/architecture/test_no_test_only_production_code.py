@@ -4,6 +4,7 @@ import ast
 from collections import deque
 
 from tests.architecture.ast_scans import (
+    ROADMAP_FORMULA_ONLY_QUALIFIED_NAMES,
     SRC_ROOT,
     architecture_test_paths,
     bare_literal_only_names,
@@ -156,7 +157,9 @@ def test_every_non_initializer_production_module_has_a_production_inbound_refere
 def test_every_public_production_definition_has_a_production_reference() -> None:
     references = _public_definition_references()
     unreferenced = sorted(
-        f"{module}.{name}" for (module, name), users in references.items() if not users
+        f"{module}.{name}"
+        for (module, name), users in references.items()
+        if not users and f"{module}.{name}" not in ROADMAP_FORMULA_ONLY_QUALIFIED_NAMES
     )
     assert unreferenced == []
 

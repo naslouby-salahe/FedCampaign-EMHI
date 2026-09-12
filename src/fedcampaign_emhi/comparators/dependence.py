@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import norm
 
-from fedcampaign_emhi.domain.enums import CoalitionOrder
+from fedcampaign_emhi.domain.enums import CoalitionOrder, MethodName
 from fedcampaign_emhi.domain.types import (
     BinCount,
     Boolean,
@@ -37,6 +37,13 @@ from fedcampaign_emhi.emhi.innovations import (
 )
 from fedcampaign_emhi.emhi.structure import standard_normal_cdf
 from fedcampaign_emhi.runtime import log_stage
+
+PRE_STANDARDIZED_COMPARATOR_METHODS = frozenset(
+    {
+        MethodName.CONDITIONAL_PAIR_DEPENDENCE,
+        MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE,
+    }
+)
 
 
 def pair_dependence_moment(left_rank: RankValue, right_rank: RankValue) -> DependenceMoment:

@@ -65,6 +65,76 @@ def test_pair_dependence_conditioned_scoring_executes_and_is_deterministic(
     assert all(score > 0.0 for _epoch, score in first)
 
 
+def test_pair_dependence_evidence_scores_are_not_double_standardized(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    from fedcampaign_emhi.emhi.evidence import (
+        operational_evidence_factor,
+        operational_norm_reference_quantile,
+    )
+
+    ranks = _ranks(6, 400)
+    nuisance = tuple(range(2, 60))
+    raw = comparator_epoch_scores(
+        production_configuration, tmp_path, ranks, MethodName.CONDITIONAL_PAIR_DEPENDENCE, nuisance
+    )
+    assert raw
+
+    values = production_configuration.values
+    nuisance_set = set(nuisance)
+    expected_reference = operational_norm_reference_quantile(
+        tuple((score,) for epoch, score in raw if epoch in nuisance_set),
+        values.comparators.common_calibration.nuisance_reference_quantile,
+    )
+    expected = tuple(
+        (
+            epoch,
+            operational_evidence_factor(
+                (score,),
+                expected_reference,
+                values.numerics.metric_denominator_floor,
+                values.evidence.clip_bound,
+                values.evidence.bet_lambda,
+            ),
+        )
+        for epoch, score in raw
+    )
+
+    actual = comparator_evidence_scores(
+        production_configuration, raw, nuisance, MethodName.CONDITIONAL_PAIR_DEPENDENCE
+    )
+
+    assert actual == expected
+
+    generic_scores = comparator_evidence_scores(
+        production_configuration, raw, nuisance, MethodName.RAW_MEAN_RANK_FUSION
+    )
+    assert generic_scores != expected
+
+
+def test_lancaster_triple_evidence_scores_are_not_double_standardized(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    ranks = _ranks(6, 400)
+    nuisance = tuple(range(2, 60))
+    raw = comparator_epoch_scores(
+        production_configuration,
+        tmp_path,
+        ranks,
+        MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE,
+        nuisance,
+    )
+    assert raw
+
+    pre_standardized = comparator_evidence_scores(
+        production_configuration, raw, nuisance, MethodName.EXCLUSION_MATCHED_LANCASTER_TRIPLE
+    )
+    double_standardized = comparator_evidence_scores(
+        production_configuration, raw, nuisance, MethodName.RAW_MEAN_RANK_FUSION
+    )
+    assert pre_standardized != double_standardized
+
+
 def test_conditioned_method_on_insufficient_outside_context_yields_no_evidence(
     production_configuration: LoadedScientificConfiguration, tmp_path: Path
 ) -> None:

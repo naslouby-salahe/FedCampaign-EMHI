@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 from typing import cast
 
 from fedcampaign_emhi.analysis.results import (
@@ -35,6 +36,7 @@ from fedcampaign_emhi.artifacts.records import (
     MarginalRankArtifactRecord,
     OrderThreeScopeRecord,
     PreparedDatasetRecord,
+    PrimaryStrictOdiSupportRecord,
     SeedSummaryRecord,
     StatisticalRecord,
 )
@@ -81,6 +83,8 @@ from fedcampaign_emhi.domain.types import (
     MaterialOdiContribution,
     MetricRate,
     MetricValue,
+    OdiRateAdvantage,
+    OperationalLeadEpochs,
     RecordCount,
     RelativePath,
     RobustnessCountMultiplier,
@@ -676,7 +680,7 @@ def materialize_confirmatory_odi_inferences(
     primary_not_tested: Boolean,
 ) -> None:
     if experiment_name is ExperimentName.PRIMARY_STRICT_ODI_EVALUATION and not primary_not_tested:
-        _materialize_paired_confirmatory_odi_contrast(
+        contrast = _materialize_paired_confirmatory_odi_contrast(
             loaded,
             repository,
             experiment_name,
@@ -684,6 +688,8 @@ def materialize_confirmatory_odi_inferences(
             MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
             "paired_strict_odi_rate_advantage",
         )
+        if contrast is not None:
+            materialize_primary_strict_odi_support(loaded, repository, experiment_name, contrast)
         return
     if experiment_name not in {
         ExperimentName.EXCLUSION_MECHANISM_ABLATION,
@@ -742,6 +748,144 @@ def materialize_order_three_scope_outcome(
         / ArtifactPathSegment.STATISTICS
         / ArtifactPathSegment.EFFECTS
         / KnownArtifactOutputFilename.ORDER_THREE_SCOPE
+    )
+    write_atomic_json(
+        path,
+        cast(YamlNode, record.model_dump(mode="json")),
+        layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING,
+    )
+    return path
+
+
+def _raw_evaluation_campaigns(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    method_name: MethodName,
+    seed: SeedValue,
+) -> tuple[Mapping[str, YamlNode], ...]:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    path = (
+        root
+        / ArtifactPathSegment.EVALUATIONS
+        / ArtifactPathSegment.RAW
+        / ExecutionRole.CONFIRMATORY.value
+        / method_artifact_stem(method_name)
+        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
+    )
+    if not path.is_file():
+        return ()
+    payload = cast(YamlNode, json.loads(path.read_text(encoding="utf-8")))
+    if not isinstance(payload, Mapping):
+        return ()
+    campaigns = payload.get("campaigns")
+    if not isinstance(campaigns, list):
+        return ()
+    return tuple(campaign for campaign in campaigns if isinstance(campaign, Mapping))
+
+
+def materialize_primary_strict_odi_support(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    contrast: StatisticalRecord,
+) -> Path | None:
+    layout = build_artifact_layout(loaded, repository)
+    root = layout.experiment_outputs_root(experiment_name)
+    summaries = _load_seed_summaries(root)
+    full_summaries = _confirmatory_method_summaries(summaries, MethodName.FULL_FEDCAMPAIGN_EMHI)
+    expected = loaded.values.randomness.real_confirmatory_roots
+    observed_seeds = tuple(record.seed for _path, record in full_summaries)
+    if not confirmatory_completeness_within_tolerance(loaded, expected, observed_seeds):
+        return None
+    materiality = loaded.values.materiality.primary_real
+    both_eligible = _paired_methods_have_eligible_operating_points(
+        loaded,
+        repository,
+        experiment_name,
+        MethodName.EXCLUSION_MATCHED_ORDER_AT_MOST_TWO_EMHI,
+        expected,
+    )
+    heldout_pfa_meets_target = all(
+        _method_has_eligible_operating_point(
+            loaded,
+            repository,
+            experiment_name,
+            MethodName.FULL_FEDCAMPAIGN_EMHI,
+            seed,
+            require_heldout_pfa_within_target=True,
+        )
+        for seed in expected
+    )
+    odi_rates = tuple(record.method_value for _path, record in full_summaries)
+    mean_strict_odi_rate = sum(odi_rates) / len(odi_rates)
+    successful_leads: list[OperationalLeadEpochs] = []
+    for seed in expected:
+        for campaign in _raw_evaluation_campaigns(
+            loaded, repository, experiment_name, MethodName.FULL_FEDCAMPAIGN_EMHI, seed
+        ):
+            lead = campaign.get("operational_lead_epochs")
+            if campaign.get("strict_odi") == 1 and isinstance(lead, int | float):
+                successful_leads.append(float(lead))
+    median_lead: OperationalLeadEpochs | None = (
+        None if not successful_leads else median(successful_leads)
+    )
+    odi_rate_advantage: OdiRateAdvantage = contrast.estimate
+    meets_threshold = (
+        both_eligible
+        and heldout_pfa_meets_target
+        and mean_strict_odi_rate >= materiality.minimum_strict_odi_rate
+        and odi_rate_advantage >= materiality.minimum_odi_rate_advantage_over_order_at_most_two
+        and median_lead is not None
+        and median_lead >= materiality.minimum_median_operational_lead_epochs
+    )
+    source_ids = (
+        tuple(path.relative_to(repository).as_posix() for path, _record in full_summaries)
+        + contrast.source_result_ids
+    )
+    source_digests = tuple(file_sha256(path) for path, _record in full_summaries)
+    payload: YamlNode = {
+        "experiment_name": experiment_name.value,
+        "independent_unit_count": len(odi_rates),
+        "mean_strict_odi_rate": mean_strict_odi_rate,
+        "minimum_strict_odi_rate": materiality.minimum_strict_odi_rate,
+        "odi_rate_advantage": odi_rate_advantage,
+        "minimum_odi_rate_advantage": materiality.minimum_odi_rate_advantage_over_order_at_most_two,
+        "strict_odi_success_count": len(successful_leads),
+        "median_operational_lead_epochs": median_lead,
+        "minimum_median_operational_lead_epochs": (
+            materiality.minimum_median_operational_lead_epochs
+        ),
+        "heldout_pfa_meets_target": heldout_pfa_meets_target,
+        "both_methods_operating_point_eligible": both_eligible,
+        "meets_threshold": meets_threshold,
+        "source_result_ids": list(source_ids),
+    }
+    record = PrimaryStrictOdiSupportRecord(
+        experiment_name=experiment_name,
+        independent_unit_count=len(odi_rates),
+        mean_strict_odi_rate=mean_strict_odi_rate,
+        minimum_strict_odi_rate=materiality.minimum_strict_odi_rate,
+        odi_rate_advantage=odi_rate_advantage,
+        minimum_odi_rate_advantage=materiality.minimum_odi_rate_advantage_over_order_at_most_two,
+        strict_odi_success_count=len(successful_leads),
+        median_operational_lead_epochs=median_lead,
+        minimum_median_operational_lead_epochs=(materiality.minimum_median_operational_lead_epochs),
+        heldout_pfa_meets_target=heldout_pfa_meets_target,
+        both_methods_operating_point_eligible=both_eligible,
+        meets_threshold=meets_threshold,
+        source_result_ids=source_ids,
+        dependency_fingerprint=material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values), source_digests
+        ),
+        content_digest=payload_digest(payload),
+    )
+    path = (
+        root
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.EFFECTS
+        / KnownArtifactOutputFilename.PRIMARY_STRICT_ODI_SUPPORT
     )
     write_atomic_json(
         path,

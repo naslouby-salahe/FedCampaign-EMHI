@@ -4,7 +4,11 @@ import ast
 from collections import defaultdict, deque
 from pathlib import Path
 
-from tests.architecture.ast_scans import SRC_ROOT, source_files
+from tests.architecture.ast_scans import (
+    ROADMAP_FORMULA_ONLY_QUALIFIED_NAMES,
+    SRC_ROOT,
+    source_files,
+)
 
 CLI_MODULE = "fedcampaign_emhi.cli"
 RUNTIME_CALLBACK_CLASS_NAMES = frozenset({"FedAvgServerStrategy"})
@@ -328,7 +332,7 @@ def test_cli_commands_reach_every_non_cli_production_method() -> None:
     calls = _build_call_graph(functions)
     framework_roots = _external_base_framework_methods(functions)
     reachable = _reachable(cli_entries | framework_roots, calls)
-    non_cli = set(functions) - cli_entries
+    non_cli = set(functions) - cli_entries - ROADMAP_FORMULA_ONLY_QUALIFIED_NAMES
     unreachable = sorted(non_cli - reachable)
     assert cli_entries, "CLI command entry points must exist"
     assert len(reachable - cli_entries) == len(non_cli), (

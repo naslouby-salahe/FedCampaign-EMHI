@@ -6,6 +6,7 @@ from typing import cast
 
 import polars as pl
 
+from fedcampaign_emhi.artifacts.records import DatasetStructuralDiscrepancyRecord
 from fedcampaign_emhi.config.schema import DatasetsSecondaryConfig
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
@@ -19,8 +20,11 @@ from fedcampaign_emhi.domain.types import (
     EdgeIiotsetFlowRecord,
     ExcludedRecord,
     NormalizedEventToken,
+    RecordCount,
     UnixTimestampSeconds,
 )
+
+_DOCUMENTED_FRAME_TIME_PATTERN = re.compile(r"(\d{4}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?")
 
 EDGE_IIOTSET_TIMEZONE = UTC
 EDGE_IIOTSET_NAIVE_BASE_MONTH_DAY = (1, 1)
@@ -30,8 +34,6 @@ def _parse_row_fields(
     row: Mapping[NormalizedEventToken, NormalizedEventToken | None],
 ) -> tuple[UnixTimestampSeconds, ClientId, BinaryClassLabel, NormalizedEventToken] | ExcludedRecord:
     source_host = (row.get("ip.src_host") or "").strip()
-    if not source_host:
-        return ExcludedRecord(reason=RecordExclusionReason.MISSING_FIELD_VALUE)
     if not record_identity_is_usable(source_host):
         return ExcludedRecord(reason=RecordExclusionReason.UNUSABLE_HOST_IDENTITY)
     try:
@@ -88,27 +90,52 @@ def iter_edge_iiotset_csv_entries(
 
 def parse_frame_time(raw_timestamp: NormalizedEventToken) -> UnixTimestampSeconds:
     stripped = raw_timestamp.strip()
-    try:
-        return float(stripped)
-    except ValueError:
-        match = re.fullmatch(r"(\d{4}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?", stripped)
-        if match is not None:
-            year, hour, minute, second, fraction = match.groups()
-            microseconds = int((fraction or "0")[:6].ljust(6, "0"))
-            base_month, base_day = EDGE_IIOTSET_NAIVE_BASE_MONTH_DAY
-            return datetime(
-                int(year),
-                base_month,
-                base_day,
-                int(hour),
-                int(minute),
-                int(second),
-                microseconds,
-                tzinfo=EDGE_IIOTSET_TIMEZONE,
-            ).timestamp()
-        parsed = datetime.fromisoformat(stripped)
-        if parsed.tzinfo is None:
-            raise ValueError(
-                "naive Edge-IIoTset timestamps are invalid without a dataset timezone rule"
-            ) from None
-        return parsed.astimezone(UTC).timestamp()
+    match = _DOCUMENTED_FRAME_TIME_PATTERN.fullmatch(stripped)
+    if match is not None:
+        year, hour, minute, second, fraction = match.groups()
+        microseconds = int((fraction or "0")[:6].ljust(6, "0"))
+        base_month, base_day = EDGE_IIOTSET_NAIVE_BASE_MONTH_DAY
+        return datetime(
+            int(year),
+            base_month,
+            base_day,
+            int(hour),
+            int(minute),
+            int(second),
+            microseconds,
+            tzinfo=EDGE_IIOTSET_TIMEZONE,
+        ).timestamp()
+    parsed = datetime.fromisoformat(stripped)
+    if parsed.tzinfo is None:
+        raise ValueError(
+            "naive Edge-IIoTset timestamps are invalid without a dataset timezone rule"
+        ) from None
+    return parsed.astimezone(UTC).timestamp()
+
+
+def edge_iiotset_frame_time_discrepancies(
+    csv_path: Path,
+) -> tuple[DatasetStructuralDiscrepancyRecord, ...]:
+    column = pl.read_csv(
+        csv_path, columns=["frame.time"], schema_overrides={"frame.time": pl.Utf8}
+    )["frame.time"]
+    total: RecordCount = column.len()
+    if total == 0:
+        return ()
+    documented_matches = column.str.strip_chars().str.contains(
+        _DOCUMENTED_FRAME_TIME_PATTERN.pattern
+    )
+    mismatch_count: RecordCount = int((~documented_matches.fill_null(False)).sum())
+    if mismatch_count == 0:
+        return ()
+    return (
+        DatasetStructuralDiscrepancyRecord(
+            field_or_property="frame.time",
+            documented_value="'YYYY HH:MM:SS[.ffffff]' (documented release timestamp format)",
+            observed_value=(
+                f"{mismatch_count} of {total} rows do not match the documented frame.time format"
+            ),
+            affected_record_count=mismatch_count,
+            blocking=False,
+        ),
+    )

@@ -188,9 +188,12 @@ def ridge_coefficient_matrix(
         raise ValueError("design and responses must be two-dimensional")
     if design.shape[0] != target.shape[0]:
         raise ValueError("design and responses must contain the same observation count")
+    observation_count = design.shape[0]
     penalty = np.zeros((design.shape[1], design.shape[1]), dtype=np.float64)
     if design.shape[1] > 1:
-        penalty[1:, 1:] = np.eye(design.shape[1] - 1, dtype=np.float64) * ridge_penalty
+        penalty[1:, 1:] = (
+            np.eye(design.shape[1] - 1, dtype=np.float64) * ridge_penalty * observation_count
+        )
     gram = design.T @ design
     if ridge_penalty <= 0.0:
         coefficients = np.linalg.pinv(design, rcond=svd_relative_cutoff) @ target

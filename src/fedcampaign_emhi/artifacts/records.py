@@ -13,6 +13,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     MethodName,
     OverwritePolicy,
+    RecordExclusionReason,
     ResumeStep,
 )
 from fedcampaign_emhi.domain.types import (
@@ -42,6 +43,7 @@ from fedcampaign_emhi.domain.types import (
     MetricValue,
     NuisanceCoefficient,
     NumericalFloor,
+    OdiRateAdvantage,
     OperationalLeadEpochs,
     OperationalNormReference,
     PairedDifference,
@@ -176,9 +178,18 @@ class DatasetInventoryFileRecord(FrozenConfigModel):
     byte_count: ByteCount
 
 
+class DatasetStructuralDiscrepancyRecord(FrozenConfigModel):
+    field_or_property: ComponentName
+    documented_value: ComponentName
+    observed_value: ComponentName
+    affected_record_count: RecordCount
+    blocking: Boolean
+
+
 class DatasetInventoryRecord(FrozenConfigModel):
     dataset_name: DatasetName
     files: tuple[DatasetInventoryFileRecord, ...]
+    discrepancies: tuple[DatasetStructuralDiscrepancyRecord, ...] = ()
     content_digest: ConfigurationDigest
 
 
@@ -200,6 +211,11 @@ class ClientFeatureScalerRecord(FrozenConfigModel):
     iqr_floor: NumericalFloor
 
 
+class ExcludedRecordReasonCount(FrozenConfigModel):
+    reason: RecordExclusionReason
+    record_count: RecordCount
+
+
 class PreparedDatasetRecord(FrozenConfigModel):
     dataset_name: DatasetName
     selected_client_ids: tuple[ClientId, ...] = ()
@@ -208,6 +224,7 @@ class PreparedDatasetRecord(FrozenConfigModel):
     epochs: tuple[PreparedEpochRecord, ...]
     client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
+    excluded_record_reason_counts: tuple[ExcludedRecordReasonCount, ...] = ()
     duplicate_record_count: RecordCount = 0
     ground_truth_discrepancy_count: RecordCount
 
@@ -375,6 +392,8 @@ class EstimatorFeasibilityAggregationRecord(FrozenConfigModel):
     numerical_failure_count: RecordCount
     attempted_condition_count: RecordCount
     pooled_numerical_failure_rate: Probability
+    pooled_numerical_failure_rate_confidence_lower: Probability
+    pooled_numerical_failure_rate_confidence_upper: Probability
     meets_threshold: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -386,6 +405,24 @@ class OrderThreeScopeRecord(FrozenConfigModel):
     real_order_three_contribution: MaterialOdiContribution
     minimum_material_odi_contribution: MaterialOdiContribution
     material_scope_supported: Boolean
+    source_result_ids: tuple[ArtifactIdentity, ...]
+    dependency_fingerprint: MaterialDependencyFingerprint
+    content_digest: ConfigurationDigest
+
+
+class PrimaryStrictOdiSupportRecord(FrozenConfigModel):
+    experiment_name: ExperimentName
+    independent_unit_count: RecordCount
+    mean_strict_odi_rate: Probability
+    minimum_strict_odi_rate: Probability
+    odi_rate_advantage: OdiRateAdvantage
+    minimum_odi_rate_advantage: OdiRateAdvantage
+    strict_odi_success_count: RecordCount
+    median_operational_lead_epochs: OperationalLeadEpochs | None
+    minimum_median_operational_lead_epochs: OperationalLeadEpochs
+    heldout_pfa_meets_target: Boolean
+    both_methods_operating_point_eligible: Boolean
+    meets_threshold: Boolean
     source_result_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
     content_digest: ConfigurationDigest

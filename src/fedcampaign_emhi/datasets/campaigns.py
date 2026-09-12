@@ -51,6 +51,9 @@ def build_campaign_registry(
     epochs_by_client = {
         record.client_id: record.malicious_epochs for record in client_malicious_epochs
     }
+    earliest_observed_epoch_by_client = {
+        record.client_id: record.earliest_observed_epoch for record in client_malicious_epochs
+    }
     union: set[EpochIndexValue] = set()
     for record in client_malicious_epochs:
         union.update(record.malicious_epochs)
@@ -72,7 +75,11 @@ def build_campaign_registry(
         if end - start + 1 < minimum_duration_epochs:
             continue
         warmup_start = start - prestart_warmup_epochs
-        if warmup_start < 0:
+        warmup_observed = all(
+            warmup_start >= earliest_observed_epoch_by_client[client_id]
+            for client_id in selected_client_ids
+        )
+        if not warmup_observed:
             continue
         warmup_clean = all(
             not any(warmup_start <= epoch < start for epoch in epochs_by_client.get(client_id, ()))

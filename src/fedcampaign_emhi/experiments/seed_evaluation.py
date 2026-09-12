@@ -46,6 +46,7 @@ from fedcampaign_emhi.comparators.conditioning import (
     conditioned_comparator_order,
     fit_comparator_conditioning,
 )
+from fedcampaign_emhi.comparators.dependence import PRE_STANDARDIZED_COMPARATOR_METHODS
 from fedcampaign_emhi.comparators.federated import fit_federated_autoencoder
 from fedcampaign_emhi.comparators.runtime import (
     fit_comparator_state,
@@ -689,22 +690,27 @@ def comparator_evidence_scores(
     loaded: LoadedScientificConfiguration,
     raw_scores: tuple[tuple[EpochIndexValue, DetectorScore], ...],
     nuisance_epochs: tuple[EpochIndexValue, ...],
+    method_name: MethodName = MethodName.RAW_MEAN_RANK_FUSION,
 ) -> tuple[tuple[EpochIndexValue, DetectorScore], ...]:
     if not raw_scores:
         return ()
-    nuisance_scores = tuple(score for epoch, score in raw_scores if epoch in nuisance_epochs)
-    if not nuisance_scores:
-        raise ValueError("comparator evidence requires nuisance-fit scores")
-    nuisance_mean = sum(nuisance_scores) / len(nuisance_scores)
-    nuisance_deviation = (
-        sum((score - nuisance_mean) ** 2 for score in nuisance_scores) / len(nuisance_scores)
-    ) ** 0.5
     floor = loaded.values.numerics.metric_denominator_floor
-    if nuisance_deviation <= floor:
-        return ()
-    standardized = tuple(
-        (epoch, abs((score - nuisance_mean) / nuisance_deviation)) for epoch, score in raw_scores
-    )
+    if method_name in PRE_STANDARDIZED_COMPARATOR_METHODS:
+        standardized = raw_scores
+    else:
+        nuisance_scores = tuple(score for epoch, score in raw_scores if epoch in nuisance_epochs)
+        if not nuisance_scores:
+            raise ValueError("comparator evidence requires nuisance-fit scores")
+        nuisance_mean = sum(nuisance_scores) / len(nuisance_scores)
+        nuisance_deviation = (
+            sum((score - nuisance_mean) ** 2 for score in nuisance_scores) / len(nuisance_scores)
+        ) ** 0.5
+        if nuisance_deviation <= floor:
+            return ()
+        standardized = tuple(
+            (epoch, abs((score - nuisance_mean) / nuisance_deviation))
+            for epoch, score in raw_scores
+        )
     reference = operational_norm_reference_quantile(
         tuple((score,) for epoch, score in standardized if epoch in nuisance_epochs),
         loaded.values.comparators.common_calibration.nuisance_reference_quantile,
@@ -815,7 +821,10 @@ def _evaluate_comparator_seed_cell(
     raw_scores = comparator_epoch_scores(
         loaded, repository, scoring_ranks, method_name, split.nuisance_fit_epochs
     )
-    scores = comparator_evidence_scores(loaded, raw_scores, split.nuisance_fit_epochs)
+    scoring_method = resolve_comparator_scoring_method(loaded, repository, method_name)
+    scores = comparator_evidence_scores(
+        loaded, raw_scores, split.nuisance_fit_epochs, scoring_method
+    )
     (
         threshold,
         calibration_false_stop_counts,

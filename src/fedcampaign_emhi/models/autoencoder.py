@@ -119,29 +119,11 @@ def train_autoencoder_epochs(
     epoch_offset: SolverIterationLimit,
 ) -> None:
     optimizer = torch.optim.Adam(
-        [
-            {
-                "params": (
-                    network.encoder.weight,
-                    network.latent.weight,
-                    network.decoder.weight,
-                    network.output_layer.weight,
-                ),
-                "weight_decay": weight_decay,
-            },
-            {
-                "params": (
-                    network.encoder.bias,
-                    network.latent.bias,
-                    network.decoder.bias,
-                    network.output_layer.bias,
-                ),
-                "weight_decay": 0.0,
-            },
-        ],
+        network.parameters(),
         lr=learning_rate,
         betas=(beta_one, beta_two),
         eps=optimizer_epsilon,
+        weight_decay=weight_decay,
     )
     criterion = nn.MSELoss()
     row_count = int(fit_matrix.shape[0])

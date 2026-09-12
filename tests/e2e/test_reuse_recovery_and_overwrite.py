@@ -30,7 +30,8 @@ def test_preprocess_cli_selects_dataset_and_states_ownership(
     )
     secondary.mkdir(parents=True)
     (secondary / "DNN-EdgeIIoT-dataset.csv").write_text(
-        "frame.time,ip.src_host,Attack_label,Attack_type,tcp.flags\n1,192.168.0.1,0,Normal,2\n",
+        "frame.time,ip.src_host,Attack_label,Attack_type,tcp.flags\n"
+        "2021 11:44:10.081753000,192.168.0.1,0,Normal,2\n",
         encoding="utf-8",
     )
     loaded = load_production_configuration()

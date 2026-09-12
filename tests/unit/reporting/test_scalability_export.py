@@ -73,3 +73,35 @@ def test_coalition_scalability_export_reads_aggregate_metric_paths(
     assert table_path.name == "scalability-summary.csv"
     rows = table_path.read_text(encoding="utf-8").splitlines()
     assert [row.split(",")[0] for row in rows[1:]] == ["6", "12"]
+
+
+def test_experiment_export_root_follows_configured_results_root(
+    tmp_path: Path,
+    production_configuration: LoadedScientificConfiguration,
+) -> None:
+    repository = tmp_path / "repository"
+    aggregate_dir = repository / "metrics" / "aggregate"
+    staging = repository / "staging"
+    path = aggregate_dir / "k-6.json"
+    write_atomic_json(path, _aggregate_record(6).model_dump(mode="json"), staging)
+    retitled_artifacts = production_configuration.values.artifacts.model_copy(
+        update={"results_root": "custom-results"}
+    )
+    retitled_values = production_configuration.values.model_copy(
+        update={"artifacts": retitled_artifacts}
+    )
+    retitled_configuration = production_configuration.model_copy(update={"values": retitled_values})
+
+    exported = materialize_experiment_exports(
+        retitled_configuration,
+        repository,
+        ExperimentName.COALITION_SCALABILITY,
+        (),
+        (),
+        (path,),
+        True,
+    )
+
+    assert len(exported) == 1
+    assert "custom-results" in exported[0].parts
+    assert "results" not in exported[0].parts

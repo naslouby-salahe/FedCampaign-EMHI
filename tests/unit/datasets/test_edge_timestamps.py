@@ -19,3 +19,10 @@ def test_naive_iso_timestamp_fails_closed() -> None:
 def test_unparseable_timestamp_raises() -> None:
     with pytest.raises(ValueError):
         parse_frame_time("not-a-timestamp")
+
+
+def test_bare_numeric_timestamp_is_rejected_not_silently_interpreted_as_unix_seconds() -> None:
+    with pytest.raises(ValueError):
+        parse_frame_time("6.0")
+    with pytest.raises(ValueError):
+        parse_frame_time("0")

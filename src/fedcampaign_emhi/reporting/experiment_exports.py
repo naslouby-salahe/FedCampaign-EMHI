@@ -13,7 +13,7 @@ from fedcampaign_emhi.artifacts.records import (
     SeedSummaryRecord,
     StrongComparatorCompositionRecord,
 )
-from fedcampaign_emhi.artifacts.storage import payload_digest
+from fedcampaign_emhi.artifacts.storage import build_artifact_layout, payload_digest
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
@@ -388,16 +388,16 @@ def sensitivity_figure_bytes(
     return _figure_bytes(figure)
 
 
-def _results_root(repository: Path, experiment_name: ExperimentName) -> Path:
-    return repository / "results" / ArtifactPathSegment.EXPERIMENTS / experiment_name.value
+def _results_root(
+    loaded: LoadedScientificConfiguration, repository: Path, experiment_name: ExperimentName
+) -> Path:
+    return build_artifact_layout(loaded, repository).experiment_results_root(experiment_name)
 
 
 def _selection_artifact_path(loaded: LoadedScientificConfiguration, repository: Path) -> Path:
+    layout = build_artifact_layout(loaded, repository)
     return (
-        repository
-        / ArtifactPathSegment.OUTPUTS
-        / ArtifactPathSegment.EXPERIMENTS
-        / ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE.value
+        layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
         / ArtifactPathSegment.ARTIFACTS
         / ArtifactPathSegment.DERIVED
         / loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
@@ -433,7 +433,7 @@ def materialize_experiment_exports(
     overwrite: Boolean,
 ) -> tuple[Path, ...]:
     if experiment_name is ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE:
-        root = _results_root(repository, experiment_name)
+        root = _results_root(loaded, repository, experiment_name)
         table_path = (
             root
             / ArtifactPathSegment.TABLES
@@ -453,7 +453,7 @@ def materialize_experiment_exports(
             write_png_artifact(figure_path, composition_figure_bytes(record))
         return table_path, figure_path
     if experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
-        root = _results_root(repository, experiment_name)
+        root = _results_root(loaded, repository, experiment_name)
         table_path = (
             root
             / ArtifactPathSegment.TABLES
@@ -481,7 +481,7 @@ def materialize_experiment_exports(
             write_png_artifact(figure_path, seed_odi_figure_bytes(full_summaries, minimum_odi_rate))
         return table_path, figure_path
     if experiment_name is ExperimentName.CONTEXT_AND_ESTIMATOR_SENSITIVITY:
-        root = _results_root(repository, experiment_name)
+        root = _results_root(loaded, repository, experiment_name)
         table_path = (
             root
             / ArtifactPathSegment.TABLES
@@ -501,7 +501,7 @@ def materialize_experiment_exports(
             write_png_artifact(figure_path, sensitivity_figure_bytes(records))
         return table_path, figure_path
     if experiment_name is ExperimentName.COALITION_SCALABILITY:
-        root = _results_root(repository, experiment_name)
+        root = _results_root(loaded, repository, experiment_name)
         table_path = (
             root
             / ArtifactPathSegment.TABLES

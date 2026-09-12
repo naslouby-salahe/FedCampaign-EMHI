@@ -14,6 +14,12 @@ PRIMITIVE_NAMES = frozenset({"str", "int", "float", "bool", "object", "Any", "by
 LEAK_CONTAINER_NAMES = frozenset({"dict", "list", "set", "Dict", "List", "Set"})
 LOCAL_LEAK_CONTAINER_NAMES = frozenset({"dict", "Dict"})
 BOUNDARY_TYPE_NAMES = frozenset({"YamlNode"})
+ROADMAP_FORMULA_ONLY_QUALIFIED_NAMES = frozenset(
+    {
+        "fedcampaign_emhi.evaluation.metrics.auroc",
+        "fedcampaign_emhi.evaluation.metrics.auprc",
+    }
+)
 LAYERS = (
     "cli",
     "reporting",

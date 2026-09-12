@@ -12,6 +12,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
 )
 from fedcampaign_emhi.datasets.edge_iiotset.ground_truth import edge_iiotset_ground_truth
 from fedcampaign_emhi.datasets.edge_iiotset.loading import (
+    edge_iiotset_frame_time_discrepancies,
     iter_edge_iiotset_csv_entries,
     parse_frame_time,
 )
@@ -34,6 +35,30 @@ EDGE_SCHEMA = DatasetsSecondaryConfig(
 
 def test_release_timestamp_format_is_parsed_deterministically() -> None:
     assert parse_frame_time("2021 11:44:10.081753000") == 1609501450.081753
+
+
+def test_frame_time_discrepancies_are_empty_when_every_row_matches_the_documented_format(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "clean.csv"
+    path.write_text(
+        "frame.time\n2021 00:00:10.000000\n2021 00:00:20.000000\n",
+        encoding="utf-8",
+    )
+    assert edge_iiotset_frame_time_discrepancies(path) == ()
+
+
+def test_frame_time_discrepancies_report_a_non_blocking_mismatch_count(tmp_path: Path) -> None:
+    path = tmp_path / "corrupted.csv"
+    path.write_text(
+        "frame.time\n2021 00:00:10.000000\n6.0\n0\n",
+        encoding="utf-8",
+    )
+    discrepancies = edge_iiotset_frame_time_discrepancies(path)
+    assert len(discrepancies) == 1
+    assert discrepancies[0].field_or_property == "frame.time"
+    assert discrepancies[0].affected_record_count == 2
+    assert discrepancies[0].blocking is False
 
 
 def _flow(
@@ -94,7 +119,7 @@ def test_loader_reads_fixture_csv(tmp_path: Path) -> None:
     path = tmp_path / "edge.csv"
     path.write_text(
         "frame.time,ip.src_host,Attack_label,Attack_type,tcp.flags\n"
-        "100.0,192.168.1.10,0,Normal,2\n",
+        "2021 00:01:40.000000,192.168.1.10,0,Normal,2\n",
         encoding="utf-8",
     )
     records = tuple(iter_edge_iiotset_csv_entries(path, EDGE_SCHEMA))
@@ -108,9 +133,9 @@ def test_loader_excludes_unusable_and_unparseable_rows(tmp_path: Path) -> None:
     path = tmp_path / "edge.csv"
     path.write_text(
         "frame.time,ip.src_host,Attack_label,Attack_type,tcp.flags\n"
-        "100.0,192.168.1.10,0,Normal,2\n"
+        "2021 00:01:40.000000,192.168.1.10,0,Normal,2\n"
         "not-a-time,192.168.1.11,0,Normal,2\n"
-        "101.0,,0,Normal,2\n"
+        "2021 00:01:41.000000,,0,Normal,2\n"
         "2020-01-01T00:00:00,192.168.1.12,0,Normal,2\n",
         encoding="utf-8",
     )

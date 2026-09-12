@@ -1,6 +1,8 @@
 import pytest
 
 from fedcampaign_emhi.analysis.statistics import (
+    clopper_pearson_two_sided_interval,
+    exact_sign_flip_means,
     exact_sign_pattern,
     hodges_lehmann_shift,
     interval_establishes_equivalence,
@@ -9,7 +11,25 @@ from fedcampaign_emhi.analysis.statistics import (
     paired_difference,
     paired_mean_bca_interval,
     sign_flip_assignment_count,
+    sign_flip_p_value,
 )
+
+
+def test_clopper_pearson_two_sided_interval_is_equal_tailed_around_the_point_estimate() -> None:
+    lower, upper = clopper_pearson_two_sided_interval(5, 20, 0.95)
+    assert 0.0 < lower < 0.25 < upper < 1.0
+
+
+def test_clopper_pearson_two_sided_interval_handles_zero_and_all_successes() -> None:
+    assert clopper_pearson_two_sided_interval(0, 10, 0.95)[0] == 0.0
+    assert clopper_pearson_two_sided_interval(10, 10, 0.95)[1] == 1.0
+
+
+def test_clopper_pearson_two_sided_interval_rejects_invalid_counts() -> None:
+    with pytest.raises(ValueError):
+        clopper_pearson_two_sided_interval(0, 0, 0.95)
+    with pytest.raises(ValueError):
+        clopper_pearson_two_sided_interval(11, 10, 0.95)
 
 
 def test_paired_seed_statistics_preserve_pairing() -> None:
@@ -52,6 +72,24 @@ def test_one_sided_synthetic_sign_flip_is_deterministic_when_monte_carlo_is_requ
 
 def test_monte_carlo_sign_flip_includes_the_all_positive_assignment_exactly_once() -> None:
     assert one_sided_synthetic_sign_flip_p_value((1.0,) * 5, 4, 1, 7) == 1.0
+
+
+def test_sign_flip_p_value_two_sided_uses_absolute_extremeness() -> None:
+    differences = (2.0, -1.0, 3.0)
+    flipped = exact_sign_flip_means(differences)
+    observed = sum(differences) / len(differences)
+
+    two_sided = sign_flip_p_value(observed, flipped, False)
+
+    expected = sum(1 for statistic in flipped if abs(statistic) >= abs(observed)) / len(flipped)
+    assert two_sided == expected
+    assert two_sided == 0.5
+
+
+def test_sign_flip_p_value_two_sided_never_discards_zero_differences() -> None:
+    flipped = (0.0, 0.0, 1.0, -1.0)
+
+    assert sign_flip_p_value(0.0, flipped, False) == 1.0
 
 
 def test_one_sided_bca_lower_bound_uses_the_declared_confidence_tail() -> None:

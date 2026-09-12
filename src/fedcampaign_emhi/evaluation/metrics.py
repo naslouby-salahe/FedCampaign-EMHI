@@ -11,6 +11,7 @@ from fedcampaign_emhi.domain.types import (
     CommonModeSuppression,
     CosineSimilarity,
     DetectionRateLoss,
+    DetectorScore,
     EffectCoefficient,
     EpochIndexValue,
     EvidenceFactor,
@@ -342,3 +343,66 @@ def throughput(
     if server_compute_seconds <= 0.0:
         raise ValueError("throughput requires a positive server compute time")
     return coalitions_scored / server_compute_seconds
+
+
+def auroc(scores: tuple[DetectorScore, ...], malicious: tuple[Boolean, ...]) -> Probability | None:
+    if len(scores) != len(malicious):
+        raise ValueError("AUROC requires aligned scores and labels")
+    if not scores:
+        raise ValueError("AUROC requires at least one scored epoch")
+    positive_count = sum(1 for label in malicious if label)
+    negative_count = len(malicious) - positive_count
+    if positive_count == 0 or negative_count == 0:
+        return None
+    order = sorted(range(len(scores)), key=lambda index: scores[index])
+    ranks = [0.0] * len(scores)
+    index = 0
+    while index < len(order):
+        tie_group = [order[index]]
+        while (
+            index + len(tie_group) < len(order)
+            and scores[order[index + len(tie_group)]] == scores[order[index]]
+        ):
+            tie_group.append(order[index + len(tie_group)])
+        average_rank = sum(range(index + 1, index + len(tie_group) + 1)) / len(tie_group)
+        for member in tie_group:
+            ranks[member] = average_rank
+        index += len(tie_group)
+    positive_rank_sum = sum(rank for rank, label in zip(ranks, malicious, strict=True) if label)
+    return (positive_rank_sum - (positive_count * (positive_count + 1) / 2.0)) / (
+        positive_count * negative_count
+    )
+
+
+def auprc(scores: tuple[DetectorScore, ...], malicious: tuple[Boolean, ...]) -> Probability | None:
+    if len(scores) != len(malicious):
+        raise ValueError("AUPRC requires aligned scores and labels")
+    if not scores:
+        raise ValueError("AUPRC requires at least one scored epoch")
+    total_positive = sum(1 for label in malicious if label)
+    total_negative = len(malicious) - total_positive
+    if total_positive == 0 or total_negative == 0:
+        return None
+    order = sorted(range(len(scores)), key=lambda index: scores[index], reverse=True)
+    average_precision = 0.0
+    examined_count = 0
+    true_positive_count = 0
+    recall_reached = 0.0
+    index = 0
+    while index < len(order):
+        group_score = scores[order[index]]
+        group_indexes = [order[index]]
+        while (
+            index + len(group_indexes) < len(order)
+            and scores[order[index + len(group_indexes)]] == group_score
+        ):
+            group_indexes.append(order[index + len(group_indexes)])
+        group_true_positive_count = sum(1 for member in group_indexes if malicious[member])
+        examined_count += len(group_indexes)
+        true_positive_count += group_true_positive_count
+        precision = true_positive_count / examined_count
+        recall = true_positive_count / total_positive
+        average_precision += precision * (recall - recall_reached)
+        recall_reached = recall
+        index += len(group_indexes)
+    return average_precision

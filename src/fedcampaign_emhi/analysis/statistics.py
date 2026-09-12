@@ -13,6 +13,7 @@ from fedcampaign_emhi.domain.enums import (
 from fedcampaign_emhi.domain.types import (
     Boolean,
     ComponentName,
+    ConfidenceLevel,
     EquivalenceBoundary,
     PairedDifference,
     Probability,
@@ -20,6 +21,27 @@ from fedcampaign_emhi.domain.types import (
     SeedValue,
     StatisticValue,
 )
+
+
+def clopper_pearson_two_sided_interval(
+    successes: RecordCount, total: RecordCount, confidence: ConfidenceLevel
+) -> tuple[Probability, Probability]:
+    if total <= 0:
+        raise ValueError("total must be positive")
+    if successes < 0 or successes > total:
+        raise ValueError("successes must lie in [0, total]")
+    alpha = 1.0 - confidence
+    lower = (
+        0.0
+        if successes == 0
+        else float(sps.beta.ppf(alpha / 2.0, successes, total - successes + 1))
+    )
+    upper = (
+        1.0
+        if successes == total
+        else float(sps.beta.ppf(1.0 - alpha / 2.0, successes + 1, total - successes))
+    )
+    return lower, upper
 
 
 def sign_flip_assignment_count(confirmatory_seed_count: RecordCount) -> RecordCount:
@@ -36,7 +58,7 @@ def sign_flip_p_value(
     if alternative_greater:
         extreme = sum(1 for statistic in flipped if statistic >= observed)
     else:
-        extreme = sum(1 for statistic in flipped if statistic <= observed)
+        extreme = sum(1 for statistic in flipped if abs(statistic) >= abs(observed))
     return extreme / len(flipped)
 
 

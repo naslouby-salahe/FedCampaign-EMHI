@@ -1,6 +1,5 @@
 from collections import UserDict
 from collections.abc import Callable
-from heapq import heappush, heapreplace
 from math import isfinite
 
 from fedcampaign_emhi.artifacts.records import (
@@ -395,7 +394,7 @@ def _minimum_support(config: ScientificConfig, coalition_order: CoalitionOrder) 
 
 
 @log_stage("emhi.calibration")
-def _fit_order_context(
+def fit_order_context(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
     coalitions: tuple[CoalitionMembers, ...],
@@ -459,14 +458,10 @@ def _fit_order_context(
                 coalition.client_ids,
                 epoch_index,
             )
-            candidate = (ranking_value, coalition.client_ids, epoch_index)
-            if len(selected) < selection_limit:
-                heappush(selected, candidate)
-            elif candidate < selected[0]:
-                heapreplace(selected, candidate)
+            selected.append((ranking_value, coalition.client_ids, epoch_index))
     rows = tuple(
         row
-        for _ranking_value, coalition_ids, epoch_index in sorted(selected)
+        for _ranking_value, coalition_ids, epoch_index in sorted(selected)[:selection_limit]
         for row in (
             _context_row(
                 config,
@@ -691,7 +686,7 @@ def _cross_fitted_coalition_statistics(
         order_context_key = (start, end, coalition.order)
         order_context = order_context_cache.get(order_context_key)
         if order_context is None:
-            order_context = _fit_order_context(
+            order_context = fit_order_context(
                 config,
                 fold_ranks,
                 coalitions,
@@ -974,7 +969,7 @@ def build_emhi_fit_artifact(
         len(split.nuisance_fit_epochs),
     )
     order_contexts = tuple(
-        _fit_order_context(
+        fit_order_context(
             config,
             ranks,
             coalitions,
