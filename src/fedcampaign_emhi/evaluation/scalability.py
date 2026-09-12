@@ -38,6 +38,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
     MethodName,
+    SeedCoordinateName,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -314,7 +315,9 @@ def generate_scalability_feature_rows(
             dataset=None,
             client_ids=(),
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="client-count", scalar=client_count),),
+            condition_coordinates=(
+                SeedCoordinate(name=SeedCoordinateName.CLIENT_COUNT, scalar=client_count),
+            ),
         )
     )
     latent_generator = np.random.default_rng(thirty_two_bit_seed(latent_seed))
@@ -337,7 +340,9 @@ def generate_scalability_feature_rows(
                 dataset=None,
                 client_ids=(),
                 coalition_ids=(),
-                condition_coordinates=(SeedCoordinate(name="client-index", scalar=client_index),),
+                condition_coordinates=(
+                    SeedCoordinate(name=SeedCoordinateName.CLIENT_INDEX, scalar=client_index),
+                ),
             )
         )
         feature_generator = np.random.default_rng(thirty_two_bit_seed(feature_seed))

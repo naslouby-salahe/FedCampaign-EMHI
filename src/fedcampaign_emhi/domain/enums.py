@@ -139,9 +139,325 @@ class ConfigurationProfile(StrEnum):
     SMOKE = "smoke"
 
 
+class CommandName(StrEnum):
+    DOCTOR = "doctor"
+    PREPROCESS = "preprocess"
+    PLAN = "plan"
+    SMOKE = "smoke"
+    RUN = "run"
+    STATUS = "status"
+    REPORT = "report"
+
+
+class RepositoryFileName(StrEnum):
+    PROJECT_MANIFEST = "pyproject.toml"
+    LOCKFILE = "uv.lock"
+
+
+class ConfigurationFilePath(StrEnum):
+    PRODUCTION = "configs/fedcampaign-emhi.yaml"
+    TESTS = "configs/tests.yml"
+    SMOKE = "configs/smoke.yml"
+
+
+class PreprocessOrigin(StrEnum):
+    REUSE_ALL = "reuse_all"
+
+
+class ResumeStep(StrEnum):
+    VALIDATE_REQUIRED_ARTIFACTS = "validate required existing artifacts"
+    REUSE_COMPATIBLE_ANCESTORS = "reuse compatible ancestors"
+    IDENTIFY_INCOMPATIBLE_ARTIFACTS = "identify incompatible or incomplete artifacts"
+    INVALIDATE_DESCENDANTS = "invalidate only their descendants"
+    RECONSTRUCT_MINIMUM_SUBGRAPH = "reconstruct the minimum required subgraph"
+    ATOMICALLY_PUBLISH_OUTPUTS = "atomically publish completed outputs"
+
+
+class SeedCoordinateName(StrEnum):
+    ROUND_INDEX = "round_index"
+    RESTART_INDEX = "restart_index"
+    TRAINING_EPOCH = "training_epoch"
+    CLIENT_COUNT = "client-count"
+    CLIENT_INDEX = "client-index"
+    COALITION_ORDER = "coalition_order"
+    SUPPORT_PER_CONTEXT = "support_per_context"
+    BASIS_SIZE = "basis_size"
+    CONTEXT_CELL_COUNT = "context_cell_count"
+    HORIZON = "horizon"
+
+
+class FederatedConfigKey(StrEnum):
+    SERVER_ROUND = "server_round"
+    CLIENT_INDEX = "client_index"
+
+
+class FederatedSeedComponent(StrEnum):
+    AUTOENCODER_PARTICIPATION = "fedavg_autoencoder_participation"
+
+
+class RuntimeStage(StrEnum):
+    DETECTION = "detection"
+
+
+class DerivedConfigurationKey(StrEnum):
+    HELDOUT_BENIGN = "heldout_benign"
+    MODEL_INPUT_DIMENSION = "model_input_dimension"
+    LOCAL_HORIZON_EPOCHS = "local_horizon_epochs"
+    HISTOGRAM_EDGES = "histogram_edges"
+    SEED_COUNT = "seed_count"
+    SYNTHETIC_CAMPAIGN_HORIZON_EPOCHS = "synthetic_campaign_horizon_epochs"
+    SYNTHETIC_CAMPAIGN_WARMUP_EPOCHS = "synthetic_campaign_warmup_epochs"
+    SIGNED_THEOREM_E_SR_THRESHOLD = "signed_theorem_e_sr_threshold"
+    SIGNED_THEOREM_COMPENSATOR = "signed_theorem_compensator"
+    MINIMUM_NONOVERLAPPING_HORIZONS_FOR_ZERO_FALSE_STOP = (
+        "minimum_nonoverlapping_horizons_for_zero_false_stop"
+    )
+    EXACT_REAL_SIGN_FLIP_ASSIGNMENT_COUNT = "exact_real_sign_flip_assignment_count"
+    PRIMARY_ODI_TABLE_METHOD_ORDER = "primary_odi_table_method_order"
+    DERIVED_FEATURE_DIMENSION = "derived_feature_dimension"
+    EQUAL_ORDER_WEIGHTS = "equal_order_weights"
+
+
+class MetricName(StrEnum):
+    PRIMARY_ATTENUATION_CONTRAST = "primary_attenuation_contrast"
+    TARGET_ORDER_STANDARDIZED_DRIFT = "target_order_standardized_drift"
+    ATOM_NRMSE_COSINE_STOPPING_TIME = "atom_nrmse_cosine_stopping_time"
+    RESTRICTED_ARL = "restricted_arl"
+    STRICT_ODI_RATE = "strict_odi_rate"
+    STRONG_LOCAL_STRICT_ODI_RATE = "strong_local_strict_odi_rate"
+    FALSE_CAMPAIGN_REDUCTION = "false_campaign_reduction"
+
+
+class ArtifactMetadataKey(StrEnum):
+    COMPARISON = "comparison"
+    PRODUCER = "producer"
+    IMPLEMENTATION_STATE = "implementation_state"
+    SCORING_STATE = "scoring_state"
+    METRIC_NAME = "metric_name"
+    METHOD_NAME = "method_name"
+    HYPOTHESIS_IDENTIFIER = "hypothesis_identifier"
+    SCIENTIFIC_OUTCOME = "scientific_outcome"
+    REASON = "reason"
+    COMPONENT = "component"
+
+
+class ArtifactProducer(StrEnum):
+    PURE_ORDER = "pure-order-artifact"
+    CLIENT_DROPOUT_SPARSE_RANKS = "client-dropout-sparsity-filtered-ranks"
+    COALITION_SCALABILITY_TIMING_CELL = "coalition-scalability-timing-cell"
+    FEDAVG_AUTOENCODER_SCORES = "fedavg-autoencoder-scores"
+
+
+class ArtifactImplementationState(StrEnum):
+    NATIVE_ORDER_SCORE_COMPLETE = "native_order_score_complete"
+    EXECUTION_LAYER_GRID = "execution-layer-grid"
+
+
+class ArtifactScoringState(StrEnum):
+    EXECUTION_LAYER_FITTED_GRID = "execution-layer-fitted-grid"
+
+
+class ScientificOutcome(StrEnum):
+    NOT_TESTED = "Not Tested"
+
+
+class ScientificOutcomeReason(StrEnum):
+    NO_ELIGIBLE_RAW_RECORDS = (
+        "no eligible raw records were available after deterministic preprocessing"
+    )
+
+
+class ExperimentHypothesis(StrEnum):
+    EXCLUSION_MATCHED_HOFD_EQUIVALENCE = "Exclusion-Matched HOFD Equivalence"
+    SIGNED_THEOREM_RESTRICTED_ARL = "Signed-Theorem Restricted ARL"
+
+
+class ResultMethodName(StrEnum):
+    EXACT_COMPLEMENT_EXCLUSION = "Exact Complement Exclusion"
+    SIGNED_THEOREM_SEQUENTIAL_ROUTE = "Signed-Theorem Sequential Route"
+
+
+class SyntheticComparison(StrEnum):
+    EXCLUSION_MATCHED_HOFD = "paired exclusion-matched EMHI and HOFD atoms and sequential routes"
+
+
+class AutoencoderSeedComponent(StrEnum):
+    BATCH_PERMUTATION = "autoencoder_batch_permutation"
+
+
+class SelfExplanationSeedComponent(StrEnum):
+    LATENT = "latent"
+    NOISE = "noise"
+
+
+class RunOutputColumn(StrEnum):
+    ROLE = "role"
+    SEED = "seed"
+    METHOD = "method"
+    STATE = "state"
+    RUNTIME_SECONDS = "runtime_seconds"
+    PEAK_RSS_BYTES = "peak_rss_bytes"
+    DIAGNOSTIC = "diagnostic"
+
+
+class RuntimeFigureLabel(StrEnum):
+    X_AXIS = "execution cell"
+    Y_AXIS = "runtime (seconds)"
+    TITLE = "Fresh run cell execution evidence"
+
+
 class ArtifactNamespace(StrEnum):
     OUTPUTS = "outputs"
     RESULTS = "results"
+
+
+class ArtifactPathSegment(StrEnum):
+    OUTPUTS = "outputs"
+    PREPROCESSING = "preprocessing"
+    INVENTORIES = "inventories"
+    VALIDATION = "validation"
+    PREPARED = "prepared"
+    SPLITS = "splits"
+    FEATURES = "features"
+    METADATA = "metadata"
+    ARTIFACTS = "artifacts"
+    SCORES = "scores"
+    FITTED = "fitted"
+    MODELS = "models"
+    BASELINES = "baselines"
+    DERIVED = "derived"
+    CACHE = "cache"
+    EVALUATION = "evaluation"
+    ANALYSIS = "analysis"
+    STAGING = "staging"
+    EXPERIMENTS = "experiments"
+    PROJECT_SUMMARY = "project_summary"
+    PREDICTIONS = "predictions"
+    EVALUATIONS = "evaluations"
+    RECORDS = "records"
+    COMPARISONS = "comparisons"
+    AGGREGATES = "aggregates"
+    METRICS = "metrics"
+    PER_SEED = "per_seed"
+    PER_CONDITION = "per_condition"
+    AGGREGATE = "aggregate"
+    STATISTICS = "statistics"
+    TESTS = "tests"
+    CONFIDENCE_INTERVALS = "confidence_intervals"
+    EFFECTS = "effects"
+    MULTIPLICITY = "multiplicity"
+    CHECKPOINTS = "checkpoints"
+    TRAINING = "training"
+    EXECUTION = "execution"
+    DIAGNOSTICS = "diagnostics"
+    SCIENTIFIC = "scientific"
+    NUMERICAL = "numerical"
+    RUNTIME = "runtime"
+    LOGS = "logs"
+    FAILURES = "failures"
+    FIGURES = "figures"
+    MAIN = "main"
+    SUPPLEMENTARY = "supplementary"
+    TABLES = "tables"
+    SOURCE_DATA = "source_data"
+    PROVENANCE = "provenance"
+    CONFIGURATION = "configuration"
+    DATA = "data"
+    SEEDS = "seeds"
+    CODE = "code"
+    ENVIRONMENT = "environment"
+    DEPENDENCIES = "dependencies"
+    PRIMARY = "primary"
+    SECONDARY = "secondary"
+    SUMMARY = "summary"
+    REPRODUCIBILITY = "reproducibility"
+    DATASETS = "datasets"
+    SOFTWARE = "software"
+    RAW = "raw"
+    SEED_SUMMARIES = "seed-summaries"
+    COUNT_STRESS = "count-stress"
+    POSITIVE_POWER = "positive-power"
+    SENSITIVITY = "sensitivity"
+
+
+class ArtifactFileSuffix(StrEnum):
+    JSON = ".json"
+    MANIFEST_JSON = ".manifest.json"
+    JSON_GLOB = "*.json"
+
+
+class KnownArtifactOutputFilename(StrEnum):
+    PRIMARY_HOLM = "primary-holm.json"
+    SECONDARY_HOLM = "secondary-holm.json"
+    RUN_RECORD = "run-record.json"
+    CELL_EVIDENCE = "cell-evidence.csv"
+    CELL_RUNTIME = "cell-runtime.png"
+    RUN_OUTPUT_INDEX = "run-output-index.json"
+    SCIENTIFIC_CONFIGURATION = "scientific-configuration.json"
+    DATASET_CONFIGURATION = "dataset-configuration.json"
+    SEED_CONFIGURATION = "seed-configuration.json"
+    SOFTWARE_IDENTITY = "software-identity.json"
+    COMPLETED_EXPERIMENTS = "completed-experiments.json"
+    ENVIRONMENT_IDENTITY = "environment-identity.json"
+    PLAN_SNAPSHOT = "plan-snapshot.json"
+    EXPERIMENT_COMPLETION_METADATA = "experiment-completion-metadata.json"
+    PREPROCESSING_IDENTITY = "preprocessing-identity.json"
+    SYNTHETIC_VALIDATION = "synthetic-validation.json"
+    CELL_VALIDATION = "cell-validation.json"
+    SELF_EXPLANATION_MATERIAL_ATTENUATION = "self-explanation-material-attenuation.json"
+    PURE_ORDER_TARGET_DRIFT = "pure-order-target-drift.json"
+    EXCLUSION_MATCHED_HOFD_EQUIVALENCE = "exclusion-matched-hofd-equivalence.json"
+    ESTIMATOR_ORDER_THREE_FEASIBILITY = "estimator-order-three-feasibility.json"
+    SIGNED_THEOREM_RESTRICTED_ARL = "signed-theorem-restricted-arl.json"
+    CALIBRATED_FINITE_HORIZON_PFA = "calibrated-finite-horizon-pfa.json"
+    PRIMARY_HOLM_NOT_TESTED = "primary-holm-not-tested.json"
+    ORDER_THREE_SCOPE = "order-three-scope.json"
+    STRONG_LOCAL_ODI_ABOVE_MINIMUM = "strong-local-odi-above-minimum.json"
+    COMMON_MODE_FALSE_CAMPAIGN_REDUCTION = "common-mode-false-campaign-reduction.json"
+    TIMING_ENVIRONMENT = "timing-environment.json"
+    MEASUREMENT = "measurement.json"
+    STRONGEST_COMPARATOR_COMPOSITION = "strongest-comparator-composition.json"
+    EVIDENCE_SOURCE = "evidence-source.json"
+    SEED_SUMMARY = "seed-summary.csv"
+    PAIRED_DIFFERENCES = "paired-differences.png"
+    DROPOUT_BOUNDARY_TABLE = "dropout-boundary.csv"
+    DROPOUT_BOUNDARY_FIGURE = "dropout-boundary.png"
+    COMPARATOR_COMPOSITION_TABLE = "comparator-composition.csv"
+    COMPARATOR_COMPOSITION_FIGURE = "comparator-composition-error.png"
+    STRONG_LOCAL_ODI_TABLE = "strong-local-odi.csv"
+    STRONG_LOCAL_ODI_FIGURE = "strong-local-odi.png"
+    SENSITIVITY_SUMMARY = "sensitivity-summary.csv"
+    SENSITIVITY_DETECTION = "sensitivity-detection.png"
+    SCALABILITY_SUMMARY = "scalability-summary.csv"
+
+
+class ArtifactIdentityKind(StrEnum):
+    PREPROCESS = "preprocess"
+    DETECTOR_SCORES = "detector-scores"
+    MARGINAL_RANKS = "marginal-ranks"
+    EMHI_FIT = "emhi-fit"
+
+
+class ArtifactFilenamePattern(StrEnum):
+    SEEDED_JSON = "seed-{seed}.json"
+    SEEDED_MARGINAL_RANKS_JSON = "seed-{seed}-marginal-ranks.json"
+    SEEDED_DIRECTORY = "seed-{seed}"
+    METHOD_JSON = "{method}.json"
+    CELL_ROLE_METHOD_SEED = "cell-{role}-{method}-seed-{seed}.json"
+    WORKER_ROLE_METHOD_SEED = "worker-{role}-{method}-seed-{seed}.json"
+    PREPROCESS_LAYER_MANIFEST = "{dataset}-{layer}-manifest.json"
+    DATASET_JSON = "{dataset}.json"
+    BENIGN_PARTITIONS = "{dataset}-benign-partitions.json"
+    CAMPAIGN_REGISTRY = "{dataset}-campaign-registry.json"
+    HYPOTHESIS_JSON = "{hypothesis}.json"
+    METHOD_METRIC_JSON = "{method}-{metric}.json"
+    COALITION_ORDER_MEMBERS = "order-{order}-{members}.json"
+    FACTOR_SEED = "factor-{factor}/seed-{seed}.json"
+    SCALABILITY_SEED = "k-{client_count}-seed-{seed}.json"
+    SCALABILITY_CLIENT_COUNT = "k-{client_count}.json"
+    SCALABILITY_CELL = "cell-confirmatory-k-{client_count}-seed-{seed}.json"
+    SENSITIVITY_DIAGNOSTIC = "seed-{seed}/{slug}.json"
+    SENSITIVITY_CELL = "cell-{slug}-seed-{seed}.json"
 
 
 class OverwritePolicy(StrEnum):

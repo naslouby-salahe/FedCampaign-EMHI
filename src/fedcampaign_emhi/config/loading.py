@@ -18,7 +18,11 @@ from fedcampaign_emhi.config.validation import (
     YamlNode,
     reject_forbidden_derived_keys,
 )
-from fedcampaign_emhi.domain.enums import ConfigurationProfile
+from fedcampaign_emhi.domain.enums import (
+    ConfigurationFilePath,
+    ConfigurationProfile,
+    RepositoryFileName,
+)
 from fedcampaign_emhi.domain.types import (
     BinCount,
     ConfidenceLevel,
@@ -29,15 +33,15 @@ from fedcampaign_emhi.domain.types import (
     RankValue,
 )
 
-PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path("configs/fedcampaign-emhi.yaml") #TODO: use enums instead of hardcoded strings
-TESTS_CONFIGURATION_RELATIVE_PATH = Path("configs/tests.yml") #TODO: use enums instead of hardcoded strings
-SMOKE_CONFIGURATION_RELATIVE_PATH = Path("configs/smoke.yml") #TODO: use enums instead of hardcoded strings
+PRODUCTION_CONFIGURATION_RELATIVE_PATH = Path(ConfigurationFilePath.PRODUCTION)
+TESTS_CONFIGURATION_RELATIVE_PATH = Path(ConfigurationFilePath.TESTS)
+SMOKE_CONFIGURATION_RELATIVE_PATH = Path(ConfigurationFilePath.SMOKE)
 
 
 def repository_root(start: Path | None = None) -> Path:
     cursor = (start or Path.cwd()).resolve()
     for candidate in (cursor, *cursor.parents):
-        marker = candidate / "pyproject.toml" #TODO: use enums instead of hardcoded strings
+        marker = candidate / RepositoryFileName.PROJECT_MANIFEST
         production = candidate / PRODUCTION_CONFIGURATION_RELATIVE_PATH
         if marker.is_file() and production.is_file():
             return candidate

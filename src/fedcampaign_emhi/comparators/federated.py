@@ -23,6 +23,11 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
 from numpy.typing import NDArray
 
+from fedcampaign_emhi.domain.enums import (
+    FederatedConfigKey,
+    FederatedSeedComponent,
+    SeedCoordinateName,
+)
 from fedcampaign_emhi.domain.types import (
     AutoencoderBeta,
     BatchSize,
@@ -53,9 +58,6 @@ from fedcampaign_emhi.runtime import derive_component_seed, thirty_two_bit_seed
 
 logging.getLogger("flwr").setLevel(logging.WARNING)
 
-PARTICIPATION_COMPONENT_NAME = "fedavg_autoencoder_participation" #TODO: should be enum not hardcoded string
-SERVER_ROUND_CONFIG_KEY = "server_round" #TODO: should be enum not hardcoded string
-CLIENT_INDEX_CONFIG_KEY = "client_index" #TODO: should be enum not hardcoded string
 CONNECT_DEADLINE_SECONDS = 30
 CONNECT_RETRY_SLEEP_SECONDS = 0.5
 
@@ -70,11 +72,13 @@ def fedavg_participant_indexes(
     selection_seed = derive_component_seed(
         SeedDerivationIdentity(
             base_seed=root_seed,
-            component_name=PARTICIPATION_COMPONENT_NAME,
+            component_name=FederatedSeedComponent.AUTOENCODER_PARTICIPATION,
             dataset=None,
             client_ids=client_ids,
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="round_index", scalar=round_index),), #TODO: should be enum, not hardcoded string
+            condition_coordinates=(
+                SeedCoordinate(name=SeedCoordinateName.ROUND_INDEX, scalar=round_index),
+            ),
         )
     )
     participation_order = np.random.default_rng(thirty_two_bit_seed(selection_seed)).permutation(
@@ -97,6 +101,20 @@ def _load_network_parameters(
 
 def _rows_tensor(rows: tuple[tuple[FeatureValue, ...], ...]) -> torch.Tensor:
     return torch.tensor(rows, dtype=torch.float32)
+
+
+def _server_round_config(config: Config) -> FederatedRoundCount:
+    value = config[FederatedConfigKey.SERVER_ROUND]
+    if not isinstance(value, int):
+        raise ValueError("FedAvg server round configuration must be an integer")
+    return value
+
+
+def _client_index_metric(metrics: Metrics) -> RecordCount:
+    value = metrics[FederatedConfigKey.CLIENT_INDEX]
+    if not isinstance(value, int):
+        raise ValueError("FedAvg client index metric must be an integer")
+    return value
 
 
 def _aligned_client_rows(
@@ -165,7 +183,7 @@ class FedAvgServerStrategy:
             if time.monotonic() >= deadline:
                 raise RuntimeError("FedAvg server could not reach its required clients")
             time.sleep(CONNECT_RETRY_SLEEP_SECONDS)
-        config: Config = {SERVER_ROUND_CONFIG_KEY: server_round}
+        config: Config = {FederatedConfigKey.SERVER_ROUND: server_round}
         fit_ins = FitIns(parameters=parameters, config=config)
         return tuple((proxy, fit_ins) for proxy in proxies)
 
@@ -179,7 +197,7 @@ class FedAvgServerStrategy:
             return None, {}
         indexed_results: list[tuple[RecordCount, RecordCount, tuple[NDArray[np.float32], ...]]] = []
         for _proxy, fit_result in results:
-            client_index = int(cast(str, fit_result.metrics[CLIENT_INDEX_CONFIG_KEY]))
+            client_index = _client_index_metric(fit_result.metrics)
             num_examples = int(fit_result.num_examples)
             layers = tuple(
                 cast(NDArray[np.float32], layer)
@@ -253,7 +271,7 @@ class FedAvgClient(fl.client.NumPyClient):
         config: Config,
     ) -> tuple[NDArrays, RecordCount, Metrics]:
         self.parameters = tuple(np.asarray(values, dtype=np.float32) for values in parameters)
-        server_round = cast(int, config[SERVER_ROUND_CONFIG_KEY])
+        server_round = _server_round_config(config)
         participation_count = max(1, round(self.participation_fraction * len(self.client_ids)))
         participating = fedavg_participant_indexes(
             len(self.client_ids),
@@ -263,7 +281,7 @@ class FedAvgClient(fl.client.NumPyClient):
             server_round - 1,
         )
         if self.client_index not in participating:
-            return list(self.parameters), 0, {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)} #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
+            return list(self.parameters), 0, {FederatedConfigKey.CLIENT_INDEX: self.client_index}
         network = self._network()
         epoch_offset = (server_round - 1) * self.local_epochs_per_round
         train_autoencoder_epochs(
@@ -284,7 +302,7 @@ class FedAvgClient(fl.client.NumPyClient):
         return (
             list(self.parameters),
             self.row_count,
-            {CLIENT_INDEX_CONFIG_KEY: str(self.client_index)}, #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
+            {FederatedConfigKey.CLIENT_INDEX: self.client_index},
         )
 
     def evaluate(

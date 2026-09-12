@@ -28,12 +28,16 @@ from fedcampaign_emhi.comparators.runtime import (
 from fedcampaign_emhi.config.schema import ScientificConfig
 from fedcampaign_emhi.detection import score_exceeds_threshold
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactMetadataKey,
+    ArtifactProducer,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
     ExecutionRole,
     MethodName,
+    SeedCoordinateName,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -139,7 +143,9 @@ def _seed(seed: SeedValue, component: ComponentName, horizon: SeedValue) -> Seed
             dataset=None,
             client_ids=(),
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="horizon", scalar=horizon),),
+            condition_coordinates=(
+                SeedCoordinate(name=SeedCoordinateName.HORIZON, scalar=horizon),
+            ),
         )
     )
 
@@ -211,7 +217,11 @@ def evaluate_finite_horizon_common_mode_seed(
     )
     indexes = tuple(range(len(rows)))
     fingerprint = deterministic_digest(
-        {"producer": "finite-horizon-common-mode", "seed": seed, "client_count": client_count}
+        {
+            ArtifactMetadataKey.PRODUCER: "finite-horizon-common-mode",
+            "seed": seed,
+            "client_count": client_count,
+        }
     )
     scores = DetectorScoreArtifactRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
@@ -287,7 +297,10 @@ def evaluate_finite_horizon_common_mode_seed(
         )
         members = "-".join(coalition_fit.coalition_client_ids)
         write_atomic_json(
-            partial_directory / f"order-{coalition_fit.coalition_order}-{members}.json", #TODO: should be enums not hardcoded strings
+            partial_directory
+            / ArtifactFilenamePattern.COALITION_ORDER_MEMBERS.format(
+                order=coalition_fit.coalition_order, members=members
+            ),
             partial.model_dump(mode="json"),
             partial_directory / ".staging",
         )
@@ -600,7 +613,11 @@ def _pure_order_evaluation_artifact(
     client_ids = tuple(f"synthetic-pure-order-{index}" for index in range(client_count))
     epochs = tuple(range(len(rows)))
     fingerprint = deterministic_digest(
-        {"producer": "pure-order-artifact", "seed": seed, "method": cell.method.value}
+        {
+            ArtifactMetadataKey.PRODUCER: ArtifactProducer.PURE_ORDER,
+            "seed": seed,
+            "method": cell.method.value,
+        }
     )
     scores = DetectorScoreArtifactRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
@@ -649,7 +666,7 @@ def _pure_order_fit(
     )
     fingerprint = deterministic_digest(
         {
-            "producer": "pure-order-artifact", #TODO: should be enums not hardcoded strings
+            ArtifactMetadataKey.PRODUCER: ArtifactProducer.PURE_ORDER,
             "seed": artifact.scores.root_seed,
             "method": cell.method.value,
         }

@@ -11,6 +11,7 @@ from fedcampaign_emhi.domain.enums import (
     DatasetName,
     DetectorFamily,
     DetectorFamilyRemainder,
+    RuntimeStage,
 )
 from fedcampaign_emhi.domain.types import (
     AutoencoderBeta,
@@ -157,7 +158,7 @@ def score_autoencoder(
     )
 
 
-@log_stage("detection") #TODO: should be enum not hardcoded string
+@log_stage(RuntimeStage.DETECTION)
 def fit_client_detector(
     config: ScientificConfig,
     detector_family: DetectorFamily,
@@ -285,7 +286,7 @@ def score_client(
     )
 
 
-@log_stage("detection") #TODO: should be enum not hardcoded string
+@log_stage(RuntimeStage.DETECTION)
 def build_detector_score_artifact(
     config: ScientificConfig,
     prepared: PreparedDatasetRecord,

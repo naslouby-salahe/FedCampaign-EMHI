@@ -1,27 +1,9 @@
 from collections.abc import Mapping, Sequence
 
-from fedcampaign_emhi.domain.types import Boolean, YamlKeyPath
+from fedcampaign_emhi.domain.enums import DerivedConfigurationKey
+from fedcampaign_emhi.domain.types import YamlKeyPath, YamlNode
 
-type YamlNode = str | int | float | Boolean | Sequence[YamlNode] | Mapping[str, YamlNode] | None #TODO: do not use primitives. Fix by introducing a proper error type or message class and identify and fix why architecture tests didn't catch this
-
-FORBIDDEN_DERIVED_KEYS = frozenset(
-    {
-        "heldout_benign", #TODO: should be enums not hardcoded strings
-        "model_input_dimension", #TODO: should be enums not hardcoded strings
-        "local_horizon_epochs", #TODO: should be enums not hardcoded strings
-        "histogram_edges", #TODO: should be enums not hardcoded strings
-        "seed_count", #TODO: should be enums not hardcoded strings
-        "synthetic_campaign_horizon_epochs", #TODO: should be enums not hardcoded strings
-        "synthetic_campaign_warmup_epochs", #TODO: should be enums not hardcoded strings
-        "signed_theorem_e_sr_threshold", #TODO: should be enums not hardcoded strings
-        "signed_theorem_compensator", #TODO: should be enums not hardcoded strings
-        "minimum_nonoverlapping_horizons_for_zero_false_stop", #TODO: should be enums not hardcoded strings
-        "exact_real_sign_flip_assignment_count", #TODO: should be enums not hardcoded strings
-        "primary_odi_table_method_order", #TODO: should be enums not hardcoded strings
-        "derived_feature_dimension", #TODO: should be enums not hardcoded strings
-        "equal_order_weights", #TODO: should be enums not hardcoded strings
-    }
-)
+FORBIDDEN_DERIVED_KEYS = frozenset(DerivedConfigurationKey)
 
 
 class ConfigurationValidationError(ValueError):

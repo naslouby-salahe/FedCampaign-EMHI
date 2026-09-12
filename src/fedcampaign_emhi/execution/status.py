@@ -8,9 +8,11 @@ from fedcampaign_emhi.artifacts.storage import build_artifact_layout, file_sha25
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
+    ArtifactPathSegment,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
+    KnownArtifactOutputFilename,
 )
 from fedcampaign_emhi.domain.types import RecordCount, SeedCount
 from fedcampaign_emhi.execution.planning import plan_experiments
@@ -57,9 +59,9 @@ def _run_record_state(
     layout = build_artifact_layout(loaded, repository)
     path = (
         layout.experiment_outputs_root(experiment_name)
-        / "provenance" #TODO: should be enums not hardcoded strings
-        / "dependencies" #TODO: should be enums not hardcoded strings
-        / "run-record.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / KnownArtifactOutputFilename.RUN_RECORD
     )
     if not path.is_file():
         return ExperimentState.NOT_STARTED, ArtifactLifecycleState.MISSING

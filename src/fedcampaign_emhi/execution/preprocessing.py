@@ -68,8 +68,10 @@ from fedcampaign_emhi.datasets.ton_iot_network.ground_truth import ton_iot_netwo
 from fedcampaign_emhi.datasets.ton_iot_network.loading import validate_ton_iot_network_csv_schema
 from fedcampaign_emhi.datasets.ton_iot_network.validation import select_primary_clients_from_tallies
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
     ArtifactLifecycleState,
     ArtifactNamespace,
+    ArtifactPathSegment,
     DatasetName,
     DownstreamArtifactKind,
     ExperimentState,
@@ -502,12 +504,13 @@ def _csv_paths(raw_directory: Path) -> tuple[Path, ...]:
 
 @log_stage("execution.preprocessing")
 def _load_edge_records(
+    loaded: LoadedScientificConfiguration,
     raw_directory: Path,
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], tuple[ExcludedRecord, ...]]:
     records: list[EdgeIiotsetFlowRecord] = []
     exclusions: list[ExcludedRecord] = []
     for path in _csv_paths(raw_directory):
-        for entry in iter_edge_iiotset_csv_entries(path):
+        for entry in iter_edge_iiotset_csv_entries(path, loaded.values.datasets.secondary):
             if isinstance(entry, ExcludedRecord):
                 exclusions.append(entry)
             else:
@@ -524,7 +527,7 @@ def _build_prepared_and_split(
     if dataset_name is DatasetName.TON_IOT_NETWORK:
         prepared = _prepare_ton_epochs_from_csv(loaded, raw_directory)
     else:
-        records, exclusions = _load_edge_records(raw_directory)
+        records, exclusions = _load_edge_records(loaded, raw_directory)
         records, duplicate_count = _deduplicate_edge_records(records)
         selection = select_secondary_clients(
             records,
@@ -533,11 +536,16 @@ def _build_prepared_and_split(
             loaded.values.datasets.eligibility.minimum_nonempty_benign_epochs,
             loaded.values.datasets.secondary.target_client_count,
             loaded.values.datasets.secondary.minimum_eligible_client_count,
+            loaded.values.datasets.secondary.benign_attack_type,
         )
         discrepancy_count = sum(
             1
             for record in records
-            if edge_iiotset_ground_truth(record.binary_label, record.attack_type).classification
+            if edge_iiotset_ground_truth(
+                record.binary_label,
+                record.attack_type,
+                loaded.values.datasets.secondary.benign_attack_type,
+            ).classification
             is GroundTruthClass.AMBIGUOUS
         )
         prepared = _prepare_edge_epochs(
@@ -560,7 +568,7 @@ def _prepare_ton_epochs_from_csv(
 ) -> PreparedDatasetRecord:
     csv_paths = _csv_paths(raw_directory)
     for path in csv_paths:
-        validate_ton_iot_network_csv_schema(path)
+        validate_ton_iot_network_csv_schema(path, loaded.values.datasets.primary)
     paths = tuple(str(path) for path in csv_paths)
     if not paths:
         return PreparedDatasetRecord(
@@ -592,15 +600,16 @@ def _prepare_ton_epochs_from_csv(
             AND try_cast(label AS BIGINT) IS NOT NULL AND trim(coalesce(type, '')) <> ''
     """
     valid_rows = valid.replace("SELECT DISTINCT", "SELECT", 1)
+    benign_attack_type = loaded.values.datasets.primary.benign_attack_type.lower()
     raw_count = _duckdb_count(connection, "SELECT count(*) FROM raw")
     valid_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid_rows})")
     distinct_count = _duckdb_count(connection, f"SELECT count(*) FROM ({valid})")
     discrepancy_count = _duckdb_count(
         connection,
-        f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'normal') OR (binary_label=1 AND lower(attack_type)='normal')", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+        f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'{benign_attack_type}') OR (binary_label=1 AND lower(attack_type)='{benign_attack_type}')",
     )
     eligibility_rows = connection.execute(
-        f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='normal' GROUP BY client_id", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
+        f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='{benign_attack_type}' GROUP BY client_id",
         [epoch_seconds],
     ).fetchall()
     tallies = tuple(
@@ -632,7 +641,9 @@ def _prepare_ton_epochs_from_csv(
             counts[key] = tuple(
                 value + count if index == bucket else value for index, value in enumerate(current)
             )
-            ground_truth = ton_iot_network_ground_truth(row[4], row[5]).classification
+            ground_truth = ton_iot_network_ground_truth(
+                row[4], row[5], loaded.values.datasets.primary.benign_attack_type
+            ).classification
             if ground_truth is GroundTruthClass.AMBIGUOUS:
                 ambiguous[key] = ambiguous.get(key, 0) + count
             elif ground_truth is GroundTruthClass.MALICIOUS:
@@ -731,7 +742,11 @@ def _prepare_edge_epochs(
             counts[key] = _increment_bucket(current, bucket)
         else:
             counts[key] = current
-        ground_truth = edge_iiotset_ground_truth(record.binary_label, record.attack_type)
+        ground_truth = edge_iiotset_ground_truth(
+            record.binary_label,
+            record.attack_type,
+            loaded.values.datasets.secondary.benign_attack_type,
+        )
         if ground_truth.classification is GroundTruthClass.AMBIGUOUS:
             ambiguous[key] = ambiguous.get(key, 0) + 1
         elif ground_truth.classification is GroundTruthClass.MALICIOUS:
@@ -1040,7 +1055,7 @@ def _materialize_layer(
     payload = cast(YamlNode, record.model_dump(mode="json"))
     content_digest = payload_digest(payload)
     product_path = _product_path(layout, dataset_name, layer)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(product_path, payload, staging)
     index = PREPROCESSING_LAYER_ORDER.index(layer)
     upstream_ids = ()
@@ -1069,16 +1084,16 @@ def _product_path(
     layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
 ) -> Path:
     stem = dataset_directory_stem(dataset_name)
-    root = layout.roots.outputs_root / "preprocessing" #TODO: should be enums not hardcoded strings
+    root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
     if layer is PreprocessingLayer.INVENTORY:
-        return root / "inventories" / f"{stem}.json" #TODO: should be enums not hardcoded strings
+        return root / ArtifactPathSegment.INVENTORIES / f"{stem}.json"
     if layer is PreprocessingLayer.PREPARED:
-        return root / "prepared" / f"{stem}.json" #TODO: should be enums not hardcoded strings
+        return root / ArtifactPathSegment.PREPARED / f"{stem}.json"
     if layer is PreprocessingLayer.SPLITS:
-        return root / "splits" / f"{stem}.json" #TODO: should be enums not hardcoded strings
+        return root / ArtifactPathSegment.SPLITS / f"{stem}.json"
     if layer is PreprocessingLayer.PARTITIONS:
-        return root / "metadata" / f"{stem}-benign-partitions.json" #TODO: should be enums not hardcoded strings
-    return root / "metadata" / f"{stem}-campaign-registry.json" #TODO: should be enums not hardcoded strings
+        return root / ArtifactPathSegment.METADATA / f"{stem}-benign-partitions.json"
+    return root / ArtifactPathSegment.METADATA / f"{stem}-campaign-registry.json"
 
 
 def _manifest_path(
@@ -1087,9 +1102,9 @@ def _manifest_path(
     stem = dataset_directory_stem(dataset_name)
     return (
         layout.roots.outputs_root
-        / "preprocessing" #TODO: should be enums not hardcoded strings
-        / "metadata" #TODO: should be enums not hardcoded strings
-        / f"{stem}-{layer.value}-manifest.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PREPROCESSING
+        / ArtifactPathSegment.METADATA
+        / ArtifactFilenamePattern.PREPROCESS_LAYER_MANIFEST.format(dataset=stem, layer=layer)
     )
 
 

@@ -25,6 +25,10 @@ from fedcampaign_emhi.comparators.runtime import fit_comparator_state, score_com
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
+    ArtifactImplementationState,
+    ArtifactMetadataKey,
+    ArtifactProducer,
+    ArtifactScoringState,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -33,6 +37,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     GeneratorName,
     MethodName,
+    SyntheticComparison,
 )
 from fedcampaign_emhi.domain.types import (
     AttenuationDifference,
@@ -594,7 +599,7 @@ def _evaluate_hofd_equivalence_seed(
         tuple(failures),
         None,
         {
-            "comparison": "paired exclusion-matched EMHI and HOFD atoms and sequential routes", #TODO: should be enums not hardcoded strings
+            ArtifactMetadataKey.COMPARISON: SyntheticComparison.EXCLUSION_MATCHED_HOFD,
             "context_cell_count": experiment.context_cell_count,
             "conditions": condition_records,
         },
@@ -630,7 +635,7 @@ def _rank_rows_as_emhi_artifacts(
     producer: ComponentName,
     coalition_subset: tuple[CoalitionMembers, ...] | None = None,
 ) -> tuple[DetectorScoreArtifactRecord, MarginalRankArtifactRecord, EMHIFitArtifactRecord]:
-    fingerprint = deterministic_digest({"producer": producer, "seed": seed})
+    fingerprint = deterministic_digest({ArtifactMetadataKey.PRODUCER: producer, "seed": seed})
     epochs = tuple(range(len(rows)))
     scores = DetectorScoreArtifactRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
@@ -1026,7 +1031,7 @@ def _dropout_sparsity_record(
             "client_streams": filtered_streams,
             "dependency_fingerprint": deterministic_digest(
                 {
-                    "producer": "client-dropout-sparsity-filtered-ranks", #TODO: should be enums not hardcoded strings
+                    ArtifactMetadataKey.PRODUCER: ArtifactProducer.CLIENT_DROPOUT_SPARSE_RANKS,
                     "seed": seed,
                     "client_count": client_count,
                     "unavailable_fraction": fraction,
@@ -1214,7 +1219,7 @@ def _strong_comparator_outcome(
         return SyntheticCellOutcome(
             ("strong comparator nuisance variation is not usable",),
             None,
-            {"implementation_state": "unusable_nuisance_standardization"},
+            {ArtifactMetadataKey.IMPLEMENTATION_STATE: "unusable_nuisance_standardization"},
         )
     standardized_score = (sum(alternative_scores) / len(alternative_scores) - mean) / deviation
     mixed_diagnostics: list[YamlNode] = []
@@ -1245,7 +1250,7 @@ def _strong_comparator_outcome(
         tuple(mixed_failures),
         standardized_score,
         {
-            "implementation_state": "native_order_score_complete", #TODO: should be enums not hardcoded strings
+            ArtifactMetadataKey.IMPLEMENTATION_STATE: ArtifactImplementationState.NATIVE_ORDER_SCORE_COMPLETE,
             "native_target_order": order,
             "standardized_target_order_score": standardized_score,
             "standardized_target_order_error": abs(
@@ -1361,7 +1366,7 @@ def _pure_order_outcome(
                 "target_order": cell.target_order,
                 "enabled_orders": sorted(cell.enabled_orders),
                 "purity_valid": report.is_valid,
-                "scoring_state": "execution-layer-fitted-grid", #TODO: should be enums not hardcoded strings
+                ArtifactMetadataKey.SCORING_STATE: ArtifactScoringState.EXECUTION_LAYER_FITTED_GRID,
             }
         )
     return SyntheticCellOutcome(
@@ -1370,7 +1375,7 @@ def _pure_order_outcome(
         {
             "condition_count": len(records),
             "conditions": records,
-            "implementation_state": "execution-layer-grid", #TODO: should be enums not hardcoded strings
+            ArtifactMetadataKey.IMPLEMENTATION_STATE: ArtifactImplementationState.EXECUTION_LAYER_GRID,
         },
         pure_order_metrics=None,
     )

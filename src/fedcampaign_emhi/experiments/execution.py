@@ -20,11 +20,13 @@ from fedcampaign_emhi.comparators.contracts import (
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
+    ArtifactPathSegment,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
     ExperimentName,
     ExperimentState,
+    KnownArtifactOutputFilename,
     MethodName,
     OverwritePolicy,
 )
@@ -121,18 +123,22 @@ def run_record_path(
     layout = build_artifact_layout(loaded, repository)
     return (
         layout.experiment_outputs_root(experiment_name)
-        / "provenance" #TODO: should be enums not hardcoded strings
-        / "dependencies" #TODO: should be enums not hardcoded strings
-        / "run-record.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / KnownArtifactOutputFilename.RUN_RECORD
     )
 
 
 def cell_record_paths(experiment_root: Path) -> tuple[Path, ...]:
-    directory = experiment_root / "provenance" / "dependencies" #TODO: should be enums not hardcoded strings
+    directory = experiment_root / ArtifactPathSegment.PROVENANCE / ArtifactPathSegment.DEPENDENCIES
     if not directory.is_dir():
         return ()
     return tuple(
-        sorted(path for path in directory.glob("*.json") if path.name != "run-record.json") #TODO: should be enums not hardcoded strings
+        sorted(
+            path
+            for path in directory.glob("*.json")
+            if path.name != KnownArtifactOutputFilename.RUN_RECORD
+        )
     )
 
 
@@ -146,7 +152,7 @@ def publish_experiment_run_record(
     if state in {ExperimentState.NOT_STARTED, ExperimentState.READY}:
         raise ValueError("run records require an active, blocked, or terminal execution state")
     layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     destination = run_record_path(loaded, repository, experiment_name)
     record = ExperimentRunRecord(
         experiment_name=experiment_name,

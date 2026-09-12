@@ -9,25 +9,20 @@ from fedcampaign_emhi.domain.types import (
     RecordCount,
 )
 
-REQUIRED_TON_IOT_NETWORK_COLUMNS = (
-    "ts", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "src_ip", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "proto", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "service", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "label", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "type", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-)
-
 
 def missing_required_columns(
     observed_columns: tuple[NormalizedEventToken, ...],
+    required_columns: tuple[NormalizedEventToken, ...],
 ) -> tuple[NormalizedEventToken, ...]:
     observed = {column.strip() for column in observed_columns}
-    return tuple(column for column in REQUIRED_TON_IOT_NETWORK_COLUMNS if column not in observed)
+    return tuple(column for column in required_columns if column not in observed)
 
 
-def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
-    return not missing_required_columns(observed_columns)
+def schema_is_executable(
+    observed_columns: tuple[NormalizedEventToken, ...],
+    required_columns: tuple[NormalizedEventToken, ...],
+) -> Boolean:
+    return not missing_required_columns(observed_columns, required_columns)
 
 
 def select_primary_clients_from_tallies(

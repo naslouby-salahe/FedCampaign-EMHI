@@ -56,13 +56,20 @@ from fedcampaign_emhi.comparators.fusion import (
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactMetadataKey,
+    ArtifactPathSegment,
     CoalitionOrder,
     ExecutionRole,
+    ExperimentHypothesis,
     ExperimentName,
     ExperimentState,
+    KnownArtifactOutputFilename,
     MethodName,
+    MetricName,
     OverwritePolicy,
     PrimaryHolmHypothesis,
+    ResultMethodName,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -128,7 +135,7 @@ def execute_synthetic_module_validation(
     experiment_name = ExperimentName.SYNTHETIC_MODULE_VALIDATION
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     started = perf_counter()
     invariant_criterion = run_synthetic_module_validation(loaded)
     generator_criterion = validate_synthetic_generators(loaded.values)
@@ -151,7 +158,12 @@ def execute_synthetic_module_validation(
         )
         else ExperimentState.INVALID
     )
-    diagnostic_path = root / "diagnostics" / "scientific" / "synthetic-validation.json" #TODO: should be enums not hardcoded strings
+    diagnostic_path = (
+        root
+        / ArtifactPathSegment.DIAGNOSTICS
+        / ArtifactPathSegment.SCIENTIFIC
+        / KnownArtifactOutputFilename.SYNTHETIC_VALIDATION
+    )
     diagnostic_payload: YamlNode = {
         "state": state.value,
         "invariant_failures": [failure.label for failure in invariant_criterion.failures],
@@ -214,7 +226,12 @@ def execute_synthetic_module_validation(
         application_payload_bytes=len(diagnostic_path.read_bytes()),
         completion_record=completion,
     )
-    cell_path = root / "provenance" / "dependencies" / "cell-validation.json" #TODO: should be enums not hardcoded strings
+    cell_path = (
+        root
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / KnownArtifactOutputFilename.CELL_VALIDATION
+    )
     write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     run_path = publish_experiment_run_record(
         loaded,
@@ -279,7 +296,12 @@ def checkpoint_path(
         "coordinate-validation" if method_name is None else method_artifact_stem(method_name)
     )
     return (
-        root / "provenance" / "checkpoints" / f"worker-{role.value}-{method_slug}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        root
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.CHECKPOINTS
+        / ArtifactFilenamePattern.WORKER_ROLE_METHOD_SEED.format(
+            role=role, method=method_slug, seed=seed
+        )
     )
 
 
@@ -295,7 +317,7 @@ def checkpoint_payload(
         "experiment_name": experiment_name.value,
         "execution_role": role.value,
         "seed": seed,
-        "method_name": None if method_name is None else method_name.value,
+        ArtifactMetadataKey.METHOD_NAME: None if method_name is None else method_name.value,
         "material_digest": loaded.material_digest,
         "execution": cast(
             YamlNode, _SYNTHETIC_EXECUTION_ADAPTER.dump_python(execution, mode="json")
@@ -397,14 +419,14 @@ def execute_synthetic_cell_payload(
                         "effect": cell.effect,
                         "target_order": cell.target_order,
                         "maximum_proper_subset_standardized_drift": fitted.metrics.maximum_proper_subset_standardized_drift,
-                        "target_order_standardized_drift": fitted.metrics.target_order_standardized_drift,
+                        MetricName.TARGET_ORDER_STANDARDIZED_DRIFT: fitted.metrics.target_order_standardized_drift,
                     }
                     for cell, fitted in fitted_grid
                 ]
                 if primary_fitted is not None and primary_fitted.artifact_path_complete:
                     evidence["primary_exact_exclusion_artifact_score"] = {
                         "maximum_proper_subset_standardized_drift": primary_fitted.metrics.maximum_proper_subset_standardized_drift,
-                        "target_order_standardized_drift": primary_fitted.metrics.target_order_standardized_drift,
+                        MetricName.TARGET_ORDER_STANDARDIZED_DRIFT: primary_fitted.metrics.target_order_standardized_drift,
                     }
                 outcome = replace(
                     outcome,
@@ -460,7 +482,7 @@ def execute_synthetic_cell_payload(
                         "generator": cell.generator.value,
                         "effect": cell.effect,
                         "target_order": cell.target_order,
-                        "target_order_standardized_drift": metrics.target_order_standardized_drift,
+                        MetricName.TARGET_ORDER_STANDARDIZED_DRIFT: metrics.target_order_standardized_drift,
                     }
                     for cell, metrics in comparator_completed
                 ]
@@ -605,7 +627,7 @@ def execute_synthetic_experiment(
     contract = experiment_contract(loaded.values, experiment_name)
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     methods: tuple[MethodName | None, ...] = contract.methods or (None,)
     cells: list[tuple[ExecutionRole, SeedValue, MethodName | None]] = []
     for role in contract.execution_roles:
@@ -732,17 +754,17 @@ def execute_synthetic_experiment(
             )
             diagnostic_path = (
                 root
-                / "diagnostics" #TODO: should be enums not hardcoded strings
-                / "scientific" #TODO: should be enums not hardcoded strings
+                / ArtifactPathSegment.DIAGNOSTICS
+                / ArtifactPathSegment.SCIENTIFIC
                 / _role.value
                 / method_slug
-                / f"seed-{_seed}.json" #TODO: should be enums not hardcoded strings
+                / ArtifactFilenamePattern.SEEDED_JSON.format(seed=_seed)
             )
             diagnostic_payload: YamlNode = {
                 "experiment_name": experiment_name.value,
                 "execution_role": _role.value,
                 "seed": _seed,
-                "method_name": None if cell_method is None else cell_method.value,
+                ArtifactMetadataKey.METHOD_NAME: None if cell_method is None else cell_method.value,
                 "state": state.value,
                 "failed_checks": list(execution.outcome.failed_checks),
                 "method_score": execution.outcome.method_score,
@@ -874,9 +896,11 @@ def execute_synthetic_experiment(
             )
             cell_path = (
                 root
-                / "provenance" #TODO: should be enums not hardcoded strings
-                / "dependencies" #TODO: should be enums not hardcoded strings
-                / f"cell-{_role.value}-{method_slug}-seed-{_seed}.json" #TODO: should be enums not hardcoded strings
+                / ArtifactPathSegment.PROVENANCE
+                / ArtifactPathSegment.DEPENDENCIES
+                / ArtifactFilenamePattern.CELL_ROLE_METHOD_SEED.format(
+                    role=_role, method=method_slug, seed=_seed
+                )
             )
             write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
             if state is ExperimentState.COMPLETED:
@@ -1005,9 +1029,9 @@ def materialize_self_explanation_statistics(
     source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
     payload: YamlNode = {
         "experiment_name": ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION.value,
-        "hypothesis_identifier": PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION.value,
-        "metric_name": "primary_attenuation_contrast", #TODO: should be enums not hardcoded strings
-        "method_name": "Exact Complement Exclusion", #TODO: should be enums not hardcoded strings
+        ArtifactMetadataKey.HYPOTHESIS_IDENTIFIER: PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION.value,
+        ArtifactMetadataKey.METRIC_NAME: MetricName.PRIMARY_ATTENUATION_CONTRAST,
+        ArtifactMetadataKey.METHOD_NAME: ResultMethodName.EXACT_COMPLEMENT_EXCLUSION,
         "independent_unit_count": len(values),
         "estimate": sum(values) / len(values),
         "raw_p_value": raw_p_value,
@@ -1020,8 +1044,8 @@ def materialize_self_explanation_statistics(
     }
     record = StatisticalRecord(
         hypothesis_identifier=PrimaryHolmHypothesis.SELF_EXPLANATION_MATERIAL_ATTENUATION.value,
-        metric_name="primary_attenuation_contrast",
-        method_name="Exact Complement Exclusion",
+        metric_name=MetricName.PRIMARY_ATTENUATION_CONTRAST,
+        method_name=ResultMethodName.EXACT_COMPLEMENT_EXCLUSION,
         independent_unit_count=len(values),
         estimate=sum(values) / len(values),
         raw_p_value=raw_p_value,
@@ -1043,11 +1067,11 @@ def materialize_self_explanation_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.SELF_EXPLANATION_EXCLUSION_VALIDATION)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "self-explanation-material-attenuation.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.SELF_EXPLANATION_MATERIAL_ATTENUATION
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
@@ -1088,9 +1112,9 @@ def materialize_pure_order_statistics(
     hypothesis_identifier = PrimaryHolmHypothesis.PURE_ORDER_TARGET_DRIFT.value
     payload: YamlNode = {
         "experiment_name": ExperimentName.PURE_ORDER_SEPARATION_VALIDATION.value,
-        "hypothesis_identifier": hypothesis_identifier,
-        "metric_name": "target_order_standardized_drift", #TODO: should be enums not hardcoded strings
-        "method_name": MethodName.FULL_FEDCAMPAIGN_EMHI.value,
+        ArtifactMetadataKey.HYPOTHESIS_IDENTIFIER: hypothesis_identifier,
+        ArtifactMetadataKey.METRIC_NAME: MetricName.TARGET_ORDER_STANDARDIZED_DRIFT,
+        ArtifactMetadataKey.METHOD_NAME: MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         "independent_unit_count": len(values),
         "estimate": sum(values) / len(values),
         "raw_p_value": raw_p_value,
@@ -1101,7 +1125,7 @@ def materialize_pure_order_statistics(
     }
     record = StatisticalRecord(
         hypothesis_identifier=hypothesis_identifier,
-        metric_name="target_order_standardized_drift",
+        metric_name=MetricName.TARGET_ORDER_STANDARDIZED_DRIFT,
         method_name=MethodName.FULL_FEDCAMPAIGN_EMHI.value,
         independent_unit_count=len(values),
         estimate=sum(values) / len(values),
@@ -1120,11 +1144,11 @@ def materialize_pure_order_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.PURE_ORDER_SEPARATION_VALIDATION)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "pure-order-target-drift.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.PURE_ORDER_TARGET_DRIFT
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
@@ -1234,17 +1258,17 @@ def materialize_hofd_equivalence_statistics(
     source_ids = tuple(path.relative_to(repository).as_posix() for path in source_paths)
     payload: YamlNode = {
         "experiment_name": ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE.value,
-        "hypothesis_identifier": "Exclusion-Matched HOFD Equivalence", #TODO: should be enums not hardcoded strings
-        "metric_name": "atom_nrmse_cosine_stopping_time", #TODO: should be enums not hardcoded strings
-        "method_name": MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD.value,
+        ArtifactMetadataKey.HYPOTHESIS_IDENTIFIER: ExperimentHypothesis.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
+        ArtifactMetadataKey.METRIC_NAME: MetricName.ATOM_NRMSE_COSINE_STOPPING_TIME,
+        ArtifactMetadataKey.METHOD_NAME: MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD.value,
         "independent_unit_count": len(confirmatory),
         "confidence_level": confidence_level,
         "conditions": conditions,
         "source_result_ids": list(source_ids),
     }
     record = StatisticalRecord(
-        hypothesis_identifier="Exclusion-Matched HOFD Equivalence",
-        metric_name="atom_nrmse_cosine_stopping_time",
+        hypothesis_identifier=ExperimentHypothesis.EXCLUSION_MATCHED_HOFD_EQUIVALENCE,
+        metric_name=MetricName.ATOM_NRMSE_COSINE_STOPPING_TIME,
         method_name=MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD.value,
         independent_unit_count=len(confirmatory),
         estimate=(sum(nrmse_estimates) / len(nrmse_estimates) if nrmse_estimates else 0.0),
@@ -1263,11 +1287,11 @@ def materialize_hofd_equivalence_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.EXCLUSION_MATCHED_HOFD_EQUIVALENCE)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "exclusion-matched-hofd-equivalence.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.EXCLUSION_MATCHED_HOFD_EQUIVALENCE
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
@@ -1347,11 +1371,11 @@ def materialize_strong_comparator_composition_selection(
     except ValueError:
         return None
     layout = build_artifact_layout(loaded, repository)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     path = (
         layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
-        / "artifacts" #TODO: should be enums not hardcoded strings
-        / "derived" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.ARTIFACTS
+        / ArtifactPathSegment.DERIVED
         / selection.artifact_filename
     )
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
@@ -1422,11 +1446,11 @@ def materialize_estimator_feasibility_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.ESTIMATOR_SUPPORT_AND_CONTEXT_FEASIBILITY)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "estimator-order-three-feasibility.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.ESTIMATOR_ORDER_THREE_FEASIBILITY
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
@@ -1460,9 +1484,9 @@ def materialize_signed_theorem_statistics(
     threshold = loaded.values.experiments.sequential_evidence_validation.signed_theorem.restricted_arl_bootstrap_lower_bound_minimum_epochs
     payload: YamlNode = {
         "experiment_name": ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION.value,
-        "hypothesis_identifier": "Signed-Theorem Restricted ARL", #TODO: should be enums not hardcoded strings
-        "metric_name": "restricted_arl", #TODO: should be enums not hardcoded strings
-        "method_name": "Signed-Theorem Sequential Route", #TODO: should be enums not hardcoded strings
+        ArtifactMetadataKey.HYPOTHESIS_IDENTIFIER: ExperimentHypothesis.SIGNED_THEOREM_RESTRICTED_ARL,
+        ArtifactMetadataKey.METRIC_NAME: MetricName.RESTRICTED_ARL,
+        ArtifactMetadataKey.METHOD_NAME: ResultMethodName.SIGNED_THEOREM_SEQUENTIAL_ROUTE,
         "independent_unit_count": len(values),
         "estimate": sum(values) / len(values),
         "raw_p_value": None,
@@ -1472,9 +1496,9 @@ def materialize_signed_theorem_statistics(
         "source_result_ids": list(source_ids),
     }
     record = StatisticalRecord(
-        hypothesis_identifier="Signed-Theorem Restricted ARL",
-        metric_name="restricted_arl",
-        method_name="Signed-Theorem Sequential Route",
+        hypothesis_identifier=ExperimentHypothesis.SIGNED_THEOREM_RESTRICTED_ARL,
+        metric_name=MetricName.RESTRICTED_ARL,
+        method_name=ResultMethodName.SIGNED_THEOREM_SEQUENTIAL_ROUTE,
         independent_unit_count=len(values),
         estimate=sum(values) / len(values),
         raw_p_value=None,
@@ -1492,11 +1516,11 @@ def materialize_signed_theorem_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "signed-theorem-restricted-arl.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.SIGNED_THEOREM_RESTRICTED_ARL
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(path, cast(YamlNode, record.model_dump(mode="json")), staging)
     return path
 
@@ -1557,13 +1581,13 @@ def materialize_finite_horizon_statistics(
     )
     path = (
         layout.experiment_outputs_root(ExperimentName.SEQUENTIAL_EVIDENCE_VALIDATION)
-        / "statistics" #TODO: should be enums not hardcoded strings
-        / "tests" #TODO: should be enums not hardcoded strings
-        / "calibrated-finite-horizon-pfa.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.STATISTICS
+        / ArtifactPathSegment.TESTS
+        / KnownArtifactOutputFilename.CALIBRATED_FINITE_HORIZON_PFA
     )
     write_atomic_json(
         path,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
+        layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING,
     )
     return path

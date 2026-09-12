@@ -8,11 +8,13 @@ from fedcampaign_emhi.config.loading import (
 )
 from fedcampaign_emhi.datasets.inventory import configured_raw_directory, discover_raw_paths
 from fedcampaign_emhi.domain.enums import (
+    CommandName,
     DatasetName,
     ExperimentName,
     ExperimentState,
     OverwritePolicy,
     PreprocessingLayer,
+    PreprocessOrigin,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -112,7 +114,7 @@ def preprocess_command(
     typer.echo(f"overwrite={overwrite}")
     typer.echo("datasets=" + ",".join(name.value for name in requested_datasets(selected)))
     for dataset, start_layer in record.reconstruct_from:
-        origin = start_layer.value if start_layer is not None else "reuse_all" #TODO: should be enum not hardcoded string
+        origin = start_layer if start_layer is not None else PreprocessOrigin.REUSE_ALL
         typer.echo(f"reconstruct_from.{dataset.value}={origin}")
     reused = tuple(decision.layer.value for decision in record.decisions if decision.reused)
     rebuilt = tuple(decision.layer.value for decision in record.decisions if decision.reconstructed)
@@ -262,13 +264,13 @@ def report_command(
             typer.echo(f"report_artifact={path}")
 
 
-application.command("doctor")(doctor_command) #TODO: should be enum not hardcoded string
-application.command("preprocess")(preprocess_command) #TODO: should be enum not hardcoded string
-application.command("plan")(plan_command) #TODO: should be enum not hardcoded string
-application.command("smoke")(smoke_command) #TODO: should be enum not hardcoded string
-application.command("run")(run_command) #TODO: should be enum not hardcoded string
-application.command("status")(status_command) #TODO: should be enum not hardcoded string
-application.command("report")(report_command) #TODO: should be enum not hardcoded string
+application.command(CommandName.DOCTOR)(doctor_command)
+application.command(CommandName.PREPROCESS)(preprocess_command)
+application.command(CommandName.PLAN)(plan_command)
+application.command(CommandName.SMOKE)(smoke_command)
+application.command(CommandName.RUN)(run_command)
+application.command(CommandName.STATUS)(status_command)
+application.command(CommandName.REPORT)(report_command)
 
 
 if __name__ == "__main__":

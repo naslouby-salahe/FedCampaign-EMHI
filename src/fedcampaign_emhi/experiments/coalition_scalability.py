@@ -20,9 +20,14 @@ from fedcampaign_emhi.artifacts.storage import (
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactMetadataKey,
+    ArtifactPathSegment,
+    ArtifactProducer,
     ExecutionRole,
     ExperimentName,
     ExperimentState,
+    KnownArtifactOutputFilename,
 )
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -67,7 +72,7 @@ def materialize_coalition_scalability_summaries(
 ) -> tuple[Path, ...]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(ExperimentName.COALITION_SCALABILITY)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     config = loaded.values
     maximum_order = config.study.maximum_coalition_order
     maximum_latency = config.materiality.reference_harness.p95_latency_maximum_seconds
@@ -76,7 +81,12 @@ def materialize_coalition_scalability_summaries(
     cell_paths: list[Path] = []
     identity = capture_timing_environment_identity()
     environment_digest = hashlib.sha256(deterministic_utf8_bytes(identity)).hexdigest()
-    environment_path = root / "provenance" / "environment" / "timing-environment.json" #TODO: should be enums not hardcoded strings
+    environment_path = (
+        root
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.ENVIRONMENT
+        / KnownArtifactOutputFilename.TIMING_ENVIRONMENT
+    )
     environment_payload = cast(
         YamlNode,
         {
@@ -106,12 +116,19 @@ def materialize_coalition_scalability_summaries(
 
         collected: list[ScalabilityMeasurement] = []
         for seed_index, seed in enumerate(seeds, start=1):
-            seed_path = root / "metrics" / "per_seed" / f"k-{client_count}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+            seed_path = (
+                root
+                / ArtifactPathSegment.METRICS
+                / ArtifactPathSegment.PER_SEED
+                / f"k-{client_count}-seed-{seed}.json"
+            )
             cell_path = (
                 root
-                / "provenance" #TODO: should be enums not hardcoded strings
-                / "dependencies" #TODO: should be enums not hardcoded strings
-                / f"cell-confirmatory-k-{client_count}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+                / ArtifactPathSegment.PROVENANCE
+                / ArtifactPathSegment.DEPENDENCIES
+                / ArtifactFilenamePattern.SCALABILITY_CELL.format(
+                    client_count=client_count, seed=seed
+                )
             )
             if cell_path.is_file() and seed_path.is_file():
                 try:
@@ -177,7 +194,7 @@ def materialize_coalition_scalability_summaries(
                     cast(
                         YamlNode,
                         {
-                            "producer": "coalition-scalability-timing-cell", #TODO: should be enums not hardcoded strings
+                            ArtifactMetadataKey.PRODUCER: ArtifactProducer.COALITION_SCALABILITY_TIMING_CELL,
                             "seed": seed,
                             "k": client_count,
                         },
@@ -250,7 +267,12 @@ def materialize_coalition_scalability_summaries(
             artifact_fit_seconds=summary.artifact_fit_seconds,
             state=summary.state,
         )
-        path = root / "metrics" / "aggregate" / f"k-{client_count}.json" #TODO: should be enums not hardcoded strings
+        path = (
+            root
+            / ArtifactPathSegment.METRICS
+            / ArtifactPathSegment.AGGREGATE
+            / f"k-{client_count}.json"
+        )
         write_atomic_json(path, cast(YamlNode, aggregate.model_dump(mode="json")), staging)
         logger.info(
             "scalability_phase phase=client_count_completed client_count=%d seed_count=%d",

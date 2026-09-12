@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
@@ -37,11 +37,11 @@ def deterministic_digest(payload: YamlNode) -> ConfigurationDigest:
 
 
 def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
-    coordinates = {
-        coordinate.name: coordinate.scalar for coordinate in identity.condition_coordinates
+    coordinates: Mapping[str, YamlNode] = {
+        coordinate.name.value: coordinate.scalar for coordinate in identity.condition_coordinates
     }
     dataset_name = None if identity.dataset is None else identity.dataset.value
-    return {
+    payload: Mapping[str, YamlNode] = {
         "base_seed": str(identity.base_seed),
         "component_name": identity.component_name,
         "dataset": dataset_name,
@@ -49,6 +49,7 @@ def seed_derivation_payload(identity: SeedDerivationIdentity) -> YamlNode:
         "coalition_ids": sorted(identity.coalition_ids),
         "condition_coordinates": coordinates,
     }
+    return payload
 
 
 def derive_component_seed(identity: SeedDerivationIdentity) -> SeedValue:

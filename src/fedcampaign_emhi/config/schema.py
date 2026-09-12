@@ -13,6 +13,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactFilename,
+    AttackTypeName,
     AttenuationDifference,
     AutoencoderBeta,
     BasisSize,
@@ -23,6 +24,7 @@ from fedcampaign_emhi.domain.types import (
     BootstrapReplicateCount,
     CellCount,
     ClientCount,
+    ClientId,
     ClientLoading,
     CompensatorValue,
     ConcurrentExperimentCellCount,
@@ -68,6 +70,7 @@ from fedcampaign_emhi.domain.types import (
     MinimumNonoverlappingHorizonCount,
     MissingCellTolerance,
     MixedOrderTermIndex,
+    NormalizedEventToken,
     NumericalFloor,
     NumericalTolerance,
     OdiRateAdvantage,
@@ -213,6 +216,8 @@ class DatasetsPrimaryConfig(FrozenConfigModel):
     name: DatasetName
     raw_directory: RelativePath
     target_client_count: ClientCount
+    required_columns: tuple[NormalizedEventToken, ...]
+    benign_attack_type: AttackTypeName
 
 
 class DatasetsSecondaryConfig(FrozenConfigModel):
@@ -220,6 +225,8 @@ class DatasetsSecondaryConfig(FrozenConfigModel):
     raw_directory: RelativePath
     target_client_count: ClientCount
     minimum_eligible_client_count: ClientCount
+    required_columns: tuple[NormalizedEventToken, ...]
+    benign_attack_type: AttackTypeName
 
 
 class DatasetsEligibilityConfig(FrozenConfigModel):
@@ -700,6 +707,18 @@ class SyntheticModuleValidationConfig(FrozenConfigModel):
     repeatability_tolerance: NumericalTolerance
     expected_fixture_count: ValidationFixtureCount
     expected_generator_check_count: ValidationFixtureCount
+    exclusion_fixture_selected_clients: tuple[ClientId, ...]
+    exclusion_fixture_coalition: tuple[ClientId, ...]
+
+    @model_validator(mode="after")
+    def _validate_exclusion_fixture_membership(self) -> Self:
+        if not self.exclusion_fixture_coalition:
+            raise ValueError("synthetic exclusion fixture coalition must not be empty")
+        if not set(self.exclusion_fixture_coalition).issubset(
+            self.exclusion_fixture_selected_clients
+        ):
+            raise ValueError("synthetic exclusion fixture coalition must be selected clients")
+        return self
 
 
 class ArtifactsConfig(FrozenConfigModel):

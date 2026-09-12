@@ -23,7 +23,15 @@ from fedcampaign_emhi.artifacts.storage import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import DatasetName, ExperimentName, PreprocessingLayer
+from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactPathSegment,
+    DatasetName,
+    ExperimentName,
+    KnownArtifactOutputFilename,
+    PreprocessingLayer,
+    RepositoryFileName,
+)
 from fedcampaign_emhi.domain.types import DeterministicUtf8Bytes, FigureBytes, MetricValue
 from fedcampaign_emhi.experiments.registry import enumerate_experiment_plan
 from fedcampaign_emhi.runtime import log_stage
@@ -239,13 +247,27 @@ def export_reproducibility(
     completed_experiments: tuple[ExperimentName, ...],
 ) -> tuple[Path, ...]:
     layout = build_artifact_layout(loaded, repository)
-    root = layout.roots.results_root / "project_summary" / "reproducibility" #TODO: should be enums not hardcoded strings
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
-    configuration_path = root / "configuration" / "scientific-configuration.json" #TODO: should be enums not hardcoded strings
-    dataset_path = root / "datasets" / "dataset-configuration.json" #TODO: should be enums not hardcoded strings
-    seed_path = root / "seeds" / "seed-configuration.json" #TODO: should be enums not hardcoded strings
-    software_path = root / "software" / "software-identity.json" #TODO: should be enums not hardcoded strings
-    execution_path = root / "execution" / "completed-experiments.json" #TODO: should be enums not hardcoded strings
+    root = (
+        layout.roots.results_root
+        / ArtifactPathSegment.PROJECT_SUMMARY
+        / ArtifactPathSegment.REPRODUCIBILITY
+    )
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
+    configuration_path = (
+        root
+        / ArtifactPathSegment.CONFIGURATION
+        / KnownArtifactOutputFilename.SCIENTIFIC_CONFIGURATION
+    )
+    dataset_path = (
+        root / ArtifactPathSegment.DATASETS / KnownArtifactOutputFilename.DATASET_CONFIGURATION
+    )
+    seed_path = root / ArtifactPathSegment.SEEDS / KnownArtifactOutputFilename.SEED_CONFIGURATION
+    software_path = (
+        root / ArtifactPathSegment.SOFTWARE / KnownArtifactOutputFilename.SOFTWARE_IDENTITY
+    )
+    execution_path = (
+        root / ArtifactPathSegment.EXECUTION / KnownArtifactOutputFilename.COMPLETED_EXPERIMENTS
+    )
     write_atomic_json(
         configuration_path,
         cast(YamlNode, loaded.values.model_dump(mode="json")),
@@ -261,7 +283,7 @@ def export_reproducibility(
         cast(YamlNode, loaded.values.randomness.model_dump(mode="json")),
         staging,
     )
-    lock_path = repository / "uv.lock" #TODO: should be enums not hardcoded strings
+    lock_path = repository / RepositoryFileName.LOCKFILE
     software_payload: YamlNode = {
         "python": sys.version.split()[0],
         "platform": platform.platform(),
@@ -273,7 +295,9 @@ def export_reproducibility(
         "completed_experiments": [experiment.value for experiment in completed_experiments],
     }
     write_atomic_json(execution_path, execution_payload, staging)
-    environment_path = root / "execution" / "environment-identity.json" #TODO: should be enums not hardcoded strings
+    environment_path = (
+        root / ArtifactPathSegment.EXECUTION / KnownArtifactOutputFilename.ENVIRONMENT_IDENTITY
+    )
     environment_payload: YamlNode = {
         "operating_system": platform.system(),
         "machine_architecture": platform.machine(),
@@ -293,9 +317,13 @@ def export_reproducibility(
             for experiment, role, seed_count in enumerate_experiment_plan(loaded.values)
         ],
     }
-    plan_path = root / "execution" / "plan-snapshot.json" #TODO: should be enums not hardcoded strings
+    plan_path = root / ArtifactPathSegment.EXECUTION / KnownArtifactOutputFilename.PLAN_SNAPSHOT
     write_atomic_json(plan_path, plan_payload, staging)
-    completion_path = root / "execution" / "experiment-completion-metadata.json" #TODO: should be enums not hardcoded strings
+    completion_path = (
+        root
+        / ArtifactPathSegment.EXECUTION
+        / KnownArtifactOutputFilename.EXPERIMENT_COMPLETION_METADATA
+    )
     completion_payload: YamlNode = {
         "material_configuration_digest": loaded.material_digest,
         "experiments": [
@@ -303,17 +331,19 @@ def export_reproducibility(
                 "experiment_name": experiment.value,
                 "run_record_digest": file_sha256(
                     layout.experiment_outputs_root(experiment)
-                    / "provenance" #TODO: should be enums not hardcoded strings
-                    / "dependencies" #TODO: should be enums not hardcoded strings
-                    / "run-record.json" #TODO: should be enums not hardcoded strings
+                    / ArtifactPathSegment.PROVENANCE
+                    / ArtifactPathSegment.DEPENDENCIES
+                    / KnownArtifactOutputFilename.RUN_RECORD
                 ),
             }
             for experiment in completed_experiments
         ],
     }
     write_atomic_json(completion_path, completion_payload, staging)
-    dataset_identity_path = root / "datasets" / "preprocessing-identity.json" #TODO: should be enums not hardcoded strings
-    preprocessing_root = layout.roots.outputs_root / "preprocessing" #TODO: should be enums not hardcoded strings
+    dataset_identity_path = (
+        root / ArtifactPathSegment.DATASETS / KnownArtifactOutputFilename.PREPROCESSING_IDENTITY
+    )
+    preprocessing_root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
     dataset_payload: YamlNode = {
         "datasets": [
             {
@@ -352,15 +382,28 @@ def _preprocessing_layer_paths(
 ) -> tuple[tuple[PreprocessingLayer, Path], ...]:
     stem = dataset_directory_stem(dataset_name)
     return (
-        (PreprocessingLayer.INVENTORY, preprocessing_root / "inventories" / f"{stem}.json"), #TODO: should be enums not hardcoded strings
-        (PreprocessingLayer.PREPARED, preprocessing_root / "prepared" / f"{stem}.json"), #TODO: should be enums not hardcoded strings
-        (PreprocessingLayer.SPLITS, preprocessing_root / "splits" / f"{stem}.json"), #TODO: should be enums not hardcoded strings
+        (
+            PreprocessingLayer.INVENTORY,
+            preprocessing_root / ArtifactPathSegment.INVENTORIES / f"{stem}.json",
+        ),
+        (
+            PreprocessingLayer.PREPARED,
+            preprocessing_root / ArtifactPathSegment.PREPARED / f"{stem}.json",
+        ),
+        (
+            PreprocessingLayer.SPLITS,
+            preprocessing_root / ArtifactPathSegment.SPLITS / f"{stem}.json",
+        ),
         (
             PreprocessingLayer.PARTITIONS,
-            preprocessing_root / "metadata" / f"{stem}-benign-partitions.json", #TODO: should be enums not hardcoded strings
+            preprocessing_root
+            / ArtifactPathSegment.METADATA
+            / ArtifactFilenamePattern.BENIGN_PARTITIONS.format(dataset=stem),
         ),
         (
             PreprocessingLayer.CAMPAIGN_REGISTRY,
-            preprocessing_root / "metadata" / f"{stem}-campaign-registry.json", #TODO: should be enums not hardcoded strings
+            preprocessing_root
+            / ArtifactPathSegment.METADATA
+            / ArtifactFilenamePattern.CAMPAIGN_REGISTRY.format(dataset=stem),
         ),
     )

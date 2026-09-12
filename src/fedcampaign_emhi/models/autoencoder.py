@@ -3,6 +3,7 @@ import math
 import torch
 from torch import nn
 
+from fedcampaign_emhi.domain.enums import AutoencoderSeedComponent, SeedCoordinateName
 from fedcampaign_emhi.domain.types import (
     AnomalyScore,
     AutoencoderBeta,
@@ -36,11 +37,13 @@ def batch_permutation_seed(
 ) -> SeedValue:
     identity = SeedDerivationIdentity(
         base_seed=root_seed,
-        component_name="autoencoder_batch_permutation", #TODO: should be enum, not hardcoded string
+        component_name=AutoencoderSeedComponent.BATCH_PERMUTATION,
         dataset=None,
         client_ids=(client_id,),
         coalition_ids=(),
-        condition_coordinates=(SeedCoordinate(name="training_epoch", scalar=training_epoch),), #TODO: should be enum, not hardcoded string
+        condition_coordinates=(
+            SeedCoordinate(name=SeedCoordinateName.TRAINING_EPOCH, scalar=training_epoch),
+        ),
     )
     return derive_component_seed(identity)
 

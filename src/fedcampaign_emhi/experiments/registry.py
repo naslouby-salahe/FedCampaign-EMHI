@@ -1,21 +1,20 @@
 from dataclasses import dataclass
 
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
-from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName
+from fedcampaign_emhi.domain.enums import ExecutionRole, ExperimentName, MethodName, ResumeStep
 from fedcampaign_emhi.domain.types import (
     Boolean,
-    ResumeStep,
     SeedCount,
     SeedValue,
 )
 
 RESUME_SEQUENCE: tuple[ResumeStep, ...] = (
-    "validate required existing artifacts",
-    "reuse compatible ancestors",
-    "identify incompatible or incomplete artifacts",
-    "invalidate only their descendants",
-    "reconstruct the minimum required subgraph",
-    "atomically publish completed outputs",
+    ResumeStep.VALIDATE_REQUIRED_ARTIFACTS,
+    ResumeStep.REUSE_COMPATIBLE_ANCESTORS,
+    ResumeStep.IDENTIFY_INCOMPATIBLE_ARTIFACTS,
+    ResumeStep.INVALIDATE_DESCENDANTS,
+    ResumeStep.RECONSTRUCT_MINIMUM_SUBGRAPH,
+    ResumeStep.ATOMICALLY_PUBLISH_OUTPUTS,
 )
 
 

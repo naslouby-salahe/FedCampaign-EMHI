@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from fedcampaign_emhi.config.schema import DatasetsSecondaryConfig
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import (
     UNKNOWN_PROTOCOL_GROUP,
     dominant_protocol_group_for_row,
@@ -18,8 +19,17 @@ from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     schema_is_executable,
     select_secondary_clients,
 )
-from fedcampaign_emhi.domain.enums import GroundTruthClass
+from fedcampaign_emhi.domain.enums import DatasetName, GroundTruthClass
 from fedcampaign_emhi.domain.types import EdgeIiotsetFlowRecord, ExcludedRecord
+
+EDGE_SCHEMA = DatasetsSecondaryConfig(
+    name=DatasetName.EDGE_IIOTSET,
+    raw_directory="data/raw",
+    target_client_count=1,
+    minimum_eligible_client_count=1,
+    required_columns=("frame.time", "ip.src_host", "Attack_label", "Attack_type"),
+    benign_attack_type="normal",
+)
 
 
 def test_release_timestamp_format_is_parsed_deterministically() -> None:
@@ -44,8 +54,8 @@ def _flow(
 
 def test_documented_columns_are_required() -> None:
     observed = ("frame.time", "ip.src_host", "Attack_label", "Attack_type")
-    assert schema_is_executable(observed)
-    assert not schema_is_executable(("ip.src_host",))
+    assert schema_is_executable(observed, EDGE_SCHEMA.required_columns)
+    assert not schema_is_executable(("ip.src_host",), EDGE_SCHEMA.required_columns)
 
 
 def test_protocol_event_type() -> None:
@@ -69,11 +79,11 @@ def test_dominant_protocol_group_uses_resolvable_row_payloads() -> None:
 
 def test_ground_truth_uses_attack_columns() -> None:
     signature = inspect.signature(edge_iiotset_ground_truth)
-    assert tuple(signature.parameters) == ("binary_label", "attack_type")
-    benign = edge_iiotset_ground_truth(0, "Normal")
-    malicious = edge_iiotset_ground_truth(1, "DDoS_UDP")
-    ambiguous = edge_iiotset_ground_truth(0, "DDoS_UDP")
-    extra = edge_iiotset_ground_truth(1, "undocumented_variant")
+    assert tuple(signature.parameters) == ("binary_label", "attack_type", "benign_attack_type")
+    benign = edge_iiotset_ground_truth(0, "Normal", EDGE_SCHEMA.benign_attack_type)
+    malicious = edge_iiotset_ground_truth(1, "DDoS_UDP", EDGE_SCHEMA.benign_attack_type)
+    ambiguous = edge_iiotset_ground_truth(0, "DDoS_UDP", EDGE_SCHEMA.benign_attack_type)
+    extra = edge_iiotset_ground_truth(1, "undocumented_variant", EDGE_SCHEMA.benign_attack_type)
     assert benign.classification is GroundTruthClass.BENIGN
     assert malicious.classification is GroundTruthClass.MALICIOUS
     assert ambiguous.is_ambiguous is True
@@ -87,7 +97,7 @@ def test_loader_reads_fixture_csv(tmp_path: Path) -> None:
         "100.0,192.168.1.10,0,Normal,2\n",
         encoding="utf-8",
     )
-    records = tuple(iter_edge_iiotset_csv_entries(path))
+    records = tuple(iter_edge_iiotset_csv_entries(path, EDGE_SCHEMA))
     record = records[0]
     assert isinstance(record, EdgeIiotsetFlowRecord)
     assert record.source_host == "192.168.1.10"
@@ -104,7 +114,7 @@ def test_loader_excludes_unusable_and_unparseable_rows(tmp_path: Path) -> None:
         "2020-01-01T00:00:00,192.168.1.12,0,Normal,2\n",
         encoding="utf-8",
     )
-    entries = tuple(iter_edge_iiotset_csv_entries(path))
+    entries = tuple(iter_edge_iiotset_csv_entries(path, EDGE_SCHEMA))
     records = tuple(entry for entry in entries if not isinstance(entry, ExcludedRecord))
     exclusions = tuple(entry for entry in entries if isinstance(entry, ExcludedRecord))
     assert len(records) == 1
@@ -115,7 +125,7 @@ def test_missing_required_columns_are_invalid_preprocessing(tmp_path: Path) -> N
     path = tmp_path / "edge.csv"
     path.write_text("ip.src_host,Attack_label,Attack_type\n192.168.1.10,0,Normal\n")
     with pytest.raises(ValueError, match=r"frame\.time"):
-        tuple(iter_edge_iiotset_csv_entries(path))
+        tuple(iter_edge_iiotset_csv_entries(path, EDGE_SCHEMA))
 
 
 def test_secondary_client_selection_uses_all_eligible_between_minimum_and_target() -> None:
@@ -130,12 +140,12 @@ def test_secondary_client_selection_uses_all_eligible_between_minimum_and_target
         _flow(10.0, "192.168.1.99", 1, "Backdoor"),
         _flow(70.0, "192.168.1.99", 1, "Backdoor"),
     )
-    mid = select_secondary_clients(records, 60, 2, 2, 12, 2)
+    mid = select_secondary_clients(records, 60, 2, 2, 12, 2, EDGE_SCHEMA.benign_attack_type)
     assert mid.has_sufficient_clients is True
     assert mid.selected_client_ids == ("192.168.1.10", "192.168.1.11", "192.168.1.12")
-    targeted = select_secondary_clients(records, 60, 2, 2, 2, 2)
+    targeted = select_secondary_clients(records, 60, 2, 2, 2, 2, EDGE_SCHEMA.benign_attack_type)
     assert targeted.selected_client_ids == ("192.168.1.10", "192.168.1.11")
-    untested = select_secondary_clients(records, 60, 2, 2, 12, 6)
+    untested = select_secondary_clients(records, 60, 2, 2, 12, 6, EDGE_SCHEMA.benign_attack_type)
     assert untested.has_sufficient_clients is False
     assert untested.selected_client_ids == ()
     assert tuple(inspect.signature(select_secondary_clients).parameters) == (
@@ -145,4 +155,5 @@ def test_secondary_client_selection_uses_all_eligible_between_minimum_and_target
         "minimum_nonempty_benign_epochs",
         "target_client_count",
         "minimum_eligible_client_count",
+        "benign_attack_type",
     )

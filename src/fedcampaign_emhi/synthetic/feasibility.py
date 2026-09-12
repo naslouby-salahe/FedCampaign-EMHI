@@ -15,6 +15,7 @@ from fedcampaign_emhi.domain.enums import (
     DatasetName,
     ExecutionRole,
     LatentMarkovState,
+    SeedCoordinateName,
 )
 from fedcampaign_emhi.domain.types import (
     BasisSize,
@@ -291,10 +292,12 @@ def _component_seed(
             client_ids=(),
             coalition_ids=(),
             condition_coordinates=(
-                SeedCoordinate(name="coalition_order", scalar=order), #TODO: should be enum, not hardcoded string
-                SeedCoordinate(name="support_per_context", scalar=support_per_context), #TODO: should be enum, not hardcoded string
-                SeedCoordinate(name="basis_size", scalar=basis_size), #TODO: should be enum, not hardcoded string
-                SeedCoordinate(name="context_cell_count", scalar=cell_count), #TODO: should be enum, not hardcoded string
+                SeedCoordinate(name=SeedCoordinateName.COALITION_ORDER, scalar=order),
+                SeedCoordinate(
+                    name=SeedCoordinateName.SUPPORT_PER_CONTEXT, scalar=support_per_context
+                ),
+                SeedCoordinate(name=SeedCoordinateName.BASIS_SIZE, scalar=basis_size),
+                SeedCoordinate(name=SeedCoordinateName.CONTEXT_CELL_COUNT, scalar=cell_count),
             ),
         )
     )

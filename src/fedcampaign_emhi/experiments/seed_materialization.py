@@ -39,6 +39,8 @@ from fedcampaign_emhi.detection import (
     build_detector_score_artifact,
 )
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactPathSegment,
     CoalitionOrder,
     DatasetName,
     ExecutionRole,
@@ -97,14 +99,24 @@ def preprocessing_paths(
     dataset_name: DatasetName,
 ) -> tuple[Path, Path, Path, Path, Path]:
     layout = build_artifact_layout(loaded, repository)
-    root = layout.roots.outputs_root / "preprocessing" #TODO: should be enums not hardcoded strings
+    root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
     stem = dataset_directory_stem(dataset_name)
     return (
-        root / "inventories" / f"{stem}.json", #TODO: should be enums not hardcoded strings
-        root / "prepared" / f"{stem}.json", #TODO: should be enums not hardcoded strings
-        root / "splits" / f"{stem}.json", #TODO: should be enums not hardcoded strings
-        root / "metadata" / f"{stem}-benign-partitions.json", #TODO: should be enums not hardcoded strings
-        root / "metadata" / f"{stem}-campaign-registry.json", #TODO: should be enums not hardcoded strings
+        root
+        / ArtifactPathSegment.INVENTORIES
+        / ArtifactFilenamePattern.DATASET_JSON.format(dataset=stem),
+        root
+        / ArtifactPathSegment.PREPARED
+        / ArtifactFilenamePattern.DATASET_JSON.format(dataset=stem),
+        root
+        / ArtifactPathSegment.SPLITS
+        / ArtifactFilenamePattern.DATASET_JSON.format(dataset=stem),
+        root
+        / ArtifactPathSegment.METADATA
+        / ArtifactFilenamePattern.BENIGN_PARTITIONS.format(dataset=stem),
+        root
+        / ArtifactPathSegment.METADATA
+        / ArtifactFilenamePattern.CAMPAIGN_REGISTRY.format(dataset=stem),
     )
 
 
@@ -168,7 +180,7 @@ def _materialize_detector_scores(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
+        layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING,
     )
     write_artifact_manifest(
         loaded,
@@ -232,7 +244,7 @@ def _materialize_marginal_ranks(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
+        layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING,
     )
     write_artifact_manifest(
         loaded,
@@ -333,7 +345,7 @@ def _materialize_emhi_fit(
     content_hash = write_atomic_json(
         destination,
         cast(YamlNode, record.model_dump(mode="json")),
-        layout.roots.outputs_root / "cache" / "staging", #TODO: should be enums not hardcoded strings
+        layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING,
     )
     write_artifact_manifest(
         loaded,

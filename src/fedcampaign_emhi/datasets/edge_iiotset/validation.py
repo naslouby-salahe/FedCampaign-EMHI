@@ -16,28 +16,29 @@ from fedcampaign_emhi.domain.types import (
     SecondaryClientSelection,
 )
 
-REQUIRED_EDGE_IIOTSET_COLUMNS = (
-    "frame.time", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "ip.src_host", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "Attack_label", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-    "Attack_type", #TODO: should be retrieved from yml and accessed through config. Identify any similar issues and fix it
-)
-
 
 def missing_required_columns(
     observed_columns: tuple[NormalizedEventToken, ...],
+    required_columns: tuple[NormalizedEventToken, ...],
 ) -> tuple[NormalizedEventToken, ...]:
     observed = {column.strip() for column in observed_columns}
-    return tuple(column for column in REQUIRED_EDGE_IIOTSET_COLUMNS if column not in observed)
+    return tuple(column for column in required_columns if column not in observed)
 
 
-def schema_is_executable(observed_columns: tuple[NormalizedEventToken, ...]) -> Boolean:
-    return not missing_required_columns(observed_columns)
+def schema_is_executable(
+    observed_columns: tuple[NormalizedEventToken, ...],
+    required_columns: tuple[NormalizedEventToken, ...],
+) -> Boolean:
+    return not missing_required_columns(observed_columns, required_columns)
 
 
-def record_is_benign(record: EdgeIiotsetFlowRecord) -> Boolean:
+def record_is_benign(
+    record: EdgeIiotsetFlowRecord, benign_attack_type: NormalizedEventToken
+) -> Boolean:
     return (
-        edge_iiotset_ground_truth(record.binary_label, record.attack_type).classification
+        edge_iiotset_ground_truth(
+            record.binary_label, record.attack_type, benign_attack_type
+        ).classification
         is GroundTruthClass.BENIGN
     )
 
@@ -86,12 +87,13 @@ def select_secondary_clients(
     minimum_nonempty_benign_epochs: PositiveEpochCount,
     target_client_count: ClientCount,
     minimum_eligible_client_count: ClientCount,
+    benign_attack_type: NormalizedEventToken,
 ) -> SecondaryClientSelection:
     tallies: tuple[ClientBenignTally, ...] = ()
     for record in records:
         if not record_identity_is_usable(record.source_host):
             continue
-        if not record_is_benign(record):
+        if not record_is_benign(record, benign_attack_type):
             continue
         client_id = record.source_host.strip()
         epoch = epoch_index(record.timestamp_seconds, epoch_seconds).index

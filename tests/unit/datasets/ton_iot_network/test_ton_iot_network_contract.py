@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from fedcampaign_emhi.config.schema import DatasetsPrimaryConfig
 from fedcampaign_emhi.datasets.ton_iot_network.canonicalization import (
     UNKNOWN_PROTOCOL_TOKEN,
     UNKNOWN_SERVICE_TOKEN,
@@ -15,20 +16,28 @@ from fedcampaign_emhi.datasets.ton_iot_network.loading import validate_ton_iot_n
 from fedcampaign_emhi.datasets.ton_iot_network.validation import (
     schema_is_executable,
 )
-from fedcampaign_emhi.domain.enums import GroundTruthClass
+from fedcampaign_emhi.domain.enums import DatasetName, GroundTruthClass
+
+TON_SCHEMA = DatasetsPrimaryConfig(
+    name=DatasetName.TON_IOT_NETWORK,
+    raw_directory="data/raw",
+    target_client_count=1,
+    required_columns=("ts", "src_ip", "proto", "service", "label", "type"),
+    benign_attack_type="normal",
+)
 
 
 def test_documented_columns_are_required() -> None:
     observed = ("ts", "src_ip", "proto", "service", "label", "type")
-    assert schema_is_executable(observed)
-    assert not schema_is_executable(("ts", "src_ip"))
+    assert schema_is_executable(observed, TON_SCHEMA.required_columns)
+    assert not schema_is_executable(("ts", "src_ip"), TON_SCHEMA.required_columns)
 
 
 def test_loader_preflight_rejects_an_unexecutable_release(tmp_path: Path) -> None:
     path = tmp_path / "invalid.csv"
     path.write_text("src_ip,label\n10.0.0.1,0\n", encoding="utf-8")
     with pytest.raises(ValueError, match="required TON_IoT Network columns"):
-        validate_ton_iot_network_csv_schema(path)
+        validate_ton_iot_network_csv_schema(path, TON_SCHEMA)
 
 
 def test_normalized_event_type_and_hash_are_deterministic() -> None:
@@ -46,12 +55,12 @@ def test_normalized_event_type_and_hash_are_deterministic() -> None:
 
 def test_ground_truth_uses_only_label_and_type() -> None:
     signature = inspect.signature(ton_iot_network_ground_truth)
-    assert tuple(signature.parameters) == ("binary_label", "attack_type")
-    benign = ton_iot_network_ground_truth(0, "normal")
-    malicious = ton_iot_network_ground_truth(1, "ddos")
-    ambiguous = ton_iot_network_ground_truth(0, "ddos")
-    reverse_ambiguous = ton_iot_network_ground_truth(1, "normal")
-    extra = ton_iot_network_ground_truth(1, "undocumented_variant")
+    assert tuple(signature.parameters) == ("binary_label", "attack_type", "benign_attack_type")
+    benign = ton_iot_network_ground_truth(0, "normal", TON_SCHEMA.benign_attack_type)
+    malicious = ton_iot_network_ground_truth(1, "ddos", TON_SCHEMA.benign_attack_type)
+    ambiguous = ton_iot_network_ground_truth(0, "ddos", TON_SCHEMA.benign_attack_type)
+    reverse_ambiguous = ton_iot_network_ground_truth(1, "normal", TON_SCHEMA.benign_attack_type)
+    extra = ton_iot_network_ground_truth(1, "undocumented_variant", TON_SCHEMA.benign_attack_type)
     assert benign.classification is GroundTruthClass.BENIGN
     assert malicious.classification is GroundTruthClass.MALICIOUS
     assert ambiguous.is_ambiguous is True

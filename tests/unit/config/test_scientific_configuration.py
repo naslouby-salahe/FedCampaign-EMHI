@@ -441,6 +441,20 @@ def test_schema_round_trip_matches_production_yaml(repo_root: Path) -> None:
     assert dumped["reporting"]["precision"]["adjusted_p_values_decimals"] == 4
 
 
+def test_configured_artifact_filename_is_an_open_validated_boundary(repo_root: Path) -> None:
+    payload = deepcopy(
+        yaml.safe_load((repo_root / "configs" / "fedcampaign-emhi.yaml").read_text())
+    )
+    payload["experiments"]["strong_comparator_composition_challenge"]["artifact_filename"] = (
+        "alternate-composition.json"
+    )
+    loaded = ScientificConfig.model_validate(payload)
+    assert (
+        loaded.experiments.strong_comparator_composition_challenge.artifact_filename
+        == "alternate-composition.json"
+    )
+
+
 def test_missing_required_field_is_rejected(repo_root: Path) -> None:
     payload = yaml.safe_load((repo_root / "configs" / "fedcampaign-emhi.yaml").read_text())
     del payload["study"]

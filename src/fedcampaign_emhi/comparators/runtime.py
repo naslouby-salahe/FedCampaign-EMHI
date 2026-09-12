@@ -46,7 +46,12 @@ from fedcampaign_emhi.comparators.sequential import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.config.validation import YamlNode
-from fedcampaign_emhi.domain.enums import CoalitionOrder, ExperimentName, MethodName
+from fedcampaign_emhi.domain.enums import (
+    ArtifactPathSegment,
+    CoalitionOrder,
+    ExperimentName,
+    MethodName,
+)
 from fedcampaign_emhi.domain.types import (
     BinCount,
     BinIndex,
@@ -176,8 +181,8 @@ def resolve_comparator_scoring_method(
     filename = loaded.values.experiments.strong_comparator_composition_challenge.artifact_filename
     path = (
         layout.experiment_outputs_root(ExperimentName.STRONG_COMPARATOR_COMPOSITION_CHALLENGE)
-        / "artifacts" #TODO: should be enums not hardcoded strings
-        / "derived" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.ARTIFACTS
+        / ArtifactPathSegment.DERIVED
         / filename
     )
     if not path.is_file():

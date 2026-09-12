@@ -6,9 +6,9 @@ from typing import cast
 
 import polars as pl
 
+from fedcampaign_emhi.config.schema import DatasetsSecondaryConfig
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
-    REQUIRED_EDGE_IIOTSET_COLUMNS,
     record_identity_is_usable,
     schema_is_executable,
 )
@@ -53,12 +53,13 @@ def _parse_row_fields(
 
 def iter_edge_iiotset_csv_entries(
     path: Path,
+    schema: DatasetsSecondaryConfig,
 ) -> Iterator[EdgeIiotsetFlowRecord | ExcludedRecord]:
     header = pl.read_csv(path, n_rows=0, infer_schema_length=0)
     fieldnames = tuple(header.columns)
-    if not schema_is_executable(fieldnames):
+    if not schema_is_executable(fieldnames, schema.required_columns):
         raise ValueError(
-            f"{path} is missing required Edge-IIoTset columns {REQUIRED_EDGE_IIOTSET_COLUMNS}"
+            f"{path} is missing required Edge-IIoTset columns {schema.required_columns}"
         )
     schema_overrides = {name: pl.Utf8 for name in fieldnames}
     frame = pl.scan_csv(path, schema_overrides=schema_overrides, low_memory=True).collect()

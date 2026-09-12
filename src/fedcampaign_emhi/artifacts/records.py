@@ -13,6 +13,7 @@ from fedcampaign_emhi.domain.enums import (
     GroundTruthClass,
     MethodName,
     OverwritePolicy,
+    ResumeStep,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -49,7 +50,6 @@ from fedcampaign_emhi.domain.types import (
     RankValue,
     RecordCount,
     RelativePath,
-    ResumeStep,
     RidgePenalty,
     RobustnessCountMultiplier,
     RuntimeSeconds,

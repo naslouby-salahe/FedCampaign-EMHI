@@ -80,11 +80,15 @@ datasets:
     name: TON_IoT Network
     raw_directory: data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset
     target_client_count: 12
+    required_columns: [ts, src_ip, proto, service, label, type]
+    benign_attack_type: normal
   secondary:
     name: Edge-IIoTset
     raw_directory: data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv
     target_client_count: 12
     minimum_eligible_client_count: 6
+    required_columns: [frame.time, ip.src_host, Attack_label, Attack_type]
+    benign_attack_type: normal
   external_checksums_directory: data/external_checksums
   eligibility:
     minimum_benign_event_records: 5000
@@ -493,6 +497,8 @@ synthetic_module_validation:
   repeatability_tolerance: 1.0e-14
   expected_fixture_count: 33
   expected_generator_check_count: 8
+  exclusion_fixture_selected_clients: [c1, c2, c3, c4, c5, c6]
+  exclusion_fixture_coalition: [c1, c2, c3]
 
 artifacts:
   outputs_root: outputs

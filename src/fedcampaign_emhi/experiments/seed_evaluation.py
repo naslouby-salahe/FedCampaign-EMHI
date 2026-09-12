@@ -59,6 +59,10 @@ from fedcampaign_emhi.detection import (
     score_stream_isolation_check,
 )
 from fedcampaign_emhi.domain.enums import (
+    ArtifactFilenamePattern,
+    ArtifactMetadataKey,
+    ArtifactPathSegment,
+    ArtifactProducer,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -69,6 +73,8 @@ from fedcampaign_emhi.domain.enums import (
     MethodName,
     PartitionRole,
     PreprocessingLayer,
+    ScientificOutcome,
+    ScientificOutcomeReason,
 )
 from fedcampaign_emhi.domain.types import (
     BasisSize,
@@ -235,9 +241,11 @@ def _evaluate_emhi_seed_cell(
     method_slug = method_artifact_stem(method_name)
     cell_path = (
         root
-        / "provenance" #TODO: should be enums not hardcoded strings
-        / "dependencies" #TODO: should be enums not hardcoded strings
-        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / ArtifactFilenamePattern.CELL_ROLE_METHOD_SEED.format(
+            role=execution_role, method=method_slug, seed=seed
+        )
     )
     if _reusable_completed_real_cell(
         repository,
@@ -291,7 +299,7 @@ def _evaluate_emhi_seed_cell(
         if heldout_epochs <= 0
         else false_campaigns_per_ten_thousand_benign_epochs(heldout_false_stops, heldout_epochs)
     )
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     evaluation_id = evaluation_artifact_id(
         experiment_name,
         execution_role,
@@ -299,7 +307,12 @@ def _evaluate_emhi_seed_cell(
         seed,
     )
     raw_path = (
-        root / "evaluations" / "raw" / execution_role.value / method_slug / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        root
+        / ArtifactPathSegment.EVALUATIONS
+        / ArtifactPathSegment.RAW
+        / execution_role.value
+        / method_slug
+        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
     )
     raw_payload: YamlNode = {
         "artifact_id": evaluation_id,
@@ -333,11 +346,11 @@ def _evaluate_emhi_seed_cell(
         )
         summary_path = (
             root
-            / "metrics" #TODO: should be enums not hardcoded strings
-            / "seed-summaries" #TODO: should be enums not hardcoded strings
+            / ArtifactPathSegment.METRICS
+            / ArtifactPathSegment.SEED_SUMMARIES
             / execution_role.value
             / method_slug
-            / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
+            / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
         )
         summary_hash = write_atomic_json(
             summary_path,
@@ -399,12 +412,17 @@ def materialize_not_tested_real_cell(
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     method_slug = (
         "coordinate-validation" if method_name is None else method_artifact_stem(method_name)
     )
     raw_path = (
-        root / "evaluations" / "raw" / execution_role.value / method_slug / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        root
+        / ArtifactPathSegment.EVALUATIONS
+        / ArtifactPathSegment.RAW
+        / execution_role.value
+        / method_slug
+        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
     )
     fingerprint = material_fingerprint(
         campaign_evaluation_boundary_digest(loaded.values),
@@ -425,8 +443,8 @@ def materialize_not_tested_real_cell(
         "execution_role": execution_role.value,
         "method_name": None if method_name is None else method_name.value,
         "seed": seed,
-        "scientific_outcome": "Not Tested", #TODO: should be enums not hardcoded strings
-        "reason": "no eligible raw records were available after deterministic preprocessing", #TODO: should be enums not hardcoded strings
+        ArtifactMetadataKey.SCIENTIFIC_OUTCOME: ScientificOutcome.NOT_TESTED,
+        ArtifactMetadataKey.REASON: ScientificOutcomeReason.NO_ELIGIBLE_RAW_RECORDS,
         "dependency_fingerprint": fingerprint,
         "campaigns": [],
         PartitionRole.HELDOUT_BENIGN.value: [],
@@ -454,9 +472,11 @@ def materialize_not_tested_real_cell(
     )
     cell_path = (
         root
-        / "provenance" #TODO: should be enums not hardcoded strings
-        / "dependencies" #TODO: should be enums not hardcoded strings
-        / f"cell-{execution_role.value}-{method_slug}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / ArtifactFilenamePattern.CELL_ROLE_METHOD_SEED.format(
+            role=execution_role, method=method_slug, seed=seed
+        )
     )
     write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     return cell_path
@@ -542,7 +562,7 @@ def _fedavg_autoencoder_ranks(
                 cast(
                     YamlNode,
                     {
-                        "component": "fedavg-autoencoder-scores", #TODO: should be enums not hardcoded strings
+                        ArtifactMetadataKey.COMPONENT: ArtifactProducer.FEDAVG_AUTOENCODER_SCORES,
                         "dataset": dataset_name.value,
                         "seed": seed,
                         "selected_client_ids": list(split.selected_client_ids),
@@ -888,15 +908,15 @@ def _evaluate_comparator_seed_cell(
     )
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     evaluation_id = evaluation_artifact_id(experiment_name, execution_role, method_name, seed)
     raw_path = (
         root
-        / "evaluations" #TODO: should be enums not hardcoded strings
-        / "raw" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.EVALUATIONS
+        / ArtifactPathSegment.RAW
         / execution_role.value
         / method_artifact_stem(method_name)
-        / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
     )
     raw_payload: YamlNode = {
         "artifact_id": evaluation_id,
@@ -954,11 +974,11 @@ def _evaluate_comparator_seed_cell(
         )
         summary_path = (
             root
-            / "metrics" #TODO: should be enums not hardcoded strings
-            / "seed-summaries" #TODO: should be enums not hardcoded strings
+            / ArtifactPathSegment.METRICS
+            / ArtifactPathSegment.SEED_SUMMARIES
             / execution_role.value
             / method_artifact_stem(method_name)
-            / f"seed-{seed}.json" #TODO: should be enums not hardcoded strings
+            / ArtifactFilenamePattern.SEEDED_JSON.format(seed=seed)
         )
         summary_hash = write_atomic_json(
             summary_path,
@@ -993,9 +1013,11 @@ def _evaluate_comparator_seed_cell(
     )
     cell_path = (
         root
-        / "provenance" #TODO: should be enums not hardcoded strings
-        / "dependencies" #TODO: should be enums not hardcoded strings
-        / f"cell-{execution_role.value}-{method_artifact_stem(method_name)}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        / ArtifactPathSegment.PROVENANCE
+        / ArtifactPathSegment.DEPENDENCIES
+        / ArtifactFilenamePattern.CELL_ROLE_METHOD_SEED.format(
+            role=execution_role, method=method_artifact_stem(method_name), seed=seed
+        )
     )
     write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
     return cell_path
@@ -1452,7 +1474,7 @@ def _context_sensitivity_seed_diagnostics(
     conditions = sensitivity_conditions(loaded, base_context_method)
     layout = build_artifact_layout(loaded, repository)
     root = layout.experiment_outputs_root(experiment_name)
-    staging = layout.roots.outputs_root / "cache" / "staging" #TODO: should be enums not hardcoded strings
+    staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
     rank_path = materialize_marginal_ranks_with_retry(
         loaded, repository, dataset_name, seed, score_path
@@ -1534,7 +1556,12 @@ def _context_sensitivity_seed_diagnostics(
             content_digest=payload_digest(payload),
         )
         slug = sensitivity_cell_slug(basis_override, cell_override, ridge_override, method_override)
-        diagnostic_path = root / "diagnostics" / "sensitivity" / f"seed-{seed}" / f"{slug}.json" #TODO: should be enums not hardcoded strings
+        diagnostic_path = (
+            root
+            / ArtifactPathSegment.DIAGNOSTICS
+            / ArtifactPathSegment.SENSITIVITY
+            / ArtifactFilenamePattern.SENSITIVITY_DIAGNOSTIC.format(seed=seed, slug=slug)
+        )
         content_hash = write_atomic_json(
             diagnostic_path, cast(YamlNode, record.model_dump(mode="json")), staging
         )
@@ -1559,7 +1586,12 @@ def _context_sensitivity_seed_diagnostics(
             application_payload_bytes=diagnostic_path.stat().st_size,
             completion_record=completion,
         )
-        cell_path = root / "provenance" / "dependencies" / f"cell-{slug}-seed-{seed}.json" #TODO: should be enums not hardcoded strings
+        cell_path = (
+            root
+            / ArtifactPathSegment.PROVENANCE
+            / ArtifactPathSegment.DEPENDENCIES
+            / ArtifactFilenamePattern.SENSITIVITY_CELL.format(slug=slug, seed=seed)
+        )
         write_atomic_json(cell_path, cast(YamlNode, cell.model_dump(mode="json")), staging)
         paths.append(diagnostic_path)
         campaigns_logger().info(

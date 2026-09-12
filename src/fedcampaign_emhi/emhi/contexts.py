@@ -12,6 +12,7 @@ from fedcampaign_emhi.domain.enums import (
     ContextMethodName,
     DatasetName,
     PartitionRole,
+    SeedCoordinateName,
 )
 from fedcampaign_emhi.domain.types import (
     BinCount,
@@ -22,6 +23,7 @@ from fedcampaign_emhi.domain.types import (
     ClientId,
     ContextCentroids,
     ContextClusterIdentity,
+    ContextRowKey,
     ContextTrainingRow,
     EpochCount,
     EpochIndexValue,
@@ -34,7 +36,6 @@ from fedcampaign_emhi.domain.types import (
     PermutationIndex,
     Probability,
     RankValue,
-    ResumeStep,
     SeedCoordinate,
     SeedDerivationIdentity,
     SeedValue,
@@ -90,7 +91,7 @@ NO_OUTSIDE_CONTEXT_CELL_COUNT = 1
 
 
 def shuffled_context_permutation(
-    row_keys: tuple[ResumeStep, ...], split_role: PartitionRole, context_seed: SeedValue
+    row_keys: tuple[ContextRowKey, ...], split_role: PartitionRole, context_seed: SeedValue
 ) -> tuple[PermutationIndex, ...]:
     if not row_keys:
         raise ValueError("shuffled context requires lagged outside rows")
@@ -287,7 +288,9 @@ def _restart_seed(base_seed: SeedValue, restart_index: KmeansInitializationCount
             dataset=None,
             client_ids=(),
             coalition_ids=(),
-            condition_coordinates=(SeedCoordinate(name="restart_index", scalar=restart_index),), #TODO: should be enum, not hardcoded string
+            condition_coordinates=(
+                SeedCoordinate(name=SeedCoordinateName.RESTART_INDEX, scalar=restart_index),
+            ),
         )
     )
 

@@ -6,6 +6,7 @@ from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
     NuisanceTransformName,
+    SelfExplanationSeedComponent,
 )
 from fedcampaign_emhi.domain.types import (
     Attenuation,
@@ -244,7 +245,7 @@ def evaluate_self_explanation_seed(
     latent = generate_unit_variance_autoregressive_latent(
         epoch_count,
         config.generators.common_mode.latent_ar_coefficient,
-        _component_seed(seed, "latent"), #TODO: should be enum, not hardcoded string
+        _component_seed(seed, SelfExplanationSeedComponent.LATENT),
     )
     loadings = equally_spaced_loadings(
         client_count_maximum,
@@ -255,7 +256,7 @@ def evaluate_self_explanation_seed(
         latent,
         loadings,
         config.generators.common_mode.client_noise_standard_deviation,
-        _component_seed(seed, "noise"), #TODO: should be enum, not hardcoded string
+        _component_seed(seed, SelfExplanationSeedComponent.NOISE),
     )
     measurements: list[SelfExplanationMeasurement] = []
     primary_exact_derivative: EffectCoefficient | None = None

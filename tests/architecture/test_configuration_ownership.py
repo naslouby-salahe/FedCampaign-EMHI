@@ -13,9 +13,9 @@ def test_configuration_ownership() -> None:
     assert tests.is_file()
     assert smoke.is_file()
     loaders = (SRC_ROOT / "config" / "loading.py").read_text(encoding="utf-8")
-    assert "configs/fedcampaign-emhi.yaml" in loaders
-    assert "configs/tests.yml" in loaders
-    assert "configs/smoke.yml" in loaders
+    assert "ConfigurationFilePath.PRODUCTION" in loaders
+    assert "ConfigurationFilePath.TESTS" in loaders
+    assert "ConfigurationFilePath.SMOKE" in loaders
 
 
 def test_no_parallel_scientific_config_models() -> None:
