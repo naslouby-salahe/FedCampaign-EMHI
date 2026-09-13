@@ -111,6 +111,7 @@ from fedcampaign_emhi.emhi.thresholds import (
     select_calibrated_threshold,
 )
 from fedcampaign_emhi.evaluation.metrics import (
+    detector_ranking_metrics,
     earliest_local_stop,
     false_campaigns_per_ten_thousand_benign_epochs,
     seed_level_odi_rate,
@@ -296,6 +297,7 @@ def _evaluate_emhi_seed_cell(
         calibration,
     )
     heldout_rows = build_heldout_rows(loaded, ranks, fit, partitions, calibration, trajectory_cache)
+    ranking_metrics = detector_ranking_metrics(scores.client_streams, campaigns.campaigns)
     heldout_false_stops = sum(1 for row in heldout_rows if row.first_stop_epoch is not None)
     heldout_epochs = sum(len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons)
     false_campaign_rate = (
@@ -333,6 +335,7 @@ def _evaluate_emhi_seed_cell(
         "campaigns": [campaign_evaluation_row_payload(row) for row in campaign_rows],
         "seed_strict_odi_rate": None if not odi_values else seed_level_odi_rate(odi_values),
         "false_campaigns_per_ten_thousand_benign_epochs": false_campaign_rate,
+        "detector_ranking_metrics": ranking_metrics.model_dump(mode="json"),
     }
     raw_hash = write_atomic_json(raw_path, raw_payload, staging)
     output_paths = [raw_path.relative_to(repository).as_posix()]

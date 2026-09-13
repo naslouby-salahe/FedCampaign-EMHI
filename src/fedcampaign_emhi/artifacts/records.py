@@ -279,6 +279,11 @@ class DetectorScoreArtifactRecord(FrozenConfigModel):
     dependency_fingerprint: MaterialDependencyFingerprint
 
 
+class DetectorRankingMetrics(FrozenConfigModel):
+    auroc: Probability | None
+    auprc: Probability | None
+
+
 class ClientMarginalRankStream(FrozenConfigModel):
     client_id: ClientId
     nuisance_reference_scores: tuple[DetectorScore, ...]

@@ -17,7 +17,7 @@ from tests.architecture.ast_scans import (
     iter_functions,
     local_annotations,
     module_ast,
-    parametrize_source_files,
+    source_files,
     type_alias_annotations,
 )
 
@@ -93,10 +93,12 @@ def _report(findings: list[tuple[str, int, str, str, str]]) -> str:
     return "\n".join(lines)
 
 
-@parametrize_source_files
+@pytest.mark.parametrize(
+    "path",
+    tuple(path for path in source_files() if path != CANONICAL_TYPES_FILE),
+    ids=lambda path: path.relative_to(SRC_ROOT).as_posix(),
+)
 def test_no_primitive_leaks(path: Path) -> None:
-    if path == CANONICAL_TYPES_FILE:
-        pytest.skip("canonical types module is exempt from the primitive-leak policy")
     findings = _scan_file(path)
     assert not findings, _report(findings)
 

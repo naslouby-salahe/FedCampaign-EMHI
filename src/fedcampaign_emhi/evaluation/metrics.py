@@ -1,5 +1,10 @@
 from math import log, sqrt
 
+from fedcampaign_emhi.artifacts.records import (
+    CampaignRecord,
+    ClientDetectorScoreStream,
+    DetectorRankingMetrics,
+)
 from fedcampaign_emhi.domain.types import (
     Attenuation,
     AttenuationDifference,
@@ -407,3 +412,26 @@ def auprc(scores: tuple[DetectorScore, ...], malicious: tuple[Boolean, ...]) -> 
         recall_reached = recall
         index += len(group_indexes)
     return average_precision
+
+
+def detector_ranking_metrics(
+    streams: tuple[ClientDetectorScoreStream, ...],
+    campaigns: tuple[CampaignRecord, ...],
+) -> DetectorRankingMetrics:
+    scores: list[DetectorScore] = []
+    malicious: list[Boolean] = []
+    for stream in streams:
+        for epoch, score in zip(stream.epoch_indexes, stream.scores, strict=True):
+            scores.append(score)
+            malicious.append(
+                any(
+                    stream.client_id in campaign.participating_client_ids
+                    and campaign.start_epoch <= epoch <= campaign.end_epoch
+                    for campaign in campaigns
+                )
+            )
+    score_values = tuple(scores)
+    labels = tuple(malicious)
+    return DetectorRankingMetrics(
+        auroc=auroc(score_values, labels), auprc=auprc(score_values, labels)
+    )

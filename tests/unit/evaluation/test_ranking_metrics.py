@@ -1,6 +1,8 @@
 import pytest
 
-from fedcampaign_emhi.evaluation.metrics import auprc, auroc
+from fedcampaign_emhi.artifacts.records import CampaignRecord, ClientDetectorScoreStream
+from fedcampaign_emhi.domain.enums import DetectorFamily
+from fedcampaign_emhi.evaluation.metrics import auprc, auroc, detector_ranking_metrics
 
 
 def test_auroc_perfect_separation_is_one() -> None:
@@ -79,3 +81,24 @@ def test_auprc_matches_manual_average_precision() -> None:
     scores = (0.9, 0.1, 0.7, 0.3)
     malicious = (True, False, True, False)
     assert auprc(scores, malicious) == pytest.approx(1.0)
+
+
+def test_detector_ranking_metrics_label_only_campaign_members() -> None:
+    stream = ClientDetectorScoreStream(
+        client_id="client-a",
+        detector_family=DetectorFamily.ISOLATION_FOREST,
+        detector_seed=1,
+        epoch_indexes=(0, 1, 2),
+        scores=(0.1, 0.9, 0.2),
+    )
+    campaign = CampaignRecord(
+        start_epoch=1,
+        end_epoch=1,
+        participating_client_ids=("client-a",),
+        integrity_checksum="0" * 64,
+    )
+
+    metrics = detector_ranking_metrics((stream,), (campaign,))
+
+    assert metrics.auroc == pytest.approx(1.0)
+    assert metrics.auprc == pytest.approx(1.0)
