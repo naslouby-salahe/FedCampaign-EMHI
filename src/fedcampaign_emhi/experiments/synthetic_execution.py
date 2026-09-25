@@ -20,6 +20,7 @@ from fedcampaign_emhi.analysis.statistics import (
 )
 from fedcampaign_emhi.artifacts.provenance import (
     evidence_export_boundary_digest,
+    experiment_semantic_digest,
     material_fingerprint,
     statistical_analysis_boundary_digest,
     synthetic_cell_boundary_digest,
@@ -46,6 +47,7 @@ from fedcampaign_emhi.comparators.dependence import (
     cosine_equivalence_criterion,
     nrmse_equivalence_criterion,
     stopping_time_equivalence_criterion,
+    trajectory_divergence_equivalence_criterion,
 )
 from fedcampaign_emhi.comparators.fusion import (
     CompositionCandidateResult,
@@ -219,6 +221,7 @@ def execute_synthetic_module_validation(
         seed=None,
         state=state,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         selected_client_ids=(),
         upstream_artifact_ids=(),
         dependency_fingerprint=fingerprint,
@@ -887,6 +890,7 @@ def execute_synthetic_experiment(
                 seed=_seed,
                 state=state,
                 material_digest=loaded.material_digest,
+                semantic_dependency_digest=experiment_semantic_digest(experiment_name),
                 selected_client_ids=(),
                 upstream_artifact_ids=(),
                 dependency_fingerprint=fingerprint,
@@ -1230,7 +1234,13 @@ def materialize_hofd_equivalence_statistics(
                 interval[0],
                 interval[1],
             )
-            supported = nrmse_ok and cosine_ok and pfa_ok and stop_ok
+            trajectory_values = tuple(metric.trajectory_divergence for metric in matched)
+            mean_trajectory_divergence = sum(trajectory_values) / len(trajectory_values)
+            trajectory_ok = pfa_ok and trajectory_divergence_equivalence_criterion(
+                mean_trajectory_divergence, materiality.maximum_mean_trajectory_divergence
+            )
+            sequential_ok = stop_ok or trajectory_ok
+            supported = nrmse_ok and cosine_ok and pfa_ok and sequential_ok
             all_supported = all_supported and supported
             conditions.append(
                 {
@@ -1250,6 +1260,9 @@ def materialize_hofd_equivalence_statistics(
                     "stopping_time_confidence_upper": (
                         None if stop_interval is None else stop_interval[1]
                     ),
+                    "stopping_time_equivalence_passes": stop_ok,
+                    "mean_trajectory_divergence": mean_trajectory_divergence,
+                    "trajectory_divergence_equivalence_passes": trajectory_ok,
                     "meets_threshold": supported,
                 }
             )

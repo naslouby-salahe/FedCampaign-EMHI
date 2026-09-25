@@ -8,6 +8,7 @@ from pydantic import Field, StringConstraints
 
 from fedcampaign_emhi.domain.enums import (
     ArtifactNamespace,
+    CampaignEligibilityStatus,
     CoalitionOrder,
     ContextMethodName,
     DatasetName,
@@ -86,6 +87,7 @@ FigureDimensionInches = PositiveFloat
 FigureDotsPerInch = PositiveInt
 Boolean = Annotated[bool, Field()]
 YamlKeyPath = Annotated[str, StringConstraints(min_length=1)]
+ReasonText = Annotated[str, StringConstraints(min_length=1)]
 ContextRowKey = Annotated[str, StringConstraints(min_length=1)]
 type YamlScalar = str | int | float | Boolean | None
 type YamlNode = YamlScalar | Sequence[YamlNode] | Mapping[str, YamlNode]
@@ -134,6 +136,7 @@ ProjectionNrmse = FiniteFloat
 StandardizedNullBias = FiniteFloat
 CosineSimilarity = UnitInterval
 StoppingTimeDifferenceEpochs = FiniteFloat
+TrajectoryDivergence = NonNegativeFloat
 OdiRateAdvantage = FiniteFloat
 OperationalLeadEpochs = FiniteFloat
 DetectionRateLoss = FiniteFloat
@@ -375,6 +378,7 @@ class EdgeIiotsetFlowRecord:
     protocol_group: NormalizedEventToken
     binary_label: BinaryClassLabel
     attack_type: AttackTypeName
+    raw_payload_digest: ConfigurationDigest
 
 
 @dataclass(frozen=True)
@@ -474,14 +478,20 @@ IndicatorDifference = Annotated[int, Field(ge=-1, le=1)]
 class CampaignEvaluationRow:
     start_epoch: EpochIndexValue
     end_epoch: EpochIndexValue
+    evaluation_epoch_indexes: tuple[EpochIndexValue, ...]
     participating_client_ids: tuple[ClientId, ...]
+    attack_types: tuple[AttackTypeName, ...]
     global_stop_epoch: EpochIndexValue | None
+    global_stop_time_seconds: UnixTimestampSeconds | None
     local_stop_epochs: tuple[EpochIndexValue | None, ...]
     local_min_stop_epoch: EpochIndexValue | None
+    local_min_stop_time_seconds: UnixTimestampSeconds | None
     strict_odi: OdiIndicator
     statistical_lead_epochs: OperationalLeadEpochs | None
     operational_lead_epochs: OperationalLeadEpochs | None
     global_detected_within_horizon: GlobalDetectionIndicator
+    global_alarm_censored: bool
+    local_alarm_censored: bool
     paired_stopping_time_difference: StoppingTimeDifference | None
     paired_detection_indicator_difference: IndicatorDifference
     decisive_order: CoalitionOrder | None
@@ -522,6 +532,10 @@ def deterministic_registry_payload(
         str(registry_entry.start_epoch),
         str(registry_entry.end_epoch),
         ",".join(registry_entry.sorted_participating_client_ids),
+        ",".join(registry_entry.attack_types),
+        str(registry_entry.warmup_epochs),
+        str(registry_entry.evaluation_horizon_epochs),
+        registry_entry.eligibility_status.value,
     )
     return "\n".join(fields).encode("utf-8")
 
@@ -537,6 +551,8 @@ class ClientMaliciousEpochs:
     client_id: ClientId
     malicious_epochs: tuple[EpochIndexValue, ...]
     earliest_observed_epoch: EpochIndexValue
+    fully_benign_epochs: tuple[EpochIndexValue, ...] = ()
+    attack_types_by_epoch: tuple[tuple[EpochIndexValue, tuple[AttackTypeName, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -545,6 +561,11 @@ class CampaignRegistryEntry:
     start_epoch: EpochIndexValue
     end_epoch: EpochIndexValue
     sorted_participating_client_ids: tuple[ClientId, ...]
+    warmup_epochs: PositiveEpochCount
+    evaluation_horizon_epochs: PositiveEpochCount
+    eligibility_status: CampaignEligibilityStatus
+    ineligibility_reason: str | None = None
+    attack_types: tuple[AttackTypeName, ...] = ()
 
     @property
     def integrity_checksum(self) -> Sha256Hex:

@@ -24,6 +24,7 @@ from fedcampaign_emhi.domain.types import (
 from fedcampaign_emhi.execution.planning import plan_experiments
 from fedcampaign_emhi.execution.preprocessing import (
     execute_preprocess,
+    missing_preprocessing_layers,
     preprocess_must_not_regenerate,
     requested_datasets,
 )
@@ -59,6 +60,7 @@ def doctor_command() -> None:
     primary_files = discover_raw_paths(primary_raw)
     secondary_files = discover_raw_paths(secondary_raw)
     missing_directories = [path for path in layout.required_directories() if not path.exists()]
+    missing_layers = missing_preprocessing_layers(loaded, repository)
     raw_inventory_executable = primary_raw.exists() and secondary_raw.exists()
     statuses = project_status(loaded, repository)
     incomplete = tuple(
@@ -66,10 +68,10 @@ def doctor_command() -> None:
         for status in statuses
         if status.state is not ExperimentState.COMPLETED
     )
-    if missing_directories or not raw_inventory_executable:
+    if missing_layers or not raw_inventory_executable:
         next_action = "fedcampaign preprocess"
     elif incomplete:
-        next_action = f"fedcampaign run {incomplete[0]}"
+        next_action = "fedcampaign plan"
     else:
         next_action = "fedcampaign report"
     emit(f"repository={repository}")
@@ -82,7 +84,13 @@ def doctor_command() -> None:
     emit(f"primary_raw_file_count={len(primary_files)}")
     emit(f"secondary_raw_directory={secondary_raw}")
     emit(f"secondary_raw_file_count={len(secondary_files)}")
-    emit(f"missing_artifact_directories={len(missing_directories)}")
+    emit(
+        "secondary_external_validation=Not Tested"
+        f" minimum_eligible_source_groupings={loaded.values.datasets.secondary.minimum_eligible_client_count}"
+        " timestamp_calendar_chronology=unverified_month_day_missing"
+    )
+    emit(f"unmaterialized_expected_directories={len(missing_directories)}")
+    emit(f"missing_preprocessing_layers={len(missing_layers)}")
     for status in statuses:
         emit(
             f"experiment={status.experiment_name.value}"
@@ -93,6 +101,7 @@ def doctor_command() -> None:
             f" completed_cells={status.completed_cell_count}"
             f" failed_cells={status.failed_cell_count}"
             f" invalid_cells={status.invalid_cell_count}"
+            f" stale_cells={status.stale_cell_count}"
         )
     emit(f"next_action={next_action}")
     emit(RESUME_SEQUENCE_PREFIX + " -> ".join(RESUME_SEQUENCE))
@@ -234,6 +243,15 @@ def status_command(
     configure_structured_logging()
     repository, loaded = production_configuration_context()
     typer.echo(f"material_digest={loaded.material_digest}")
+    if experiment_name in {
+        None,
+        ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION,
+    }:
+        typer.echo(
+            "secondary_external_validation=Not Tested"
+            f" minimum_eligible_source_groupings={loaded.values.datasets.secondary.minimum_eligible_client_count}"
+            " timestamp_calendar_chronology=unverified_month_day_missing"
+        )
     for item in project_status(loaded, repository):
         if experiment_name is not None and item.experiment_name is not experiment_name:
             continue
@@ -246,6 +264,7 @@ def status_command(
             f" completed_cells={item.completed_cell_count}"
             f" failed_cells={item.failed_cell_count}"
             f" invalid_cells={item.invalid_cell_count}"
+            f" stale_cells={item.stale_cell_count}"
         )
 
 

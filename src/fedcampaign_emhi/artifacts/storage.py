@@ -16,6 +16,7 @@ from fedcampaign_emhi.domain.enums import (
     DatasetName,
     ExperimentName,
     MethodName,
+    PreprocessingCohortVariant,
     PreprocessingLayer,
 )
 from fedcampaign_emhi.domain.types import (
@@ -44,26 +45,47 @@ def dataset_directory_stem(dataset_name: DatasetName) -> ArtifactIdentity:
     return dataset_name.replace(" ", "_")
 
 
-def layer_artifact_id(dataset_name: DatasetName, layer: PreprocessingLayer) -> ArtifactIdentity:
-    return f"{ArtifactIdentityKind.PREPROCESS}.{dataset_directory_stem(dataset_name)}.{layer}"
+def layer_artifact_id(
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None = None,
+) -> ArtifactIdentity:
+    variant = "" if cohort_variant is None else f".{cohort_variant.value}"
+    return (
+        f"{ArtifactIdentityKind.PREPROCESS}.{dataset_directory_stem(dataset_name)}{variant}.{layer}"
+    )
 
 
 def method_artifact_stem(method_name: MethodName) -> RelativePath:
     return method_name.value.lower().replace(" ", "-").replace("≤", "at-most-").replace("_", "-")
 
 
-def detector_score_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"{ArtifactIdentityKind.DETECTOR_SCORES}.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+def detector_score_artifact_id(
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None = None,
+) -> ArtifactIdentity:
+    variant = "" if cohort_variant is None else f".{cohort_variant.value}"
+    return f"{ArtifactIdentityKind.DETECTOR_SCORES}.{dataset_directory_stem(dataset_name)}{variant}.seed-{root_seed}"
 
 
-def marginal_rank_artifact_id(dataset_name: DatasetName, root_seed: SeedValue) -> ArtifactIdentity:
-    return f"{ArtifactIdentityKind.MARGINAL_RANKS}.{dataset_directory_stem(dataset_name)}.seed-{root_seed}"
+def marginal_rank_artifact_id(
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None = None,
+) -> ArtifactIdentity:
+    variant = "" if cohort_variant is None else f".{cohort_variant.value}"
+    return f"{ArtifactIdentityKind.MARGINAL_RANKS}.{dataset_directory_stem(dataset_name)}{variant}.seed-{root_seed}"
 
 
 def emhi_fit_artifact_id(
-    dataset_name: DatasetName, root_seed: SeedValue, method_name: MethodName
+    dataset_name: DatasetName,
+    root_seed: SeedValue,
+    method_name: MethodName,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> ArtifactIdentity:
-    return f"{ArtifactIdentityKind.EMHI_FIT}.{dataset_directory_stem(dataset_name)}.seed-{root_seed}.{method_artifact_stem(method_name)}"
+    variant = "" if cohort_variant is None else f".{cohort_variant.value}"
+    return f"{ArtifactIdentityKind.EMHI_FIT}.{dataset_directory_stem(dataset_name)}{variant}.seed-{root_seed}.{method_artifact_stem(method_name)}"
 
 
 def detector_score_artifact_path(
@@ -71,15 +93,18 @@ def detector_score_artifact_path(
     repository: Path,
     dataset_name: DatasetName,
     root_seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
-    return (
+    dataset_root = (
         layout.roots.outputs_root
         / ArtifactPathSegment.ARTIFACTS
         / ArtifactPathSegment.SCORES
         / dataset_directory_stem(dataset_name)
-        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=root_seed)
     )
+    if cohort_variant is not None:
+        dataset_root = dataset_root / ArtifactPathSegment.VARIANTS / cohort_variant.value
+    return dataset_root / ArtifactFilenamePattern.SEEDED_JSON.format(seed=root_seed)
 
 
 def marginal_rank_artifact_path(
@@ -87,15 +112,18 @@ def marginal_rank_artifact_path(
     repository: Path,
     dataset_name: DatasetName,
     root_seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
-    return (
+    dataset_root = (
         layout.roots.outputs_root
         / ArtifactPathSegment.ARTIFACTS
         / ArtifactPathSegment.FITTED
         / dataset_directory_stem(dataset_name)
-        / ArtifactFilenamePattern.SEEDED_MARGINAL_RANKS_JSON.format(seed=root_seed)
     )
+    if cohort_variant is not None:
+        dataset_root = dataset_root / ArtifactPathSegment.VARIANTS / cohort_variant.value
+    return dataset_root / ArtifactFilenamePattern.SEEDED_MARGINAL_RANKS_JSON.format(seed=root_seed)
 
 
 def emhi_fit_artifact_path(
@@ -104,13 +132,19 @@ def emhi_fit_artifact_path(
     dataset_name: DatasetName,
     root_seed: SeedValue,
     method_name: MethodName,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     layout = build_artifact_layout(loaded, repository)
-    return (
+    dataset_root = (
         layout.roots.outputs_root
         / ArtifactPathSegment.ARTIFACTS
         / ArtifactPathSegment.FITTED
         / dataset_directory_stem(dataset_name)
+    )
+    if cohort_variant is not None:
+        dataset_root = dataset_root / ArtifactPathSegment.VARIANTS / cohort_variant.value
+    return (
+        dataset_root
         / ArtifactFilenamePattern.SEEDED_DIRECTORY.format(seed=root_seed)
         / ArtifactFilenamePattern.METHOD_JSON.format(method=method_artifact_stem(method_name))
     )

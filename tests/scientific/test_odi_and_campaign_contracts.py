@@ -31,6 +31,13 @@ def test_later_global_stop_is_detection_without_odi() -> None:
     assert outcome.global_detection_indicator == 1
 
 
+def test_global_detection_with_no_local_stop_is_odi() -> None:
+    outcome = strict_odi_outcome(4, (None, None))
+    assert outcome.indicator == 1
+    assert outcome.global_detection_indicator == 1
+    assert outcome.earliest_local_stop_epoch is None
+
+
 def test_local_stop_is_first_persistence_epoch() -> None:
     exceedances = (False, True, True, True)
     assert first_local_stop_epoch(exceedances, 2, 3) == 2

@@ -34,7 +34,7 @@ def test_reproducibility_export_includes_plan_environment_and_identity_sources(
         ).read_text(encoding="utf-8")
     )
     assert plan["material_configuration_digest"] == production_configuration.material_digest
-    assert len(plan["planned_experiments"]) == 30
+    assert len(plan["planned_experiments"]) == 31
 
     environment = json.loads(
         (

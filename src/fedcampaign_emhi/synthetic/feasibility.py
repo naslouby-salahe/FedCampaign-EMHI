@@ -109,7 +109,7 @@ def feasibility_conditions(
         primary_support,
         config.basis.primary_size,
         config.context.primary_cell_count,
-        None,
+        config.experiments.estimator_support_and_context_feasibility.primary_ridge_candidates,
         False,
     )
     if execution_role is ExecutionRole.CONFIRMATORY:

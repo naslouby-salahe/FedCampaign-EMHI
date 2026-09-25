@@ -1,7 +1,7 @@
 import pytest
 
 from fedcampaign_emhi.artifacts.records import CampaignRecord, ClientDetectorScoreStream
-from fedcampaign_emhi.domain.enums import DetectorFamily
+from fedcampaign_emhi.domain.enums import CampaignEligibilityStatus, DetectorFamily
 from fedcampaign_emhi.evaluation.metrics import auprc, auroc, detector_ranking_metrics
 
 
@@ -96,6 +96,9 @@ def test_detector_ranking_metrics_label_only_campaign_members() -> None:
         end_epoch=1,
         participating_client_ids=("client-a",),
         integrity_checksum="0" * 64,
+        warmup_epochs=60,
+        evaluation_horizon_epochs=60,
+        eligibility_status=CampaignEligibilityStatus.ELIGIBLE,
     )
 
     metrics = detector_ranking_metrics((stream,), (campaign,))

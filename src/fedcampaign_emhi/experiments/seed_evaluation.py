@@ -10,8 +10,10 @@ from fedcampaign_emhi.analysis.results import (
 from fedcampaign_emhi.artifacts.provenance import (
     calibration_threshold_boundary_digest,
     campaign_evaluation_boundary_digest,
+    experiment_semantic_digest,
     material_fingerprint,
     nuisance_context_boundary_digest,
+    real_campaign_comparison_contract_digest,
 )
 from fedcampaign_emhi.artifacts.records import (
     BenignPartitionRecord,
@@ -72,7 +74,9 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
     MethodName,
+    OverwritePolicy,
     PartitionRole,
+    PreprocessingCohortVariant,
     PreprocessingLayer,
     ScientificOutcome,
     ScientificOutcomeReason,
@@ -124,6 +128,7 @@ from fedcampaign_emhi.evaluation.sequential import (
     TrajectoryCache,
     calibrate_client_local_operating_point,
     calibrate_operating_points,
+    campaign_evaluation_epochs,
     local_stop_epochs,
     operational_lead,
     statistical_lead,
@@ -134,6 +139,7 @@ from fedcampaign_emhi.experiments.execution import (
     emhi_method_specification,
     experiment_contract,
     fork_multiprocessing_context,
+    preprocessing_cohort_variant,
 )
 from fedcampaign_emhi.experiments.registry import (
     ExperimentContract,
@@ -180,6 +186,7 @@ def _reusable_completed_real_cell(
         or cell.seed != seed
         or cell.state is not ExperimentState.COMPLETED
         or cell.material_digest != material_digest
+        or cell.semantic_dependency_digest != experiment_semantic_digest(experiment_name)
         or cell.dependency_fingerprint != dependency_fingerprint
         or completion.state is not ExperimentState.COMPLETED
         or len(completion.mandatory_output_paths) != len(completion.mandatory_output_hashes)
@@ -205,10 +212,16 @@ def _evaluate_emhi_seed_cell(
     score_path: Path,
     rank_path: Path,
     fit_path: Path,
+    overwrite_policy: OverwritePolicy,
 ) -> Path:
     started = perf_counter()
     _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
-        preprocessing_paths(loaded, repository, campaign_dataset(loaded, experiment_name))
+        preprocessing_paths(
+            loaded,
+            repository,
+            campaign_dataset(loaded, experiment_name),
+            preprocessing_cohort_variant(experiment_name),
+        )
     )
     target_local_pfa = local_pfa_target(loaded, experiment_name)
     method_digest = payload_digest(
@@ -250,7 +263,8 @@ def _evaluate_emhi_seed_cell(
         )
     )
     reuse_decision = reuse_decision_from_reusability(
-        _reusable_completed_real_cell(
+        overwrite_policy is not OverwritePolicy.OVERWRITE
+        and _reusable_completed_real_cell(
             repository,
             cell_path,
             experiment_name,
@@ -277,6 +291,29 @@ def _evaluate_emhi_seed_cell(
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    comparison_contract_digest = real_campaign_comparison_contract_digest(
+        loaded.values,
+        fit.dataset_name,
+        seed,
+        tuple(
+            file_sha256(path)
+            for path in (
+                _inventory_path,
+                _prepared_path,
+                split_path,
+                partitions_path,
+                campaigns_path,
+                score_path,
+            )
+        ),
+        split.selected_client_ids,
+        campaigns.campaigns,
+        tuple(
+            campaign_evaluation_epochs(loaded.values, campaign.start_epoch)
+            for campaign in campaigns.campaigns
+        ),
+        target_local_pfa,
+    )
     trajectory_cache = TrajectoryCache()
     calibration = calibrate_operating_points(
         loaded.values,
@@ -328,11 +365,25 @@ def _evaluate_emhi_seed_cell(
         "method_name": method_name.value,
         "seed": seed,
         "dependency_fingerprint": fingerprint,
+        "comparison_contract_digest": comparison_contract_digest,
         "calibration": calibration_payload(calibration),
+        "calibration_contract": {
+            "target_pfa": loaded.values.evidence.calibrated_finite_horizon.target_pfa,
+            "local_policy_target_pfa": local_pfa_target(loaded, experiment_name),
+            "calibration_benign_epoch_count": sum(
+                len(horizon.epoch_indexes) for horizon in partitions.calibration_horizons
+            ),
+            "heldout_benign_epoch_count": sum(
+                len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons
+            ),
+            "heldout_horizon_count": len(partitions.heldout_horizons),
+        },
         PartitionRole.HELDOUT_BENIGN.value: [
             heldout_benign_row_payload(row) for row in heldout_rows
         ],
         "campaigns": [campaign_evaluation_row_payload(row) for row in campaign_rows],
+        "strict_odi_success_count": sum(odi_values),
+        "campaign_count": len(odi_values),
         "seed_strict_odi_rate": None if not odi_values else seed_level_odi_rate(odi_values),
         "false_campaigns_per_ten_thousand_benign_epochs": false_campaign_rate,
         "detector_ranking_metrics": ranking_metrics.model_dump(mode="json"),
@@ -369,12 +420,13 @@ def _evaluate_emhi_seed_cell(
         output_paths.append(summary_path.relative_to(repository).as_posix())
         output_hashes.append(summary_hash)
     dataset_name = fit.dataset_name
+    cohort_variant = preprocessing_cohort_variant(experiment_name)
     upstream_ids = (
-        detector_score_artifact_id(dataset_name, seed),
-        marginal_rank_artifact_id(dataset_name, seed),
-        emhi_fit_artifact_id(dataset_name, seed, method_name),
-        layer_artifact_id(dataset_name, PreprocessingLayer.PARTITIONS),
-        layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY),
+        detector_score_artifact_id(dataset_name, seed, cohort_variant),
+        marginal_rank_artifact_id(dataset_name, seed, cohort_variant),
+        emhi_fit_artifact_id(dataset_name, seed, method_name, cohort_variant),
+        layer_artifact_id(dataset_name, PreprocessingLayer.PARTITIONS, cohort_variant),
+        layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY, cohort_variant),
     )
     elapsed: RuntimeSeconds = perf_counter() - started
     completion = CompletionRecord(
@@ -390,6 +442,7 @@ def _evaluate_emhi_seed_cell(
         seed=seed,
         state=ExperimentState.COMPLETED,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         selected_client_ids=fit.selected_client_ids,
         upstream_artifact_ids=upstream_ids,
         dependency_fingerprint=fingerprint,
@@ -467,6 +520,7 @@ def materialize_not_tested_real_cell(
         seed=seed,
         state=ExperimentState.COMPLETED,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         selected_client_ids=(),
         upstream_artifact_ids=(),
         dependency_fingerprint=fingerprint,
@@ -498,9 +552,10 @@ def _fedavg_autoencoder_ranks(
     seed: SeedValue,
     split: DatasetSplitRecord,
     detector_scores: DetectorScoreArtifactRecord,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> MarginalRankArtifactRecord:
     _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+        preprocessing_paths(loaded, repository, dataset_name, cohort_variant)
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     client_fit_rows: list[tuple[tuple[FeatureValue, ...], ...]] = []
@@ -813,16 +868,49 @@ def _evaluate_comparator_seed_cell(
 ) -> Path:
     cell_started = perf_counter()
     dataset_name = campaign_dataset(loaded, experiment_name)
-    _inventory_path, _prepared_path, split_path, partitions_path, campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+    inventory_path, prepared_path, split_path, partitions_path, campaigns_path = (
+        preprocessing_paths(
+            loaded, repository, dataset_name, preprocessing_cohort_variant(experiment_name)
+        )
     )
     ranks = MarginalRankArtifactRecord.model_validate_json(rank_path.read_bytes())
     detector_scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
     partitions = BenignPartitionRecord.model_validate_json(partitions_path.read_bytes())
     campaigns = CampaignRegistryRecord.model_validate_json(campaigns_path.read_bytes())
+    comparison_contract_digest = real_campaign_comparison_contract_digest(
+        loaded.values,
+        dataset_name,
+        seed,
+        tuple(
+            file_sha256(path)
+            for path in (
+                inventory_path,
+                prepared_path,
+                split_path,
+                partitions_path,
+                campaigns_path,
+                score_path,
+            )
+        ),
+        split.selected_client_ids,
+        campaigns.campaigns,
+        tuple(
+            campaign_evaluation_epochs(loaded.values, campaign.start_epoch)
+            for campaign in campaigns.campaigns
+        ),
+        local_pfa_target(loaded, experiment_name),
+    )
     scoring_ranks = (
-        _fedavg_autoencoder_ranks(loaded, repository, dataset_name, seed, split, detector_scores)
+        _fedavg_autoencoder_ranks(
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            split,
+            detector_scores,
+            preprocessing_cohort_variant(experiment_name),
+        )
         if method_name is MethodName.FEDAVG_AUTOENCODER_REFERENCE
         else ranks
     )
@@ -855,7 +943,7 @@ def _evaluate_comparator_seed_cell(
     odi_values: list[OdiRateAdvantage] = []
     for campaign in campaigns.campaigns:
         started = perf_counter()
-        epochs = tuple(range(campaign.start_epoch, campaign.end_epoch + 1))
+        epochs = campaign_evaluation_epochs(loaded.values, campaign.start_epoch)
         stop_epoch = comparator_stop(scores, epochs, threshold)
         elapsed: RuntimeSeconds = perf_counter() - started
         local_stops = local_stop_epochs(detector_scores, local_operating_points, epochs)
@@ -882,15 +970,31 @@ def _evaluate_comparator_seed_cell(
             {
                 "start_epoch": campaign.start_epoch,
                 "end_epoch": campaign.end_epoch,
+                "evaluation_start_epoch": epochs[0],
+                "evaluation_end_epoch": epochs[-1],
+                "evaluation_epoch_indexes": list(epochs),
                 "participating_client_ids": list(campaign.participating_client_ids),
+                "attack_types": list(campaign.attack_types),
                 "global_stop_epoch": stop_epoch,
+                "global_stop_time_seconds": (
+                    None
+                    if stop_epoch is None
+                    else stop_epoch * loaded.values.time.real_data_epoch_seconds
+                ),
                 "local_stop_epochs": list(local_stops),
                 "local_min_stop_epoch": earliest_local,
+                "local_min_stop_time_seconds": (
+                    None
+                    if earliest_local is None
+                    else earliest_local * loaded.values.time.real_data_epoch_seconds
+                ),
                 "strict_odi": indicator,
                 "statistical_lead_epochs": statistical,
                 "operational_lead_epochs": operational,
                 "global_detected_within_horizon": odi.global_detection_indicator,
                 "local_detected_within_horizon": 0 if earliest_local is None else 1,
+                "global_alarm_censored": stop_epoch is None,
+                "local_alarm_censored": earliest_local is None,
                 "context_coverage": 1.0,
                 "abstention_rate": 0.0,
                 "comparator_score_threshold": threshold,
@@ -943,6 +1047,7 @@ def _evaluate_comparator_seed_cell(
         "method_name": method_name.value,
         "seed": seed,
         "dependency_fingerprint": fingerprint,
+        "comparison_contract_digest": comparison_contract_digest,
         "calibration": {
             "global": {
                 "threshold": threshold,
@@ -950,6 +1055,14 @@ def _evaluate_comparator_seed_cell(
                 "calibration_horizon_count": calibration_horizon_count,
                 "heldout_false_stop_count": heldout_false_stop_count,
                 "heldout_horizon_count": len(partitions.heldout_horizons),
+                "heldout_benign_epoch_count": sum(
+                    len(horizon.epoch_indexes) for horizon in partitions.heldout_horizons
+                ),
+                "target_pfa": loaded.values.evidence.calibrated_finite_horizon.target_pfa,
+                "local_policy_target_pfa": local_pfa_target(loaded, experiment_name),
+                "calibration_benign_epoch_count": sum(
+                    len(horizon.epoch_indexes) for horizon in partitions.calibration_horizons
+                ),
                 "heldout_upper_pfa": heldout_upper_pfa,
             },
             "local": [
@@ -972,6 +1085,8 @@ def _evaluate_comparator_seed_cell(
         },
         PartitionRole.HELDOUT_BENIGN.value: heldout_rows,
         "campaigns": campaign_rows,
+        "strict_odi_success_count": sum(odi_values),
+        "campaign_count": len(campaign_rows),
     }
     raw_hash = write_atomic_json(raw_path, raw_payload, staging)
     output_paths = [raw_path.relative_to(repository).as_posix()]
@@ -1012,11 +1127,22 @@ def _evaluate_comparator_seed_cell(
         seed=seed,
         state=ExperimentState.COMPLETED,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         selected_client_ids=ranks.selected_client_ids,
         upstream_artifact_ids=(
-            marginal_rank_artifact_id(dataset_name, seed),
-            layer_artifact_id(dataset_name, PreprocessingLayer.PARTITIONS),
-            layer_artifact_id(dataset_name, PreprocessingLayer.CAMPAIGN_REGISTRY),
+            marginal_rank_artifact_id(
+                dataset_name, seed, preprocessing_cohort_variant(experiment_name)
+            ),
+            layer_artifact_id(
+                dataset_name,
+                PreprocessingLayer.PARTITIONS,
+                preprocessing_cohort_variant(experiment_name),
+            ),
+            layer_artifact_id(
+                dataset_name,
+                PreprocessingLayer.CAMPAIGN_REGISTRY,
+                preprocessing_cohort_variant(experiment_name),
+            ),
         ),
         dependency_fingerprint=fingerprint,
         runtime_seconds=perf_counter() - cell_started,
@@ -1050,6 +1176,7 @@ def evaluate_emhi_seed_cell_with_retry(
     score_path: Path,
     rank_path: Path,
     fit_path: Path,
+    overwrite_policy: OverwritePolicy,
 ) -> Path:
     return with_technical_retry(
         loaded,
@@ -1063,6 +1190,7 @@ def evaluate_emhi_seed_cell_with_retry(
             score_path,
             rank_path,
             fit_path,
+            overwrite_policy,
         ),
     )
 
@@ -1096,6 +1224,7 @@ def execute_real_emhi_methods(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     experiment_name: ExperimentName,
+    overwrite_policy: OverwritePolicy,
 ) -> tuple[RecordCount, tuple[MethodName, ...]]:
     contract = experiment_contract(loaded.values, experiment_name)
     dataset_name = campaign_dataset(loaded, experiment_name)
@@ -1106,7 +1235,9 @@ def execute_real_emhi_methods(
         method for method in contract.methods if emhi_method_specification(method) is None
     )
     _inventory_path, prepared_path, _split_path, _partitions_path, _campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+        preprocessing_paths(
+            loaded, repository, dataset_name, preprocessing_cohort_variant(experiment_name)
+        )
     )
     prepared = PreparedDatasetRecord.model_validate_json(prepared_path.read_bytes())
     if not prepared.selected_client_ids:
@@ -1120,7 +1251,15 @@ def execute_real_emhi_methods(
     if worker_count == 1:
         for role, seed in tasks:
             completed += _execute_real_emhi_seed(
-                loaded, repository, experiment_name, dataset_name, role, seed, supported, missing
+                loaded,
+                repository,
+                experiment_name,
+                dataset_name,
+                role,
+                seed,
+                supported,
+                missing,
+                overwrite_policy,
             )
         return completed, ()
     fork_context = fork_multiprocessing_context()
@@ -1128,7 +1267,17 @@ def execute_real_emhi_methods(
         for seed_completions in pool.map(
             _execute_real_seed_worker,
             (
-                (loaded, repository, experiment_name, dataset_name, role, seed, supported, missing)
+                (
+                    loaded,
+                    repository,
+                    experiment_name,
+                    dataset_name,
+                    role,
+                    seed,
+                    supported,
+                    missing,
+                    overwrite_policy,
+                )
                 for role, seed in tasks
             ),
         ):
@@ -1146,9 +1295,20 @@ def _execute_real_seed_worker(
         SeedValue,
         tuple[MethodName, ...],
         tuple[MethodName, ...],
+        OverwritePolicy,
     ],
 ) -> RecordCount:
-    loaded, repository, experiment_name, dataset_name, role, seed, supported, missing = task
+    (
+        loaded,
+        repository,
+        experiment_name,
+        dataset_name,
+        role,
+        seed,
+        supported,
+        missing,
+        overwrite_policy,
+    ) = task
     return _execute_real_emhi_seed(
         loaded,
         repository,
@@ -1158,6 +1318,7 @@ def _execute_real_seed_worker(
         seed,
         supported,
         missing,
+        overwrite_policy,
     )
 
 
@@ -1187,6 +1348,7 @@ def _execute_real_emhi_seed(
     seed: SeedValue,
     supported: tuple[MethodName, ...],
     missing: tuple[MethodName, ...],
+    overwrite_policy: OverwritePolicy,
 ) -> RecordCount:
     seed_started = perf_counter()
     campaigns_logger().info(
@@ -1196,14 +1358,24 @@ def _execute_real_emhi_seed(
         dataset_name.value,
         seed,
     )
-    score_path = materialize_detector_scores_with_retry(loaded, repository, dataset_name, seed)
+    cohort_variant = preprocessing_cohort_variant(experiment_name)
+    score_path = materialize_detector_scores_with_retry(
+        loaded, repository, dataset_name, seed, cohort_variant
+    )
     rank_path = materialize_marginal_ranks_with_retry(
-        loaded, repository, dataset_name, seed, score_path
+        loaded, repository, dataset_name, seed, score_path, cohort_variant
     )
     completed: RecordCount = 0
     for method_name in supported:
         fit_path = materialize_emhi_fit_with_retry(
-            loaded, repository, dataset_name, seed, method_name, score_path, rank_path
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            method_name,
+            score_path,
+            rank_path,
+            cohort_variant,
         )
         evaluate_emhi_seed_cell_with_retry(
             loaded,
@@ -1215,6 +1387,7 @@ def _execute_real_emhi_seed(
             score_path,
             rank_path,
             fit_path,
+            overwrite_policy,
         )
         completed += 1
         campaigns_logger().info(
@@ -1594,6 +1767,7 @@ def _context_sensitivity_seed_diagnostics(
             seed=seed,
             state=ExperimentState.COMPLETED,
             material_digest=loaded.material_digest,
+            semantic_dependency_digest=experiment_semantic_digest(experiment_name),
             selected_client_ids=prepared.selected_client_ids,
             upstream_artifact_ids=upstream_ids,
             dependency_fingerprint=record.dependency_fingerprint,

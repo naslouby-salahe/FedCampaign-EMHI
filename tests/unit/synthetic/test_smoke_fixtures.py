@@ -29,7 +29,7 @@ def test_loadings_are_equally_spaced() -> None:
 
 
 def test_campaign_merge_and_duration() -> None:
-    merged = merge_malicious_runs((1, 2, 4, 20), 2)
+    merged = merge_malicious_runs((1, 2, 4, 20), 2, (3,))
     assert merged == ((1, 4), (20, 20))
     assert campaign_duration_epochs(1, 4) == 4
 

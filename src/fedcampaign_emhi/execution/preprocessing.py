@@ -7,7 +7,10 @@ from typing import cast
 
 import duckdb
 
-from fedcampaign_emhi.artifacts.provenance import descendant_ids, material_fingerprint
+from fedcampaign_emhi.artifacts.provenance import (
+    descendant_ids,
+    material_fingerprint,
+)
 from fedcampaign_emhi.artifacts.records import (
     ArtifactManifest,
     BenignHorizonRecord,
@@ -15,6 +18,7 @@ from fedcampaign_emhi.artifacts.records import (
     CampaignRecord,
     CampaignRegistryRecord,
     ClientFeatureScalerRecord,
+    CohortSupportRecord,
     DatasetInventoryFileRecord,
     DatasetInventoryRecord,
     DatasetSplitRecord,
@@ -77,18 +81,24 @@ from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
     ArtifactPathSegment,
+    CampaignConstructionSemantics,
+    CohortSelectionRule,
+    CohortSelectionWindow,
     DatasetName,
     DownstreamArtifactKind,
     ExperimentState,
     GroundTruthClass,
     OverwritePolicy,
+    PreprocessingCohortVariant,
     PreprocessingLayer,
     RecordExclusionReason,
     ReuseDecision,
+    ScientificSemanticDependency,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactDependencyNode,
     ArtifactIdentity,
+    AttackTypeName,
     Boolean,
     ClientBenignTally,
     ClientId,
@@ -155,8 +165,14 @@ def downstream_artifact_id(
     return f"downstream.{dataset_directory_stem(dataset_name)}.{kind.name.lower()}"
 
 
-def preprocessing_dependency_graph(dataset_name: DatasetName) -> tuple[ArtifactDependencyNode, ...]:
-    layer_ids = tuple(layer_artifact_id(dataset_name, layer) for layer in PREPROCESSING_LAYER_ORDER)
+def preprocessing_dependency_graph(
+    dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None = None,
+) -> tuple[ArtifactDependencyNode, ...]:
+    layer_ids = tuple(
+        layer_artifact_id(dataset_name, layer, cohort_variant)
+        for layer in PREPROCESSING_LAYER_ORDER
+    )
     nodes: list[ArtifactDependencyNode] = []
     for index, artifact_id in enumerate(layer_ids):
         upstream_ids = () if index == 0 else (layer_ids[index - 1],)
@@ -168,7 +184,8 @@ def preprocessing_dependency_graph(dataset_name: DatasetName) -> tuple[ArtifactD
             )
         )
     for kind in preprocess_must_not_regenerate():
-        downstream_id = downstream_artifact_id(dataset_name, kind)
+        suffix = "" if cohort_variant is None else f".{cohort_variant.value}"
+        downstream_id = f"{downstream_artifact_id(dataset_name, kind)}{suffix}"
         nodes.append(
             ArtifactDependencyNode(
                 artifact_id=downstream_id,
@@ -213,40 +230,83 @@ def execute_preprocess(
     )
 
 
+def missing_preprocessing_layers(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    dataset_name: DatasetName | None = None,
+) -> tuple[tuple[DatasetName, PreprocessingLayer], ...]:
+    layout = build_artifact_layout(loaded, repository)
+    missing: list[tuple[DatasetName, PreprocessingLayer]] = []
+    for current_dataset in requested_datasets(dataset_name):
+        raw_directory = configured_raw_directory(loaded, current_dataset, repository)
+        raw_inventory = inventory_raw_directory(raw_directory, repository)
+        expected_fingerprints = _expected_fingerprints(
+            loaded,
+            current_dataset,
+            _inventory_payload_digest(raw_inventory),
+        )
+        for index, layer in enumerate(PREPROCESSING_LAYER_ORDER):
+            if not raw_inventory or not _layer_is_reusable(
+                layout, current_dataset, layer, expected_fingerprints[index], None
+            ):
+                missing.append((current_dataset, layer))
+    return tuple(missing)
+
+
+@log_stage("execution.preprocessing")
+def execute_pre_evaluation_cohort_preprocess(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    overwrite_policy: OverwritePolicy,
+) -> PreprocessExecutionRecord:
+    dataset_name = loaded.values.datasets.primary.name
+    start_layer, decisions = _execute_dataset(
+        loaded,
+        repository,
+        dataset_name,
+        overwrite_policy,
+        PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY,
+    )
+    return PreprocessExecutionRecord(
+        decisions=decisions,
+        requested_datasets=(dataset_name,),
+        reconstruct_from=((dataset_name, start_layer),),
+    )
+
+
 @log_stage("execution.preprocessing")
 def _execute_dataset(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     dataset_name: DatasetName,
     overwrite_policy: OverwritePolicy,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> tuple[PreprocessingLayer | None, tuple[PreprocessingLayerDecision, ...]]:
+    if (
+        cohort_variant is PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY
+        and dataset_name is not DatasetName.TON_IOT_NETWORK
+    ):
+        raise ValueError("pre-evaluation cohort sensitivity is defined only for TON-IoT Network")
     layout = build_artifact_layout(loaded, repository)
     raw_directory = configured_raw_directory(loaded, dataset_name, repository)
     raw_inventory = inventory_raw_directory(raw_directory, repository)
-    inventory_digest = payload_digest(
-        cast(
-            YamlNode,
-            [
-                {
-                    "relative_path": entry.relative_path,
-                    "sha256": entry.sha256,
-                    "byte_count": entry.byte_count,
-                }
-                for entry in raw_inventory
-            ],
-        )
+    inventory_digest = _inventory_payload_digest(raw_inventory)
+    expected_fingerprints = _expected_fingerprints(
+        loaded, dataset_name, inventory_digest, cohort_variant
     )
-    expected_fingerprints = _expected_fingerprints(loaded, dataset_name, inventory_digest)
     reusable = (
         tuple(
-            _layer_is_reusable(layout, dataset_name, layer, expected_fingerprints[index])
+            _layer_is_reusable(
+                layout, dataset_name, layer, expected_fingerprints[index], cohort_variant
+            )
             for index, layer in enumerate(PREPROCESSING_LAYER_ORDER)
         )
         if raw_inventory
         else (False,) * len(PREPROCESSING_LAYER_ORDER)
     )
     previous_fingerprints = tuple(
-        _stored_fingerprint(layout, dataset_name, layer) for layer in PREPROCESSING_LAYER_ORDER
+        _stored_fingerprint(layout, dataset_name, layer, cohort_variant)
+        for layer in PREPROCESSING_LAYER_ORDER
     )
     start_layer = nearest_reconstruction_layer(reusable, overwrite_policy)
     if start_layer is None:
@@ -262,6 +322,7 @@ def _execute_dataset(
         raw_inventory,
         inventory_digest,
         start_layer,
+        cohort_variant,
     )
     decisions: list[PreprocessingLayerDecision] = []
     ancestor_changed = False
@@ -280,6 +341,7 @@ def _execute_dataset(
             ancestor_changed,
             materialization,
             expected_fingerprints,
+            cohort_variant,
         )
         decisions.append(decision)
     for decision in decisions:
@@ -320,10 +382,17 @@ def _build_layer_decision(
     ancestor_changed: Boolean,
     materialization: DatasetMaterialization,
     expected_fingerprints: tuple[MaterialDependencyFingerprint, ...],
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> tuple[PreprocessingLayerDecision, Boolean]:
     if reconstructed:
         _materialize_layer(
-            layout, dataset_name, layer, current, materialization, expected_fingerprints
+            layout,
+            dataset_name,
+            layer,
+            current,
+            materialization,
+            expected_fingerprints,
+            cohort_variant,
         )
     changed = reconstructed and previous is not None and previous != current
     updated_ancestor_changed = ancestor_changed or changed
@@ -334,7 +403,12 @@ def _build_layer_decision(
         previous_fingerprint=previous,
         current_fingerprint=current,
         invalidated_descendant_ids=_downstream_invalidation(
-            dataset_name, layer, previous, current, reconstructed and (changed or ancestor_changed)
+            dataset_name,
+            layer,
+            previous,
+            current,
+            reconstructed and (changed or ancestor_changed),
+            cohort_variant,
         ),
     )
     return decision, updated_ancestor_changed
@@ -344,9 +418,18 @@ def _expected_fingerprints(
     loaded: LoadedScientificConfiguration,
     dataset_name: DatasetName,
     inventory_digest: ConfigurationDigest,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> tuple[MaterialDependencyFingerprint, ...]:
     inventory_identity = payload_digest(cast(YamlNode, {"dataset": dataset_name.value}))
     inventory_fingerprint = material_fingerprint(inventory_identity, (inventory_digest,))
+    cohort_selection_configuration: YamlNode = {}
+    if cohort_variant is PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY:
+        sensitivity = loaded.values.experiments.pre_evaluation_cohort_selection_sensitivity
+        cohort_selection_configuration = {
+            "variant": cohort_variant.value,
+            "selection_window_start_epoch": sensitivity.support_window_start_epoch,
+            "selection_window_end_epoch_exclusive": sensitivity.support_window_end_epoch_exclusive,
+        }
     prepared_configuration = payload_digest(
         cast(
             YamlNode,
@@ -355,16 +438,37 @@ def _expected_fingerprints(
                 "eligibility": loaded.values.datasets.eligibility.model_dump(mode="json"),
                 "preprocessing": loaded.values.datasets.preprocessing.model_dump(mode="json"),
                 "dataset": _dataset_configuration_payload(loaded, dataset_name),
+                "cohort_selection": cohort_selection_configuration,
             },
         )
+    )
+    dataset_identity_dependencies = (
+        (ScientificSemanticDependency.TON_COMPLETE_RAW_ROW_IDENTITY,)
+        if dataset_name is DatasetName.TON_IOT_NETWORK
+        else (
+            ScientificSemanticDependency.EDGE_COMPLETE_RAW_ROW_IDENTITY,
+            ScientificSemanticDependency.EDGE_TIMESTAMP_INTERPRETATION,
+        )
+    )
+    cohort_semantic_dependency = (
+        ScientificSemanticDependency.PRE_EVALUATION_SOURCE_IP_COHORT_SELECTION
+        if cohort_variant is PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY
+        else ScientificSemanticDependency.FULL_RELEASE_SOURCE_IP_COHORT_SELECTION
     )
     prepared_fingerprint = material_fingerprint(
         prepared_configuration,
         (inventory_fingerprint,),
+        (
+            *dataset_identity_dependencies,
+            cohort_semantic_dependency,
+            ScientificSemanticDependency.REAL_EPOCH_ASSIGNMENT,
+            ScientificSemanticDependency.REAL_EVENT_FEATURE_AGGREGATION,
+        ),
     )
     split_fingerprint = material_fingerprint(
         prepared_configuration,
         (prepared_fingerprint,),
+        (ScientificSemanticDependency.CHRONOLOGICAL_BENIGN_SPLIT,),
     )
     partition_configuration = payload_digest(
         cast(
@@ -375,6 +479,7 @@ def _expected_fingerprints(
     partition_fingerprint = material_fingerprint(
         partition_configuration,
         (split_fingerprint,),
+        (ScientificSemanticDependency.NONOVERLAPPING_BENIGN_HORIZONS,),
     )
     campaign_configuration = payload_digest(
         cast(
@@ -388,6 +493,7 @@ def _expected_fingerprints(
     campaign_fingerprint = material_fingerprint(
         campaign_configuration,
         (prepared_fingerprint, split_fingerprint, partition_fingerprint),
+        (ScientificSemanticDependency.CO_TEMPORAL_MIXED_CATEGORY_EPISODES,),
     )
     return (
         inventory_fingerprint,
@@ -395,6 +501,24 @@ def _expected_fingerprints(
         split_fingerprint,
         partition_fingerprint,
         campaign_fingerprint,
+    )
+
+
+def _inventory_payload_digest(
+    raw_inventory: tuple[FileInventoryEntry, ...],
+) -> ConfigurationDigest:
+    return payload_digest(
+        cast(
+            YamlNode,
+            [
+                {
+                    "relative_path": entry.relative_path,
+                    "sha256": entry.sha256,
+                    "byte_count": entry.byte_count,
+                }
+                for entry in raw_inventory
+            ],
+        )
     )
 
 
@@ -411,8 +535,9 @@ def _layer_is_reusable(
     dataset_name: DatasetName,
     layer: PreprocessingLayer,
     expected_fingerprint: MaterialDependencyFingerprint,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Boolean:
-    manifest = _read_manifest(layout, dataset_name, layer)
+    manifest = _read_manifest(layout, dataset_name, layer, cohort_variant)
     if manifest is None or manifest.lifecycle_state is not ArtifactLifecycleState.VALID:
         return False
     if manifest.material_fingerprint != expected_fingerprint:
@@ -425,8 +550,9 @@ def _stored_fingerprint(
     layout: ArtifactLayout,
     dataset_name: DatasetName,
     layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> MaterialDependencyFingerprint | None:
-    manifest = _read_manifest(layout, dataset_name, layer)
+    manifest = _read_manifest(layout, dataset_name, layer, cohort_variant)
     return None if manifest is None else manifest.material_fingerprint
 
 
@@ -439,22 +565,25 @@ def _resolve_materialization(
     raw_inventory: tuple[FileInventoryEntry, ...],
     inventory_digest: ConfigurationDigest,
     start_layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> DatasetMaterialization:
     inventory = _inventory_record(dataset_name, raw_directory, raw_inventory, inventory_digest)
     start_index = PREPROCESSING_LAYER_ORDER.index(start_layer)
     if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PREPARED):
-        prepared, split = _build_prepared_and_split(loaded, raw_directory, dataset_name)
+        prepared, split = _build_prepared_and_split(
+            loaded, raw_directory, dataset_name, cohort_variant
+        )
     else:
-        prepared = _read_prepared(layout, dataset_name)
+        prepared = _read_prepared(layout, dataset_name, cohort_variant)
         split = (
             _split_from_prepared(loaded, prepared)
             if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.SPLITS)
-            else _read_split(layout, dataset_name)
+            else _read_split(layout, dataset_name, cohort_variant)
         )
     partitions = (
         _partitions_from_split(loaded, split)
         if start_index <= PREPROCESSING_LAYER_ORDER.index(PreprocessingLayer.PARTITIONS)
-        else _read_partitions(layout, dataset_name)
+        else _read_partitions(layout, dataset_name, cohort_variant)
     )
     campaigns = _campaigns_from_prepared(loaded, prepared, split)
     del repository
@@ -499,18 +628,30 @@ def _inventory_record(
     )
 
 
-def _read_prepared(layout: ArtifactLayout, dataset_name: DatasetName) -> PreparedDatasetRecord:
-    path = _product_path(layout, dataset_name, PreprocessingLayer.PREPARED)
+def _read_prepared(
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None,
+) -> PreparedDatasetRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.PREPARED, cohort_variant)
     return PreparedDatasetRecord.model_validate_json(path.read_bytes())
 
 
-def _read_split(layout: ArtifactLayout, dataset_name: DatasetName) -> DatasetSplitRecord:
-    path = _product_path(layout, dataset_name, PreprocessingLayer.SPLITS)
+def _read_split(
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None,
+) -> DatasetSplitRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.SPLITS, cohort_variant)
     return DatasetSplitRecord.model_validate_json(path.read_bytes())
 
 
-def _read_partitions(layout: ArtifactLayout, dataset_name: DatasetName) -> BenignPartitionRecord:
-    path = _product_path(layout, dataset_name, PreprocessingLayer.PARTITIONS)
+def _read_partitions(
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None,
+) -> BenignPartitionRecord:
+    path = _product_path(layout, dataset_name, PreprocessingLayer.PARTITIONS, cohort_variant)
     return BenignPartitionRecord.model_validate_json(path.read_bytes())
 
 
@@ -541,12 +682,13 @@ def _build_prepared_and_split(
     loaded: LoadedScientificConfiguration,
     raw_directory: Path,
     dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> tuple[PreparedDatasetRecord, DatasetSplitRecord]:
     if dataset_name is DatasetName.TON_IOT_NETWORK:
-        prepared = _prepare_ton_epochs_from_csv(loaded, raw_directory)
+        prepared = _prepare_ton_epochs_from_csv(loaded, raw_directory, cohort_variant)
     else:
         records, exclusions = _load_edge_records(loaded, raw_directory)
-        records, duplicate_count = _deduplicate_edge_records(records)
+        records, duplicate_count = deduplicate_edge_records(records)
         selection = select_secondary_clients(
             records,
             loaded.values.time.real_data_epoch_seconds,
@@ -566,6 +708,9 @@ def _build_prepared_and_split(
             ).classification
             is GroundTruthClass.AMBIGUOUS
         )
+        cohort_support = _edge_cohort_support_records(
+            records, selection.eligible_client_ids, loaded
+        )
         prepared = _prepare_edge_epochs(
             loaded,
             records,
@@ -576,6 +721,7 @@ def _build_prepared_and_split(
             _exclusion_reason_counts(exclusions),
             duplicate_count,
             discrepancy_count,
+            cohort_support,
         )
     split = _split_from_prepared(loaded, prepared)
     return _scale_prepared(loaded, prepared, split), split
@@ -583,18 +729,36 @@ def _build_prepared_and_split(
 
 @log_stage("execution.preprocessing")
 def _prepare_ton_epochs_from_csv(
-    loaded: LoadedScientificConfiguration, raw_directory: Path
+    loaded: LoadedScientificConfiguration,
+    raw_directory: Path,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> PreparedDatasetRecord:
     csv_paths = _csv_paths(raw_directory)
     for path in csv_paths:
         validate_ton_iot_network_csv_schema(path, loaded.values.datasets.primary)
     paths = tuple(str(path) for path in csv_paths)
     if not paths:
+        sensitivity = (
+            loaded.values.experiments.pre_evaluation_cohort_selection_sensitivity
+            if cohort_variant is PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY
+            else None
+        )
         return PreparedDatasetRecord(
             dataset_name=DatasetName.TON_IOT_NETWORK,
             selected_client_ids=(),
             eligible_client_ids=(),
             has_sufficient_clients=False,
+            cohort_selection_window=(
+                CohortSelectionWindow.PRE_EVALUATION_BENIGN_SUPPORT
+                if sensitivity is not None
+                else CohortSelectionWindow.FULL_RELEASE_BENIGN_SUPPORT
+            ),
+            cohort_selection_window_start_epoch=(
+                None if sensitivity is None else sensitivity.support_window_start_epoch
+            ),
+            cohort_selection_window_end_epoch_exclusive=(
+                None if sensitivity is None else sensitivity.support_window_end_epoch_exclusive
+            ),
             epochs=(),
             excluded_record_count=0,
             duplicate_record_count=0,
@@ -613,8 +777,9 @@ def _prepare_ton_epochs_from_csv(
     valid = """
         SELECT DISTINCT try_cast(ts AS DOUBLE) AS timestamp_seconds, trim(src_ip) AS client_id,
             trim(coalesce(proto, '')) AS protocol_token, trim(coalesce(service, '')) AS service_token,
-            try_cast(label AS BIGINT) AS binary_label, trim(type) AS attack_type
-        FROM raw
+            try_cast(label AS BIGINT) AS binary_label, trim(type) AS attack_type,
+            sha256(to_json(raw_row)) AS raw_payload_digest
+        FROM raw AS raw_row
         WHERE try_cast(ts AS DOUBLE) IS NOT NULL AND trim(coalesce(src_ip, '')) NOT IN ('', '-')
             AND try_cast(label AS BIGINT) IS NOT NULL AND trim(coalesce(type, '')) <> ''
     """
@@ -628,10 +793,31 @@ def _prepare_ton_epochs_from_csv(
         connection,
         f"SELECT count(*) FROM ({valid}) WHERE (binary_label=0 AND lower(attack_type)<>'{benign_attack_type}') OR (binary_label=1 AND lower(attack_type)='{benign_attack_type}')",
     )
-    eligibility_rows = connection.execute(
-        f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='{benign_attack_type}' GROUP BY client_id",
-        [epoch_seconds],
-    ).fetchall()
+    if cohort_variant is PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY:
+        sensitivity = loaded.values.experiments.pre_evaluation_cohort_selection_sensitivity
+        eligibility_rows = connection.execute(
+            f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)), min(CAST(floor(timestamp_seconds / ?) AS BIGINT)), max(CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='{benign_attack_type}' AND CAST(floor(timestamp_seconds / ?) AS BIGINT)>=? AND CAST(floor(timestamp_seconds / ?) AS BIGINT)<? GROUP BY client_id",
+            [
+                epoch_seconds,
+                epoch_seconds,
+                epoch_seconds,
+                epoch_seconds,
+                sensitivity.support_window_start_epoch,
+                epoch_seconds,
+                sensitivity.support_window_end_epoch_exclusive,
+            ],
+        ).fetchall()
+        cohort_window = CohortSelectionWindow.PRE_EVALUATION_BENIGN_SUPPORT
+        support_start = sensitivity.support_window_start_epoch
+        support_end = sensitivity.support_window_end_epoch_exclusive
+    else:
+        eligibility_rows = connection.execute(
+            f"SELECT client_id, count(*), count(DISTINCT CAST(floor(timestamp_seconds / ?) AS BIGINT)), min(CAST(floor(timestamp_seconds / ?) AS BIGINT)), max(CAST(floor(timestamp_seconds / ?) AS BIGINT)) FROM ({valid}) WHERE binary_label=0 AND lower(attack_type)='{benign_attack_type}' GROUP BY client_id",
+            [epoch_seconds, epoch_seconds, epoch_seconds],
+        ).fetchall()
+        cohort_window = CohortSelectionWindow.FULL_RELEASE_BENIGN_SUPPORT
+        support_start = None
+        support_end = None
     tallies = tuple(
         ClientBenignTally(row[0], row[1], tuple(range(row[2]))) for row in eligibility_rows
     )
@@ -645,6 +831,9 @@ def _prepare_ton_epochs_from_csv(
     counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious_types: MutableMapping[
+        tuple[ClientId, EpochIndexValue], tuple[AttackTypeName, ...]
+    ] = {}
     if selection.selected_client_ids:
         placeholders = ",".join("?" for _ in selection.selected_client_ids)
         grouped_rows = connection.execute(
@@ -668,6 +857,9 @@ def _prepare_ton_epochs_from_csv(
                 ambiguous[key] = ambiguous.get(key, 0) + count
             elif ground_truth is GroundTruthClass.MALICIOUS:
                 malicious[key] = malicious.get(key, 0) + count
+                malicious_types[key] = tuple(
+                    sorted({*malicious_types.get(key, ()), cast(AttackTypeName, row[5])})
+                )
     epochs = _dense_prepared_epochs(
         DatasetName.TON_IOT_NETWORK,
         selection.selected_client_ids,
@@ -675,12 +867,32 @@ def _prepare_ton_epochs_from_csv(
         counts,
         ambiguous,
         malicious,
+        malicious_types,
     )
     return PreparedDatasetRecord(
         dataset_name=DatasetName.TON_IOT_NETWORK,
         selected_client_ids=selection.selected_client_ids,
         eligible_client_ids=selection.eligible_client_ids,
         has_sufficient_clients=selection.has_sufficient_clients,
+        cohort_selection_window=cohort_window,
+        cohort_selection_rule=CohortSelectionRule.BENIGN_RECORDS_DESCENDING_THEN_SOURCE_IP_ASCENDING,
+        cohort_support=tuple(
+            CohortSupportRecord(
+                client_id=row[0],
+                benign_event_count=row[1],
+                benign_nonempty_epoch_count=row[2],
+                eligibility_rank=(selection.eligible_client_ids.index(row[0]) + 1)
+                if row[0] in selection.eligible_client_ids
+                else None,
+                support_start_epoch=row[3],
+                support_end_epoch=row[4],
+            )
+            for row in sorted(eligibility_rows, key=lambda item: item[0])
+        ),
+        cohort_support_start_epoch=min((row[3] for row in eligibility_rows), default=None),
+        cohort_support_end_epoch=max((row[4] for row in eligibility_rows), default=None),
+        cohort_selection_window_start_epoch=support_start,
+        cohort_selection_window_end_epoch_exclusive=support_end,
         epochs=epochs,
         excluded_record_count=raw_count - valid_count,
         excluded_record_reason_counts=excluded_reason_counts,
@@ -732,7 +944,7 @@ def _ton_iot_exclusion_reason_counts(
 
 
 @log_stage("execution.preprocessing")
-def _deduplicate_edge_records(
+def deduplicate_edge_records(
     records: tuple[EdgeIiotsetFlowRecord, ...],
 ) -> tuple[tuple[EdgeIiotsetFlowRecord, ...], RecordCount]:
     events = tuple(
@@ -741,7 +953,7 @@ def _deduplicate_edge_records(
             client_id=record.source_host.strip(),
             timestamp_seconds=record.timestamp_seconds,
             event_type=edge_normalize_event_type(record.protocol_group),
-            payload=_payload_identity((str(record.binary_label), record.attack_type)),
+            payload=record.raw_payload_digest,
             unique_identifier=None,
             original_order=index,
         )
@@ -752,10 +964,6 @@ def _deduplicate_edge_records(
         raise ValueError("conflicting Edge-IIoTset duplicate identifiers are invalid")
     retained_indexes = tuple(event.original_order for event in outcome.retained_events)
     return tuple(records[index] for index in retained_indexes), outcome.duplicate_count
-
-
-def _payload_identity(parts: tuple[NormalizedEventToken, ...]) -> NormalizedEventToken:
-    return payload_digest(cast(YamlNode, list(parts)))
 
 
 def _exclusion_reason_counts(
@@ -788,12 +996,16 @@ def _prepare_edge_epochs(
     excluded_reason_counts: tuple[ExcludedRecordReasonCount, ...],
     duplicate_count: RecordCount,
     discrepancy_count: RecordCount,
+    cohort_support: tuple[CohortSupportRecord, ...],
 ) -> PreparedDatasetRecord:
     bucket_count = loaded.values.datasets.preprocessing.event_type_hash_bucket_count
     selected = set(selected_client_ids)
     counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]] = {}
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount] = {}
+    malicious_types: MutableMapping[
+        tuple[ClientId, EpochIndexValue], tuple[AttackTypeName, ...]
+    ] = {}
     for record in records:
         client_id = record.source_host.strip()
         if client_id not in selected:
@@ -818,6 +1030,9 @@ def _prepare_edge_epochs(
             ambiguous[key] = ambiguous.get(key, 0) + 1
         elif ground_truth.classification is GroundTruthClass.MALICIOUS:
             malicious[key] = malicious.get(key, 0) + 1
+            malicious_types[key] = tuple(
+                sorted({*malicious_types.get(key, ()), record.attack_type})
+            )
     epochs = _dense_prepared_epochs(
         DatasetName.EDGE_IIOTSET,
         selected_client_ids,
@@ -825,17 +1040,69 @@ def _prepare_edge_epochs(
         counts,
         ambiguous,
         malicious,
+        malicious_types,
     )
     return PreparedDatasetRecord(
         dataset_name=DatasetName.EDGE_IIOTSET,
         selected_client_ids=selected_client_ids,
         eligible_client_ids=eligible_client_ids,
         has_sufficient_clients=has_sufficient_clients,
+        cohort_selection_window=CohortSelectionWindow.FULL_RELEASE_BENIGN_SUPPORT,
+        cohort_selection_rule=CohortSelectionRule.BENIGN_RECORDS_DESCENDING_THEN_SOURCE_IP_ASCENDING,
+        cohort_support=cohort_support,
+        cohort_support_start_epoch=min(
+            (
+                row.support_start_epoch
+                for row in cohort_support
+                if row.support_start_epoch is not None
+            ),
+            default=None,
+        ),
+        cohort_support_end_epoch=max(
+            (row.support_end_epoch for row in cohort_support if row.support_end_epoch is not None),
+            default=None,
+        ),
         epochs=epochs,
         excluded_record_count=excluded_count,
         excluded_record_reason_counts=excluded_reason_counts,
         duplicate_record_count=duplicate_count,
         ground_truth_discrepancy_count=discrepancy_count,
+    )
+
+
+def _edge_cohort_support_records(
+    records: tuple[EdgeIiotsetFlowRecord, ...],
+    eligible_client_ids: tuple[ClientId, ...],
+    loaded: LoadedScientificConfiguration,
+) -> tuple[CohortSupportRecord, ...]:
+    counts: MutableMapping[ClientId, RecordCount] = {}
+    epochs: MutableMapping[ClientId, set[EpochIndexValue]] = {}
+    for record in records:
+        ground_truth = edge_iiotset_ground_truth(
+            record.binary_label,
+            record.attack_type,
+            loaded.values.datasets.secondary.benign_attack_type,
+        )
+        if ground_truth.classification is not GroundTruthClass.BENIGN:
+            continue
+        client_id = record.source_host.strip()
+        epoch = epoch_index(
+            record.timestamp_seconds, loaded.values.time.real_data_epoch_seconds
+        ).index
+        counts[client_id] = counts.get(client_id, 0) + 1
+        epochs.setdefault(client_id, set()).add(epoch)
+    return tuple(
+        CohortSupportRecord(
+            client_id=client_id,
+            benign_event_count=counts[client_id],
+            benign_nonempty_epoch_count=len(support_epochs),
+            eligibility_rank=(eligible_client_ids.index(client_id) + 1)
+            if client_id in eligible_client_ids
+            else None,
+            support_start_epoch=min(support_epochs),
+            support_end_epoch=max(support_epochs),
+        )
+        for client_id, support_epochs in sorted(epochs.items())
     )
 
 
@@ -846,6 +1113,8 @@ def _dense_prepared_epochs(
     counts: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[RecordCount, ...]],
     ambiguous: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
     malicious: MutableMapping[tuple[ClientId, EpochIndexValue], RecordCount],
+    malicious_types: MutableMapping[tuple[ClientId, EpochIndexValue], tuple[AttackTypeName, ...]]
+    | None = None,
 ) -> tuple[PreparedEpochRecord, ...]:
     rows: list[PreparedEpochRecord] = []
     zero_counts = tuple(0 for _index in range(bucket_count))
@@ -865,6 +1134,7 @@ def _dense_prepared_epochs(
                     bucket_counts,
                     ambiguous.get((client_id, epoch), 0),
                     malicious.get((client_id, epoch), 0),
+                    (malicious_types or {}).get((client_id, epoch), ()),
                 )
             )
     return tuple(rows)
@@ -877,6 +1147,7 @@ def _prepared_epoch(
     bucket_counts: tuple[RecordCount, ...],
     ambiguous_count: RecordCount,
     malicious_count: RecordCount,
+    malicious_attack_types: tuple[AttackTypeName, ...] = (),
 ) -> PreparedEpochRecord:
     vector = epoch_feature_vector(bucket_counts)
     unscaled = (
@@ -898,6 +1169,7 @@ def _prepared_epoch(
         ground_truth=ground_truth,
         raw_event_count=vector.total_raw_event_count,
         ambiguous_event_count=ambiguous_count,
+        malicious_attack_types=malicious_attack_types,
     )
 
 
@@ -1008,6 +1280,7 @@ def _scale_prepared(
                     ground_truth=row.ground_truth,
                     raw_event_count=row.raw_event_count,
                     ambiguous_event_count=row.ambiguous_event_count,
+                    malicious_attack_types=row.malicious_attack_types,
                 )
             )
     return PreparedDatasetRecord(
@@ -1015,6 +1288,15 @@ def _scale_prepared(
         selected_client_ids=prepared.selected_client_ids,
         eligible_client_ids=prepared.eligible_client_ids,
         has_sufficient_clients=prepared.has_sufficient_clients,
+        cohort_selection_window=prepared.cohort_selection_window,
+        cohort_selection_rule=prepared.cohort_selection_rule,
+        cohort_support=prepared.cohort_support,
+        cohort_support_start_epoch=prepared.cohort_support_start_epoch,
+        cohort_support_end_epoch=prepared.cohort_support_end_epoch,
+        cohort_selection_window_start_epoch=prepared.cohort_selection_window_start_epoch,
+        cohort_selection_window_end_epoch_exclusive=(
+            prepared.cohort_selection_window_end_epoch_exclusive
+        ),
         epochs=tuple(sorted(scaled_rows, key=lambda row: (row.client_id, row.epoch_index))),
         client_scalers=tuple(scaler_records),
         excluded_record_count=prepared.excluded_record_count,
@@ -1066,9 +1348,33 @@ def _campaigns_from_prepared(
             earliest_observed_epoch=min(
                 row.epoch_index for row in prepared.epochs if row.client_id == client_id
             ),
+            fully_benign_epochs=tuple(
+                row.epoch_index
+                for row in prepared.epochs
+                if row.client_id == client_id and row.ground_truth is GroundTruthClass.BENIGN
+            ),
+            attack_types_by_epoch=tuple(
+                (row.epoch_index, row.malicious_attack_types)
+                for row in prepared.epochs
+                if row.client_id == client_id and row.malicious_attack_types
+            ),
         )
         for client_id in split.selected_client_ids
     )
+    benign_epochs_by_client: tuple[frozenset[EpochIndexValue], ...] = tuple(
+        frozenset(
+            row.epoch_index
+            for row in prepared.epochs
+            if row.client_id == client_id and row.ground_truth is GroundTruthClass.BENIGN
+        )
+        for client_id in split.selected_client_ids
+    )
+    common_benign_epochs: set[EpochIndexValue] = (
+        set(benign_epochs_by_client[0]) if benign_epochs_by_client else set()
+    )
+    for benign_epochs in benign_epochs_by_client[1:]:
+        common_benign_epochs.intersection_update(benign_epochs)
+    fully_benign_epochs: tuple[EpochIndexValue, ...] = tuple(sorted(common_benign_epochs))
     registry = build_campaign_registry(
         prepared.dataset_name,
         split.selected_client_ids,
@@ -1078,15 +1384,24 @@ def _campaigns_from_prepared(
         loaded.values.campaign.distributed_first_activity_window_epochs,
         loaded.values.campaign.minimum_duration_epochs,
         loaded.values.campaign.prestart_warmup_epochs,
+        fully_benign_epochs,
+        evaluation_horizon_epochs=loaded.values.campaign.evaluation_horizon_epochs,
     )
     return CampaignRegistryRecord(
         dataset_name=prepared.dataset_name,
+        construction_semantics=CampaignConstructionSemantics.CROSS_CLIENT_ANY_CATEGORY_MERGE_WITHIN_BENIGN_GAP,
+        merge_max_intervening_benign_epochs=loaded.values.campaign.merge_max_intervening_benign_epochs,
         campaigns=tuple(
             CampaignRecord(
                 start_epoch=entry.start_epoch,
                 end_epoch=entry.end_epoch,
                 participating_client_ids=entry.sorted_participating_client_ids,
                 integrity_checksum=entry.integrity_checksum,
+                warmup_epochs=entry.warmup_epochs,
+                evaluation_horizon_epochs=entry.evaluation_horizon_epochs,
+                eligibility_status=entry.eligibility_status,
+                ineligibility_reason=entry.ineligibility_reason,
+                attack_types=entry.attack_types,
             )
             for entry in registry
         ),
@@ -1121,21 +1436,24 @@ def _materialize_layer(
     fingerprint: MaterialDependencyFingerprint,
     materialization: DatasetMaterialization,
     expected_fingerprints: tuple[MaterialDependencyFingerprint, ...],
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> None:
     record = _record_for_layer(materialization, layer)
     payload = cast(YamlNode, record.model_dump(mode="json"))
     content_digest = payload_digest(payload)
-    product_path = _product_path(layout, dataset_name, layer)
+    product_path = _product_path(layout, dataset_name, layer, cohort_variant)
     staging = layout.roots.outputs_root / ArtifactPathSegment.CACHE / ArtifactPathSegment.STAGING
     write_atomic_json(product_path, payload, staging)
     index = PREPROCESSING_LAYER_ORDER.index(layer)
     upstream_ids = ()
     if index > 0:
-        upstream_ids = (layer_artifact_id(dataset_name, PREPROCESSING_LAYER_ORDER[index - 1]),)
+        upstream_ids = (
+            layer_artifact_id(dataset_name, PREPROCESSING_LAYER_ORDER[index - 1], cohort_variant),
+        )
         if expected_fingerprints[index - 1] == fingerprint:
             raise ValueError("preprocessing dependency fingerprint cannot equal its parent")
     manifest = ArtifactManifest(
-        artifact_id=layer_artifact_id(dataset_name, layer),
+        artifact_id=layer_artifact_id(dataset_name, layer, cohort_variant),
         namespace=ArtifactNamespace.OUTPUTS,
         experiment_name=None,
         relative_path=product_path.relative_to(layout.roots.outputs_root).as_posix(),
@@ -1145,17 +1463,22 @@ def _materialize_layer(
         lifecycle_state=ArtifactLifecycleState.VALID,
     )
     write_atomic_json(
-        _manifest_path(layout, dataset_name, layer),
+        _manifest_path(layout, dataset_name, layer, cohort_variant),
         cast(YamlNode, manifest.model_dump(mode="json")),
         staging,
     )
 
 
 def _product_path(
-    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Path:
     stem = dataset_directory_stem(dataset_name)
     root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
+    if cohort_variant is not None:
+        root = root / ArtifactPathSegment.VARIANTS / cohort_variant.value
     if layer is PreprocessingLayer.INVENTORY:
         return root / ArtifactPathSegment.INVENTORIES / f"{stem}.json"
     if layer is PreprocessingLayer.PREPARED:
@@ -1168,21 +1491,29 @@ def _product_path(
 
 
 def _manifest_path(
-    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Path:
     stem = dataset_directory_stem(dataset_name)
+    root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
+    if cohort_variant is not None:
+        root = root / ArtifactPathSegment.VARIANTS / cohort_variant.value
     return (
-        layout.roots.outputs_root
-        / ArtifactPathSegment.PREPROCESSING
+        root
         / ArtifactPathSegment.METADATA
         / ArtifactFilenamePattern.PREPROCESS_LAYER_MANIFEST.format(dataset=stem, layer=layer)
     )
 
 
 def _read_manifest(
-    layout: ArtifactLayout, dataset_name: DatasetName, layer: PreprocessingLayer
+    layout: ArtifactLayout,
+    dataset_name: DatasetName,
+    layer: PreprocessingLayer,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> ArtifactManifest | None:
-    path = _manifest_path(layout, dataset_name, layer)
+    path = _manifest_path(layout, dataset_name, layer, cohort_variant)
     if not path.is_file():
         return None
     try:
@@ -1197,16 +1528,17 @@ def _downstream_invalidation(
     previous: MaterialDependencyFingerprint | None,
     current: MaterialDependencyFingerprint,
     reconstructed_and_changed: Boolean,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> tuple[ArtifactIdentity, ...]:
     if not reconstructed_and_changed or previous is None or previous == current:
         return ()
     return tuple(
         artifact_id
         for artifact_id in descendant_ids(
-            preprocessing_dependency_graph(dataset_name),
-            (layer_artifact_id(dataset_name, layer),),
+            preprocessing_dependency_graph(dataset_name, cohort_variant),
+            (layer_artifact_id(dataset_name, layer, cohort_variant),),
         )
-        if _is_protected_downstream(dataset_name, artifact_id)
+        if _is_protected_downstream(dataset_name, artifact_id, cohort_variant)
     )
 
 
@@ -1214,8 +1546,13 @@ def _structural_fingerprint(artifact_id: ArtifactIdentity) -> MaterialDependency
     return hashlib.sha256(artifact_id.encode("utf-8")).hexdigest()
 
 
-def _is_protected_downstream(dataset_name: DatasetName, artifact_id: ArtifactIdentity) -> Boolean:
+def _is_protected_downstream(
+    dataset_name: DatasetName,
+    artifact_id: ArtifactIdentity,
+    cohort_variant: PreprocessingCohortVariant | None,
+) -> Boolean:
+    suffix = "" if cohort_variant is None else f".{cohort_variant.value}"
     return any(
-        artifact_id == downstream_artifact_id(dataset_name, kind)
+        artifact_id == f"{downstream_artifact_id(dataset_name, kind)}{suffix}"
         for kind in preprocess_must_not_regenerate()
     )

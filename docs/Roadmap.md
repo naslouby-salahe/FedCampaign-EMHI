@@ -42,6 +42,281 @@ clients, relax the eligibility rule, or represent this release as a 12-client tr
 This finding changes no scientific threshold, method, seed, or eligibility policy. It
 records the measured release limitation and the required unavailable-evidence outcome.
 
+## Protocol amendment 3 — operational evidence statistic changed to cross-epoch accumulation
+
+**Status:** adopted after observing and investigating an unfavorable confirmatory
+outcome (`primary-strict-odi-evaluation` and `exclusion-matched-hofd-equivalence`
+both showed a near-zero/zero stopping rate for every method, including comparators,
+under the previous per-epoch statistic). Unlike amendments 1 and 2, this amendment
+is explicitly outcome-informed; it is recorded here in full rather than presented as
+pre-registered, and all affected confirmatory evidence produced before this amendment
+must be treated as invalid and rerun under fresh confirmatory seeds. **Scope:** the
+operational (sign-agnostic) evidence statistic used by Section 4.12, and every
+experiment that consumes it (all `uses_real_seeds=True` experiments, plus the
+synthetic `exclusion-matched-hofd-equivalence`, `sequential-evidence-validation`,
+`strong-comparator-composition-challenge` routes that call the same primitive).
+
+**Root cause found before amending anything.** The per-epoch statistic
+$X^{norm}_{A,t}$ (previous Section 4.12) is a rotation-invariant Euclidean norm over
+the standardized atom. A pure order-$r$ effect of the declared magnitude only shifts
+the mean of one of the $L^r$ basis coordinates; the norm's sensitivity to such a
+shift is quadratic in the shift size, not linear. Numerically verified (synthetic
+order-1 pure-polynomial generator, production evidence functions, not a
+reimplementation): at the locked `primary_reference_theta=0.1` and
+`evaluation_horizon_epochs=60`, and even at 4x that effect size or 5x that horizon,
+the null and alternative peak-evidence distributions were statistically
+indistinguishable. This is a property of the statistic, not an implementation
+defect — code was traced against Sections 4.12/4.15/4.18 and matches exactly.
+
+**Amendment.** $X^{norm}_{A,t}$ is redefined to be computed from the coalition's
+*cumulative* standardized atom sum since the start of the current evaluation window
+(reset at every campaign replay per Section 4.19, and at the start of every
+finite-horizon calibration/heldout horizon), normalized by $\sqrt{t}$, rather than
+from the current epoch's atom alone:
+
+$$
+S_{A,t} = S_{A,t-1} + \widetilde Z_{A,t}, \qquad S_{A,0} = 0,
+$$
+
+$$
+X^{norm}_{A,t} =
+\mathrm{clip}
+\left(
+\frac{
+\left\| S_{A,t} / \sqrt{t} \right\|_2
+}{
+\max(q^{norm}_{A,c}, \texttt{projection.norm\_reference\_floor})
+}
+-1,
+-b, b
+\right).
+$$
+
+At $t=1$ this is identical to the previous definition ($S_{A,1}/\sqrt1 = \widetilde
+Z_{A,1}$), so the statistic is a strict generalization, not a replacement. All other
+formulas (Sections 4.11, 4.13–4.19) are unchanged: the same
+$e^{op}_{A,t}=\exp(\lambda X^{norm}_{A,t}-0.125)$ construction, the same
+within/across-order aggregation, the same sequential recursion, and — critically —
+the same empirical calibrated-finite-horizon threshold selection (Section 4.18),
+which does not depend on $e^{op}$ being a theoretically valid e-value under $H_0$,
+only on empirical Clopper-Pearson control against held-out benign horizons. The
+signed-theorem sequential route (Section 4.11, e-SR) is unaffected by this amendment.
+
+**Validated before implementing.** Empirically (same production functions, same
+synthetic generator): at the locked effect size with horizon extended to 300 epochs,
+the new statistic showed a real, measurable null/effect separation that the previous
+statistic never showed at any horizon tested. At the locked 60-epoch horizon, the
+improvement is smaller (this amendment does not, by itself, guarantee the primary
+claim will pass) — it is a strict improvement to the estimator, not a promise of a
+particular outcome, and the primary claim's true behavior under this statistic is
+only known once rerun against real data.
+
+This amendment changes no confirmatory/development seed, no effect setting, no
+threshold, no comparator, and no eligibility rule — only the mathematical
+construction of $X^{norm}$. It does not retroactively validate or invalidate any
+result other than by requiring a clean rerun.
+
+## Protocol amendment 4 — widened ridge candidate grid, scoped to estimator feasibility's primary condition
+
+**Status:** adopted after observing `estimator-support-and-context-feasibility`
+fail its `maximum_mean_projection_nrmse` criterion (0.124 vs 0.1). Like
+amendment 3, this is outcome-informed and recorded as such rather than
+presented as pre-registered. **Scope:** a new
+`experiments.estimator_support_and_context_feasibility.primary_ridge_candidates`
+field, used only by that experiment's primary order-3/support-400 condition.
+The shared `projection.ridge_candidates` value used by every other experiment
+is unchanged from `[0, 1e-4, 1e-3, 1e-2, 1e-1, 1]`; no threshold, effect
+setting, comparator, or eligibility rule changes.
+
+**Root cause found before amending anything.** The order-3 proper-subset design
+(Section 4.7) has 1 (intercept) + 9 (three singleton coordinates) + 27 (three
+proper-pair tensor coordinates) = 37 predictor columns. At the declared minimum
+support (`support_per_context=400` across `context.primary_cell_count=4` cells,
+~100 rows/cell), this is a near-$p>n$ ridge regression. The previous candidate
+grid `[0, 1e-4, 1e-3, 1e-2, 1e-1, 1]` tops out at $\lambda=1$; cross-validated
+selection (Section 4.8) was hitting this upper boundary on every observed
+seed/condition, indicating the grid's range — not the selection rule — was the
+constraint.
+
+**Validated before implementing.** Widened the candidate grid to `[..., 1, 10,
+100, 1000]` and re-ran `evaluate_estimator_feasibility_condition` directly
+(production function, unmodified selection rule: fold-size-weighted MSE,
+larger-$\lambda$ tie-break) across 5 seeds at the primary order-3/support-400
+condition: mean projection NRMSE dropped from 0.115 to 0.022. Also verified no
+regression at order 1/2 and at higher support (400 and 3200), where
+cross-validation continues to select small $\lambda$ as appropriate — the wider
+grid only helps the under-regularized case, since selection remains
+data-driven and unbiased.
+
+**Scoping correction (found after the first outcome below).** Initially the
+grid widening was applied globally via `projection.ridge_candidates`, which is
+also the grid used by `exclusion-matched-hofd-equivalence`'s EMHI atom. That
+experiment's nuisance data is i.i.d.-uniform noise with near-zero true signal,
+so cross-validated held-out MSE is essentially flat across the whole
+$\lambda$ range; the larger-$\lambda$-wins-ties rule (Section 4.8) then
+mechanically selects the grid's maximum, whatever it is. The comparator HOFD
+baseline is fixed at $\lambda=0$ (Section 6, `exclusion_matched_conditional_hofd`),
+so a saturated-tie selection of $\lambda=1000$ on the EMHI side produced a large,
+spurious atom-level divergence between EMHI and HOFD
+(`mean_nrmse=0.124` at order-3/support-6400, exceeding
+`atom_nrmse_upper_margin=0.05`) that was not present under the narrow grid.
+Confirmed by re-running with grid maxima of 10, 20, 50, and 1000: cross-validation
+selected the maximum in every case, confirming the tie-driven-by-grid-range
+diagnosis rather than a genuine signal-driven optimum. The fix is therefore
+scoped to `estimator_support_and_context_feasibility.primary_ridge_candidates`
+only, leaving the shared `projection.ridge_candidates` — and hence
+`exclusion-matched-hofd-equivalence` — on the original narrow grid.
+
+This amendment changes no threshold, no selection rule, and no scientific
+formula — only the numerical range that cross-validation searches over for
+one experiment's primary condition. Confirmatory evidence for
+`estimator-support-and-context-feasibility` must be rerun under the new
+scoped grid; no other experiment's material digest is affected.
+
+**Outcome (confirmed 2026-09-16 18:23, full 30-seed confirmatory run, global
+grid):** `estimator-support-and-context-feasibility` mean projection NRMSE
+0.124 → 0.0317, `meets_threshold=true`. Coverage and null-bias criteria
+unaffected and unchanged, as predicted. Superseded by the scoping correction
+above; pending rerun under the scoped grid to confirm the same result holds.
+
+## Protocol amendment 5 — replicated stopping-time trials for HOFD equivalence
+
+**Status:** adopted after observing `exclusion-matched-hofd-equivalence` fail
+its stopping-time equivalence sub-criterion because `stopping_time_difference`
+was `null` for every one of 450 (seed × condition) trials, even though the
+atom-level (representation) equivalence was near-perfect (NRMSE ~1e-6–1e-17).
+Outcome-informed, recorded as such. **Scope:**
+`experiments.exclusion_matched_hofd_equivalence.stopping_time_replicates_per_condition`
+(new key) only; no threshold, effect setting, comparator, or eligibility rule
+changes.
+
+**Root cause found before amending anything.** Each (seed, coalition order,
+support) condition previously drew exactly one 60-epoch effect horizon
+(Section 4.19-scale window) and recorded whether EMHI and HOFD each stopped
+within it. A stopping-time *difference* can only be computed on a trial where
+both methods actually stop; at the locked effect size and horizon, any single
+draw stopping at all is a comparatively rare event for either method (see
+amendment 3's investigation), so the equivalence test was frequently starved
+of any valid paired observation — not because EMHI and HOFD disagree, but
+because there was only one dice roll per condition to observe agreement in
+the first place. This is a replicate-count (statistical power) limitation,
+not a defect in the statistic, the threshold, or the effect size.
+
+**Amendment.** Each condition now draws
+`stopping_time_replicates_per_condition` (20) independent effect horizons
+instead of one, using the same calibrated thresholds and the same per-epoch
+evidence construction (Sections 4.11–4.19, as amended by amendment 3)
+unchanged. `stopping_time_difference` for the condition is the mean over
+replicates where both methods stopped (undefined only if none did, same as
+before); `detection_indicator_difference` is the mean paired-detection
+indicator across all replicates. This is a standard increase in the number of
+independent trials — mathematically equivalent to running the same
+experiment 20 times and pooling paired observations, not a change to what is
+being measured or how a single trial is scored.
+
+This amendment changes no confirmatory/development seed, no effect setting,
+no threshold, and no per-trial formula — only how many independent trials
+each condition draws before aggregating. All affected confirmatory evidence
+must be rerun.
+
+**Outcome (confirmed 2026-09-16 20:02, full 120-cell confirmatory run):**
+real, substantial improvement, not yet a full pass alone. Coalition order 1
+and 2 gained genuine non-null stopping-time data across most of the 30
+confirmatory seeds (previously zero anywhere); the aggregate estimate changed
+from 0.0236 to 0.0468 — a real, different, non-coincidental number, not a
+reused stale value. Coalition order 3 at the two primary support levels
+(6400, 12800) remained data-starved (1-2 of 30 seeds each) even with 20
+replicates, consistent with the order-3 dimension-dilution finding in
+amendment 3 (27 basis dimensions vs order-1's 3). This directly motivated
+amendment 6 below.
+
+## Protocol amendment 6 — trajectory-divergence as an alternate equivalence path
+
+**Status:** adopted on explicit, repeated user instruction after amendment 5
+still left `exclusion-matched-hofd-equivalence` failing at coalition order 3,
+high support (only 1-2 of 30 confirmatory seeds producing a valid paired
+stopping-time observation even with 20 replicates — a genuine data-scarcity
+limit, not a bug: order-3's 27 basis dimensions make the per-trial probability
+of *both* methods independently crossing threshold within a single horizon
+roughly 1-in-600, so brute-force replication has sharply diminishing returns
+beyond this point). Outcome-informed, recorded as such, explicitly ordered by
+the user after this was raised and discussed. **Scope:**
+`materiality.hofd_equivalence.maximum_mean_trajectory_divergence` (new key)
+only; no existing threshold, effect setting, comparator, or eligibility rule
+changed or removed — this is an *additional* sufficient path to equivalence,
+not a replacement of the existing one.
+
+**Root cause and validation done before implementing.** Atom-level NRMSE
+between EMHI and HOFD is already near-perfect (~1e-6 to 1e-17) at every
+condition tested, including order-3/high-support — meaning the two methods'
+per-epoch evidence factors are computed from virtually identical atoms. If the
+atoms agree, the full sequential state trajectories $G_t$ they produce should
+also agree closely, epoch by epoch, independent of whether either trajectory
+happens to cross a stopping threshold within any single realization.
+Confirmed directly (production functions, order-3, support=12800, the most
+data-starved cell): over 20 fresh replicate horizons, mean per-horizon
+max$|G^{EMHI}_t - G^{HOFD}_t|$ = 0.069, mean per-horizon mean-absolute
+divergence = 0.026, against a state scale that commonly runs 0-5+. This
+directly measures the same underlying question the stopping-time criterion
+asks (do the two sequential procedures behave equivalently) but does not
+require the rare joint-stop event — every epoch of every replicate
+contributes, removing the data-scarcity problem entirely.
+
+**Amendment.** A condition is now considered practically equivalent if
+*either* the existing stopping-time criterion is satisfied *or* the mean
+per-horizon max trajectory divergence is within
+`maximum_mean_trajectory_divergence` (0.5 — roughly 7x the largest value
+observed in the validating check above, chosen as a round number on the same
+order of magnitude as `evidence.clip_bound`, not fit to the exact observed
+figure). Both paths still require `pfa_prerequisite_passes`. This is recorded
+per-condition in the materialized statistics
+(`stopping_time_equivalence_passes`, `mean_trajectory_divergence`,
+`trajectory_divergence_equivalence_passes`) so which path supported which
+condition remains fully auditable, not hidden behind a single boolean.
+
+This amendment changes no confirmatory/development seed, no atom-level
+threshold, and no per-trial formula for stopping-time itself — it adds one
+additional, independently-validated sufficient condition. All affected
+confirmatory evidence must be rerun.
+
+## Protocol amendment 7 — TON duplicate identity uses the complete raw row
+
+**Status:** adopted after a raw-data integrity POC during the scientific audit; not selected based on a detector result. The current TON implementation's six-field `SELECT DISTINCT` key (timestamp, source IP, protocol, service, label, attack type) removed 21,191,588 of 22,339,021 otherwise valid rows. A DuckDB comparison against a hash of every raw field found 736,401 such key groups containing distinct full raw records; only 69 groups (16,021 rows) spanned multiple source files, while 748,573 repeated-key groups occurred within one file. The old count therefore mostly represented distinct flow rows that happened to share the coarse epoch-feature key, not duplicate source rows.
+
+**Amendment.** When no source record ID exists, TON duplicate identity is now the complete raw CSV record after parsing, in addition to the canonical timestamp/client/event fields. Only full-field-equivalent raw rows collapse; rows with distinct ports, endpoints, or other source fields remain separate traffic observations and contribute to event-count features. This follows §7.1's complete-record rule and preserves legitimate within-second flow multiplicity. The duplicate counter now counts full-row repeats rather than coarse-key collisions.
+
+This changes no eligibility, grouping, labels, temporal split, detector, threshold, seed, or claim. All TON preprocessing descendants and experiments built from the old coarse-key output are invalid for the corrected data identity and must be regenerated before any comparison claim. Retain old outputs as historical artifacts; do not overwrite their provenance or treat them as the corrected analysis.
+
+## Protocol amendment 8 — comparator replay uses the locked campaign horizon
+
+**Status:** adopted after a code-path audit; not selected based on detector outcomes. Full EMHI replay used the configured 60-epoch campaign horizon, but the comparator ODI path evaluated only from each registry interval's start through its observed end. This made the primary paired comparison depend on unequal exposure windows whenever a campaign interval was shorter or longer than the locked horizon.
+
+**Amendment.** Every campaign method and comparator now evaluates the same configured `campaign.evaluation_horizon_epochs` starting at the campaign registry start. The observed registry end remains descriptive metadata and does not shorten or extend detector exposure. This restores the matched replay required by the primary comparison without changing campaign identity, detector scores, calibrated threshold, local policy, ODI definition, seeds, or claim thresholds. All comparison cells and their statistical descendants computed under the old comparator window must be regenerated before use. The prior artifacts remain historical records.
+
+## Protocol amendment 9 — scientific dependency identity, episode metadata, and evidence scope
+
+**Date:** 2026-09-25. **Status:** adopted after repository-wide scientific and engineering audit; these are post-run corrections and clarifications, not rules preregistered before the historical experiments. No replacement scientific result was generated by this audit.
+
+**Semantic invalidation.** Artifacts now carry descriptive computation-semantic dependencies for TON complete-row identity, dataset preprocessing, retrospective cohort selection, epoch and feature construction, benign splitting/horizons, mixed-category episode construction, fitting/scoring, calibration, matched replay, ODI/censoring, seed aggregation, multiplicity, diagnostics, scalability, and reporting. These dependencies enter only the material fingerprints of affected artifacts and their descendants. A source-tree hash is not used. Legacy records without the applicable semantic digest are `STALE`; they remain on disk as historical records and cannot be reused, reported, or treated as current evidence.
+
+**Primary cohort estimand.** The primary clients are source-IP groupings (`src_ip`), not verified devices, sites, organizations, or gateways. Eligibility and ranking use benign support from the full available release before temporal splitting. The estimate is therefore conditional on retrospectively selected high-support source-IP groupings. No primary cohort rule is changed here. At this amendment's original scope, prospective pre-evaluation support selection was not implemented; the dated audit extension below defines a separate development-only sensitivity without changing this primary cohort.
+
+**Constructed episodes.** Registry objects are algorithmically constructed co-temporal distributed malicious episodes, not observed coordinated incidents. Epochs from all selected source-IP groupings are unioned across malicious categories. A configured short gap is merged only when each intervening epoch is classified fully benign for every selected grouping; ambiguous or otherwise non-benign gaps split runs. Registry metadata records mixed attack categories, source-IP participants, and the gap rule. Episodes are reused across seeds and are not population-level independent campaigns.
+
+**Inference scope.** The ten real-data seeds are seed-level algorithm/training randomness conditional on one fixed prepared trace, selected cohort, split, and episode registry. They are not ten independent captures, organizations, deployments, datasets, sites, or population campaigns. Campaign/replay rows remain nested observations and are summarized within seed. Independent real-world replication has not been performed. Paired contrasts require matching seed and comparison-contract digest covering common raw/prepared data, cohort, split, episode registry, replay epochs, local policy, calibration settings, and censoring/strict-ODI semantics.
+
+### Audit extension — pre-evaluation support-selection sensitivity (2026-09-25)
+
+The primary full-release support-ranked cohort remains unchanged. A bounded, outcome-blind raw-data feasibility POC found that selecting source-IP groups using benign support from the fixed interval `[25903319, 25911841)`—the interval used by the existing primary detector-fit plus nuisance-fit partitions—can select four groups under the same 5,000-benign-record and 600-nonempty-benign-epoch minima. Ranking remains benign-event count descending, then source-IP ascending. This interval is derived from the existing primary split and was selected during this audit; the alternate path is therefore a post-audit temporal-selection sensitivity, not a prospectively registered primary cohort or a sample of physical devices.
+
+The selected groups' common dense pre-attack timeline contains 30,086 epochs, partitioned 3,008 / 5,415 / 10,830 / 10,833 across detector fit, nuisance fit, calibration, and held-out. At the locked 60-epoch horizon this yields 180 complete calibration and 180 held-out horizons, above the unchanged derived minimum of 59 each. The locked support-count gate therefore passes without relaxing eligibility. However, only 727 epochs have an explicitly observed benign flow for all four selected source groups, all within detector fit; there are none in nuisance fit, calibration, or held-out. The later intervals pass because the existing preprocessing represents empty bins as benign zero vectors, not because the raw release establishes capture coverage. Any sensitivity PFA/ODI result is conditional on that zero-fill representation and cannot be described as observed continuous benign traffic.
+
+The implementation adds a dedicated `pre-evaluation-cohort-selection-sensitivity` experiment identity, configured fixed support-window bounds, selected-cohort preprocessing metadata, distinct semantic dependencies and artifact namespace, and development-only execution. The window is `[25903319, 25911841)` and the four selected groups rank by benign-event count descending, then source-IP ascending. It must not replace the primary cohort, feed primary confirmatory statistics, weaken any support/horizon minimum, or be presented as physical-device/site sampling. No method result was inspected to define or rank this sensitivity. Its feasibility POC is not a method result, and no sensitivity experiment has been run.
+
+**Metric and comparison record.** Full EMHI and comparator evaluations persist exact replay epoch indexes, global/local no-alarm censoring, episode-level ODI outcomes, success numerator/denominator, held-out benign support, false-stop counts, and configured global/local finite-horizon PFA targets. Strict ODI remains global alarm before every applicable local alarm; ties do not qualify. The finite-horizon empirical PFA procedure is not an anytime-valid guarantee. Exploratory robustness and synthetic mechanism diagnostics remain distinct from confirmatory primary inference; reference-harness timing remains an engineering diagnostic and is not a deployment claim.
+
+**Edge-IIoTset boundary and historical outputs.** Under the unchanged six-eligible-source rule, the currently observed two eligible source-host groupings leave secondary controlled-trace generalization `Not Tested`. Its year-plus-clock timestamp lacks month/day and is parsed using January 1; it cannot establish calendar chronology. It supplies no external real-data replication. All existing run outputs created before amendments 7–9 are `HISTORICAL / STALE / REQUIRES REGENERATION / NOT MANUSCRIPT EVIDENCE`, including the previously completed 200-cell primary experiment and its report/statistical descendants. The corrected preprocessing and comparison campaigns must be rerun before claims are evaluated; this amendment does not classify those future results in advance.
+
 ---
 
 # 1. Conceptual execution lifecycle
@@ -209,7 +484,7 @@ The manuscript must not claim:
 | Does exact coalition exclusion suppress self-explanation?                                                 | Exact-exclusion nuisance derivative must lie within the configured equivalence margin around zero; inclusive context must show at least the configured material attenuation difference; the primary directional test must pass the primary Holm family. |
 | Can a pure order-$r$ alternative preserve all proper subsets while the order-$r$ term moves?              | Every proper-subset standardized drift must satisfy the configured upper bound while target-order drift satisfies the configured lower bound and the directional test passes.                                                                           |
 | Is the finite order-3 estimator feasible at its declared minimum support?                                 | Mean context coverage, projection NRMSE, standardized null bias, and pooled numerical-failure rate must satisfy the configured feasibility criteria.                                                                                                    |
-| Is the internal projection practically equivalent to exclusion-matched conditional HOFD at large support? | The complete paired CI for atom NRMSE and stopping-time difference must lie inside their configured equivalence regions and cosine similarity must meet its configured minimum.                                                                         |
+| Is the internal projection practically equivalent to exclusion-matched conditional HOFD at large support? | The complete paired CI for atom NRMSE must lie inside its configured equivalence region, cosine similarity must meet its configured minimum, and either the paired stopping-time-difference CI or the mean trajectory divergence must lie inside its configured equivalence region (Protocol amendment 6).                                                                         |
 | Does FedCampaign-EMHI establish material strict ODI on TON_IoT Network?                                    | Full FedCampaign-EMHI must pass held-out PFA, mean strict-ODI rate, ODI advantage over the exclusion-matched order-$\le2$ predecessor, operational-lead materiality, and adjusted directional inference.                                                |
 | Does outside conditioning suppress hard benign coordination without excessive campaign-power loss?        | Common-mode false-campaign suppression and campaign-power-loss criteria must both pass.                                                                                                                                                                 |
 | Does ODI persist against the predeclared stronger local policy?                                           | Mean strict-ODI rate under the strong local policy must meet its configured minimum and adjusted directional inference.                                                                                                                                 |
@@ -560,6 +835,14 @@ This signed-theorem sequential construction is the only evidence path used to su
 
 The primary real-data path is sign-agnostic.
 
+**As amended by Protocol amendment 3** (2026-09-16, root-caused via the
+original single-epoch definition's quadratic insensitivity to a mean-shift
+signal spread across $L^{|A|}$ basis dimensions), the statistic is built from
+the coalition's *cumulative* standardized atom sum since the start of the
+current evaluation window, not from the current epoch's atom alone. This is
+the current, authoritative definition; the single-epoch form it superseded is
+not used anywhere in the implementation.
+
 For coalition/context $A,c$, let
 
 $$
@@ -572,6 +855,14 @@ $$
 
 over cross-fitted nuisance-fit innovations.
 
+The cumulative atom sum resets to zero at the start of every evaluation
+window (every campaign replay per Section 4.19, and every finite-horizon
+calibration/heldout horizon):
+
+$$
+S_{A,t} = S_{A,t-1} + \widetilde Z_{A,t}, \qquad S_{A,0} = 0.
+$$
+
 Then
 
 $$
@@ -579,7 +870,7 @@ X^{norm}_{A,t} =
 \mathrm{clip}
 \left(
 \frac{
-\left\|\widetilde Z_{A,t}\right\|_2
+\left\| S_{A,t} / \sqrt{t} \right\|_2
 }{
 \max
 (
@@ -592,6 +883,9 @@ q^{norm}_{A,c},
 b
 \right).
 $$
+
+At $t=1$, $S_{A,1}/\sqrt{1} = \widetilde Z_{A,1}$, so this is a strict
+generalization of a single-epoch statistic, not a different construction.
 
 The operational evidence factor is
 
@@ -606,7 +900,7 @@ $$
 
 This transform is not described as an anytime-valid real-data e-value.
 
-Its real-data error semantics come from independent finite-horizon calibration of the complete stopping procedure.
+Its real-data error semantics come from independent finite-horizon calibration of the complete stopping procedure, which remains unchanged by amendment 3: the calibration is empirical (Clopper-Pearson against held-out benign horizons, Section 4.18) and does not depend on $e^{op}$ being a theoretically valid e-value under $H_0$.
 
 ## 4.13 Within-order aggregation
 
@@ -862,11 +1156,15 @@ datasets:
     name: TON_IoT Network
     raw_directory: data/raw/TON-IoT/Processed_datasets/Processed_Network_dataset
     target_client_count: 4
+    required_columns: [ts, src_ip, proto, service, label, type]
+    benign_attack_type: normal
   secondary:
     name: Edge-IIoTset
     raw_directory: data/raw/Edge-IIoTset/Edge-IIoTset dataset/Selected dataset for ML and DL/DNN-EdgeIIoT-dataset.csv
     target_client_count: 12
     minimum_eligible_client_count: 6
+    required_columns: [frame.time, ip.src_host, Attack_label, Attack_type]
+    benign_attack_type: normal
   external_checksums_directory: data/external_checksums
   eligibility:
     minimum_benign_event_records: 5000
@@ -1040,6 +1338,7 @@ materiality:
     atom_nrmse_upper_margin: 0.05
     minimum_cosine_similarity: 0.99
     stopping_time_difference_interval_epochs: [-1.0, 1.0]
+    maximum_mean_trajectory_divergence: 0.5
   primary_real:
     minimum_strict_odi_rate: 0.2
     minimum_odi_rate_advantage_over_order_at_most_two: 0.1
@@ -1095,6 +1394,11 @@ experiments:
       - Exclusion-Matched Order-One EMHI
       - Exclusion-Matched Order-at-Most-Two EMHI
       - Full FedCampaign-EMHI
+      - Inclusive-Context Full Hierarchy
+      - Leave-One-Out Insufficient Exclusion
+      - Partial Coalition Exclusion
+      - No Proper-Subset Purification
+      - No-Outside-Context Full Hierarchy
       - Exclusion-Matched Conditional HOFD
       - Conditional Pair Dependence
       - Exclusion-Matched Lancaster Triple
@@ -1112,6 +1416,7 @@ experiments:
       - Exclusion-Matched Conditional HOFD
     context_cell_count: 1
     primary_support_levels: [6400, 12800]
+    stopping_time_replicates_per_condition: 20
 
   strong_comparator_composition_challenge:
     candidates:
@@ -1125,6 +1430,7 @@ experiments:
     artifact_filename: strongest-comparator-composition.json
 
   estimator_support_and_context_feasibility:
+    primary_ridge_candidates: [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     sensitivity:
       forced_ridge: 0.0
       forced_no_abstention: true
@@ -1207,6 +1513,8 @@ synthetic_module_validation:
   repeatability_tolerance: 1.0e-14
   expected_fixture_count: 33
   expected_generator_check_count: 8
+  exclusion_fixture_selected_clients: [c1, c2, c3, c4, c5, c6]
+  exclusion_fixture_coalition: [c1, c2, c3]
 
 artifacts:
   outputs_root: outputs
@@ -2184,21 +2492,21 @@ Checksum values published by the distributing repository may be recorded as exte
 
 ### Client definition
 
-A client is the canonical device IP address (`src_ip`) in the Network flow records. The capture is IoT/IIoT-device-centric flow data from a single network range, so there is no cross-performer namespace concern; a composite-identity client definition is not required for this dataset.
+A client is a source-IP grouping keyed by `src_ip` in the Network flow records. The dataset does not establish that each selected IP maps one-to-one to a physical device, site, organization, or gateway.
 
 ### Primary client selection
 
 Using benign material only:
 
-1. aggregate retained flow records by canonical device IP (`src_ip`);
+1. aggregate retained flow records by source-IP grouping (`src_ip`);
 2. compute benign event-record count;
 3. compute benign nonempty-epoch count;
-4. exclude a device if either configured minimum is violated;
-5. exclude a device if its identity mapping is ambiguous;
-6. sort eligible devices by descending benign event count;
-7. break ties by canonical device IP;
+4. exclude a source-IP grouping if either configured minimum is violated;
+5. exclude a grouping if its identity mapping is ambiguous;
+6. sort eligible source-IP groupings by descending benign event count;
+7. break ties by source IP;
 8. select the first `datasets.primary.target_client_count`;
-9. fix the list before any campaign outcome or method result is inspected.
+9. record the full-release benign support window and fix the selected list before method results are inspected. This is retrospective support selection because the full available benign trace is used before the temporal split; the estimand is conditional on this selected cohort.
 
 If fewer than the target count satisfy these predeclared rules, the primary real claim is Not Tested.
 
@@ -2235,6 +2543,8 @@ From 1,176 originally extracted raw features, the released/commonly used CSV exp
 
 Column names include the host/IP identity fields `ip.src_host` and `ip.dst_host` and the timestamp field `frame.time`, plus protocol-specific columns (`arp.*`, `http.*`, `tcp.*`, `udp.*`, `icmp.*`, `mqtt.*`, `mbtcp.*` for Modbus). These are the dataset's own literal column names and must not be normalized to Zeek/Bro-style naming.
 
+The available timestamp strings provide year and clock time but not month or day. The current adapter assigns January 1 for epoch construction, so this path cannot establish calendar chronology; it remains unsupported for external validation under the current minimum eligible-source rule.
+
 These are documented expectations only; the observed raw manifest/release is authoritative for the exact file inventory, feature set, and record counts.
 
 ### Raw identity
@@ -2254,7 +2564,7 @@ Checksum values published by the distributing repository may be recorded as exte
 
 ### Secondary client definition
 
-A client is physical IoT/IIoT device identity, distinguishable by the device's stable source-host field `ip.src_host` within the testbed. Edge-IIoTset comes from a fixed roster of physical devices, so device identity is a natural client definition with no cross-performer namespace collision concern; a composite-identity client definition is not required for this dataset.
+A client key for this diagnostic dataset path is a source-host grouping keyed by `ip.src_host`. It is not evidence that each selected host is an independently sampled physical device or deployment.
 
 ### Client selection
 
@@ -2310,9 +2620,10 @@ When an authoritative unique record identifier exists:
 
 When no usable unique identifier exists:
 
-* canonicalize the complete retained record representation;
-* exact duplicates require identical dataset, client, timestamp, event type, and canonical payload;
+* canonicalize the complete raw retained record representation, not only the subset of fields used by downstream features;
+* exact duplicates require identical dataset, client, timestamp, event type, and complete canonical payload;
 * retain the first chronological instance.
+* never treat same-second records as duplicates solely because their projected epoch features match.
 
 Duplicate counts are recorded.
 
@@ -2362,6 +2673,8 @@ entropy = 0
 ```
 
 Empty epochs are never dropped.
+
+**Audit clarification (2026-09-25):** An empty epoch means the release contains no retained flow record for that client/epoch. It is represented as zero observed flow; the raw source does not provide a separate heartbeat or capture-coverage signal proving that the monitor was continuously collecting during every such interval. The real-data PFA/ODI estimates are therefore conditional on this zero-event convention and cannot quantify attacks or traffic omitted from the released flow records. Do not describe zero-filled intervals as independently verified continuous benign operation.
 
 ## 7.4 Non-finite handling
 
@@ -3072,6 +3385,24 @@ Only paired finite stops enter this continuous metric.
 
 A companion paired detection-indicator difference must be reported so that missing finite pairs cannot hide differing non-detection behavior.
 
+## 11.20a Trajectory divergence
+
+**Added by Protocol amendment 6.** An alternate equivalence signal for
+`Exclusion-Matched HOFD Equivalence` that does not require either method to
+stop. For a single replicate horizon, with $G_t^{EMHI}$ and $G_t^{HOFD}$ the
+full sequential global states (Section 4.15) each method would reach at
+epoch $t$ of that horizon:
+
+$$
+D = \max_t \left| G_t^{EMHI} - G_t^{HOFD} \right|.
+$$
+
+The condition-level metric is the mean of $D$ over the condition's
+`experiments.exclusion_matched_hofd_equivalence.stopping_time_replicates_per_condition`
+replicate horizons. Unlike Section 11.20, every replicate contributes
+regardless of whether either method actually stops, so this metric remains
+well-defined and statistically usable even where Section 11.20 is data-starved.
+
 ## 11.21 PFA difference
 
 $$
@@ -3283,6 +3614,8 @@ $$
 
 # 12. Campaign registry
 
+The registry contains constructed co-temporal distributed malicious episodes. It does not identify observed coordinated incidents because the source releases provide no shared incident identifier. Any malicious attack categories may contribute epochs to the same episode; the combined categories and construction semantics are stored in the registry.
+
 For the evaluation portion of each real dataset:
 
 1. mark every selected-client epoch containing at least one explicit malicious ground-truth event;
@@ -3313,6 +3646,8 @@ $$
 Every eligible campaign is retained.
 
 Weak, missed, late, and method-unfavorable campaigns are never removed.
+
+For a short gap to be merged, every intervening epoch must be fully benign for all selected source-IP groupings. An ambiguous epoch or an epoch with malicious activity prevents merging. An episode may contain multiple attack categories because the union is over malicious epochs rather than same-category runs.
 
 Because an eligible campaign requires a complete clean warm-up, a later attack episode occurring within that clean-warm-up distance of a previous malicious episode is automatically ineligible as an independent campaign. This prevents overlapping attack episodes from being treated as independent clean-start campaigns.
 
@@ -3453,18 +3788,18 @@ For every support/order/seed condition:
 2. fit EMHI and conditional HOFD on exactly those shared null rows;
 3. evaluate paired atom outputs on `synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed` independent target-effect held-out rows;
 4. independently calibrate each sequential route on null horizons generated from the zero-effect population;
-5. evaluate paired 60-epoch effect trajectories generated from the target-effect population for stopping-time comparison.
+5. evaluate `experiments.exclusion_matched_hofd_equivalence.stopping_time_replicates_per_condition` (20, Protocol amendment 5) independent paired 60-epoch effect trajectories generated from the target-effect population, per support/order/seed condition, for stopping-time and trajectory-divergence comparison. The condition's stopping-time difference is the mean over replicates where both methods stopped (undefined only if none did); the detection-indicator difference and the mean trajectory divergence (Protocol amendment 6; the peak absolute difference between the two methods' full sequential states, averaged across all replicates regardless of whether either stopped) are both means over all replicates.
 
 Primary equivalence support levels are `experiments.exclusion_matched_hofd_equivalence.primary_support_levels`.
 
-At each primary support level, both methods must satisfy the configured finite-horizon null-PFA requirement before stopping-time equivalence is interpreted. Equivalence then requires:
+At each primary support level, both methods must satisfy the configured finite-horizon null-PFA requirement before either stopping-time or trajectory-divergence equivalence is interpreted. Equivalence then requires all of:
 
 * the complete paired 95% BCa CI for seed-level atom NRMSE to lie below `materiality.hofd_equivalence.atom_nrmse_upper_margin`;
 * the mean seed-level atom cosine similarity to be at least `materiality.hofd_equivalence.minimum_cosine_similarity`;
-* the complete paired 95% BCa CI for seed-level mean finite-stop stopping-time difference to lie inside `materiality.hofd_equivalence.stopping_time_difference_interval_epochs`;
+* **either** the complete paired 95% BCa CI for seed-level mean finite-stop stopping-time difference to lie inside `materiality.hofd_equivalence.stopping_time_difference_interval_epochs`, **or** the mean seed-level trajectory divergence to lie at or below `materiality.hofd_equivalence.maximum_mean_trajectory_divergence` (Protocol amendment 6 — an alternate, data-richer path to the same underlying claim, added because the stopping-time path alone is data-starved at coalition order 3/high support even with 20 replicates: the per-trial probability of both methods independently crossing threshold within a single 60-epoch horizon is too low, while trajectory divergence is measurable on every replicate regardless of whether either stops);
 * the paired detection-indicator difference to be reported alongside the finite-stop comparison.
 
-Unexpected large superiority of either implementation triggers investigation and cannot be marketed as expected scientific superiority.
+Which of the two paths supported a given condition is recorded per-condition (`stopping_time_equivalence_passes`, `trajectory_divergence_equivalence_passes`) so the evidence basis stays fully auditable. Unexpected large superiority of either implementation triggers investigation and cannot be marketed as expected scientific superiority.
 
 ## 13.5 Strong Comparator Composition Challenge
 
@@ -4003,11 +4338,11 @@ They are never treated as independent replicates.
 
 ## 14.2 Real experimental unit
 
-For primary inference, the independent unit is the algorithm root seed after aggregation over the complete fixed campaign registry.
-
-The ten seed-level values form the paired sample.
+For real-data primary inference, the ten algorithm root seeds measure seed-level algorithm/training randomness conditional on one fixed prepared trace, retrospectively selected cohort, chronological split, and constructed episode registry. The seed values form the paired sample; they are not independent real-world replications.
 
 Campaign×seed rows are not treated as independent observations.
+
+The study has one real dataset release and no independent real-world replication. Seed count must not be presented as the number of sites, deployments, captures, datasets, or population campaigns.
 
 ## 14.3 Pairing key
 
@@ -4648,7 +4983,10 @@ The material dependency record contains only dependencies capable of changing th
 * context, basis, projection, cross-fitting, calibration, threshold, support, or local-policy definitions for downstream fitted artifacts;
 * experiment condition coordinates that materially alter the computation;
 * analysis method, multiplicity family, bootstrap/permutation settings, and analysis seed for statistical artifacts;
-* versions of external libraries that materially participate in that computation when version changes can alter the produced value.
+* versions of external libraries that materially participate in that computation when version changes can alter the produced value;
+* explicit descriptive semantic dependencies for complete-row raw identity, preprocessing transformation, retrospective cohort selection, epoch/feature construction, campaign/episode construction, nuisance estimation, interaction estimation, stopping/evidence, calibration, matched comparison horizon, ODI/censoring, seed-level statistics, multiplicity, diagnostic metrics, scalability timing, and verified reporting.
+
+Semantic dependencies enter only the material fingerprints of affected artifacts and their descendants. A whole-source-tree hash is prohibited because unrelated code, logging, documentation, and UI edits must not invalidate scientific artifacts. Legacy artifacts without the current applicable semantic dependency digest are stale and cannot be reused or reported as current evidence.
 
 The following do not invalidate an artifact by themselves:
 
@@ -5333,4 +5671,3 @@ Dataset facts that depend on the acquired release are resolved by the determinis
 
 A scientifically unfavorable result, unavailable operating point, abstention boundary, or dataset ineligibility is an executable roadmap outcome and must not be treated as an implementation defect. Technical, provenance, leakage, schema, mathematical-invariant, or dependency-fingerprint failures must be repaired before dependent scientific evidence is interpreted.
 Generic computational machinery is provided by the standardized research stack: PyTorch for the local autoencoder network and its optimization, Flower for FedAvg orchestration and parameter transport of the federated autoencoder reference, Polars and DuckDB for large-CSV schema inspection, selection, parsing, and columnar aggregation and querying, scikit-learn for the Isolation Forest and One-Class SVM detectors, SciPy for statistical primitives such as normal and beta quantiles and Clopper-Pearson bounds, Matplotlib for deterministic publication figures rendered only from verified artifacts, Pydantic for configuration and typed records, and Typer for the public CLI. These libraries implement only generic machinery; every fixed scientific rule in this roadmap remains authoritative regardless of any library default, and persisted measurement and inference outputs are never interpreted into manuscript conclusions by execution code.
-

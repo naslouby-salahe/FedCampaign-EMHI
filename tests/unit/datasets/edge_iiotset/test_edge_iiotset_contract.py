@@ -1,4 +1,5 @@
 import inspect
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,7 @@ from fedcampaign_emhi.datasets.edge_iiotset.validation import (
 )
 from fedcampaign_emhi.domain.enums import DatasetName, GroundTruthClass
 from fedcampaign_emhi.domain.types import EdgeIiotsetFlowRecord, ExcludedRecord
+from fedcampaign_emhi.execution.preprocessing import deduplicate_edge_records
 
 EDGE_SCHEMA = DatasetsSecondaryConfig(
     name=DatasetName.EDGE_IIOTSET,
@@ -74,6 +76,9 @@ def _flow(
         protocol_group=protocol_group,
         binary_label=binary_label,
         attack_type=attack_type,
+        raw_payload_digest=sha256(
+            f"{timestamp_seconds}\0{source_host}\0{protocol_group}\0{binary_label}\0{attack_type}".encode()
+        ).hexdigest(),
     )
 
 
@@ -127,6 +132,26 @@ def test_loader_reads_fixture_csv(tmp_path: Path) -> None:
     assert isinstance(record, EdgeIiotsetFlowRecord)
     assert record.source_host == "192.168.1.10"
     assert record.protocol_group == "tcp"
+
+
+def test_duplicate_identity_uses_complete_raw_edge_row(tmp_path: Path) -> None:
+    path = tmp_path / "edge-raw-identity.csv"
+    path.write_text(
+        "frame.time,ip.src_host,Attack_label,Attack_type,tcp.flags\n"
+        "2021 00:00:10.000000,host-a,0,Normal,2\n"
+        "2021 00:00:10.000000,host-a,0,Normal,2\n"
+        "2021 00:00:10.000000,host-a,0,Normal,16\n",
+        encoding="utf-8",
+    )
+    entries = tuple(iter_edge_iiotset_csv_entries(path, EDGE_SCHEMA))
+    records = tuple(entry for entry in entries if isinstance(entry, EdgeIiotsetFlowRecord))
+
+    retained, duplicate_count = deduplicate_edge_records(records)
+
+    assert len(retained) == 2
+    assert duplicate_count == 1
+    assert records[0].raw_payload_digest == records[1].raw_payload_digest
+    assert records[1].raw_payload_digest != records[2].raw_payload_digest
 
 
 def test_loader_excludes_unusable_and_unparseable_rows(tmp_path: Path) -> None:

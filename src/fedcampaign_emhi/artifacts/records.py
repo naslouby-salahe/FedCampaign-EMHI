@@ -2,7 +2,11 @@ from fedcampaign_emhi.config.schema import FrozenConfigModel
 from fedcampaign_emhi.domain.enums import (
     ArtifactLifecycleState,
     ArtifactNamespace,
+    CampaignConstructionSemantics,
+    CampaignEligibilityStatus,
     CoalitionOrder,
+    CohortSelectionRule,
+    CohortSelectionWindow,
     ContextMethodName,
     DatasetName,
     DetectorFamily,
@@ -11,6 +15,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentState,
     FitStatus,
     GroundTruthClass,
+    InferenceUnitSemantics,
     MethodName,
     OverwritePolicy,
     RecordExclusionReason,
@@ -18,6 +23,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    AttackTypeName,
     BasisSize,
     BinIndex,
     Boolean,
@@ -31,6 +37,7 @@ from fedcampaign_emhi.domain.types import (
     ContextCoverage,
     DetectionRateLoss,
     DetectorScore,
+    EpochCount,
     EpochIndexValue,
     FalseAlarmRate,
     FeatureValue,
@@ -47,9 +54,11 @@ from fedcampaign_emhi.domain.types import (
     OperationalLeadEpochs,
     OperationalNormReference,
     PairedDifference,
+    PositiveEpochCount,
     Probability,
     ProjectionNrmse,
     RankValue,
+    ReasonText,
     RecordCount,
     RelativePath,
     RidgePenalty,
@@ -88,6 +97,7 @@ class ScientificCellRecord(FrozenConfigModel):
     seed: SeedValue | None
     state: ExperimentState
     material_digest: ConfigurationDigest
+    semantic_dependency_digest: ConfigurationDigest | None = None
     selected_client_ids: tuple[ClientId, ...]
     upstream_artifact_ids: tuple[ArtifactIdentity, ...]
     dependency_fingerprint: MaterialDependencyFingerprint
@@ -122,6 +132,7 @@ class DropoutBoundaryDiagnosticRecord(FrozenConfigModel):
 class ExperimentRunRecord(FrozenConfigModel):
     experiment_name: ExperimentName
     material_digest: ConfigurationDigest
+    semantic_dependency_digest: ConfigurationDigest | None = None
     overwrite_policy: OverwritePolicy
     resume_sequence: tuple[ResumeStep, ...]
     state: ExperimentState
@@ -202,6 +213,16 @@ class PreparedEpochRecord(FrozenConfigModel):
     ground_truth: GroundTruthClass
     raw_event_count: RecordCount
     ambiguous_event_count: RecordCount
+    malicious_attack_types: tuple[AttackTypeName, ...] = ()
+
+
+class CohortSupportRecord(FrozenConfigModel):
+    client_id: ClientId
+    benign_event_count: RecordCount
+    benign_nonempty_epoch_count: EpochCount
+    eligibility_rank: RecordCount | None
+    support_start_epoch: EpochIndexValue | None
+    support_end_epoch: EpochIndexValue | None
 
 
 class ClientFeatureScalerRecord(FrozenConfigModel):
@@ -221,6 +242,17 @@ class PreparedDatasetRecord(FrozenConfigModel):
     selected_client_ids: tuple[ClientId, ...] = ()
     eligible_client_ids: tuple[ClientId, ...] = ()
     has_sufficient_clients: Boolean = False
+    cohort_selection_window: CohortSelectionWindow = (
+        CohortSelectionWindow.FULL_RELEASE_BENIGN_SUPPORT
+    )
+    cohort_selection_rule: CohortSelectionRule = (
+        CohortSelectionRule.BENIGN_RECORDS_DESCENDING_THEN_SOURCE_IP_ASCENDING
+    )
+    cohort_support: tuple["CohortSupportRecord", ...] = ()
+    cohort_support_start_epoch: EpochIndexValue | None = None
+    cohort_support_end_epoch: EpochIndexValue | None = None
+    cohort_selection_window_start_epoch: EpochIndexValue | None = None
+    cohort_selection_window_end_epoch_exclusive: EpochIndexValue | None = None
     epochs: tuple[PreparedEpochRecord, ...]
     client_scalers: tuple[ClientFeatureScalerRecord, ...] = ()
     excluded_record_count: RecordCount
@@ -256,10 +288,17 @@ class CampaignRecord(FrozenConfigModel):
     end_epoch: EpochIndexValue
     participating_client_ids: tuple[ClientId, ...]
     integrity_checksum: ConfigurationDigest
+    warmup_epochs: PositiveEpochCount
+    evaluation_horizon_epochs: PositiveEpochCount
+    eligibility_status: CampaignEligibilityStatus
+    ineligibility_reason: ReasonText | None = None
+    attack_types: tuple[AttackTypeName, ...] = ()
 
 
 class CampaignRegistryRecord(FrozenConfigModel):
     dataset_name: DatasetName
+    construction_semantics: CampaignConstructionSemantics
+    merge_max_intervening_benign_epochs: EpochCount
     campaigns: tuple[CampaignRecord, ...]
 
 
@@ -374,6 +413,9 @@ class StatisticalRecord(FrozenConfigModel):
     metric_name: ComponentName
     method_name: ComponentName
     independent_unit_count: RecordCount
+    inference_unit_semantics: InferenceUnitSemantics = (
+        InferenceUnitSemantics.SEED_LEVEL_RANDOMNESS_CONDITIONAL_ON_FIXED_TRACE_OR_GENERATOR
+    )
     estimate: StatisticValue
     raw_p_value: Probability | None
     adjusted_p_value: Probability | None

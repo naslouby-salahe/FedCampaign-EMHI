@@ -1,0 +1,38 @@
+# POC Results
+
+POCs are diagnostic only and must not be represented as confirmatory evidence.
+
+## Existing diagnostic evidence
+
+- Historical pre-restart snapshots: an earlier `fedcampaign doctor` reported 349 missing artifact directories and a later one reported stale primary cells. Those directory counts included future experiment outputs; the corrected readiness helper now reports `missing_preprocessing_layers=0`, labels 411 expected future directories separately, and recommends `fedcampaign plan`. The 200 old primary cells remain stale.
+- Earlier validation snapshots before the final Edge identity, registry metadata, and readiness changes are retained here as chronology only. Their pending statements are superseded by the final Linux suite, Ruff, Pyright, fresh Graphify, corrected production preprocessing, and read-only CLI verification recorded in `Progress.md`.
+- Roadmap protocol amendments 3–6 document outcome-informed synthetic/statistic and estimator probes. Their reported values need provenance reconciliation against current code/material digests before reuse.
+
+## Raw CSV census — 2026-09-25
+
+`pocs/raw_data_census.py` streamed the configured raw CSVs directly (standard-library CSV parsing; no production outputs changed):
+
+- **TON_IoT Network:** 23 files, 22,339,021 raw rows, a union of 47 observed columns (an individual sampled file has 46), 23,414 distinct `src_ip` values, and 796,380 `label=0/type=normal` rows versus 21,542,641 malicious-labelled rows. The most-supported benign source IPs are `192.168.1.195` (160,347 records / 5,198 nonempty 60-second epochs), `.190` (157,579 / 6,171), `.152` (136,892 / 3,543), and `.79` (85,933 / 2,887). All four exceed the configured 5,000-record and 600-epoch minimums; the source-IP grouping is not proof of four physical devices or sites. Attack types include backdoor, DDoS, DoS, injection, MITM, password, ransomware, scanning, and XSS.
+- **Edge-IIoTset:** one file, 2,219,201 rows, 63 fields, 137,167 distinct source-host values including malformed/sentinel values, 1,615,643 normal rows and 603,558 attack rows across 14 named attack types. Applying the production timestamp parser directly yields 122,782 unparseable rows. The accepted timestamp form includes year plus clock but has no month/day; the implementation assigns January 1, so its calendar chronology cannot be validated from the field.
+- Raw source identities are present through `data/raw`'s shared-data symlink. TON's raw timestamp field is UNIX seconds. Four primary source-IP groupings meet the support minima under the current retrospective full-release benign-support rule; this is not evidence of four physical devices. Edge secondary generalization is unsupported under the unchanged minimum-source rule.
+- **TON duplicate-collision POC:** `pocs/ton_duplicate_collision.py` compared the production six-field key with a hash of every raw CSV field. Of 1,147,433 six-field groups, 736,401 contained multiple distinct full raw rows. The six-field rule removed 21,191,588 valid rows, including 21,167,152 removed rows from groups with distinct full-row records. Only 69 groups (16,021 rows) crossed file boundaries; 748,573 repeat-key groups were within a single file. This confirms the old `SELECT DISTINCT` collapsed distinct flow records at massive scale rather than primarily removing repeated source rows. Production preprocessing now deduplicates only full-row-identical records, matching Roadmap §7.1; the corresponding amendment requires all derived TON artifacts to be regenerated.
+
+The machine-readable census is `pocs/raw_data_census.json` (ignored). Counts are feasibility evidence, not campaign-effect results.
+
+## New POCs
+
+The raw-census, TON duplicate-collision, and cohort-feasibility POC scripts and their JSON outputs are kept in the ignored `pocs/` folder. Reuse those outputs for this audit rerun unless new raw inputs or changed parsing rules contradict them.
+
+## Pre-evaluation cohort-selection feasibility (2026-09-25)
+
+`pocs/ton_prospective_cohort_feasibility.py` streams the 23 TON raw files through DuckDB, applies production-valid-row parsing and the complete-raw-row SHA-256 duplicate identity to the support window, and ranks only by benign event count then source IP. The initial minimum-duration prefix `[25903305, 25903905)` (600 epochs) yielded one eligible group, so it could not form the locked four-group cohort. Following the audit's nuisance-fit-era definition, the feasibility window was fixed to the primary detector-fit plus nuisance-fit interval `[25903319, 25911841)` (8,522 epochs). No result or detector score was used to choose or rank candidates.
+
+The longer pre-evaluation window yielded exactly four groups meeting both unchanged minima: `192.168.1.152` (92,415 benign rows / 2,752 nonempty epochs), `192.168.1.190` (34,496 / 2,421), `127.0.0.1` (28,147 / 2,384), and `192.168.1.79` (15,562 / 872). `127.0.0.1` is a source-IP string present in the raw release; it was not fabricated. The selected cohort's common pre-attack timeline under the existing split fractions spans 30,086 epochs. Its detector-fit/nuisance-fit/calibration/held-out partition lengths are 3,008 / 5,415 / 10,830 / 10,833 epochs. At the locked 60-epoch horizon, calibration and held-out provide 180 complete horizons each, exceeding the Roadmap's 59-horizon minimum; the POC's locked split gate reports true without relaxing eligibility. These are dense timeline counts, not counts of observed benign flows.
+
+Separate from those locked interval/horizon checks, only 727 epochs have at least one explicitly observed benign flow row for all four groups, and all 727 fall in detector fit; there are none in nuisance fit, calibration, or held-out. Production preprocessing creates a dense per-client epoch grid and labels no-event bins benign, so the registered split gate counts those zero-event bins as benign time. This assumption is material to how informative the later false-alarm calibration is; it remains a scientific interpretation issue to resolve before describing that evidence as representative operating traffic. The prospective-selection POC did not fit a detector, calculate evidence, or estimate ODI/PFA, and it is not a result for the sensitivity or the primary claim. Its machine-readable output is `pocs/ton_prospective_cohort_feasibility.json`.
+
+## Production-path temporal-dependence diagnostic — 2026-09-25
+
+`temporal_dependence_diagnostic.py` called production scoring, ranking, fitting, calibration, and heldout false-stop paths in memory for development seed indices 0, 1, and 2. It wrote diagnostic JSON only; it did not create experiment cells or result artifacts. Each coordinate uses the same fixed observed TON trace, cohort, split, campaign registry, and calibrated global threshold (2.0), so these are algorithmic seed checks, not independent trace replications.
+
+Across all three coordinates, the 10,920 calibration per-epoch evidence factors have lag-1 autocorrelation 0.9572 and initial-positive-lag ESS about 443.1, showing substantial within-series dependence. Each has one heldout false stop among 182 nonoverlapping horizons (rate 1/182 ≈ 0.00549), so the horizon-level event series is too sparse to diagnose dependence. Phase/stride sensitivity of maximum cumulative state is unstable with sparse excursions and cannot establish a reliable independence spacing. No PFA/calibration threshold, acceptance criterion, or seed grid was changed. Treat empirical horizon false-stop summaries as conditional diagnostics on this fixed trace; a defensible event-dependence claim needs substantially more trace support or additional independent traces. Machine outputs are ignored under `pocs/temporal-dependence-dev-seed-{0,1,2}.json`.

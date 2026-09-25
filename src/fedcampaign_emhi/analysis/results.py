@@ -2,6 +2,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+from pydantic import ValidationError
+
 from fedcampaign_emhi.analysis.statistics import (
     HolmHypothesisInput,
     paired_difference,
@@ -40,6 +42,7 @@ from fedcampaign_emhi.domain.enums import (
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
+    Boolean,
     ComponentName,
     MaterialDependencyFingerprint,
     MetricValue,
@@ -100,9 +103,20 @@ def _family_record_ids(
                 ).rglob(ArtifactFileSuffix.JSON_GLOB)
             )
             if (identifier := _record_hypothesis_identifier(path)) is not None
+            and _statistical_record_is_current(loaded, repository, path)
         )
         for experiment_name in experiment_names
     }
+
+
+def _statistical_record_is_current(
+    loaded: LoadedScientificConfiguration, repository: Path, path: Path
+) -> Boolean:
+    try:
+        _verified_statistical_record(loaded, repository, path)
+    except (ValueError, ValidationError):
+        return False
+    return True
 
 
 def reconcile_project_holm_families(
@@ -283,6 +297,21 @@ def _verified_statistical_record(
     return record
 
 
+def _statistical_record_if_matching(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    path: Path,
+    hypothesis: PrimaryHolmHypothesis | SecondaryHolmHypothesis,
+) -> StatisticalRecord | None:
+    try:
+        candidate = StatisticalRecord.model_validate_json(path.read_bytes())
+    except ValidationError:
+        return None
+    if candidate.hypothesis_identifier != hypothesis:
+        return None
+    return _verified_statistical_record(loaded, repository, path)
+
+
 @log_stage("analysis.results")
 def materialize_primary_holm_family(
     loaded: LoadedScientificConfiguration, repository: Path
@@ -295,8 +324,7 @@ def materialize_primary_holm_family(
         matching = tuple(
             path
             for path in sorted(root.rglob(ArtifactFileSuffix.JSON_GLOB))
-            if _verified_statistical_record(loaded, repository, path).hypothesis_identifier
-            == hypothesis
+            if _statistical_record_if_matching(loaded, repository, path, hypothesis) is not None
         )
         if len(matching) != 1:
             raise FileNotFoundError(f"missing verified primary Holm statistic {hypothesis!s}")
@@ -364,8 +392,7 @@ def materialize_secondary_holm_family(
         matching = tuple(
             path
             for path in sorted(root.rglob(ArtifactFileSuffix.JSON_GLOB))
-            if _verified_statistical_record(loaded, repository, path).hypothesis_identifier
-            == hypothesis
+            if _statistical_record_if_matching(loaded, repository, path, hypothesis) is not None
         )
         if len(matching) != 1:
             raise FileNotFoundError(f"missing verified secondary Holm statistic {hypothesis!s}")

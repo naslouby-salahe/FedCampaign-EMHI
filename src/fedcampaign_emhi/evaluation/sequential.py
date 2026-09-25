@@ -1,5 +1,5 @@
 from collections import OrderedDict, UserDict
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 
 from fedcampaign_emhi.artifacts.records import (
@@ -64,7 +64,10 @@ from fedcampaign_emhi.emhi.contexts import (
     shuffled_outside_context_lag_lookup,
 )
 from fedcampaign_emhi.emhi.evidence import (
+    CumulativeAtomState,
     across_order_aggregate,
+    cumulative_operational_evidence_factor,
+    initial_cumulative_atom_state,
     operational_evidence_factor,
     within_order_aggregate,
 )
@@ -117,6 +120,7 @@ class OperationalEpochAdvance:
     support_predicate: Boolean
     stopped: Boolean
     active_history: tuple[tuple[ClientId, ...], ...]
+    cumulative_states: Mapping[tuple[ClientId, ...], CumulativeAtomState]
 
 
 def horizon_trajectory(
@@ -411,6 +415,16 @@ def campaign_replay_plan(
     )
 
 
+def campaign_evaluation_epochs(
+    config: ScientificConfig, campaign_start_epoch: EpochIndexValue
+) -> tuple[EpochIndexValue, ...]:
+    return campaign_replay_plan(
+        campaign_start_epoch,
+        config.campaign.prestart_warmup_epochs,
+        config.campaign.evaluation_horizon_epochs,
+    ).campaign_epochs
+
+
 def statistical_lead(
     earliest_local_stop_epoch: EpochIndexValue, global_stop_epoch: EpochIndexValue
 ) -> OperationalLeadEpochs:
@@ -689,6 +703,32 @@ def coalition_evidence_at_epoch(
     )
 
 
+def cumulative_coalition_evidence_at_epoch(
+    config: ScientificConfig,
+    ranks: MarginalRankArtifactRecord,
+    fit: EMHIFitArtifactRecord,
+    coalition_fit: CoalitionFitRecord,
+    epoch_index: EpochIndexValue,
+    cumulative_state: CumulativeAtomState,
+    *,
+    shuffled_lag_epoch: EpochIndexValue | None = None,
+) -> tuple[EvidenceFactor, CumulativeAtomState] | None:
+    resolved = _coalition_standardized_atom_and_norm_at_epoch(
+        config, ranks, fit, coalition_fit, epoch_index, shuffled_lag_epoch=shuffled_lag_epoch
+    )
+    if resolved is None:
+        return None
+    standardized, norm_reference = resolved
+    return cumulative_operational_evidence_factor(
+        cumulative_state,
+        standardized,
+        norm_reference,
+        config.projection.norm_reference_floor,
+        config.evidence.clip_bound,
+        config.evidence.bet_lambda,
+    )
+
+
 def operational_evidence_at_epoch(
     config: ScientificConfig,
     ranks: MarginalRankArtifactRecord,
@@ -697,13 +737,15 @@ def operational_evidence_at_epoch(
     maximum_order: CoalitionOrder | None = None,
     *,
     order_lag_lookups: OrderOutsideContextLagLookup | None = None,
-) -> EpochOperationalEvidence:
+    cumulative_states: Mapping[tuple[ClientId, ...], CumulativeAtomState] | None = None,
+) -> tuple[EpochOperationalEvidence, MutableMapping[tuple[ClientId, ...], CumulativeAtomState]]:
     enabled_maximum = maximum_order or max(
         (context.coalition_order for context in fit.order_contexts),
         default=CoalitionOrder.ONE,
     )
     coalition_factors: list[CoalitionEpochEvidence] = []
     active_clients: set[ClientId] = set()
+    updated_states: MutableMapping[tuple[ClientId, ...], CumulativeAtomState] = {}
     eligible = 0
     for coalition_fit in fit.coalition_fits:
         if coalition_fit.coalition_order > enabled_maximum:
@@ -714,16 +756,22 @@ def operational_evidence_at_epoch(
             if order_lag_lookups is None
             else order_lag_lookups.get(coalition_fit.coalition_order)
         )
-        factor = coalition_evidence_at_epoch(
+        previous_state = (cumulative_states or {}).get(
+            coalition_fit.coalition_client_ids
+        ) or initial_cumulative_atom_state()
+        resolved = cumulative_coalition_evidence_at_epoch(
             config,
             ranks,
             fit,
             coalition_fit,
             epoch_index,
+            previous_state,
             shuffled_lag_epoch=None if order_lookup is None else order_lookup.get(epoch_index),
         )
-        if factor is None:
+        if resolved is None:
             continue
+        factor, updated_state = resolved
+        updated_states[coalition_fit.coalition_client_ids] = updated_state
         coalition_factors.append(
             CoalitionEpochEvidence(
                 coalition_client_ids=coalition_fit.coalition_client_ids,
@@ -751,14 +799,17 @@ def operational_evidence_at_epoch(
         if order <= enabled_maximum
     )
     global_factor = across_order_aggregate(tuple(factor for _order, factor in order_factors))
-    return EpochOperationalEvidence(
-        epoch_index=epoch_index,
-        global_evidence_factor=global_factor,
-        order_factors=order_factors,
-        coalition_factors=tuple(coalition_factors),
-        materially_active_client_ids=tuple(sorted(active_clients)),
-        scored_coalition_count=len(coalition_factors),
-        eligible_coalition_count=eligible,
+    return (
+        EpochOperationalEvidence(
+            epoch_index=epoch_index,
+            global_evidence_factor=global_factor,
+            order_factors=order_factors,
+            coalition_factors=tuple(coalition_factors),
+            materially_active_client_ids=tuple(sorted(active_clients)),
+            scored_coalition_count=len(coalition_factors),
+            eligible_coalition_count=eligible,
+        ),
+        updated_states,
     )
 
 
@@ -796,17 +847,19 @@ def sequential_trajectory(
     maximum_order: CoalitionOrder | None = None,
 ) -> SequentialTrajectory:
     order_lag_lookups = _order_lag_lookups(config, ranks, fit, epoch_indexes)
-    records = tuple(
-        operational_evidence_at_epoch(
+    records: list[EpochOperationalEvidence] = []
+    cumulative_states: MutableMapping[tuple[ClientId, ...], CumulativeAtomState] = {}
+    for epoch_index in epoch_indexes:
+        record, cumulative_states = operational_evidence_at_epoch(
             config,
             ranks,
             fit,
             epoch_index,
             maximum_order,
             order_lag_lookups=order_lag_lookups,
+            cumulative_states=cumulative_states,
         )
-        for epoch_index in epoch_indexes
-    )
+        records.append(record)
     active_history: list[tuple[ClientId, ...]] = []
     support: list[Boolean] = []
     for record in records:
@@ -823,7 +876,7 @@ def sequential_trajectory(
         ):
             raise ValueError("distributed support must match the statistical-stop support clause")
         support.append(predicate)
-    return SequentialTrajectory(epochs=records, support_predicates=tuple(support))
+    return SequentialTrajectory(epochs=tuple(records), support_predicates=tuple(support))
 
 
 def advance_operational_epoch(
@@ -836,14 +889,16 @@ def advance_operational_epoch(
     threshold: ThresholdValue,
     maximum_order: CoalitionOrder | None = None,
     order_lag_lookups: OrderOutsideContextLagLookup | None = None,
+    previous_cumulative_states: Mapping[tuple[ClientId, ...], CumulativeAtomState] | None = None,
 ) -> OperationalEpochAdvance:
-    record = operational_evidence_at_epoch(
+    record, cumulative_states = operational_evidence_at_epoch(
         config,
         ranks,
         fit,
         epoch_index,
         maximum_order,
         order_lag_lookups=order_lag_lookups,
+        cumulative_states=previous_cumulative_states,
     )
     history = (*active_history, record.materially_active_client_ids)
     window_epochs = config.distributed_support.trailing_window_epochs
@@ -857,6 +912,7 @@ def advance_operational_epoch(
         support_predicate=support,
         stopped=stopped,
         active_history=history,
+        cumulative_states=cumulative_states,
     )
 
 
@@ -912,9 +968,5 @@ def campaign_trajectory(
     campaign: CampaignRecord,
     maximum_order: CoalitionOrder | None = None,
 ) -> SequentialTrajectory:
-    plan = campaign_replay_plan(
-        campaign.start_epoch,
-        config.campaign.prestart_warmup_epochs,
-        config.campaign.evaluation_horizon_epochs,
-    )
-    return sequential_trajectory(config, ranks, fit, plan.campaign_epochs, maximum_order)
+    epochs = campaign_evaluation_epochs(config, campaign.start_epoch)
+    return sequential_trajectory(config, ranks, fit, epochs, maximum_order)

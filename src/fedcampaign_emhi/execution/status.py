@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from fedcampaign_emhi.artifacts.provenance import experiment_semantic_digest
 from fedcampaign_emhi.artifacts.records import ExperimentRunRecord, ScientificCellRecord
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout, file_sha256
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
@@ -30,17 +31,24 @@ class ExperimentStatus:
     completed_cell_count: RecordCount
     failed_cell_count: RecordCount
     invalid_cell_count: RecordCount
+    stale_cell_count: RecordCount
 
 
-def _cell_state_counts(cell_paths: tuple[Path, ...]) -> tuple[RecordCount, ...]:
+def _cell_state_counts(
+    cell_paths: tuple[Path, ...], experiment_name: ExperimentName
+) -> tuple[RecordCount, ...]:
     completed = 0
     failed = 0
     invalid = 0
+    stale = 0
     for cell_path in cell_paths:
         try:
             cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
         except (ValidationError, ValueError):
             invalid += 1
+            continue
+        if cell.semantic_dependency_digest != experiment_semantic_digest(experiment_name):
+            stale += 1
             continue
         if cell.state is ExperimentState.COMPLETED:
             completed += 1
@@ -48,7 +56,7 @@ def _cell_state_counts(cell_paths: tuple[Path, ...]) -> tuple[RecordCount, ...]:
             failed += 1
         else:
             invalid += 1
-    return completed, failed, invalid
+    return completed, failed, invalid, stale
 
 
 def _run_record_state(
@@ -69,6 +77,8 @@ def _run_record_state(
         record = ExperimentRunRecord.model_validate_json(path.read_bytes())
     except (ValidationError, ValueError):
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
+    if record.semantic_dependency_digest != experiment_semantic_digest(experiment_name):
+        return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
     cell_paths = cell_record_paths(layout.experiment_outputs_root(experiment_name))
     if not cell_paths:
         return ExperimentState.BLOCKED, ArtifactLifecycleState.INCOMPLETE
@@ -95,6 +105,8 @@ def _cell_validation_failure(
         cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
     except (ValidationError, ValueError):
         return ExperimentState.INVALID, ArtifactLifecycleState.MALFORMED
+    if cell.semantic_dependency_digest != experiment_semantic_digest(cell.experiment_name):
+        return ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
     if cell.state is not ExperimentState.COMPLETED:
         return cell.state, ArtifactLifecycleState.INCOMPLETE
     if len(cell.completion_record.mandatory_output_paths) != len(
@@ -130,7 +142,11 @@ def project_status(
             state, lifecycle = _run_record_state(loaded, repository, planned.experiment_name)
             layout = build_artifact_layout(loaded, repository)
             cell_paths = cell_record_paths(layout.experiment_outputs_root(planned.experiment_name))
-            completed, failed, invalid = _cell_state_counts(cell_paths)
+            completed, failed, invalid, stale = _cell_state_counts(
+                cell_paths, planned.experiment_name
+            )
+            if stale:
+                state, lifecycle = ExperimentState.BLOCKED, ArtifactLifecycleState.STALE
             development = planned.seed_count
             confirmatory = 0
             if planned.execution_role is ExecutionRole.CONFIRMATORY:
@@ -146,6 +162,7 @@ def project_status(
                     completed_cell_count=completed,
                     failed_cell_count=failed,
                     invalid_cell_count=invalid,
+                    stale_cell_count=stale,
                 )
             )
             continue

@@ -235,3 +235,4 @@ docs/.fedcampaign-execution/
 graphify-out/
 docs/.graphify-audit/
 docs/.fedcampaign-audit/
+/docs/audit/pocs/

@@ -29,6 +29,7 @@ from fedcampaign_emhi.domain.types import (
     SolverIterationLimit,
     StandardDeviation,
     StoppingTimeDifferenceEpochs,
+    TrajectoryDivergence,
 )
 from fedcampaign_emhi.emhi.innovations import (
     centered_scaled_coordinate,
@@ -529,6 +530,12 @@ def stopping_time_equivalence_criterion(
     interval_upper: StoppingTimeDifferenceEpochs,
 ) -> Boolean:
     return ci_lower >= interval_lower and ci_upper <= interval_upper
+
+
+def trajectory_divergence_equivalence_criterion(
+    mean_max_divergence: TrajectoryDivergence, margin: TrajectoryDivergence
+) -> Boolean:
+    return mean_max_divergence <= margin
 
 
 def pfa_prerequisite_criterion(null_pfa_upper: Probability, target_pfa: Probability) -> Boolean:

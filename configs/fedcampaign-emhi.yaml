@@ -250,6 +250,7 @@ materiality:
     atom_nrmse_upper_margin: 0.05
     minimum_cosine_similarity: 0.99
     stopping_time_difference_interval_epochs: [-1.0, 1.0]
+    maximum_mean_trajectory_divergence: 0.5
   primary_real:
     minimum_strict_odi_rate: 0.2
     minimum_odi_rate_advantage_over_order_at_most_two: 0.1
@@ -327,6 +328,7 @@ experiments:
       - Exclusion-Matched Conditional HOFD
     context_cell_count: 1
     primary_support_levels: [6400, 12800]
+    stopping_time_replicates_per_condition: 20
 
   strong_comparator_composition_challenge:
     candidates:
@@ -340,6 +342,7 @@ experiments:
     artifact_filename: strongest-comparator-composition.json
 
   estimator_support_and_context_feasibility:
+    primary_ridge_candidates: [0.0, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     sensitivity:
       forced_ridge: 0.0
       forced_no_abstention: true
@@ -403,6 +406,10 @@ experiments:
       - Exclusion-Matched Order-at-Most-Two EMHI
       - Exclusion-Matched Conditional HOFD
       - Selected Strong Comparator Composition
+
+  pre_evaluation_cohort_selection_sensitivity:
+    support_window_start_epoch: 25903319
+    support_window_end_epoch_exclusive: 25911841
 
 scalability_timing:
   measured_repetitions_per_seed_client_count: 5

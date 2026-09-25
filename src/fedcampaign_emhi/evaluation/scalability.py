@@ -4,7 +4,7 @@ import math
 import os
 import platform
 import statistics
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -59,6 +59,7 @@ from fedcampaign_emhi.domain.types import (
     ThresholdValue,
 )
 from fedcampaign_emhi.emhi.calibration import build_emhi_fit_artifact
+from fedcampaign_emhi.emhi.evidence import CumulativeAtomState
 from fedcampaign_emhi.emhi.sequential import initial_global_state
 from fedcampaign_emhi.emhi.structure import build_marginal_rank_artifact
 from fedcampaign_emhi.evaluation.metrics import application_payload_bytes_per_epoch
@@ -149,6 +150,7 @@ def measure_repetition_epoch_latencies(
 ) -> tuple[tuple[LatencySeconds, LatencySeconds], ...]:
     state = initial_global_state()
     history: tuple[tuple[ClientId, ...], ...] = ()
+    cumulative_states: Mapping[tuple[ClientId, ...], CumulativeAtomState] = {}
     exceedances: tuple[tuple[Boolean, ...], ...] = tuple(() for _point in local_points)
     timed: list[tuple[LatencySeconds, LatencySeconds]] = []
     for epoch_index in epoch_indexes:
@@ -164,6 +166,7 @@ def measure_repetition_epoch_latencies(
             state,
             history,
             threshold,
+            previous_cumulative_states=cumulative_states,
         )
         server_elapsed = perf_counter() - server_started
         updated: list[tuple[Boolean, ...]] = []
@@ -187,6 +190,7 @@ def measure_repetition_epoch_latencies(
         timed.append((server_elapsed, perf_counter() - end_to_end_started))
         state = advance.global_state
         history = advance.active_history
+        cumulative_states = advance.cumulative_states
     return tuple(timed)
 
 

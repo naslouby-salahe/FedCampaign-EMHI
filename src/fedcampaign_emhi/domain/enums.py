@@ -24,6 +24,67 @@ class ExperimentName(StrEnum):
     OUTSIDE_CAMPAIGN_CONTAMINATION_BOUNDARY = "outside-campaign-contamination-boundary"
     CLIENT_DROPOUT_AND_CONTEXT_SPARSITY_BOUNDARY = "client-dropout-and-context-sparsity-boundary"
     COALITION_SCALABILITY = "coalition-scalability"
+    PRE_EVALUATION_COHORT_SELECTION_SENSITIVITY = "pre-evaluation-cohort-selection-sensitivity"
+
+
+class ScientificSemanticDependency(StrEnum):
+    TON_COMPLETE_RAW_ROW_IDENTITY = "ton-complete-csv-row-sha256-identity"
+    EDGE_COMPLETE_RAW_ROW_IDENTITY = "edge-complete-csv-row-sha256-identity"
+    EDGE_TIMESTAMP_INTERPRETATION = "edge-year-and-clock-as-january-first"
+    FULL_RELEASE_SOURCE_IP_COHORT_SELECTION = "full-release-benign-support-ranked-source-ip-groups"
+    PRE_EVALUATION_SOURCE_IP_COHORT_SELECTION = (
+        "fixed-pre-evaluation-benign-support-ranked-source-ip-groups"
+    )
+    REAL_EPOCH_ASSIGNMENT = "unix-seconds-floor-to-configured-real-epoch"
+    REAL_EVENT_FEATURE_AGGREGATION = "canonical-event-type-bucket-count-and-entropy"
+    CHRONOLOGICAL_BENIGN_SPLIT = "common-pre-attack-chronological-benign-split"
+    NONOVERLAPPING_BENIGN_HORIZONS = "nonoverlapping-configured-finite-horizon-benign-blocks"
+    CO_TEMPORAL_MIXED_CATEGORY_EPISODES = "cross-client-malicious-epoch-union-mixed-category-gap-merge-with-explicit-warmup-horizon-eligibility"
+    LOCAL_POLICY_CALIBRATION = "local-persistence-policy-calibrated-on-disjoint-benign-horizons"
+    FINITE_HORIZON_GLOBAL_CALIBRATION = "heldout-finite-horizon-pfa-threshold-calibration"
+    DETECTOR_SCORING = "locked-client-detector-family-fit-and-score-orientation"
+    EMPIRICAL_MARGINAL_RANKING = "empirical-client-score-marginal-ranking"
+    COMPLEMENT_RESTRICTED_NUISANCE_FIT = "coalition-complement-only-crossfitted-nuisance"
+    PURIFIED_INTERACTION_ESTIMATION = "proper-subset-purified-higher-order-interaction-projection"
+    MATCHED_FIXED_CAMPAIGN_REPLAY = "all-methods-use-configured-campaign-evaluation-horizon"
+    STRICT_ODI_AND_CENSORING = "global-before-every-local-policy-with-right-censoring"
+    PAIRED_SEED_LEVEL_AGGREGATION = "paired-seed-conditional-on-fixed-trace-analysis"
+    SYNTHETIC_GENERATOR_SEMANTICS = "declared-synthetic-generators-and-mechanism-conditions"
+    SIGN_FLIP_AND_HOLM_ANALYSIS = "paired-seed-sign-flip-with-locked-holm-families"
+    ROBUSTNESS_DIAGNOSTIC_SEMANTICS = "declared-robustness-condition-and-diagnostic-metrics"
+    SCALABILITY_HARNESS_SEMANTICS = "in-process-reference-harness-scalability-timing"
+    REPORT_SOURCE_VALIDATION = "verified-source-only-reporting-and-export"
+
+
+class CohortSelectionWindow(StrEnum):
+    FULL_RELEASE_BENIGN_SUPPORT = "full_release_benign_support_before_temporal_split"
+    PRE_EVALUATION_BENIGN_SUPPORT = "pre_evaluation_benign_support"
+
+
+class PreprocessingCohortVariant(StrEnum):
+    PRE_EVALUATION_SUPPORT_SENSITIVITY = "pre_evaluation_support_sensitivity"
+
+
+class CohortSelectionRule(StrEnum):
+    BENIGN_RECORDS_DESCENDING_THEN_SOURCE_IP_ASCENDING = (
+        "eligible_by_benign_records_and_epochs_then_records_descending_source_ip_ascending"
+    )
+
+
+class CampaignConstructionSemantics(StrEnum):
+    CROSS_CLIENT_ANY_CATEGORY_MERGE_WITHIN_BENIGN_GAP = (
+        "cross_client_malicious_union_any_category_merge_fully_benign_gap"
+    )
+
+
+class CampaignEligibilityStatus(StrEnum):
+    ELIGIBLE = "eligible"
+
+
+class InferenceUnitSemantics(StrEnum):
+    SEED_LEVEL_RANDOMNESS_CONDITIONAL_ON_FIXED_TRACE_OR_GENERATOR = (
+        "seed_level_randomness_conditional_on_fixed_trace_or_declared_generator"
+    )
 
 
 class MethodName(StrEnum):
@@ -364,6 +425,7 @@ class ArtifactNamespace(StrEnum):
 class ArtifactPathSegment(StrEnum):
     OUTPUTS = "outputs"
     PREPROCESSING = "preprocessing"
+    VARIANTS = "variants"
     INVENTORIES = "inventories"
     VALIDATION = "validation"
     PREPARED = "prepared"

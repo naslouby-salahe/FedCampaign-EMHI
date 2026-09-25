@@ -4,6 +4,7 @@ from fedcampaign_emhi.analysis.results import reconcile_project_holm_families
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
 from fedcampaign_emhi.domain.enums import ExperimentName, ExperimentState, OverwritePolicy
 from fedcampaign_emhi.execution.output_workspace import materialize_run_output_workspace
+from fedcampaign_emhi.execution.preprocessing import execute_pre_evaluation_cohort_preprocess
 from fedcampaign_emhi.experiments.execution import ExperimentExecutionResult
 from fedcampaign_emhi.experiments.orchestration import execute_campaign_experiment
 from fedcampaign_emhi.experiments.registry import assert_known_experiment
@@ -18,6 +19,8 @@ def execute_experiment(
     overwrite_policy: OverwritePolicy,
 ) -> ExperimentExecutionResult:
     assert_known_experiment(loaded.values, experiment_name)
+    if experiment_name is ExperimentName.PRE_EVALUATION_COHORT_SELECTION_SENSITIVITY:
+        execute_pre_evaluation_cohort_preprocess(loaded, repository, overwrite_policy)
     result = execute_campaign_experiment(loaded, repository, experiment_name, overwrite_policy)
     if result.state is ExperimentState.COMPLETED:
         materialize_run_output_workspace(loaded, repository, experiment_name)

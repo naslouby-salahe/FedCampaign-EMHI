@@ -4,7 +4,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import cast
 
-from fedcampaign_emhi.artifacts.provenance import material_fingerprint
+from fedcampaign_emhi.artifacts.provenance import experiment_semantic_digest, material_fingerprint
 from fedcampaign_emhi.artifacts.records import (
     CompletionRecord,
     ScalabilityAggregateRecord,
@@ -28,6 +28,7 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     ExperimentState,
     KnownArtifactOutputFilename,
+    ScientificSemanticDependency,
 )
 from fedcampaign_emhi.domain.types import (
     ClientCount,
@@ -201,6 +202,7 @@ def materialize_coalition_scalability_summaries(
                     )
                 ),
                 (environment_digest,),
+                (ScientificSemanticDependency.SCALABILITY_HARNESS_SEMANTICS,),
             )
             completion = CompletionRecord(
                 state=ExperimentState.COMPLETED,
@@ -215,6 +217,9 @@ def materialize_coalition_scalability_summaries(
                 seed=seed,
                 state=ExperimentState.COMPLETED,
                 material_digest=loaded.material_digest,
+                semantic_dependency_digest=experiment_semantic_digest(
+                    ExperimentName.COALITION_SCALABILITY
+                ),
                 selected_client_ids=(),
                 upstream_artifact_ids=(),
                 dependency_fingerprint=fingerprint,

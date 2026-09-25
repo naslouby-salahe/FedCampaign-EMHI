@@ -54,6 +54,7 @@ from fedcampaign_emhi.domain.types import (
     EpochCount,
     EpochIndexValue,
     EvidenceFactor,
+    IndicatorDifference,
     InnovationCoordinate,
     InnovationDeviation,
     InnovationMean,
@@ -69,6 +70,7 @@ from fedcampaign_emhi.domain.types import (
     StandardizedDrift,
     StoppingTimeDifferenceEpochs,
     ThresholdValue,
+    TrajectoryDivergence,
     YamlKeyPath,
 )
 from fedcampaign_emhi.emhi.calibration import (
@@ -77,7 +79,8 @@ from fedcampaign_emhi.emhi.calibration import (
     moments_from_held_fold_innovations,
 )
 from fedcampaign_emhi.emhi.evidence import (
-    operational_evidence_factor,
+    cumulative_operational_evidence_factor,
+    initial_cumulative_atom_state,
     operational_norm_reference_quantile,
 )
 from fedcampaign_emhi.emhi.innovations import center_and_scale_atom, projection_residual
@@ -197,6 +200,7 @@ class HofdEquivalenceConditionMetrics:
     atom_cosine_similarity: Probability
     stopping_time_difference: StoppingTimeDifferenceEpochs | None
     detection_indicator_difference: Probability
+    trajectory_divergence: TrajectoryDivergence
     pfa_prerequisite_passes: Boolean
 
 
@@ -267,16 +271,19 @@ def _operational_factors_for_rows(
         basis_size,
         config.projection.atom_scale_floor,
     )
-    return tuple(
-        operational_evidence_factor(
+    factors: list[EvidenceFactor] = []
+    state = initial_cumulative_atom_state()
+    for atom in atoms:
+        factor, state = cumulative_operational_evidence_factor(
+            state,
             atom,
             norm_reference,
             config.projection.norm_reference_floor,
             config.evidence.clip_bound,
             config.evidence.bet_lambda,
         )
-        for atom in atoms
-    )
+        factors.append(factor)
+    return tuple(factors)
 
 
 def _first_eprocess_stop(
@@ -288,6 +295,21 @@ def _first_eprocess_stop(
         if threshold_predicate(state, threshold):
             return index
     return None
+
+
+def _trajectory_max_divergence(
+    left_factors: tuple[EvidenceFactor, ...], right_factors: tuple[EvidenceFactor, ...]
+) -> TrajectoryDivergence:
+    left_state = initial_global_state()
+    right_state = initial_global_state()
+    peak = 0.0
+    for left_factor, right_factor in zip(left_factors, right_factors, strict=True):
+        left_state = next_global_state(left_state, left_factor)
+        right_state = next_global_state(right_state, right_factor)
+        divergence = abs(left_state - right_state)
+        if divergence > peak:
+            peak = divergence
+    return peak
 
 
 def _calibrate_eprocess_threshold(
@@ -519,47 +541,74 @@ def _evaluate_hofd_equivalence_seed(
                     hofd_pfa, config.evidence.calibrated_finite_horizon.target_pfa
                 )
             )
-            effect_horizon = tuple(
-                sample_generator_row(cell, client_count, seed + offset + epoch_index)[:width]
-                for epoch_index in range(horizon_length)
-            )
-            offset += horizon_length
-            emhi_effect = _operational_factors_for_rows(
-                effect_horizon,
-                calibration.complete_nuisance_coefficients,
-                calibration.coordinate_means,
-                calibration.coordinate_deviations,
-                emhi_norm,
-                config.basis.primary_size,
-                config,
-            )
-            hofd_effect = _operational_factors_for_rows(
-                effect_horizon,
-                hofd_coefficients,
-                hofd_means,
-                hofd_deviations,
-                hofd_norm,
-                config.basis.primary_size,
-                config,
-            )
-            emhi_stop = (
-                None
-                if emhi_threshold is None
-                else _first_eprocess_stop(emhi_effect, emhi_threshold)
-            )
-            hofd_stop = (
-                None
-                if hofd_threshold is None
-                else _first_eprocess_stop(hofd_effect, hofd_threshold)
-            )
+            replicate_count = config.experiments.exclusion_matched_hofd_equivalence.stopping_time_replicates_per_condition
+            replicate_stop_differences: list[StoppingTimeDifferenceEpochs] = []
+            replicate_detection_differences: list[IndicatorDifference] = []
+            replicate_max_divergences: list[TrajectoryDivergence] = []
+            emhi_stop = None
+            hofd_stop = None
+            for replicate_index in range(replicate_count):
+                effect_horizon = tuple(
+                    sample_generator_row(
+                        cell,
+                        client_count,
+                        seed + offset + replicate_index * horizon_length + epoch_index,
+                    )[:width]
+                    for epoch_index in range(horizon_length)
+                )
+                emhi_effect = _operational_factors_for_rows(
+                    effect_horizon,
+                    calibration.complete_nuisance_coefficients,
+                    calibration.coordinate_means,
+                    calibration.coordinate_deviations,
+                    emhi_norm,
+                    config.basis.primary_size,
+                    config,
+                )
+                hofd_effect = _operational_factors_for_rows(
+                    effect_horizon,
+                    hofd_coefficients,
+                    hofd_means,
+                    hofd_deviations,
+                    hofd_norm,
+                    config.basis.primary_size,
+                    config,
+                )
+                replicate_emhi_stop = (
+                    None
+                    if emhi_threshold is None
+                    else _first_eprocess_stop(emhi_effect, emhi_threshold)
+                )
+                replicate_hofd_stop = (
+                    None
+                    if hofd_threshold is None
+                    else _first_eprocess_stop(hofd_effect, hofd_threshold)
+                )
+                if replicate_index == 0:
+                    emhi_stop = replicate_emhi_stop
+                    hofd_stop = replicate_hofd_stop
+                if replicate_emhi_stop is not None and replicate_hofd_stop is not None:
+                    replicate_stop_differences.append(
+                        paired_stopping_time_difference(replicate_emhi_stop, replicate_hofd_stop)
+                    )
+                replicate_detection_differences.append(
+                    paired_detection_indicator_difference(
+                        replicate_emhi_stop is not None, replicate_hofd_stop is not None
+                    )
+                )
+                replicate_max_divergences.append(
+                    _trajectory_max_divergence(emhi_effect, hofd_effect)
+                )
+            offset += replicate_count * horizon_length
             stop_difference = (
                 None
-                if emhi_stop is None or hofd_stop is None
-                else paired_stopping_time_difference(emhi_stop, hofd_stop)
+                if not replicate_stop_differences
+                else sum(replicate_stop_differences) / len(replicate_stop_differences)
             )
-            detection_difference = paired_detection_indicator_difference(
-                emhi_stop is not None, hofd_stop is not None
+            detection_difference = sum(replicate_detection_differences) / len(
+                replicate_detection_differences
             )
+            trajectory_divergence = sum(replicate_max_divergences) / len(replicate_max_divergences)
             condition_metrics.append(
                 HofdEquivalenceConditionMetrics(
                     coalition_order=order,
@@ -568,6 +617,7 @@ def _evaluate_hofd_equivalence_seed(
                     atom_cosine_similarity=cosine,
                     stopping_time_difference=stop_difference,
                     detection_indicator_difference=detection_difference,
+                    trajectory_divergence=trajectory_divergence,
                     pfa_prerequisite_passes=pfa_ok,
                 )
             )
@@ -583,6 +633,7 @@ def _evaluate_hofd_equivalence_seed(
                     "emhi_null_pfa": emhi_pfa,
                     "hofd_null_pfa": hofd_pfa,
                     "pfa_prerequisite_passes": pfa_ok,
+                    "trajectory_divergence": trajectory_divergence,
                     "emhi_stop_epoch": emhi_stop,
                     "hofd_stop_epoch": hofd_stop,
                     "stopping_time_difference": stop_difference,
@@ -1018,7 +1069,7 @@ def _dropout_sparsity_record(
             nuisance_reference_scores=stream.nuisance_reference_scores,
             epoch_indexes=tuple(
                 epoch
-                for epoch, _rank in zip(stream.epoch_indexes, stream.ranks, strict=True)
+                for epoch, _ in zip(stream.epoch_indexes, stream.ranks, strict=True)
                 if epoch not in available_by_epoch or stream.client_id in available_by_epoch[epoch]
             ),
             ranks=tuple(
@@ -1236,9 +1287,7 @@ def _strong_comparator_outcome(
             remaining,
             seed + sample_count + term_index,
         )
-        mixed_score, _state = score_comparator_ranks(
-            method_name, row[:order], config, (), fitted_state
-        )
+        mixed_score, _ = score_comparator_ranks(method_name, row[:order], config, (), fitted_state)
         finite = isfinite(mixed_score)
         mixed_diagnostics.append(
             {

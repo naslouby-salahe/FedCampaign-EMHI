@@ -49,7 +49,9 @@ from fedcampaign_emhi.domain.enums import (
     ExperimentName,
     MethodName,
     PartitionRole,
+    PreprocessingCohortVariant,
     PreprocessingLayer,
+    ScientificSemanticDependency,
 )
 from fedcampaign_emhi.domain.types import (
     ArtifactIdentity,
@@ -95,6 +97,7 @@ from fedcampaign_emhi.experiments.execution import (
     campaigns_logger,
     emhi_method_specification,
     experiment_contract,
+    preprocessing_cohort_variant,
 )
 from fedcampaign_emhi.experiments.technical_retry import with_technical_retry
 
@@ -103,9 +106,12 @@ def preprocessing_paths(
     loaded: LoadedScientificConfiguration,
     repository: Path,
     dataset_name: DatasetName,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> tuple[Path, Path, Path, Path, Path]:
     layout = build_artifact_layout(loaded, repository)
     root = layout.roots.outputs_root / ArtifactPathSegment.PREPROCESSING
+    if cohort_variant is not None:
+        root = root / ArtifactPathSegment.VARIANTS / cohort_variant.value
     stem = dataset_directory_stem(dataset_name)
     return (
         root
@@ -134,7 +140,12 @@ def required_preprocessing_artifacts(
     contract = experiment_contract(loaded.values, experiment_name)
     if not contract.uses_real_seeds:
         return ()
-    return preprocessing_paths(loaded, repository, campaign_dataset(loaded, experiment_name))
+    return preprocessing_paths(
+        loaded,
+        repository,
+        campaign_dataset(loaded, experiment_name),
+        preprocessing_cohort_variant(experiment_name),
+    )
 
 
 def reuse_decision_from_reusability(reusable: Boolean) -> ArtifactReuseDecision:
@@ -148,9 +159,10 @@ def _materialize_detector_scores(
     repository: Path,
     dataset_name: DatasetName,
     root_seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Path:
     _inventory_path, prepared_path, split_path, _partitions_path, _campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+        preprocessing_paths(loaded, repository, dataset_name, cohort_variant)
     )
     detector_digest = payload_digest(
         cast(YamlNode, loaded.values.detectors.model_dump(mode="json"))
@@ -159,8 +171,11 @@ def _materialize_detector_scores(
     fingerprint = material_fingerprint(
         detector_digest,
         (file_sha256(prepared_path), file_sha256(split_path), seed_digest),
+        (ScientificSemanticDependency.DETECTOR_SCORING,),
     )
-    destination = detector_score_artifact_path(loaded, repository, dataset_name, root_seed)
+    destination = detector_score_artifact_path(
+        loaded, repository, dataset_name, root_seed, cohort_variant
+    )
     if destination.is_file():
         try:
             existing = DetectorScoreArtifactRecord.model_validate_json(destination.read_bytes())
@@ -203,12 +218,12 @@ def _materialize_detector_scores(
         loaded,
         repository,
         destination,
-        detector_score_artifact_id(dataset_name, root_seed),
+        detector_score_artifact_id(dataset_name, root_seed, cohort_variant),
         content_hash,
         fingerprint,
         (
-            layer_artifact_id(dataset_name, PreprocessingLayer.PREPARED),
-            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+            layer_artifact_id(dataset_name, PreprocessingLayer.PREPARED, cohort_variant),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS, cohort_variant),
         ),
     )
     return destination
@@ -220,9 +235,10 @@ def _materialize_marginal_ranks(
     dataset_name: DatasetName,
     root_seed: SeedValue,
     score_path: Path,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Path:
     _inventory_path, _prepared_path, split_path, _partitions_path, _campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+        preprocessing_paths(loaded, repository, dataset_name, cohort_variant)
     )
     scores = DetectorScoreArtifactRecord.model_validate_json(score_path.read_bytes())
     split = DatasetSplitRecord.model_validate_json(split_path.read_bytes())
@@ -232,8 +248,11 @@ def _materialize_marginal_ranks(
     fingerprint = material_fingerprint(
         rank_digest,
         (file_sha256(score_path), file_sha256(split_path)),
+        (ScientificSemanticDependency.EMPIRICAL_MARGINAL_RANKING,),
     )
-    destination = marginal_rank_artifact_path(loaded, repository, dataset_name, root_seed)
+    destination = marginal_rank_artifact_path(
+        loaded, repository, dataset_name, root_seed, cohort_variant
+    )
     if destination.is_file():
         try:
             existing = MarginalRankArtifactRecord.model_validate_json(destination.read_bytes())
@@ -272,12 +291,12 @@ def _materialize_marginal_ranks(
         loaded,
         repository,
         destination,
-        marginal_rank_artifact_id(dataset_name, root_seed),
+        marginal_rank_artifact_id(dataset_name, root_seed, cohort_variant),
         content_hash,
         fingerprint,
         (
-            detector_score_artifact_id(dataset_name, root_seed),
-            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+            detector_score_artifact_id(dataset_name, root_seed, cohort_variant),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS, cohort_variant),
         ),
     )
     return destination
@@ -291,12 +310,13 @@ def _materialize_emhi_fit(
     method_name: MethodName,
     score_path: Path,
     rank_path: Path,
+    cohort_variant: PreprocessingCohortVariant | None,
 ) -> Path:
     specification = emhi_method_specification(method_name)
     if specification is None:
         raise ValueError(f"method {method_name.value} is not an EMHI hierarchy")
     _inventory_path, _prepared_path, split_path, _partitions_path, _campaigns_path = (
-        preprocessing_paths(loaded, repository, dataset_name)
+        preprocessing_paths(loaded, repository, dataset_name, cohort_variant)
     )
     method_digest = payload_digest(
         cast(
@@ -319,6 +339,10 @@ def _materialize_emhi_fit(
             file_sha256(rank_path),
             file_sha256(split_path),
         ),
+        (
+            ScientificSemanticDependency.COMPLEMENT_RESTRICTED_NUISANCE_FIT,
+            ScientificSemanticDependency.PURIFIED_INTERACTION_ESTIMATION,
+        ),
     )
     destination = emhi_fit_artifact_path(
         loaded,
@@ -326,6 +350,7 @@ def _materialize_emhi_fit(
         dataset_name,
         root_seed,
         method_name,
+        cohort_variant,
     )
     if destination.is_file():
         try:
@@ -378,13 +403,13 @@ def _materialize_emhi_fit(
         loaded,
         repository,
         destination,
-        emhi_fit_artifact_id(dataset_name, root_seed, method_name),
+        emhi_fit_artifact_id(dataset_name, root_seed, method_name, cohort_variant),
         content_hash,
         fingerprint,
         (
-            detector_score_artifact_id(dataset_name, root_seed),
-            marginal_rank_artifact_id(dataset_name, root_seed),
-            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS),
+            detector_score_artifact_id(dataset_name, root_seed, cohort_variant),
+            marginal_rank_artifact_id(dataset_name, root_seed, cohort_variant),
+            layer_artifact_id(dataset_name, PreprocessingLayer.SPLITS, cohort_variant),
         ),
     )
     return destination
@@ -538,14 +563,28 @@ def _campaign_row(
         CampaignEvaluationRow(
             start_epoch=campaign.start_epoch,
             end_epoch=campaign.end_epoch,
+            evaluation_epoch_indexes=evaluation_epochs,
             participating_client_ids=campaign.participating_client_ids,
+            attack_types=campaign.attack_types,
             global_stop_epoch=global_stop,
+            global_stop_time_seconds=(
+                None
+                if global_stop is None
+                else global_stop * loaded.values.time.real_data_epoch_seconds
+            ),
             local_stop_epochs=local_stops,
             local_min_stop_epoch=earliest_local,
+            local_min_stop_time_seconds=(
+                None
+                if earliest_local is None
+                else earliest_local * loaded.values.time.real_data_epoch_seconds
+            ),
             strict_odi=indicator,
             statistical_lead_epochs=statistical,
             operational_lead_epochs=operational,
             global_detected_within_horizon=odi.global_detection_indicator,
+            global_alarm_censored=global_stop is None,
+            local_alarm_censored=earliest_local is None,
             paired_stopping_time_difference=(
                 None
                 if global_stop is None or earliest_local is None
@@ -572,14 +611,22 @@ def campaign_evaluation_row_payload(
     return {
         "start_epoch": row.start_epoch,
         "end_epoch": row.end_epoch,
+        "evaluation_start_epoch": row.evaluation_epoch_indexes[0],
+        "evaluation_end_epoch": row.evaluation_epoch_indexes[-1],
+        "evaluation_epoch_indexes": list(row.evaluation_epoch_indexes),
         "participating_client_ids": list(row.participating_client_ids),
+        "attack_types": list(row.attack_types),
         "global_stop_epoch": row.global_stop_epoch,
+        "global_stop_time_seconds": row.global_stop_time_seconds,
         "local_stop_epochs": list(row.local_stop_epochs),
         "local_min_stop_epoch": row.local_min_stop_epoch,
+        "local_min_stop_time_seconds": row.local_min_stop_time_seconds,
         "strict_odi": row.strict_odi,
         "statistical_lead_epochs": row.statistical_lead_epochs,
         "operational_lead_epochs": row.operational_lead_epochs,
         "global_detected_within_horizon": row.global_detected_within_horizon,
+        "global_alarm_censored": row.global_alarm_censored,
+        "local_alarm_censored": row.local_alarm_censored,
         "local_detected_within_horizon": 0 if row.local_min_stop_epoch is None else 1,
         "paired_stopping_time_difference": row.paired_stopping_time_difference,
         "paired_detection_indicator_difference": row.paired_detection_indicator_difference,
@@ -662,10 +709,13 @@ def materialize_detector_scores_with_retry(
     repository: Path,
     dataset_name: DatasetName,
     seed: SeedValue,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     return with_technical_retry(
         loaded,
-        lambda: _materialize_detector_scores(loaded, repository, dataset_name, seed),
+        lambda: _materialize_detector_scores(
+            loaded, repository, dataset_name, seed, cohort_variant
+        ),
     )
 
 
@@ -675,10 +725,13 @@ def materialize_marginal_ranks_with_retry(
     dataset_name: DatasetName,
     seed: SeedValue,
     score_path: Path,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     return with_technical_retry(
         loaded,
-        lambda: _materialize_marginal_ranks(loaded, repository, dataset_name, seed, score_path),
+        lambda: _materialize_marginal_ranks(
+            loaded, repository, dataset_name, seed, score_path, cohort_variant
+        ),
     )
 
 
@@ -690,10 +743,18 @@ def materialize_emhi_fit_with_retry(
     method_name: MethodName,
     score_path: Path,
     rank_path: Path,
+    cohort_variant: PreprocessingCohortVariant | None = None,
 ) -> Path:
     return with_technical_retry(
         loaded,
         lambda: _materialize_emhi_fit(
-            loaded, repository, dataset_name, seed, method_name, score_path, rank_path
+            loaded,
+            repository,
+            dataset_name,
+            seed,
+            method_name,
+            score_path,
+            rank_path,
+            cohort_variant,
         ),
     )

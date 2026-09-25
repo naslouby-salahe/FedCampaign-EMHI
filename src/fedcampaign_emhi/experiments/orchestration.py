@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from fedcampaign_emhi.artifacts.provenance import experiment_semantic_digest
 from fedcampaign_emhi.artifacts.records import (
     ExperimentRunRecord,
     PreparedDatasetRecord,
@@ -14,6 +15,7 @@ from fedcampaign_emhi.comparators.runtime import (
 )
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
 from fedcampaign_emhi.domain.enums import (
+    ExecutionRole,
     ExperimentName,
     ExperimentState,
     OverwritePolicy,
@@ -81,13 +83,20 @@ def validate_scientific_implementation_registry(
 
 
 def _completed_cell_is_reusable(
-    repository: Path, path: Path, material_digest: ConfigurationDigest
+    repository: Path,
+    path: Path,
+    material_digest: ConfigurationDigest,
+    experiment_name: ExperimentName,
 ) -> Boolean:
     try:
         cell = ScientificCellRecord.model_validate_json(path.read_bytes())
     except ValueError:
         return False
-    if cell.state is not ExperimentState.COMPLETED or cell.material_digest != material_digest:
+    if (
+        cell.state is not ExperimentState.COMPLETED
+        or cell.material_digest != material_digest
+        or cell.semantic_dependency_digest != experiment_semantic_digest(experiment_name)
+    ):
         return False
     outputs = cell.completion_record.mandatory_output_paths
     hashes = cell.completion_record.mandatory_output_hashes
@@ -117,6 +126,7 @@ def _existing_completed_run(
         return None
     if (
         record.material_digest != loaded.material_digest
+        or record.semantic_dependency_digest != experiment_semantic_digest(experiment_name)
         or record.state is not ExperimentState.COMPLETED
     ):
         return None
@@ -124,7 +134,7 @@ def _existing_completed_run(
         build_artifact_layout(loaded, repository).experiment_outputs_root(experiment_name)
     )
     if not cell_paths or not all(
-        _completed_cell_is_reusable(repository, cell_path, loaded.material_digest)
+        _completed_cell_is_reusable(repository, cell_path, loaded.material_digest, experiment_name)
         for cell_path in cell_paths
     ):
         return None
@@ -255,6 +265,7 @@ def execute_campaign_experiment(
         loaded,
         repository,
         experiment_name,
+        overwrite_policy,
     )
     materialize_seed_statistics(loaded, repository, experiment_name)
     not_tested_primary = materialize_not_tested_primary_holm_statistic(
@@ -262,9 +273,10 @@ def execute_campaign_experiment(
     )
     if experiment_name is ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE:
         materialize_strong_local_odi_statistic(loaded, repository)
-    materialize_confirmatory_odi_inferences(
-        loaded, repository, experiment_name, not_tested_primary is not None
-    )
+    if ExecutionRole.CONFIRMATORY in contract.execution_roles:
+        materialize_confirmatory_odi_inferences(
+            loaded, repository, experiment_name, not_tested_primary is not None
+        )
     if experiment_name is ExperimentName.BENIGN_COMMON_MODE_ROBUSTNESS:
         materialize_benign_common_mode_statistic(loaded, repository)
         materialize_benign_common_mode_count_stress_diagnostics(loaded, repository)

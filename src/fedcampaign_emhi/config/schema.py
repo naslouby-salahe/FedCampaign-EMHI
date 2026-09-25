@@ -40,6 +40,7 @@ from fedcampaign_emhi.domain.types import (
     DetectionRateLoss,
     EffectCoefficient,
     EpochCount,
+    EpochIndexValue,
     EpochSeconds,
     ESrThreshold,
     EstimatorEvaluationSampleCount,
@@ -104,6 +105,7 @@ from fedcampaign_emhi.domain.types import (
     SvmCoefficientZero,
     ThresholdValue,
     TrajectoryCount,
+    TrajectoryDivergence,
     TreeCount,
     ValidationFixtureCount,
     WeightDecay,
@@ -530,6 +532,7 @@ class MaterialityHofdEquivalenceConfig(FrozenConfigModel):
     atom_nrmse_upper_margin: ProjectionNrmse
     minimum_cosine_similarity: CosineSimilarity
     stopping_time_difference_interval_epochs: tuple[StoppingTimeDifferenceEpochs, ...]
+    maximum_mean_trajectory_divergence: TrajectoryDivergence
 
 
 class MaterialityPrimaryRealConfig(FrozenConfigModel):
@@ -608,6 +611,7 @@ class ExperimentsExclusionMatchedHofdEquivalenceConfig(FrozenConfigModel):
     methods: tuple[MethodName, ...]
     context_cell_count: CellCount
     primary_support_levels: tuple[EstimatorSupportLevel, ...]
+    stopping_time_replicates_per_condition: RecordCount
 
 
 class ExperimentsStrongComparatorCompositionChallengeConfig(FrozenConfigModel):
@@ -624,6 +628,7 @@ class ExperimentsEstimatorSupportAndContextFeasibilitySensitivityConfig(FrozenCo
 
 class ExperimentsEstimatorSupportAndContextFeasibilityConfig(FrozenConfigModel):
     sensitivity: ExperimentsEstimatorSupportAndContextFeasibilitySensitivityConfig
+    primary_ridge_candidates: tuple[RidgePenalty, ...]
 
 
 class ExperimentsSequentialEvidenceValidationSignedTheoremConfig(FrozenConfigModel):
@@ -668,6 +673,17 @@ class ExperimentsSecondaryControlledTraceGeneralizationConfig(FrozenConfigModel)
     methods: tuple[MethodName, ...]
 
 
+class ExperimentsPreEvaluationCohortSelectionSensitivityConfig(FrozenConfigModel):
+    support_window_start_epoch: EpochIndexValue
+    support_window_end_epoch_exclusive: EpochIndexValue
+
+    @model_validator(mode="after")
+    def _validate_support_window(self) -> Self:
+        if self.support_window_end_epoch_exclusive <= self.support_window_start_epoch:
+            raise ValueError("pre-evaluation cohort support window must have positive duration")
+        return self
+
+
 class ExperimentsConfig(FrozenConfigModel):
     self_explanation_exclusion_validation: ExperimentsSelfExplanationExclusionValidationConfig
     pure_order_separation_validation: ExperimentsPureOrderSeparationValidationConfig
@@ -684,6 +700,9 @@ class ExperimentsConfig(FrozenConfigModel):
     benign_common_mode_robustness: ExperimentsBenignCommonModeRobustnessConfig
     secondary_controlled_trace_generalization: (
         ExperimentsSecondaryControlledTraceGeneralizationConfig
+    )
+    pre_evaluation_cohort_selection_sensitivity: (
+        ExperimentsPreEvaluationCohortSelectionSensitivityConfig
     )
 
 

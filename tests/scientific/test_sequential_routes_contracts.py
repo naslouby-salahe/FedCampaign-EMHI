@@ -17,6 +17,7 @@ from fedcampaign_emhi.emhi.thresholds import (
     select_calibrated_threshold,
 )
 from fedcampaign_emhi.evaluation.sequential import (
+    campaign_evaluation_epochs,
     campaign_replay_plan,
     operational_lead,
     statistical_lead,
@@ -142,6 +143,15 @@ def test_campaign_replay_resets_state_and_computes_warmup_through_contexts() -> 
     assert plan.global_state_reset is True
     assert plan.local_persistence_reset is True
     assert first_global_stop_epoch((2.0,), (True,), 1.0) == 0
+
+
+def test_campaign_evaluation_window_uses_locked_horizon_not_campaign_duration() -> None:
+    config = load_production_configuration().values
+    start_epoch = 500
+    epochs = campaign_evaluation_epochs(config, start_epoch)
+    assert len(epochs) == config.campaign.evaluation_horizon_epochs
+    assert epochs[0] == start_epoch
+    assert epochs[-1] == start_epoch + config.campaign.evaluation_horizon_epochs - 1
 
 
 def test_statistical_lead_formula() -> None:

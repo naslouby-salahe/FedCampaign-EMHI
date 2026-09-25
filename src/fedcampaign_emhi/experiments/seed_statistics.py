@@ -485,6 +485,9 @@ def _method_seed_odi(
 
 
 def _pair_confirmatory_odi(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
     full_summaries: tuple[tuple[Path, SeedSummaryRecord], ...],
     comparator_summaries: tuple[tuple[Path, SeedSummaryRecord], ...],
 ) -> tuple[
@@ -494,18 +497,27 @@ def _pair_confirmatory_odi(
     tuple[MethodSeedOdi, ...],
     tuple[MethodSeedOdi, ...],
 ]:
-    comparator_by_seed = tuple((record.seed, path, record) for path, record in comparator_summaries)
+    comparator_by_seed = tuple(
+        (
+            record.seed,
+            path,
+            record,
+            _comparison_contract_digest(loaded, repository, experiment_name, record),
+        )
+        for path, record in comparator_summaries
+    )
     paired_paths: list[Path] = []
     paired_full_records: list[SeedSummaryRecord] = []
     paired_comparator_records: list[SeedSummaryRecord] = []
     paired_full_odi: list[MethodSeedOdi] = []
     paired_comparator_odi: list[MethodSeedOdi] = []
     for path, record in full_summaries:
+        full_contract = _comparison_contract_digest(loaded, repository, experiment_name, record)
         match = next(
             (
                 (comparator_path, comparator_record)
-                for seed, comparator_path, comparator_record in comparator_by_seed
-                if seed == record.seed
+                for seed, comparator_path, comparator_record, comparator_contract in comparator_by_seed
+                if seed == record.seed and comparator_contract == full_contract
             ),
             None,
         )
@@ -528,6 +540,30 @@ def _pair_confirmatory_odi(
     )
 
 
+def _comparison_contract_digest(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    experiment_name: ExperimentName,
+    summary: SeedSummaryRecord,
+) -> ConfigurationDigest:
+    layout = build_artifact_layout(loaded, repository)
+    raw_path = (
+        layout.experiment_outputs_root(experiment_name)
+        / ArtifactPathSegment.EVALUATIONS
+        / ArtifactPathSegment.RAW
+        / summary.execution_role.value
+        / method_artifact_stem(summary.method_name)
+        / ArtifactFilenamePattern.SEEDED_JSON.format(seed=summary.seed)
+    )
+    if not raw_path.is_file():
+        raise ValueError(f"paired evaluation source is missing: {raw_path}")
+    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+    digest = payload.get("comparison_contract_digest")
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise ValueError(f"paired evaluation has no verified comparison contract: {raw_path}")
+    return digest
+
+
 def _materialize_paired_confirmatory_odi_contrast(
     loaded: LoadedScientificConfiguration,
     repository: Path,
@@ -542,7 +578,9 @@ def _materialize_paired_confirmatory_odi_contrast(
     full_summaries = _confirmatory_method_summaries(summaries, MethodName.FULL_FEDCAMPAIGN_EMHI)
     comparator_summaries = _confirmatory_method_summaries(summaries, comparator_method)
     paired_paths, paired_full, paired_comparator, paired_full_odi, paired_comparator_odi = (
-        _pair_confirmatory_odi(full_summaries, comparator_summaries)
+        _pair_confirmatory_odi(
+            loaded, repository, experiment_name, full_summaries, comparator_summaries
+        )
     )
     paired_seeds = tuple(item.seed for item in paired_full_odi)
     expected = loaded.values.randomness.real_confirmatory_roots

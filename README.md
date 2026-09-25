@@ -2,6 +2,8 @@
 
 FedCampaign-EMHI implements Exclusion-Matched Hierarchical Innovation for Operational Distributed Insufficiency. The scientific and execution contract is the repository copy of the roadmap at `docs/Roadmap.md`.
 
+> **Scientific artifact status (2026-09-25):** Existing experiment runs, including the previously completed 200-cell primary ODI run and its tables/reports, are **HISTORICAL / STALE / REQUIRES REGENERATION / NOT MANUSCRIPT EVIDENCE**. The complete-row TON deduplication and matched-horizon corrections change scientific material identities. `fedcampaign status` reports legacy cells as stale and blocks their reuse. No replacement confirmatory campaign has been run. Durations and completion notes in the history below describe old runs only.
+
 ## Environment
 
 Python 3.13+ and `uv` are required.
@@ -46,7 +48,7 @@ Normal `fedcampaign run <experiment-name>` invocations resume compatible complet
 
 Each registered experiment is executed by name with a single command. Run `fedcampaign status` before starting one and verify `fedcampaign status <experiment-name>` afterwards; materialize results with `fedcampaign report <experiment-name>`. Names are identical for `run`, `status`, and `report`.
 
-Run the experiments in the dependency-aware campaign order below. The real-data experiments require valid production preprocessing (`fedcampaign preprocess`, `fedcampaign status`), and `strong-comparator-composition-challenge` must complete before `primary-strict-odi-evaluation` and `secondary-controlled-trace-generalization`, whose configurations use the Selected Strong Comparator Composition record. `coalition-scalability` is a timing harness and runs last so its evidence is not distorted by campaign load. The `(Duration: ...)` annotation shows the measured wall time where a completed run exists; experiments without one read `not yet measured`.
+The list below is a historical run log, not a current validated campaign. For a future corrected run, start with `uv run fedcampaign preprocess --overwrite`, inspect `uv run fedcampaign status`, and follow the dependency-aware order below. Real-data runs require current preprocessing; `strong-comparator-composition-challenge` must complete before `primary-strict-odi-evaluation` and `secondary-controlled-trace-generalization`. The latter remains `Not Tested` under the present Edge-IIoTset minimum-source rule. `coalition-scalability` is an engineering reference-harness diagnostic and does not establish deployment readiness. The duration annotations are historical execution notes only.
 
 ```text
 fedcampaign run synthetic-module-validation                   (Duration: ≈ 3–5 s — measured; currently stale, re-run pending)

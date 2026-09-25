@@ -19,6 +19,7 @@ from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.domain.enums import (
     ArtifactPathSegment,
     ExperimentName,
+    InferenceUnitSemantics,
     KnownArtifactOutputFilename,
     MethodName,
 )
@@ -158,8 +159,9 @@ def seed_odi_csv_bytes(summaries: tuple[SeedSummaryRecord, ...]) -> Deterministi
             "execution_role",
             "method",
             "seed",
+            "inference_unit_semantics",
             "strict_odi_rate",
-            "campaign_count",
+            "constructed_episode_count",
         )
     )
     ordered = tuple(sorted(summaries, key=lambda item: (item.seed, item.execution_role)))
@@ -170,6 +172,7 @@ def seed_odi_csv_bytes(summaries: tuple[SeedSummaryRecord, ...]) -> Deterministi
                 summary.execution_role.value,
                 summary.method_name.value,
                 summary.seed,
+                InferenceUnitSemantics.SEED_LEVEL_RANDOMNESS_CONDITIONAL_ON_FIXED_TRACE_OR_GENERATOR,
                 summary.method_value,
                 summary.campaign_count,
             )
@@ -284,7 +287,7 @@ def sensitivity_table_bytes(
     writer.writerow(
         (
             "variant",
-            "seed_count",
+            "seed_level_conditional_randomness_count",
             "strict_odi_rate",
             "campaign_detection_rate",
             "heldout_pfa",
@@ -343,9 +346,9 @@ def _panel_value(
     record: ContextEstimatorSensitivityCellRecord,
     attribute: ComponentName,
     use_base: Boolean,
-) -> MetricValue:
+) -> MetricValue | None:
     value = getattr(_metric_source(record, use_base), attribute)
-    return 0.0 if value is None else value
+    return value
 
 
 def sensitivity_figure_bytes(
@@ -363,7 +366,13 @@ def sensitivity_figure_bytes(
     for axis, (name, label) in zip(axes, panels, strict=True):
         variants: list[tuple[RelativePath, MetricValue, MetricValue]] = []
         for slug, variant_records in _group_by_variant(records):
-            values = tuple(_panel_value(record, name, False) for record in variant_records)
+            values = tuple(
+                value
+                for record in variant_records
+                if (value := _panel_value(record, name, False)) is not None
+            )
+            if not values:
+                continue
             mean = _mean_values(values)
             deviation = (sum((value - mean) ** 2 for value in values) / len(values)) ** 0.5
             variants.append((slug, mean, deviation / len(values) ** 0.5))
@@ -375,10 +384,14 @@ def sensitivity_figure_bytes(
             capsize=3,
             color="black",
         )
-        base_values = tuple(
-            _panel_value(record, name, True) for record in _deduplicate_seeds(records)
-        )
-        axis.axhline(_mean_values(base_values), color="0.5", linewidth=1, linestyle="--")
+        base_values_list: list[MetricValue] = []
+        for record in _deduplicate_seeds(records):
+            value = _panel_value(record, name, True)
+            if value is not None:
+                base_values_list.append(value)
+        base_values = tuple(base_values_list)
+        if base_values:
+            axis.axhline(_mean_values(base_values), color="0.5", linewidth=1, linestyle="--")
         axis.set_xticks([index for index in range(len(variants))])
         axis.set_xticklabels([entry[0] for entry in variants], rotation=55, ha="right", fontsize=7)
         axis.set_ylim(0.0, 1.0)

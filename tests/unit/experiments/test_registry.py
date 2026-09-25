@@ -18,6 +18,16 @@ def test_strong_comparator_challenge_has_single_development_role() -> None:
     assert challenge.execution_roles == (ExecutionRole.DEVELOPMENT,)
 
 
+def test_pre_evaluation_cohort_sensitivity_is_development_only() -> None:
+    loaded = load_production_configuration()
+    contracts = {
+        contract.experiment_name: contract for contract in experiment_registry(loaded.values)
+    }
+    sensitivity = contracts[ExperimentName.PRE_EVALUATION_COHORT_SELECTION_SENSITIVITY]
+    assert sensitivity.execution_roles == (ExecutionRole.DEVELOPMENT_ONLY,)
+    assert sensitivity.methods == contracts[ExperimentName.PRIMARY_STRICT_ODI_EVALUATION].methods
+
+
 def test_no_contract_duplicates_development_seed_namespace() -> None:
     loaded = load_production_configuration()
     for contract in experiment_registry(loaded.values):

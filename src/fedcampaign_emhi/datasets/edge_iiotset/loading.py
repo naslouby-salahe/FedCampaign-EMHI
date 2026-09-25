@@ -7,7 +7,9 @@ from typing import cast
 import polars as pl
 
 from fedcampaign_emhi.artifacts.records import DatasetStructuralDiscrepancyRecord
+from fedcampaign_emhi.artifacts.storage import payload_digest
 from fedcampaign_emhi.config.schema import DatasetsSecondaryConfig
+from fedcampaign_emhi.config.validation import YamlNode
 from fedcampaign_emhi.datasets.edge_iiotset.canonicalization import dominant_protocol_group_for_row
 from fedcampaign_emhi.datasets.edge_iiotset.validation import (
     record_identity_is_usable,
@@ -77,6 +79,9 @@ def iter_edge_iiotset_csv_entries(
         fields = tuple(
             (name, cast(NormalizedEventToken | None, row.get(name))) for name in fieldnames
         )
+        raw_payload_digest = payload_digest(
+            cast(YamlNode, [{"field": name, "value": value} for name, value in fields])
+        )
         yield (
             EdgeIiotsetFlowRecord(
                 timestamp_seconds=timestamp_seconds,
@@ -84,6 +89,7 @@ def iter_edge_iiotset_csv_entries(
                 protocol_group=dominant_protocol_group_for_row(fields),
                 binary_label=binary_label,
                 attack_type=attack_type,
+                raw_payload_digest=raw_payload_digest,
             )
         )
 

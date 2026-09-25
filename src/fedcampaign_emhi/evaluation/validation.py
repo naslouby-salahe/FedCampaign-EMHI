@@ -199,7 +199,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
     )
     _check(
         SmokeFixtureName.RIDGE_TIE_EXACT_INSTANCE,
-        exact_tie_selected == 0.1,
+        exact_tie_selected == max(ridge_candidates[-3:-1]),
         failures,
     )
 
@@ -316,7 +316,7 @@ def run_synthetic_module_validation(loaded: LoadedScientificConfiguration) -> Sm
         failures,
     )
 
-    merged = merge_malicious_runs((1, 2, 4, 20), 2)
+    merged = merge_malicious_runs((1, 2, 4, 20), 2, (3,))
     _check(SmokeFixtureName.CAMPAIGN_MERGE, merged == ((1, 4), (20, 20)), failures)
     _check(SmokeFixtureName.CAMPAIGN_DURATION, campaign_duration_epochs(1, 4) == 4, failures)
     _check(SmokeFixtureName.NEUTRAL_AGGREGATE, within_order_aggregate(()) >= 1.0, failures)

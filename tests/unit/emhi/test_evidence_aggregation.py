@@ -5,8 +5,11 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.emhi.evidence import (
     OPERATIONAL_EVIDENCE_COMPENSATOR,
     across_order_aggregate,
+    advance_cumulative_atom_state,
     clip_statistic,
+    cumulative_operational_evidence_factor,
     euclidean_norm,
+    initial_cumulative_atom_state,
     operational_evidence_factor,
     operational_norm_reference_quantile,
     signed_evidence_factor,
@@ -54,6 +57,40 @@ def test_operational_norm_uses_vector_l2_and_fixed_compensator() -> None:
     assert OPERATIONAL_EVIDENCE_COMPENSATOR == 0.125
     wide_clip = operational_evidence_factor((3.0, 4.0), 1.0, 1.0e-06, 2.0, 0.5)
     assert wide_clip == exp(0.5 * 2.0 - 0.125)
+
+
+def test_cumulative_atom_state_first_epoch_matches_single_epoch_statistic() -> None:
+    state = initial_cumulative_atom_state()
+    factor, updated = cumulative_operational_evidence_factor(
+        state, (3.0, 4.0), 5.0, 1.0e-06, 1.0, 0.5
+    )
+    assert updated.epoch_count == 1
+    assert updated.running_sum == (3.0, 4.0)
+    assert factor == operational_evidence_factor((3.0, 4.0), 5.0, 1.0e-06, 1.0, 0.5)
+
+
+def test_cumulative_atom_state_accumulates_and_normalizes_by_sqrt_t() -> None:
+    state = initial_cumulative_atom_state()
+    _factor, state = cumulative_operational_evidence_factor(
+        state, (1.0, 0.0), 10.0, 1.0e-06, 1.0, 0.5
+    )
+    factor, state = cumulative_operational_evidence_factor(
+        state, (1.0, 0.0), 10.0, 1.0e-06, 1.0, 0.5
+    )
+    assert state.epoch_count == 2
+    assert state.running_sum == (2.0, 0.0)
+    normalized_sum = (2.0 / (2.0**0.5), 0.0 / (2.0**0.5))
+    expected = operational_evidence_factor(normalized_sum, 10.0, 1.0e-06, 1.0, 0.5)
+    assert factor == expected
+
+
+def test_advance_cumulative_atom_state_rejects_dimension_mismatch() -> None:
+    state = advance_cumulative_atom_state(initial_cumulative_atom_state(), (1.0, 2.0))
+    try:
+        advance_cumulative_atom_state(state, (1.0, 2.0, 3.0))
+    except ValueError:
+        return
+    raise AssertionError("dimension mismatch must raise")
 
 
 def test_hierarchical_aggregation_is_equal_weight_mean() -> None:

@@ -13,7 +13,11 @@ from fedcampaign_emhi.config.loading import (
     load_smoke_configuration,
     minimum_zero_false_stop_horizons,
 )
-from fedcampaign_emhi.config.schema import LoadedScientificConfiguration, ScientificConfig
+from fedcampaign_emhi.config.schema import (
+    ExperimentsPreEvaluationCohortSelectionSensitivityConfig,
+    LoadedScientificConfiguration,
+    ScientificConfig,
+)
 from fedcampaign_emhi.config.validation import (
     ConfigurationValidationError,
     reject_forbidden_derived_keys,
@@ -51,11 +55,27 @@ def test_production_configuration_loads_locked_core_values(
     assert values.numerics.metric_denominator_floor == 1.0e-12
     assert values.statistics.bootstrap_replicates == 10000
     assert values.runtime.automatic_technical_retries_after_initial_failure == 2
+    assert (
+        values.experiments.pre_evaluation_cohort_selection_sensitivity.support_window_start_epoch
+        == 25903319
+    )
+    assert (
+        values.experiments.pre_evaluation_cohort_selection_sensitivity.support_window_end_epoch_exclusive
+        == 25911841
+    )
     assert values.reporting.precision.probabilities_and_rates_decimals == 3
     assert (
         values.experiments.primary_strict_odi_evaluation.methods[0]
         is MethodName.FULL_FEDCAMPAIGN_EMHI
     )
+
+
+def test_pre_evaluation_cohort_window_requires_positive_duration() -> None:
+    with pytest.raises(ValidationError, match="positive duration"):
+        ExperimentsPreEvaluationCohortSelectionSensitivityConfig(
+            support_window_start_epoch=100,
+            support_window_end_epoch_exclusive=100,
+        )
 
 
 def test_derived_values_are_owned_by_implementation(
@@ -164,7 +184,14 @@ def test_locked_core_scientific_configuration(
     assert values.context.nuisance_crossfit.fold_count == 5
     assert values.basis.primary_size == 3
     assert values.basis.sensitivity_sizes == (2, 4)
-    assert values.projection.ridge_candidates == (0.0, 0.0001, 0.001, 0.01, 0.1, 1.0)
+    assert values.projection.ridge_candidates == (
+        0.0,
+        0.0001,
+        0.001,
+        0.01,
+        0.1,
+        1.0,
+    )
     assert values.projection.cross_validation.fold_count == 5
     assert values.projection.selection_tie_tolerance_mse == 1.0e-12
     assert values.projection.zero_ridge_svd_relative_cutoff == 1.0e-12

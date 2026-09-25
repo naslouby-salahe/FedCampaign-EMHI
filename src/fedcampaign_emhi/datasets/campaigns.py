@@ -1,4 +1,4 @@
-from fedcampaign_emhi.domain.enums import DatasetName
+from fedcampaign_emhi.domain.enums import CampaignEligibilityStatus, DatasetName
 from fedcampaign_emhi.domain.types import (
     CampaignRegistryEntry,
     ClientCount,
@@ -13,16 +13,20 @@ from fedcampaign_emhi.domain.types import (
 def merge_malicious_runs(
     malicious_epochs: tuple[EpochIndexValue, ...],
     merge_max_intervening_benign_epochs: EpochCount,
+    fully_benign_epochs: tuple[EpochIndexValue, ...] = (),
 ) -> tuple[tuple[EpochIndexValue, EpochIndexValue], ...]:
     if not malicious_epochs:
         return ()
     ordered = tuple(sorted(set(malicious_epochs)))
+    benign = set(fully_benign_epochs)
     start = ordered[0]
     previous = ordered[0]
     merged: list[tuple[EpochIndexValue, EpochIndexValue]] = []
     for epoch in ordered[1:]:
         intervening = epoch - previous - 1
-        if intervening <= merge_max_intervening_benign_epochs:
+        if intervening <= merge_max_intervening_benign_epochs and all(
+            gap_epoch in benign for gap_epoch in range(previous + 1, epoch)
+        ):
             previous = epoch
             continue
         merged.append((start, previous))
@@ -47,6 +51,9 @@ def build_campaign_registry(
     distributed_first_activity_window_epochs: PositiveEpochCount,
     minimum_duration_epochs: PositiveEpochCount,
     prestart_warmup_epochs: PositiveEpochCount,
+    fully_benign_epochs: tuple[EpochIndexValue, ...] = (),
+    *,
+    evaluation_horizon_epochs: PositiveEpochCount,
 ) -> tuple[CampaignRegistryEntry, ...]:
     epochs_by_client = {
         record.client_id: record.malicious_epochs for record in client_malicious_epochs
@@ -58,7 +65,9 @@ def build_campaign_registry(
     for record in client_malicious_epochs:
         union.update(record.malicious_epochs)
     registry: list[CampaignRegistryEntry] = []
-    for start, end in merge_malicious_runs(tuple(union), merge_max_intervening_benign_epochs):
+    for start, end in merge_malicious_runs(
+        tuple(union), merge_max_intervening_benign_epochs, fully_benign_epochs
+    ):
         participants = tuple(
             client_id
             for client_id in selected_client_ids
@@ -93,6 +102,20 @@ def build_campaign_registry(
                 start_epoch=start,
                 end_epoch=end,
                 sorted_participating_client_ids=tuple(sorted(participants)),
+                warmup_epochs=prestart_warmup_epochs,
+                evaluation_horizon_epochs=evaluation_horizon_epochs,
+                eligibility_status=CampaignEligibilityStatus.ELIGIBLE,
+                attack_types=tuple(
+                    sorted(
+                        {
+                            attack_type
+                            for record in client_malicious_epochs
+                            for attack_epoch, attack_types in record.attack_types_by_epoch
+                            if start <= attack_epoch <= end
+                            for attack_type in attack_types
+                        }
+                    )
+                ),
             )
         )
     return tuple(registry)

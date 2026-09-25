@@ -1,10 +1,11 @@
 import logging
 import multiprocessing
 from dataclasses import dataclass
-from multiprocessing.context import ForkContext
+from multiprocessing.context import BaseContext
 from pathlib import Path
 from typing import cast
 
+from fedcampaign_emhi.artifacts.provenance import experiment_semantic_digest
 from fedcampaign_emhi.artifacts.records import (
     ExperimentRunRecord,
 )
@@ -28,6 +29,7 @@ from fedcampaign_emhi.domain.enums import (
     KnownArtifactOutputFilename,
     MethodName,
     OverwritePolicy,
+    PreprocessingCohortVariant,
 )
 from fedcampaign_emhi.domain.types import (
     Boolean,
@@ -46,7 +48,7 @@ def campaigns_logger() -> logging.Logger:
     return component_logger("experiments")
 
 
-def fork_multiprocessing_context() -> ForkContext:
+def fork_multiprocessing_context() -> BaseContext:
     return multiprocessing.get_context("fork")
 
 
@@ -56,6 +58,14 @@ def campaign_dataset(
     if experiment_name is ExperimentName.SECONDARY_CONTROLLED_TRACE_GENERALIZATION:
         return loaded.values.datasets.secondary.name
     return loaded.values.datasets.primary.name
+
+
+def preprocessing_cohort_variant(
+    experiment_name: ExperimentName,
+) -> PreprocessingCohortVariant | None:
+    if experiment_name is ExperimentName.PRE_EVALUATION_COHORT_SELECTION_SENSITIVITY:
+        return PreprocessingCohortVariant.PRE_EVALUATION_SUPPORT_SENSITIVITY
+    return None
 
 
 @dataclass(frozen=True)
@@ -155,6 +165,7 @@ def publish_experiment_run_record(
     record = ExperimentRunRecord(
         experiment_name=experiment_name,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         overwrite_policy=overwrite_policy,
         resume_sequence=RESUME_SEQUENCE,
         state=state,

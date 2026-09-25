@@ -62,8 +62,10 @@ def strict_odi_outcome(
 ) -> StrictOdiOutcome:
     earliest_local = earliest_local_stop(local_stop_epochs)
     global_detection = 0 if global_stop_epoch is None else 1
-    if global_stop_epoch is None or earliest_local is None:
+    if global_stop_epoch is None:
         indicator = 0
+    elif earliest_local is None:
+        indicator = 1
     else:
         indicator = int(global_stop_epoch < earliest_local)
     return StrictOdiOutcome(

@@ -149,6 +149,13 @@ def experiment_registry(config: ScientificConfig) -> tuple[ExperimentContract, .
             uses_real_seeds=True,
             uses_synthetic_seeds=False,
         ),
+        ExperimentContract(
+            experiment_name=ExperimentName.PRE_EVALUATION_COHORT_SELECTION_SENSITIVITY,
+            execution_roles=(ExecutionRole.DEVELOPMENT_ONLY,),
+            methods=experiments.primary_strict_odi_evaluation.methods,
+            uses_real_seeds=True,
+            uses_synthetic_seeds=False,
+        ),
     )
 
 

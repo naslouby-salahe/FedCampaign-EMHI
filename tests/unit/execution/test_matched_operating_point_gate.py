@@ -72,12 +72,13 @@ def _write_raw_evaluation(
     stem = method_artifact_stem(method_name)
     for seed in loaded.values.randomness.real_confirmatory_roots:
         payload: YamlNode = {
+            "comparison_contract_digest": "a" * 64,
             "calibration": {
                 "global": {
                     "threshold": 5.0 if threshold_present else None,
                     "heldout_upper_pfa": 0.01 if threshold_present else None,
                 }
-            }
+            },
         }
         path = (
             root

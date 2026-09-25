@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 from typing import cast
 
+from fedcampaign_emhi.artifacts.provenance import experiment_semantic_digest
 from fedcampaign_emhi.artifacts.records import CompletionRecord, ScientificCellRecord
 from fedcampaign_emhi.artifacts.storage import build_artifact_layout, write_atomic_json
 from fedcampaign_emhi.config.schema import LoadedScientificConfiguration
@@ -30,6 +32,7 @@ def _write_cell(
         seed=1,
         state=state,
         material_digest=loaded.material_digest,
+        semantic_dependency_digest=experiment_semantic_digest(experiment_name),
         selected_client_ids=(),
         upstream_artifact_ids=(),
         dependency_fingerprint="d" * 64,
@@ -74,3 +77,35 @@ def test_project_status_counts_completed_failed_and_invalid_cells(
     assert status.completed_cell_count == 2
     assert status.failed_cell_count == 1
     assert status.invalid_cell_count == 1
+    assert status.stale_cell_count == 0
+
+
+def test_old_semantics_cells_are_counted_as_stale(
+    production_configuration: LoadedScientificConfiguration, tmp_path: Path
+) -> None:
+    experiment = ExperimentName.STRONG_LOCAL_POLICY_CHALLENGE
+    _write_cell(
+        production_configuration, tmp_path, experiment, "historical", ExperimentState.COMPLETED
+    )
+    layout = build_artifact_layout(production_configuration, tmp_path)
+    path = next(
+        (layout.experiment_outputs_root(experiment) / "provenance" / "dependencies").glob(
+            "cell-historical.json"
+        )
+    )
+    payload = json.loads(path.read_text())
+    payload["semantic_dependency_digest"] = "0" * 64
+    write_atomic_json(
+        path,
+        cast(YamlNode, payload),
+        tmp_path / "outputs" / "cache" / "staging",
+    )
+
+    status = next(
+        item
+        for item in project_status(production_configuration, tmp_path)
+        if item.experiment_name is experiment
+    )
+    assert status.completed_cell_count == 0
+    assert status.stale_cell_count == 1
+    assert status.lifecycle_state.value == "stale"

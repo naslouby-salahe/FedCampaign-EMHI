@@ -12,12 +12,17 @@ from fedcampaign_emhi.analysis.results import (
 from fedcampaign_emhi.artifacts.provenance import (
     content_digest,
     evidence_export_boundary_digest,
+    experiment_semantic_digest,
     material_fingerprint,
+    statistical_analysis_boundary_digest,
 )
 from fedcampaign_emhi.artifacts.records import (
+    EstimatorFeasibilityAggregationRecord,
     ExperimentRunRecord,
+    FiniteHorizonAggregationRecord,
     OrderThreeScopeRecord,
     PrimaryHolmFamilyRecord,
+    PrimaryStrictOdiSupportRecord,
     ReportSourceRecord,
     ScalabilityAggregateRecord,
     ScientificCellRecord,
@@ -100,9 +105,16 @@ def _completed_experiments(
         if (
             run_record.state is ExperimentState.COMPLETED
             and run_record.material_digest == loaded.material_digest
+            and run_record.semantic_dependency_digest == experiment_semantic_digest(experiment_name)
         ):
             completed.append(experiment_name)
     return tuple(completed)
+
+
+_AGGREGATION_TEST_RECORD_FILENAMES = (
+    KnownArtifactOutputFilename.ESTIMATOR_ORDER_THREE_FEASIBILITY,
+    KnownArtifactOutputFilename.CALIBRATED_FINITE_HORIZON_PFA,
+)
 
 
 def _validate_statistical_records(
@@ -114,6 +126,39 @@ def _validate_statistical_records(
         verified_statistical_record(loaded, repository, statistical_path)
 
 
+def _validate_aggregation_test_records(
+    loaded: LoadedScientificConfiguration,
+    repository: Path,
+    aggregation_test_paths: tuple[Path, ...],
+) -> None:
+    for aggregation_test_path in aggregation_test_paths:
+        record: EstimatorFeasibilityAggregationRecord | FiniteHorizonAggregationRecord
+        if (
+            aggregation_test_path.name
+            == KnownArtifactOutputFilename.ESTIMATOR_ORDER_THREE_FEASIBILITY
+        ):
+            record = EstimatorFeasibilityAggregationRecord.model_validate_json(
+                aggregation_test_path.read_bytes()
+            )
+        else:
+            record = FiniteHorizonAggregationRecord.model_validate_json(
+                aggregation_test_path.read_bytes()
+            )
+        source_paths = tuple(repository / source_id for source_id in record.source_result_ids)
+        if not source_paths or any(not source_path.is_file() for source_path in source_paths):
+            raise ValueError(
+                f"aggregation test record {aggregation_test_path} has missing source results"
+            )
+        source_digests = tuple(file_sha256(source_path) for source_path in source_paths)
+        if record.dependency_fingerprint != material_fingerprint(
+            statistical_analysis_boundary_digest(loaded.values),
+            source_digests,
+        ):
+            raise ValueError(
+                f"aggregation test record {aggregation_test_path} has stale source lineage"
+            )
+
+
 def _validate_aggregate_metrics(aggregate_paths: tuple[Path, ...]) -> None:
     for aggregate_path in aggregate_paths:
         record = ScalabilityAggregateRecord.model_validate_json(aggregate_path.read_bytes())
@@ -123,7 +168,11 @@ def _validate_aggregate_metrics(aggregate_paths: tuple[Path, ...]) -> None:
 
 def validate_materiality_effect_records(repository: Path, effect_paths: tuple[Path, ...]) -> None:
     for effect_path in effect_paths:
-        record = OrderThreeScopeRecord.model_validate_json(effect_path.read_bytes())
+        record: OrderThreeScopeRecord | PrimaryStrictOdiSupportRecord
+        if effect_path.name == KnownArtifactOutputFilename.PRIMARY_STRICT_ODI_SUPPORT:
+            record = PrimaryStrictOdiSupportRecord.model_validate_json(effect_path.read_bytes())
+        else:
+            record = OrderThreeScopeRecord.model_validate_json(effect_path.read_bytes())
         source_paths = tuple(repository / source_id for source_id in record.source_result_ids)
         if not source_paths or any(not source_path.is_file() for source_path in source_paths):
             raise ValueError(f"materiality effect record {effect_path} has missing source results")
@@ -289,10 +338,15 @@ def select_verified_evidence(
             }
         )
     )
-    statistical_paths = _json_files(
-        root / ArtifactPathSegment.STATISTICS / ArtifactPathSegment.TESTS
+    test_paths = _json_files(root / ArtifactPathSegment.STATISTICS / ArtifactPathSegment.TESTS)
+    statistical_paths = tuple(
+        path for path in test_paths if path.name not in _AGGREGATION_TEST_RECORD_FILENAMES
+    )
+    aggregation_test_paths = tuple(
+        path for path in test_paths if path.name in _AGGREGATION_TEST_RECORD_FILENAMES
     )
     _validate_statistical_records(loaded, repository, statistical_paths)
+    _validate_aggregation_test_records(loaded, repository, aggregation_test_paths)
     effect_paths = _json_files(root / ArtifactPathSegment.STATISTICS / ArtifactPathSegment.EFFECTS)
     validate_materiality_effect_records(repository, effect_paths)
     aggregate_paths = _json_files(
@@ -300,7 +354,14 @@ def select_verified_evidence(
     )
     _validate_aggregate_metrics(aggregate_paths)
     cell_paths = cell_record_paths(root)
-    required = seed_paths + statistical_paths + effect_paths + aggregate_paths + cell_paths
+    required = (
+        seed_paths
+        + statistical_paths
+        + aggregation_test_paths
+        + effect_paths
+        + aggregate_paths
+        + cell_paths
+    )
     if not cell_paths:
         raise ValueError(f"experiment {experiment_name.value} lacks scientific cell records")
     for cell_path in cell_paths:
@@ -324,6 +385,8 @@ def _validate_scientific_cell(
     cell = ScientificCellRecord.model_validate_json(cell_path.read_bytes())
     if cell.material_digest != loaded.material_digest:
         raise ValueError(f"scientific cell {cell_path} is stale")
+    if cell.semantic_dependency_digest != experiment_semantic_digest(cell.experiment_name):
+        raise ValueError(f"scientific cell {cell_path} has stale scientific semantics")
     if cell.state is not ExperimentState.COMPLETED:
         raise ValueError(f"scientific cell {cell_path} is not completed")
     if len(cell.completion_record.mandatory_output_paths) != len(
