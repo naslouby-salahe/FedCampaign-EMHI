@@ -469,7 +469,7 @@ def execute_synthetic_cell_payload(
             expected_comparator_cells = tuple(
                 cell
                 for cell, _metrics in comparator_grid
-                if native_order is not None and cell.target_order is native_order
+                if native_order is None or cell.target_order is native_order
             )
             comparator_completed = tuple(
                 (cell, metrics) for cell, metrics in comparator_grid if metrics is not None

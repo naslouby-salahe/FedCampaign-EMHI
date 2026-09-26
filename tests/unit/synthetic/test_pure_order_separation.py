@@ -2,6 +2,7 @@ from fedcampaign_emhi.config.loading import load_production_configuration
 from fedcampaign_emhi.domain.enums import (
     CoalitionOrder,
     ContextMethodName,
+    ExecutionRole,
     ExperimentName,
     GeneratorName,
     LatentMarkovState,
@@ -13,6 +14,7 @@ from fedcampaign_emhi.experiments.calibration import (
 )
 from fedcampaign_emhi.experiments.registry import experiment_registry
 from fedcampaign_emhi.experiments.synthetic import run_synthetic_cell
+from fedcampaign_emhi.experiments.synthetic_execution import execute_synthetic_cell_payload
 from fedcampaign_emhi.synthetic.pure_order import (
     GeneratorPurityReport,
     enumerate_pure_order_grid,
@@ -203,6 +205,50 @@ def test_pure_order_producer_describes_the_execution_layer_grid() -> None:
     assert outcome.evidence is not None
     assert isinstance(outcome.evidence, dict)
     assert outcome.evidence["implementation_state"] == "execution-layer-grid"
+
+
+def test_hofd_pure_order_grid_without_native_order_is_complete() -> None:
+    loaded = load_production_configuration()
+    sample_sizes = loaded.values.synthetic.sample_sizes.model_copy(
+        update={
+            "generic_nuisance_fit_epochs": 100,
+            "pure_order_independent_evaluation_samples_per_condition_seed": 5,
+        }
+    )
+    pure_order = loaded.values.experiments.pure_order_separation_validation.model_copy(
+        update={
+            "primary_client_count": 5,
+            "generators": (GeneratorName.PURE_CONTINUOUS_TRIPLE,),
+            "methods": (MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD,),
+        }
+    )
+    config = loaded.values.model_copy(
+        update={
+            "synthetic": loaded.values.synthetic.model_copy(update={"sample_sizes": sample_sizes}),
+            "experiments": loaded.values.experiments.model_copy(
+                update={"pure_order_separation_validation": pure_order}
+            ),
+        }
+    )
+    small_loaded = loaded.model_copy(update={"values": config})
+
+    execution = execute_synthetic_cell_payload(
+        small_loaded,
+        ExperimentName.PURE_ORDER_SEPARATION_VALIDATION,
+        ExecutionRole.CONFIRMATORY,
+        small_loaded.values.randomness.synthetic_confirmatory_roots[0],
+        MethodName.EXCLUSION_MATCHED_CONDITIONAL_HOFD,
+    )
+
+    assert execution.outcome.failed_checks == ()
+    assert execution.outcome.evidence is not None
+    expected_cell_count = len(generator_effects(config, GeneratorName.PURE_CONTINUOUS_TRIPLE))
+    assert execution.outcome.evidence["native_comparator_grid"] == {
+        "native_target_order": None,
+        "expected_cell_count": expected_cell_count,
+        "completed_cell_count": expected_cell_count,
+        "complete": True,
+    }
 
 
 def test_exact_exclusion_artifact_scorer_reaches_the_fitted_path() -> None:

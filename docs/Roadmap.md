@@ -237,7 +237,7 @@ still left `exclusion-matched-hofd-equivalence` failing at coalition order 3,
 high support (only 1-2 of 30 confirmatory seeds producing a valid paired
 stopping-time observation even with 20 replicates — a genuine data-scarcity
 limit, not a bug: order-3's 27 basis dimensions make the per-trial probability
-of *both* methods independently crossing threshold within a single horizon
+of *both* methods crossing their thresholds within a single horizon
 roughly 1-in-600, so brute-force replication has sharply diminishing returns
 beyond this point). Outcome-informed, recorded as such, explicitly ordered by
 the user after this was raised and discussed. **Scope:**
@@ -315,7 +315,7 @@ The implementation adds a dedicated `pre-evaluation-cohort-selection-sensitivity
 
 **Metric and comparison record.** Full EMHI and comparator evaluations persist exact replay epoch indexes, global/local no-alarm censoring, episode-level ODI outcomes, success numerator/denominator, held-out benign support, false-stop counts, and configured global/local finite-horizon PFA targets. Strict ODI remains global alarm before every applicable local alarm; ties do not qualify. The finite-horizon empirical PFA procedure is not an anytime-valid guarantee. Exploratory robustness and synthetic mechanism diagnostics remain distinct from confirmatory primary inference; reference-harness timing remains an engineering diagnostic and is not a deployment claim.
 
-**Edge-IIoTset boundary and historical outputs.** Under the unchanged six-eligible-source rule, the currently observed two eligible source-host groupings leave secondary controlled-trace generalization `Not Tested`. Its year-plus-clock timestamp lacks month/day and is parsed using January 1; it cannot establish calendar chronology. It supplies no external real-data replication. All existing run outputs created before amendments 7–9 are `HISTORICAL / STALE / REQUIRES REGENERATION / NOT MANUSCRIPT EVIDENCE`, including the previously completed 200-cell primary experiment and its report/statistical descendants. The corrected preprocessing and comparison campaigns must be rerun before claims are evaluated; this amendment does not classify those future results in advance.
+**Edge-IIoTset boundary and historical outputs (state at the close of 2026-09-25).** Under the unchanged six-eligible-source rule, the currently observed two eligible source-host groupings leave secondary controlled-trace generalization `Not Tested`. Its year-plus-clock timestamp lacks month/day and is parsed using January 1; it cannot establish calendar chronology. It supplies no external real-data replication. At that date, all run outputs created before amendments 7–9 were `HISTORICAL / STALE / REQUIRES REGENERATION / NOT MANUSCRIPT EVIDENCE`, including the previously completed 200-cell primary experiment and its report/statistical descendants. The corrected preprocessing and comparison campaigns were still pending. The 2026-09-26 execution update below records the later corrected primary result; the unmatched-horizon descendants remain stale.
 
 ---
 
@@ -900,7 +900,7 @@ $$
 
 This transform is not described as an anytime-valid real-data e-value.
 
-Its real-data error semantics come from independent finite-horizon calibration of the complete stopping procedure, which remains unchanged by amendment 3: the calibration is empirical (Clopper-Pearson against held-out benign horizons, Section 4.18) and does not depend on $e^{op}$ being a theoretically valid e-value under $H_0$.
+Its real-data evidence comes from empirical finite-horizon calibration/evaluation of the complete stopping procedure using held-out benign horizons (Section 4.18). This evidence is conditional on the fixed trace, cohort, split, and zero-event representation. The binomial Clopper-Pearson calculation does not depend on $e^{op}$ being a theoretically valid e-value under $H_0$, but its nominal sampling interpretation requires appropriate independent Bernoulli horizon outcomes; non-overlapping windows alone do not establish that condition. It is not a population-level false-alarm guarantee or an anytime-valid real-data e-process.
 
 ## 4.13 Within-order aggregation
 
@@ -1004,6 +1004,17 @@ $$
 where $H$ is `campaign.evaluation_horizon_epochs`.
 
 Candidate thresholds are evaluated on non-overlapping benign calibration horizons.
+
+Non-overlap specifies disjoint chronological windows; it does not establish statistical
+independence of their stopping indicators. The production-path diagnostic found strong
+dependence among per-epoch evidence factors (lag-1 autocorrelation about 0.957), while
+its sparse horizon-level false-stop outcomes were insufficient to estimate dependence
+between horizon indicators. Accordingly, report real-data results as empirical
+finite-horizon false-stop calibration/evaluation conditional on the fixed trace, cohort,
+split, and zero-event representation. The one-sided Clopper-Pearson bound remains the
+registered calculation for the unchanged threshold-selection algorithm, but do not
+interpret it as a population-level false-alarm guarantee on the basis of disjoint
+windows alone.
 
 For a candidate threshold with $x$ false stops among $n$ horizons, the one-sided Clopper-Pearson upper bound is
 
@@ -1578,7 +1589,7 @@ A fitted coalition/context artifact abstains if:
 
 All evidence magnitudes, ARL/PFA targets, calibration confidence, candidate thresholds, and plotting offsets remain authoritative in the Configuration YAML. Quantiles throughout the study use linear interpolation. The calibrated finite-horizon confidence bound is one-sided.
 
-A held-out real PFA claim also requires at least 59 non-overlapping held-out benign horizons.
+A held-out real-data finite-horizon false-stop evaluation also requires at least 59 non-overlapping chronological held-out benign horizons. This support threshold does not establish independence or continuous capture coverage.
 
 ### Dataset and preprocessing configuration
 
@@ -1742,7 +1753,7 @@ Candidate score quantiles, persistence pairs, PFA targets, and PFA confidence re
 
 Candidate score thresholds are quantiles of detector scores on `nuisance_fit`, not on the policy-calibration split.
 
-Candidate PFA is evaluated on non-overlapping `threshold_and_policy_calibration` horizons.
+Candidate local false-stop rates are evaluated on non-overlapping chronological `threshold_and_policy_calibration` horizons; non-overlap does not establish statistical independence.
 
 For a persistence rule $m$-of-$n$:
 
@@ -2162,7 +2173,7 @@ For a sign-agnostic comparator:
 1. score centering/scaling is estimated from nuisance-fit data;
 2. absolute or norm nonconformity is taken as specified by that comparator;
 3. the reference quantile `comparators.common_calibration.nuisance_reference_quantile` is estimated on nuisance-fit data and used to map the score into the same bounded operational transform;
-4. calibrated finite-horizon threshold selection is performed independently on `threshold_and_policy_calibration` horizons.
+4. calibrated finite-horizon threshold selection uses the separate `threshold_and_policy_calibration` horizons.
 
 No comparator receives attack-informed score normalization.
 
@@ -2333,7 +2344,7 @@ $$
 \max_i C_{i,t}.
 $$
 
-The final stopping threshold is independently calibrated by the calibrated finite-horizon route.
+The final stopping threshold is calibrated using the separate calibrated finite-horizon route.
 
 ### Federated autoencoder reference
 
@@ -2854,7 +2865,7 @@ The exact detector score definitions are fixed in the Local detector configurati
 
 Candidate local score thresholds are computed from `nuisance_fit` detector scores.
 
-Candidate policy PFA is evaluated only on the independent threshold/policy-calibration split.
+Candidate policy PFA is evaluated only on the separate threshold/policy-calibration split.
 
 ## 9.4 Held-out local validation
 
@@ -3288,7 +3299,7 @@ $$
 
 ## 11.15 Order-specific stopping probability
 
-Fraction of seeded campaign trajectories for which an independently calibrated method using only the specified order stops inside the configured horizon.
+Fraction of seeded campaign trajectories for which a method calibrated for the specified order stops inside the configured horizon.
 
 ## 11.16 Order evidence share
 
@@ -3787,7 +3798,7 @@ For every support/order/seed condition:
 1. generate the declared number of benign nuisance rows under the zero-effect population;
 2. fit EMHI and conditional HOFD on exactly those shared null rows;
 3. evaluate paired atom outputs on `synthetic.sample_sizes.hofd_equivalence_heldout_samples_per_context_seed` independent target-effect held-out rows;
-4. independently calibrate each sequential route on null horizons generated from the zero-effect population;
+4. separately calibrate each sequential route on its designated null horizons generated from the zero-effect population;
 5. evaluate `experiments.exclusion_matched_hofd_equivalence.stopping_time_replicates_per_condition` (20, Protocol amendment 5) independent paired 60-epoch effect trajectories generated from the target-effect population, per support/order/seed condition, for stopping-time and trajectory-divergence comparison. The condition's stopping-time difference is the mean over replicates where both methods stopped (undefined only if none did); the detection-indicator difference and the mean trajectory divergence (Protocol amendment 6; the peak absolute difference between the two methods' full sequential states, averaged across all replicates regardless of whether either stopped) are both means over all replicates.
 
 Primary equivalence support levels are `experiments.exclusion_matched_hofd_equivalence.primary_support_levels`.
@@ -4165,7 +4176,7 @@ The global method is Full FedCampaign-EMHI.
 
 The global artifacts are identical to the primary method.
 
-Only the local reference changes to the independently calibrated strong-local policy.
+Only the local reference changes to the separately calibrated strong-local policy.
 
 Development seeds are `randomness.real_development_roots`; confirmatory seeds are `randomness.real_confirmatory_roots`.
 
@@ -4942,13 +4953,13 @@ The table below defines the minimum dependency and reuse graph. Experiment contr
 | Exclusion-Matched HOFD Equivalence           | configured synthetic support grids; EMHI projection and HOFD definitions                                                                                                                               | paired atom outputs, NRMSE/cosine/stopping-time records, equivalence statistics                                                                           | equivalence claim and required manuscript figures/tables                                                                                                        |
 | Strong Comparator Composition Challenge      | declared pure order-2/triple/mixed-order references; synthetic null calibrated finite-horizon horizons; candidate comparator implementations                                                           | candidate error/PFA/runtime records and `strongest-comparator-composition.json`                                                                           | Primary Strict ODI Evaluation, Secondary Controlled-Trace Generalization, downstream baseline registry                                                               |
 | Estimator Support and Context Feasibility    | configured synthetic support generators; basis/context/ridge variants                                                                                                                                  | conditional-rank, projection, bias, coverage, abstention, condition-number and failure records; fitted estimator artifacts                                | order-three feasibility criterion; compatible estimator-fit reuse inside repeated metrics/timing only                                                           |
-| Sequential Evidence Validation               | signed theorem generator; operational norm path; distributed-support predicate; independent calibrated finite-horizon calibration/held-out null horizons                                               | signed-theorem sequential trajectory records; calibrated finite-horizon threshold-calibration artifacts; held-out PFA records; route validation summaries | mandatory sequential-method validation before claim-bearing real execution                                                                                      |
+| Sequential Evidence Validation               | signed theorem generator; operational norm path; distributed-support predicate; calibrated finite-horizon calibration/held-out null horizons                                               | signed-theorem sequential trajectory records; calibrated finite-horizon threshold-calibration artifacts; held-out false-stop records; route validation summaries | mandatory sequential-method validation before claim-bearing real execution                                                                                      |
 | Primary Strict ODI Evaluation                | TON_IoT Network prepared data/splits/campaign registry; fixed detector models and score streams; compatible method fits; calibrated finite-horizon calibration; selected strong comparator composition | method×seed campaign evaluations, benign-horizon evaluations, ODI/lead/PFA summaries, statistics                                                          | primary claims; ablations sharing identical method components; strong-local challenge global path; project synthesis                                            |
 | Exclusion Mechanism Ablation                 | same TON_IoT Network prepared data, detector models and score streams as primary where definitions match; context-specific alternative fits                                                             | ablation method fits only where required, evaluations, paired summaries/statistics                                                                        | mechanism-ablation evidence; full-EMHI artifacts are reused rather than regenerated                                                                             |
 | Purification and Order Ablation              | same TON_IoT Network prepared data/models/scores; full and lower-order compatible fits                                                                                                                  | only missing purification/order-specific fits, evaluations and paired summaries/statistics                                                                | order-3 scope claim; full and order-at-most-two artifacts reuse primary-compatible results when fingerprints match                                              |
 | Context and Estimator Sensitivity            | same prepared data/models/scores where applicable; one-factor altered estimator definitions                                                                                                            | sensitivity-specific fits/evaluations/summaries                                                                                                           | development robustness only; cannot replace primary settings                                                                                                    |
 | Benign Common-Mode Robustness                | TON_IoT Network held-out benign prepared data; primary compatible models/fits; native windows; configured count-stress transformations                                                                  | native-window reuse records, stress-specific transformed features/scores where required, robustness evaluations/statistics                                | common-mode robustness evidence; unchanged native score streams are reused, transformed-count conditions are rescored only from the first changed feature layer |
-| Strong Local Policy Challenge                | Primary Strict ODI Evaluation full-EMHI global evaluations and global stop artifacts; independently calibrated strong-local policy                                                                     | strong-local thresholds/stops, ODI recomputation against unchanged global stops, paired summaries/statistics                                              | strong-local claim; global EMHI fitting/scoring/stopping is not rerun                                                                                           |
+| Strong Local Policy Challenge                | Primary Strict ODI Evaluation full-EMHI global evaluations and global stop artifacts; separately calibrated strong-local policy                                                                     | strong-local thresholds/stops, ODI recomputation against unchanged global stops, paired summaries/statistics                                              | strong-local claim; global EMHI fitting/scoring/stopping is not rerun                                                                                           |
 | Secondary Controlled-Trace Generalization    | eligible Edge-IIoTset prepared data/splits/campaign registry; detector models/scores; compatible method fits; fixed selected strong comparator composition                                         | secondary-trace evaluations, PFA/ODI summaries/statistics                                                                                                 | controlled-trace generalization evidence and project synthesis                                                                                                  |
 | Outside-Campaign Contamination Boundary      | context-dependent triple generator; contamination grid; EMHI estimator/sequential path                                                                                                                 | contamination-specific generator realizations, fits/evaluations, drift/detection/coverage/PFA summaries                                                   | failure-boundary evidence                                                                                                                                       |
 | Client Dropout and Context Sparsity Boundary | context-dependent triple generator; client-count/dropout grid                                                                                                                                          | dropout-specific evaluations and coverage/abstention/bias/detection/latency summaries                                                                     | development failure-boundary evidence only                                                                                                                      |
@@ -5576,7 +5587,7 @@ This section defines the exact permitted claims and their mandatory supporting e
 | `CLAIM_SELF_EXPLANATION` | Persistent coalition perturbations may feed back into inclusive or insufficiently excluded nuisance representations, whereas exact complement exclusion removes the direct coalition contribution. | analytic derivative fixture, Self-Explanation Exclusion Validation, primary Holm result |
 | `CLAIM_PURE_ORDER_SEPARATION` | There exist nonempty order-$r$ alternative families that preserve every proper-subset distribution while producing nonzero order-$r$ interaction. | generator proof, generator-purity validator, Pure-Order Separation Validation, primary Holm result |
 | `CLAIM_SEQUENTIAL_CONSEQUENCE` | When the bounded signed innovation satisfies the declared conditional-null contract, inherited e-detector machinery yields its published average-run-length semantics. | theorem-assumption audit, Signed-Theorem Sequential Route |
-| `CLAIM_STRICT_ODI` | On eligible TON_IoT Network campaigns, Full FedCampaign-EMHI exhibits material strict ODI relative to the exclusion-matched order-at-most-two predecessor at independently calibrated matched finite-horizon false-campaign operating points under fixed local policies. | Primary Strict ODI Evaluation, matched PFA evidence, operational lead, primary Holm result |
+| `CLAIM_STRICT_ODI` | On the eligible TON_IoT Network trace and constructed campaigns, Full FedCampaign-EMHI exhibits material strict ODI relative to the exclusion-matched order-at-most-two predecessor at matched empirical finite-horizon false-stop calibration/evaluation points under fixed local policies, conditional on the fixed trace, cohort, split, and zero-event representation. This is not a population-level false-alarm guarantee. | Primary Strict ODI Evaluation, matched conditional false-stop evidence, operational lead, primary Holm result |
 | `CLAIM_ORDER_THREE_SCOPE` | Order 3 is a scientifically separable and empirically estimable interaction order within the declared support regime and materially contributes to the primary real-data result only when its predeclared real contribution criterion passes. | pure-order evidence, estimator feasibility, purification/order ablation |
 | `CLAIM_OPERATIONAL_FEASIBILITY` | At the tested client counts, the complete in-process reference harness satisfies the declared numerical-failure and computational-latency criteria; practical early-warning wording additionally requires positive protocol-adjusted operational lead on the primary trace. | Coalition Scalability, common timing-environment provenance, Primary Strict ODI operational-lead evidence |
 
@@ -5618,7 +5629,7 @@ This roadmap does not provide a theorem-quality real-data conditional-null argum
 
 Let the primary paired comparison be Full FedCampaign-EMHI minus Exclusion-Matched Order-at-Most-Two EMHI on `randomness.real_confirmatory_roots`.
 
-Fully supported only when all are true: (1) both methods have eligible calibrated finite-horizon operating points and held-out PFA one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`; (2) mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `materiality.primary_real.minimum_strict_odi_rate`; (3) mean paired ODI-rate advantage is at least `materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`; (4) pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `materiality.primary_real.minimum_median_operational_lead_epochs`; (5) the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
+The gates below use the registered held-out Clopper-Pearson calculations. Any resulting real-data false-stop evidence remains conditional on the fixed trace, cohort, split, and zero-event representation; it is not a population-level guarantee. Fully supported only when all are true: (1) both methods have eligible empirical finite-horizon operating points and held-out one-sided UCB no greater than `evidence.calibrated_finite_horizon.target_pfa`; (2) mean Full FedCampaign-EMHI seed-level strict-ODI rate is at least `materiality.primary_real.minimum_strict_odi_rate`; (3) mean paired ODI-rate advantage is at least `materiality.primary_real.minimum_odi_rate_advantage_over_order_at_most_two`; (4) pooled median operational lead among finite Full FedCampaign-EMHI strict-ODI successes is at least `materiality.primary_real.minimum_median_operational_lead_epochs`; (5) the primary Holm-adjusted `Primary ODI Advantage over Order-at-Most-Two EMHI` p-value is below `statistics.nominal_significance_alpha`.
 
 Partial support applies when both methods satisfy the matched held-out PFA requirement and Full FedCampaign-EMHI meets the minimum strict-ODI-rate criterion, but one or more of the paired-advantage, operational-lead, or adjusted-inference criteria does not pass — the manuscript must then state exactly which materiality component did not pass and may not use the full permitted claim wording. A null result applies when both methods satisfy the matched held-out PFA requirement but Full FedCampaign-EMHI mean strict-ODI rate is below the minimum. The claim is not supported when Full FedCampaign-EMHI has no eligible calibrated operating point or its held-out PFA UCB exceeds the target. The claim is not tested when the observed TON_IoT Network release is scientifically ineligible under Section 6 or the primary comparator cannot supply a matched operating point; absolute Full FedCampaign-EMHI results remain reportable when they exist.
 
@@ -5653,7 +5664,7 @@ The TON_IoT Network scientific role and expected client/flow/label semantics are
 
 The secondary-trace protocol is grounded in the official Edge-IIoTset release documentation on IEEE DataPort, DOI `10.21227/mbc1-1h68`, and the Ferrag et al. (2022) publication. The release identifies the 61-feature selected CSV schema, the `Attack_label`/`Attack_type` ground-truth columns, and the `ip.src_host`/`ip.dst_host`/`frame.time` identity and timestamp fields described in Section 6.3. These define expected semantics; actual files, device identifiers, schemas, timestamps, and usable records remain subject to raw-release validation under Section 6.
 
-The signed sequential claim is intentionally limited to the declared conditional-null setting. Shin, Ramdas, and Rinaldo, *E-detectors: a nonparametric framework for sequential change detection* (arXiv:2203.03532; published in the New England Journal of Statistics in Data Science), establish nonasymptotic average-run-length false-alarm semantics for the e-detector framework. This roadmap therefore separates that controlled theorem route from its independently calibrated 60-epoch operational PFA route.
+The signed sequential claim is intentionally limited to the declared conditional-null setting. Shin, Ramdas, and Rinaldo, *E-detectors: a nonparametric framework for sequential change detection* (arXiv:2203.03532; published in the New England Journal of Statistics in Data Science), establish nonasymptotic average-run-length false-alarm semantics for the e-detector framework. This roadmap therefore separates that controlled theorem route from its empirical 60-epoch real-data false-stop calibration/evaluation route, which is conditional on the fixed trace, cohort, split, and zero-event representation.
 
 The exclusion-matched HOFD comparator is grounded in the generalized Hoeffding-Sobol / hierarchical orthogonal functional decomposition literature for dependent inputs. The roadmap's novelty claim remains the exact coalition-exclusion information restriction and its operational consequences, not a new HOFD decomposition.
 
@@ -5670,4 +5681,14 @@ Implementation may begin only when the production configuration validates, requi
 Dataset facts that depend on the acquired release are resolved by the deterministic raw-validation/adaptation rules in Section 6 rather than by inventing literature-derived constants. A discrepancy between expected documentation and observed raw bytes is surfaced in provenance and handled by the predeclared eligibility or Invalid rules; it is never silently repaired to match an expected count/schema.
 
 A scientifically unfavorable result, unavailable operating point, abstention boundary, or dataset ineligibility is an executable roadmap outcome and must not be treated as an implementation defect. Technical, provenance, leakage, schema, mathematical-invariant, or dependency-fingerprint failures must be repaired before dependent scientific evidence is interpreted.
+
+## Audit clarification — finite-horizon dependence and zero-event representation (2026-09-25)
+
+**Reason:** The production scoring-to-calibration/heldout diagnostic found lag-1 per-epoch evidence autocorrelation about 0.957 and descriptive initial-positive-lag ESS about 443 from 10,920 calibration factors. Each of three development seed coordinates had one heldout false stop among 182 horizons, too few horizon events to estimate their dependence. Disjoint, non-overlapping chronological windows are not evidence of statistical independence. Separately, the raw release has no heartbeat/capture-coverage signal for empty epochs.
+
+**Scope and chronology:** This clarification was adopted after the diagnostic and audit of the fixed trace. It limits interpretation; it does not amend protocol thresholds, confidence levels, materiality criteria, seed grids, minimum support, horizon construction, threshold-selection code, or the Clopper-Pearson implementation. Preserve the existing dense zero-event representation and describe real-data finite-horizon false-stop calibration/evaluation as conditional on the fixed trace, retrospective source-IP cohort, split, and zero-event representation. Do not claim independently calibrated population PFA, continuous capture, proven absence of traffic, or complete benign monitoring. The real-data route remains not anytime-valid.
+
+**Affected artifacts and reruns:** Update the scientific claim text and audit documentation, and carry this limitation into future real-data reports/manuscript text. This clarification changed interpretation, not code, thresholds, or the PFA algorithm; existing outputs affected by the other semantic corrections still required regeneration. At adoption on 2026-09-25, the corrected primary run remained pending. The execution update below records its later completion under the corrected identity. This diagnostic alone did not require rerunning preprocessing or modifying the threshold algorithm.
+
+**Execution update (2026-09-26):** The selected strong-comparator challenge completed 150/150 development cells, and the corrected primary Strict ODI experiment completed 200/200 cells under the current semantic/material identity. The 10 confirmatory seed pairs use matching comparison-contract digests and the configured matched 60-epoch replay. Full EMHI and Exclusion-Matched Order-at-Most-Two EMHI both have strict ODI rate 1.0 on every confirmatory seed; paired advantage and Hodges–Lehmann shift are 0 (raw p = 1). The preregistered comparative ODI support criteria are not met, so this valid run does not support a comparative benefit claim. This inference remains conditional on the one fixed TON trace, retrospectively selected source-IP cohort, split, episode registry, and zero-event benign representation. The old unmatched-horizon descendants remain stale and excluded from inference; Edge remains Not Tested. See `docs/audit/Progress.md` for the current artifact and status details.
 Generic computational machinery is provided by the standardized research stack: PyTorch for the local autoencoder network and its optimization, Flower for FedAvg orchestration and parameter transport of the federated autoencoder reference, Polars and DuckDB for large-CSV schema inspection, selection, parsing, and columnar aggregation and querying, scikit-learn for the Isolation Forest and One-Class SVM detectors, SciPy for statistical primitives such as normal and beta quantiles and Clopper-Pearson bounds, Matplotlib for deterministic publication figures rendered only from verified artifacts, Pydantic for configuration and typed records, and Typer for the public CLI. These libraries implement only generic machinery; every fixed scientific rule in this roadmap remains authoritative regardless of any library default, and persisted measurement and inference outputs are never interpreted into manuscript conclusions by execution code.
