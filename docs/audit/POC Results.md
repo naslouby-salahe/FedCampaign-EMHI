@@ -90,3 +90,54 @@ The benign common-mode diagnosis was completed without changing the registered t
 | Real exclusion ablation | Verify whether complement exclusion removes self-explanation | Existing registered short validation; 60 development/confirmatory cells | About 2 min | Exact nuisance derivative zero and attenuation criterion passed 60/60; primary contrast about .25 | Inclusive-context comparator is the registered matched control | Not a campaign false-stop comparison | Not an ODI challenge | Exact complement exclusion removes the modeled self-explanation path under the controlled mechanism | Controlled synthetic result only | Adopt (mechanism result) | The registered mechanism check passes within its stated scope; it does not support the primary ODI advantage |
 | Benign common mode | Test suppression of benign high-volume windows against Raw Mean | Production path, development seeds 0–1; 10,900 windows; boundary ties retained | About 41 s | Threshold 2; stops offset 1; order 1 decisive; no distinct stress subset | Raw Mean scores constant at .5 on all 5,479 nuisance epochs per seed; SD 0 and no evidence/threshold | Full 1/182, upper .02580; Raw Mean PFA unavailable | No | 10,832 windows have zero counts, cutoff is zero, ties select all windows; baseline standardization has zero scale | Current dense zero-event representation cannot provide this stress comparison | Needs Fix | Obtain event-bearing held-out benign data with a nondegenerate high-volume subset; keep tie rule unchanged |
 | HOFD equivalence | Check whether order-three Full matches conditional HOFD at sufficient support | Development seed 1000; support 800–12,800; one seed | About 60 s | NRMSE reaches .0471 only at 12,800; trajectory divergence .0532 there; PFA prerequisite passes | Paired stopping-time difference not estimable | No paired stop differences available | No | Numerical equivalence improves with support, but paired operational equivalence remains unobserved | One seed and no estimable stopping-time contrast | Needs Fix | More paired, independent development evidence is required before adopting equivalence or launching its confirmatory route |
+
+## Five-client operational detector comparison — 2026-09-28
+
+### Benchmark and oracle
+
+| Item | Frozen value |
+|---|---|
+| Client structure | 3 target-generation clients + 2 independent uniform complement clients |
+| Coalition search | 25 coalitions; 375 basis coordinates; planted triple hidden from detector scoring |
+| Pure O3 generator | `1 + .08*phi2(u1)*phi2(u2)*phi2(u3)` |
+| Horizon and nominal alpha | 2,000 epochs; .05 |
+| Conservative density lower bound | .10557 |
+| Known-coordinate, known-sign NP power | .9734 |
+| Unknown-coordinate, unknown-sign oracle over 375 components | .43784 (MCSE .00222) |
+| 60%-of-excess-power gate | .282704 candidate power |
+| Added-value gate | candidate O3 power minus Order-at-Most-Two power >= .30 |
+
+### Earlier full-coalition development evidence
+
+| Run | Scope | Fitted recovery / purity | Operational result | Use |
+|---|---|---|---|---|
+| H=4,000 comparison | 30 roots; 25 coalitions; 375 coordinates; 8 conditions | Recovery ratio .9312; root-bootstrap 95% CI [.8695,.9886]; proper-subset gate passed | Four prefix-maximum candidates reached .0167–.0333 O3 power; held-out null CP upper bounds .101–.146; O3 attribution 0% | Diagnostic only; identified repeated-prefix score/calibration mismatch |
+| H=24,000 follow-up | Six complete roots before workers stopped; 30-root matrix incomplete | No pooled estimator summary | No pooled detector summary or method selection | Excluded from selection and confirmation |
+
+The historical run's poor alarm result does not negate its fitted-coordinate recovery result. The old radial statistic remains mathematically blind to the signed odd-product target under reflection symmetry. Historical TON results and gates remain separate and unchanged.
+
+A separate one-seed signal-loss diagnostic supports the mechanism without adding power evidence: at theta=.1 the fitted target coordinate separated by .12316 SD, while the 27-dimensional norm retained .00251 SD (2.03%); the production norm statistic and single-row factor separated by .00260 and .00524 SD. A cumulative norm diagnostic reached 4.020 SD on one dependent 10,000-row path but had no horizon-matched calibration and is not a power result. These figures are retained only as descriptive evidence for the signal-loss figure.
+
+### Current pre-outcome design
+
+The current matrix compares the same fitted atoms for Old Full radial, Order One, Order-at-Most-Two, Signed Coordinate Mixture, Sparse GLR/Max Coordinate, Multiscale Sparse Signed, and Hierarchical Sparse Interaction. It uses null, pure O1/O2/O3, and all four mixed conditions, across the 30 configured development roots. Per root it has 10 calibration nulls, 10 held-out nulls, and two alternatives per non-null condition. Calibration thresholds use the higher 97.5th percentile of terminal scores; held-out evaluation uses 300 independent null episodes and exact one-sided 95% Clopper-Pearson bounds. The threshold quantile was clarified before candidate outcomes were inspected: with 300 held-out nulls, a true .05 false-stop rate passes the CP gate only about 3.4% of the time; at the conservative .025 operating point, the matching Gaussian-mixture oracle has power .36278 (MCSE .00215). The predeclared selection floor remains .282704 from the alpha=.05 oracle. All candidate alarms are decided at H=2,000; this does not support an early-stopping claim.
+
+The protocol and its material digest are in `docs/audit/pocs/operational-detector-development-protocol.json`. The full 30-root matrix completed across three disjoint root ranges. No candidate passed all frozen gates; confirmation has not started. The signed-coordinate mixture reached 14/60 pure-O3 detections (0.233), below the 0.282704 power floor; all four candidates also missed the required 0.30 advantage over Order-at-Most-Two. The complete method-by-condition results are in the ignored machine-readable output.
+
+The failed matrix exposed two repairable defects: Order One and Order-at-Most-Two were both subjected to the global three-client support minimum, making the pure-order comparator hierarchy unavailable; and the signed-coordinate mixture used a unit-variance Gaussian rate despite overdispersed null coordinate scores. The repair protocol froze order-specific support (one client for Order One, two for Order-at-Most-Two, and the configured three for Old Full) and signed-coordinate null centering/scaling from calibration-null episodes only. Gates, threshold quantile, conditions, benchmark, roots, and held-out evaluation remained unchanged. A write-path error in the first attempt was corrected; the three original artifacts it had overwritten were regenerated with the unchanged original runner, and the historical aggregate was preserved.
+
+The repaired 30-root matrix completed after the WSL host restarted during roots 1007, 1017, and 1027; those three uncheckpointed roots were rerun, and all 30 seed identities/data pairs were verified before aggregation. The machine-readable summary is `docs/audit/pocs/operational-detector-repair-results.json`. Fitted target-coordinate recovery passed: mean ratio 0.9519, root-cluster-bootstrap 95% CI [0.8735, 1.0289]. Proper-subset integrity also passed: the 95% upper endpoint for maximum absolute drift was 0.0296 against the 0.10 limit.
+
+| Candidate | Held-out null stops / 300 (one-sided 95% upper bound) | Pure O3 detections / 60 (root-bootstrap 95% CI) | Oracle efficiency | Frozen outcome |
+|---|---:|---:|---:|---|
+| Signed Coordinate Mixture | 16 (0.0799) | 11 (0.183; [0.083, 0.300]) | 0.344 | Fails null-control and power gates |
+| Sparse GLR / Max Coordinate | 15 (0.0759) | 13 (0.217; [0.100, 0.350]) | 0.430 | Fails null-control and power gates |
+| Multiscale Sparse Signed | 11 (0.0600) | 12 (0.200; [0.083, 0.333]) | 0.387 | Fails null-control and power gates |
+| Hierarchical Sparse Interaction | 19 (0.0915) | 13 (0.217; [0.100, 0.350]) | 0.430 | Fails null-control and power gates |
+
+All four candidates miss the 0.05 held-out false-stop upper-bound gate and the 0.282704 O3 power floor. None is selected. The Old Full, Order One, and Order-at-Most-Two calibration thresholds are null because their calibration episodes produced no finite terminal scores; their zero detection counts therefore cannot support an O1/O2/O3 hierarchy or the candidate added-value comparison. No confirmatory experiment has started. The historical TON primary and its gates remain untouched.
+
+
+### Outcome-blind secondary-data decision
+
+The controlled five-client generator is the structurally suitable benchmark for the current mechanism comparison. No real secondary trace is selected: local Edge-IIoTset has only two eligible source-host groups; the local [Gotham archive](https://zenodo.org/records/14502760) has 78 device-level captures but neither the deposited record nor the archive provides a reuse license; [CIC IoT-DIAD](https://www.unb.ca/cic/datasets/iot-diad-2024.html) provides a nominal 105-device topology but the official download requires registration, its public description exposes device identifiers and task labels, and the available evidence does not establish an admissible feature/time split; [UNSW-IoTraffic](https://datadryad.org/dataset/doi:10.5061/dryad.w0vt4b94b) is the strongest physical benign-background candidate (27 per-device flow sources, UTC timestamps, and CC0-1.0 in Dryad's API metadata), but the official 95.5 MB flow-archive download returned HTTP 403, so its local synchronized benign-support contract could not be verified. These checks used metadata and access status only; no candidate detector scores or attack outcomes informed this decision. The real-background extension therefore remains unrun and no real-world generalization claim is made.
