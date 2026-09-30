@@ -20,17 +20,21 @@ My recommended primary research direction is provisionally named:
 
 > **CIDER — Conditional Incremental Detection-Evidence Routing**
 
-CIDER is an **inference-time collaborative anomaly-detection algorithm**. For target client \(i\), it evaluates candidate peer detector \(j\) on the target's observation, predicts from benign target calibration data how peer \(j\)'s score normally behaves conditional on the target's own score, and computes the **unexplained peer residual**. The target collaborates only with peers whose residual evidence is reliable and unexpectedly large.
+CIDER is an **inference-time collaborative anomaly-detection algorithm**. For target client \(i\), it evaluates candidate peer detector \(j\) on the target's observation and learns, from target-local benign data, the **conditional benign law of the peer response given the target response**. The primary evidence object is then the peer's **conditional surprisal**: how unexpectedly large peer \(j\)'s response is after conditioning on what the target detector already says. Simple conditional residuals remain a deliberately cheap discovery approximation and ablation, not the strongest final statistical definition.
 
 The new computational object is therefore not a personalized threshold, a global/local model mixture, a static client-similarity graph, or an alert budget. It is:
 
 \[
 \textbf{incremental peer evidence}
 =
-\text{peer evidence}
--
-\text{peer evidence predictable from the target's own evidence}.
+-\log P_0\!\left(
+S_j \ge s_j(x)
+\mid
+S_i=s_i(x)
+\right).
 \]
+
+Equivalently: a peer contributes only when its response is surprising under the **target-specific benign conditional response distribution**, not merely when its raw anomaly score is high.
 
 That distinction matters because generic pairwise personalized collaboration is already occupied by methods such as FedAMP and FedFomo, while 2026 work has pushed further into explicit collaboration geometry, federated inference, graph-personalized IDS, personalized federated PCA, and federated unsupervised representations. citeturn10search0turn4academia31turn5search8turn12academia48
 
@@ -178,7 +182,8 @@ The fresh search covered work available through **September 30, 2026**, spanning
 - graph personalization;
 - mixture-of-experts;
 - Bayesian and hierarchical personalization;
-- dynamic ensemble selection;
+- dynamic ensemble selection and locally selective outlier ensembles;
+- contextual / conditional anomaly detection and conditional-quantile anomaly scoring;
 - trust and reliability;
 - Byzantine robustness;
 - contextual bandits and adaptive client selection;
@@ -205,6 +210,11 @@ The decision below rests most heavily on the smaller subset for which the mechan
 | Very high | FedFomo | Each client weights other client models according to estimated benefit on its own objective | Kills generic “select useful peer models.” citeturn4academia31 |
 | Very high | Controlled Collaboration Geometry / pFedCCG | Explicitly controls collaboration matrices/geometry rather than naïve consensus | Makes “learn a client graph” alone weak novelty in 2026. citeturn5search8 |
 | Very high | Federated Inference | Treats inference-time collaboration among separately held models as its own federated paradigm | CIDER cannot claim inference-time collaboration itself as novel. citeturn12academia48 |
+| Very high | Song et al., **Conditional Anomaly Detection** (IEEE TKDE, 2007; DOI 10.1109/TKDE.2007.1009) | Detects observations that are anomalous conditional on contextual variables rather than globally anomalous | Prevents CIDER from claiming conditional anomaly scoring itself as novel; the novelty must come from the target–peer detector interpretation and collaboration rule. |
+| Very high | Li & van Leeuwen, **Explainable contextual anomaly detection using quantile regression forests** (DMKD, 2023) | Models conditional behavioral distributions through conditional quantiles | Makes a conditional-mean residual alone too weak as the final novelty object; motivates direct conditional-tail / surprisal estimation. |
+| Very high | LSCP (SDM 2019) + DCSO (2019) | Fully unsupervised, query-local selection/combination of competent outlier detectors | Prevents CIDER from claiming per-observation anomaly-expert selection as novel. CIDER must beat or clearly distinguish itself from locality-based detector competence. |
+| Very high | **Federated Detection at the Edge: Collaborative Anomaly Detection for Resource-Limited IoT** (IEEE IoT Journal, 2026; DOI 10.1109/JIOT.2026.3674644) | Collaborative IoT anomaly inference on resource-constrained devices with exchanged predictions | Prevents a broad claim that collaborative IoT anomaly inference itself is new. |
+| Very high | **Robust Federated Inference** (ICLR 2026) | Formalizes robustness of inference-time aggregation across separately held models | Makes malicious or unreliable peer outputs an explicit robustness consideration for CIDER, even if full Byzantine defense remains outside the first paper. |
 | Very high | G-PFL-ID | Personalized graph-based unsupervised federated IoT intrusion detection | Kills “graph + personalized FL + unsupervised IDS” as identity. citeturn6search1 |
 | Very high | FedEP | Personalized federated PCA/robust subspace learning for IoT anomaly detection | Kills straightforward hierarchical personalized subspace detector. citeturn7view2 |
 | Very high | FedRFF | Federated unsupervised anomaly detection with nonlinear random-feature machinery | Kills generic “new federated unsupervised anomaly representation.” citeturn5search10 |
@@ -234,7 +244,8 @@ The following is intentionally labeled **SCREENED**, not falsely labeled “100 
 | Client relationship / graph learning | 10+ | FedAMP, FedFomo, FED-PUB, graph-hypernetwork methods, decentralized collaboration graphs, pFedCCG | Learned client neighborhoods need a substantially new state/objective. citeturn10search0turn5search8 |
 | Direct federated IDS / anomaly detection | 20+ | G-PFL-ID, FedEP, FedRFF, clustered/personalized IDS, self-supervised FL IDS, benign-only FL anomaly detectors | The direct application field is much denser by 2026. citeturn6search1turn7view2turn5search10 |
 | Federated inference / collaborative inference | 6+ | Federated Inference, decentralized collaborative ensemble inference, distributed novelty detection | Inference collaboration is a known paradigm; CIDER must contribute the routing statistic. citeturn12academia48turn3search4 |
-| Ensemble / dynamic expert selection | 12+ | dynamic ensemble selection, competence maps, adaptive weighting, gated unsupervised experts, anomaly ensembles, FlowFuse | Per-observation expert weighting itself is not new. citeturn11search0 |
+| Ensemble / dynamic expert selection | 12+ | dynamic ensemble selection, competence maps, LSCP, DCSO, adaptive weighting, gated unsupervised experts, anomaly ensembles, FlowFuse | Per-observation expert weighting itself is not new; unsupervised query-local detector selection is also established. citeturn11search0 |
+| Contextual / conditional anomaly detection | 5+ | Conditional Anomaly Detection, conditional-distance methods, QCAD / conditional-quantile anomaly detection | Conditioning one anomaly variable on another context is established; CIDER must contribute the **cross-participant incremental-evidence interpretation and routing rule**, not conditioning alone. |
 | Bayesian / uncertainty personalization | 10+ | hierarchical Bayesian PFL, FedPop, FedHB, confidence-aware PFL, PAC-Bayesian PFL | “Use uncertainty to weight clients” is crowded. |
 | Conformal / risk control | 8+ | Federated conformal prediction, label-shift conformal, robust FCP, personalized multi-agent CP, group-conditional FCP, loss-controlling prediction | Do not turn the next paper into DATP-with-conformal-math. citeturn5academia48 |
 | Robust / trust-aware FL | 15+ | Krum/Bulyan families, geometric median, FoolsGold, FLTrust, FLAIR, trust/reputation weighting, poisoning-aware client selection | Generic trust-weighted aggregation is saturated. |
@@ -251,6 +262,8 @@ First, personalized FL has moved far beyond “global versus local.” FedAMP al
 Second, the IoT anomaly-detection space has become methodologically specific. Personalized graph anomaly detection, personalized federated low-rank/subspace methods, and unsupervised random-feature federated anomaly detection are no longer hypothetical gaps. citeturn6search1turn7view2turn5search10
 
 Third, inference-time collaboration itself is now being formalized. The emergence of federated inference means a paper cannot claim novelty merely because independently owned models collaborate after training. citeturn12academia48
+
+Fourth, two adjacent literatures narrow the CIDER claim further. **Conditional anomaly detection** already asks whether behavior is anomalous given context, while **LSCP/DCSO-style outlier ensembles** already perform sample-specific unsupervised detector selection. Therefore neither “conditional anomaly scoring” nor “choose a different detector for each observation” is sufficient novelty by itself. CIDER must be defended specifically as **target-conditioned cross-participant incremental evidence** used to decide whether a peer adds information beyond the target detector.
 
 The most promising remaining target is therefore narrower and stronger:
 
@@ -284,7 +297,7 @@ The most credible gaps are not “few papers studied X.” They are failures of 
 
 | Gap | Why existing machinery is insufficient | Information actually available | Opportunity |
 |---|---|---|---|
-| **Incremental peer evidence** | Similarity/weighting does not ask whether a peer adds information beyond the target's own score | Cross-client scores + target benign calibration | **Very strong** |
+| **Incremental peer evidence** | Similarity/weighting and query-local expert selection do not directly ask whether a **participant's response is surprising after conditioning on the target detector's own response** | Cross-client scores + target benign calibration | **Very strong if it beats contextual-score and dynamic-selection baselines** |
 | **Threat-utility routing** | Client similarity is not equivalent to complementary attack expertise | Attack type/family labels in development datasets | Strong but supervised-development dependent |
 | **Stateful peer reliability** | A useful peer may become unreliable without becoming distributionally dissimilar | Repeated calibration/score histories can be simulated or derived | Strong, but temporal evidence weaker |
 | **Abstaining collaborative escalation** | Current PFL assumes every prediction uses the personalized model; detection can instead escalate selectively | Scores and uncertainty | Strong, but selective prediction literature is crowded |
@@ -313,9 +326,25 @@ The strongest novelty killers are:
 
 \[
 \boxed{
-\text{dynamic ensemble selection}
+\text{dynamic ensemble selection / LSCP / DCSO}
 \Rightarrow
 \text{sample-dependent expert choice is not new}
+}
+\]
+
+\[
+\boxed{
+\text{Conditional Anomaly Detection / QCAD}
+\Rightarrow
+\text{conditioning an anomaly variable on contextual evidence is not new}
+}
+\]
+
+\[
+\boxed{
+\text{2026 collaborative IoT edge inference}
+\Rightarrow
+\text{collaborative IoT anomaly inference itself is not new}
 }
 \]
 
@@ -337,7 +366,7 @@ The strongest novelty killers are:
 
 The novelty defense for CIDER must therefore be mechanistic:
 
-> **the collaboration weight is produced from target-conditioned incremental evidence, estimated from target-local benign cross-responses, rather than from model similarity, generic competence, labeled validation accuracy, client embedding similarity, or unconditional peer anomaly scores.**
+> **the collaboration weight is produced from target-conditioned peer surprisal, estimated from a target-local benign conditional response law \(F^0_{j\mid i}\), rather than from model similarity, query-local detector competence alone, labeled validation accuracy, client embedding similarity, or unconditional peer anomaly scores. The distinctive claim is therefore not conditioning or dynamic selection separately, but using a peer's response *conditional on the target detector's response* as the cross-participant incremental-evidence object that drives collaboration.**
 
 No equivalent mechanism was identified in this search as of September 30, 2026, but because the requested 100-full-method audit was not completed, this should be labeled **NOVELTY RISK: MODERATE**, not “first ever.”
 
@@ -357,46 +386,46 @@ The following are genuinely different algorithmic families rather than parameter
 
 | Rank | Candidate | New computation | Main novelty source | Empirical plausibility | Status |
 |---:|---|---|---|---|---|
-| 1 | **CIDER** | Conditional peer residuals + instance-level evidence routing | New information structure / routing statistic | **HIGH** | KEEP |
+| 1 | **CIDER** | Target-conditioned peer surprisal + instance-level evidence routing | New information structure / routing statistic | **HIGH** | KEEP |
 | 2 | **PCRF** | Target-specific conditional residual fusion, static peer set | New score decomposition | **HIGH** | KEEP as fallback |
 | 3 | **AFUR** | Route peers according to counterfactual threat-family utility | New knowledge-routing objective | **HIGH–MODERATE** | KEEP |
 | 4 | **PARIS** | Persistent target-peer reliability state | New state + conditional cooperation | MODERATE | KEEP |
 | 5 | Threat-Prototype Router | Share compact malicious-direction prototypes and route by target gap | New shared object | MODERATE–HIGH | KEEP |
 | 6 | True-Identity Dyadic Residual Detector | Endpoint-conditioned relationship anomaly residual | New relational state | MODERATE–HIGH | REFORMULATE current DIAD lead |
 | 7 | Abstaining Collaborative Escalation | Local prediction → peer escalation only under insufficiency | New decision process | HIGH | KEEP |
-| 8 | Robust CIDER | Reliability-gated incremental evidence under compromised peers | New adversarial evidence rule | MODERATE | DEFER |
+| 8 | Robust CIDER | Reliability-gated incremental evidence under compromised peers | New adversarial evidence rule | MODERATE | **RETAIN — extension candidate; do not fold into first CIDER version yet** |
 | 9 | Dual-Timescale Cooperation Graph | Fast evidence state + slow relationship/reliability state | Multi-timescale state | MODERATE | KEEP |
 | 10 | Mutual-Information Complementarity Graph | Graph edges encode unique rather than shared information | New graph objective | MODERATE | KEEP |
-| 11 | Conformal Peer-Evidence Gate | Risk-valid selection of peer escalation | Risk-control mechanism | HIGH | DEMOTE: novelty crowded |
-| 12 | Sparse Personalized Peer MoE | Per-target sparse expert gate over client detectors | Mixture structure | HIGH | DEMOTE: crowded |
-| 13 | Hierarchical Bayesian Anomaly Manifold | Partial-pool client anomaly models by sample support | Hierarchical state | HIGH | DEMOTE: prior art close |
-| 14 | Drift-Triggered Collaboration Switching | Change detector switches collaborator set | Adaptation rule | MODERATE | DEFER |
-| 15 | Contextual-Bandit Peer Selection | Explore/exploit collaborators by observed utility | Online routing | MODERATE | DEMOTE |
-| 16 | RL Peer Aggregator | Continuous per-client evidence weights learned from reward | RL coordination | MODERATE | REJECT for complexity |
-| 17 | Privacy-Noised Federated Inference Fusion | Score collaboration under output perturbation | Privacy-utility objective | MODERATE | DEFER |
-| 18 | Disagreement-Driven Escalation Hierarchy | Escalate based on structured disagreement pattern | Decision state | HIGH | MERGE with #7 |
-| 19 | Cross-Client Score Copula | Estimate dependency structure and anomaly residuals jointly | Joint distribution | MODERATE | DEMOTE: FlowFuse threat |
-| 20 | Relation-vs-Endpoint Factorization | Decompose dyad anomaly into source, destination, residual relationship | New decomposition | HIGH | MERGE with #6 |
+| 11 | Conformal Peer-Evidence Gate | Risk-valid selection of peer escalation | Risk-control mechanism | HIGH | **RETAIN — high prior-art pressure; audit before promotion** |
+| 12 | Sparse Personalized Peer MoE | Per-target sparse expert gate over client detectors | Mixture structure | HIGH | **RETAIN — crowded mechanism; requires sharper novelty** |
+| 13 | Hierarchical Bayesian Anomaly Manifold | Partial-pool client anomaly models by sample support | Hierarchical state | HIGH | **RETAIN — close prior art; candidate-specific audit needed** |
+| 14 | Drift-Triggered Collaboration Switching | Change detector switches collaborator set | Adaptation rule | MODERATE | **RETAIN — temporal-evidence constraint to audit** |
+| 15 | Contextual-Bandit Peer Selection | Explore/exploit collaborators by observed utility | Online routing | MODERATE | **RETAIN — novelty depends on threat-specific mechanics** |
+| 16 | RL Peer Aggregator | Continuous per-client evidence weights learned from reward | RL coordination | MODERATE | **RETAIN — high complexity / weak current evidence** |
+| 17 | Privacy-Noised Federated Inference Fusion | Score collaboration under output perturbation | Privacy-utility objective | MODERATE | **RETAIN — privacy/utility extension candidate** |
+| 18 | Disagreement-Driven Escalation Hierarchy | Escalate based on structured disagreement pattern | Decision state | HIGH | **RETAIN — closely related to #7; compare rather than collapse yet** |
+| 19 | Cross-Client Score Copula | Estimate dependency structure and anomaly residuals jointly | Joint distribution | MODERATE | **RETAIN — FlowFuse proximity requires direct audit** |
+| 20 | Relation-vs-Endpoint Factorization | Decompose dyad anomaly into source, destination, residual relationship | New decomposition | HIGH | **RETAIN — related to #6; test independently before merging** |
 | 21 | Family-Prototype Knowledge Transfer | Transfer family-specific threat anchors | Knowledge representation | HIGH | KEEP but CTK-adjacent |
-| 22 | Gradient Threat-Direction Transfer | Share compact discriminative attack directions | New transfer object | MODERATE | DEFER |
-| 23 | Specialist/Generalist Distillation Router | Distill local specialists into conditional shared expert | KD interaction | HIGH | DEMOTE: crowded |
-| 24 | Flow-Dependency Expert Fusion | Learn joint score dependencies across peer detectors | Score interaction | HIGH | REJECT: prior art too close |
-| 25 | Federated One-Class MoE | Multiple benign experts, adaptive gate | MoE | HIGH | DEMOTE |
-| 26 | Bayesian Shared/Private Normality Model | Population prior + client random effects for normality | Bayesian hierarchy | HIGH | DEMOTE |
-| 27 | Personalized Sparse FedPCA IDS | Personalized low-rank anomaly manifolds | Subspace personalization | HIGH | **REJECT: FedEP** |
-| 28 | Federated Random-Feature Anomaly Representation | Collaborative nonlinear one-class feature model | Representation | HIGH | **REJECT: FedRFF** |
-| 29 | Continual Gossip Anomaly Collaboration | Online peer fusion + replay/adaptation | Decentralized continual learning | MODERATE | **REJECT: D-CAD proximity** |
-| 30 | Group-Conditional Federated Conformal IDS | Group/client-specific risk-valid prediction | UQ | HIGH | REJECT as main identity |
-| 31 | Personalized Graph Unsupervised IDS | Client/device graph + personalized anomaly model | Graph personalization | HIGH | **REJECT: G-PFL-ID proximity** |
-| 32 | Attention-Based Peer PFL IDS | Similar clients weighted more strongly | Pairwise attention | HIGH | **REJECT: FedAMP/FedFomo** |
-| 33 | Prediction-Based Client Grouping IDS | Group clients by model-output behavior | Dynamic clustering | HIGH | REJECT: established pattern |
-| 34 | Bandit Client Participation for IDS | Select FL participants to optimize detection utility | Client scheduling | HIGH | DEMOTE: transfer too direct |
-| 35 | Byzantine Trust Aggregation IDS | Trust score weights model updates | Robust aggregation | HIGH | REJECT as next core paper |
-| 36 | Joint Detector/Threshold Adaptation | Co-optimize model and decision threshold | Joint model/decision | HIGH | DEMOTE: thesis redundancy |
-| 37 | Adaptive Alert-Budget Router | Select peers under alert/resource constraints | Resource allocation | HIGH | DEMOTE: FABRID overlap |
-| 38 | **Historical EMHI** | Higher-order purified coalition evidence | Interaction decomposition | LOW on available real data | **REJECT main identity** |
+| 22 | Gradient Threat-Direction Transfer | Share compact discriminative attack directions | New transfer object | MODERATE | **RETAIN — evidence and leakage assumptions need audit** |
+| 23 | Specialist/Generalist Distillation Router | Distill local specialists into conditional shared expert | KD interaction | HIGH | **RETAIN — crowded KD/MoE neighborhood; sharper mechanism needed** |
+| 24 | Flow-Dependency Expert Fusion | Learn joint score dependencies across peer detectors | Score interaction | HIGH | **RETAIN — currently high prior-art proximity; use as comparator/candidate pending audit** |
+| 25 | Federated One-Class MoE | Multiple benign experts, adaptive gate | MoE | HIGH | **RETAIN — crowded family; candidate-specific novelty needed** |
+| 26 | Bayesian Shared/Private Normality Model | Population prior + client random effects for normality | Bayesian hierarchy | HIGH | **RETAIN — prior-art audit required** |
+| 27 | Personalized Sparse FedPCA IDS | Personalized low-rank anomaly manifolds | Subspace personalization | HIGH | **RETAIN — FedEP proximity is a major novelty threat** |
+| 28 | Federated Random-Feature Anomaly Representation | Collaborative nonlinear one-class feature model | Representation | HIGH | **RETAIN — FedRFF proximity is a major novelty threat** |
+| 29 | Continual Gossip Anomaly Collaboration | Online peer fusion + replay/adaptation | Decentralized continual learning | MODERATE | **RETAIN — D-CAD proximity requires direct mechanism comparison** |
+| 30 | Group-Conditional Federated Conformal IDS | Group/client-specific risk-valid prediction | UQ | HIGH | **RETAIN — unlikely standalone identity without additional mechanism** |
+| 31 | Personalized Graph Unsupervised IDS | Client/device graph + personalized anomaly model | Graph personalization | HIGH | **RETAIN — G-PFL-ID proximity is a major novelty threat** |
+| 32 | Attention-Based Peer PFL IDS | Similar clients weighted more strongly | Pairwise attention | HIGH | **RETAIN — FedAMP/FedFomo proximity is a major novelty threat** |
+| 33 | Prediction-Based Client Grouping IDS | Group clients by model-output behavior | Dynamic clustering | HIGH | **RETAIN — established pattern; requires a new grouping objective/state** |
+| 34 | Bandit Client Participation for IDS | Select FL participants to optimize detection utility | Client scheduling | HIGH | **RETAIN — transfer may be too direct unless threat-specific** |
+| 35 | Byzantine Trust Aggregation IDS | Trust score weights model updates | Robust aggregation | HIGH | **RETAIN — saturated as generic formulation; sharper IDS-specific object needed** |
+| 36 | Joint Detector/Threshold Adaptation | Co-optimize model and decision threshold | Joint model/decision | HIGH | **RETAIN — thesis-overlap risk to evaluate** |
+| 37 | Adaptive Alert-Budget Router | Select peers under alert/resource constraints | Resource allocation | HIGH | **RETAIN — FABRID overlap must be separated carefully** |
+| 38 | **Historical EMHI** | Higher-order purified coalition evidence | Interaction decomposition | LOW on available real data | **RETAIN as historical candidate/mechanism; not current primary on existing evidence** |
 
-The rejection of candidates 27–32 is literature-driven rather than aesthetic. FedEP, FedRFF, G-PFL-ID and the personalized collaboration literature occupy those mechanisms closely enough that a journal paper would need a much sharper transformation. citeturn7view2turn5search10turn6search1turn10search0turn4academia31
+The lower current priority of candidates 27–32 is literature-driven rather than aesthetic. They are **not removed from the candidate frontier**: FedEP, FedRFF, G-PFL-ID and the personalized collaboration literature simply occupy nearby mechanisms closely enough that any promotion of these candidates to a main-paper identity requires a much sharper transformation and a candidate-specific full-text novelty audit. citeturn7view2turn5search10turn6search1turn10search0turn4academia31
 
 **M. TOP-CANDIDATE FEASIBILITY MATRICES**
 
@@ -461,7 +490,7 @@ Using your exact weighting—
 | Drift Collaboration | 16 | 17 | 12 | 11 | 9 | 3 | **68** |
 | Bandit Collaborator Selection | 11 | 18 | 12 | 10 | 8 | 2 | **61** |
 
-These scores are **YOUR SCIENTIFIC INFERENCE**, not measured outcomes.
+These scores are **YOUR SCIENTIFIC INFERENCE**, not measured outcomes. They are a **discovery-order heuristic, not an elimination rule**: all listed candidates remain available for later candidate-specific novelty and feasibility audits. In particular, the novelty components for CIDER, PCRF and AFUR should be revisited after the expanded contextual-anomaly / dynamic-outlier-ensemble audit above rather than treated as final numerical judgments.
 
 CIDER's empirical plausibility is **HIGH**, not “very high,” because the prior N-BaIoT POC already warns that peer information can improve ranking without improving the operating point. fileciteturn0file1
 
@@ -469,14 +498,14 @@ CIDER's empirical plausibility is **HIGH**, not “very high,” because the pri
 
 | Attack pass | CIDER result |
 |---|---|
-| Novelty attack | **Survives provisionally.** Generic collaboration is occupied; target-conditioned incremental peer residual appears more specific. |
-| Mathematical-equivalence attack | **Moderate risk.** Could collapse into residual stacking or conditional ensemble selection if formulation is too generic. |
+| Novelty attack | **Survives provisionally, with a narrower claim.** Generic collaboration, conditional anomaly detection, and per-observation outlier-expert selection are all occupied; the defensible object is target-conditioned **cross-participant peer surprisal** used as incremental evidence. |
+| Mathematical-equivalence attack | **Moderate–high risk.** A conditional-mean residual can collapse into contextual anomaly scoring or residual stacking, while the routing layer can collapse into LSCP/DCSO-style dynamic selection. The final method must show that the conditional peer law \(F^0_{j\mid i}\) and its cross-participant interpretation materially matter. |
 | Feasibility attack | **Survives strongly on N-BaIoT.** No timestamps/graphs/family mapping required. citeturn13search4 |
 | Trivial-baseline attack | **Major risk.** Max of target-calibrated peer anomaly percentiles may do just as well. |
 | Leakage attack | **Manageable.** Must split benign data into model-fit, residual-fit, and final calibration; attack labels cannot tune confirmation. |
 | Mechanism attack | **Passes conceptually.** Conditional residual explicitly changes how peer evidence contributes. |
 | Complexity attack | **Manageable.** Nine N-BaIoT clients make exhaustive peer cross-scoring cheap; later top-\(k\) pruning limits inference cost. |
-| Reviewer attack | **Passes only if it beats raw peer ensemble and FedFomo-like utility weighting.** |
+| Reviewer attack | **Passes only if it beats raw/normalized peer ensembles, a FedFomo-like persistent utility baseline, and an LSCP/DCSO-style sample-specific detector-selection baseline.** |
 | Thesis redundancy attack | **Passes.** It does not primarily personalize thresholds, poison calibration, allocate FPR budgets, or just measure complementary knowledge. |
 | Thesis coherence attack | **Strong pass.** It converts CTK's observation into an algorithm that decides when another participant's knowledge is useful. |
 
@@ -496,20 +525,20 @@ The table below is intentionally a **candidate-filter catalog**, not a list of e
 |---|---|---|---|---|---|
 | P01 | CIDER/PCRF | Build \(9\times9\) N-BaIoT cross-score matrix from local benign-trained models | Successful finite scores, latency | All target-peer pairs evaluable | 5–15 min |
 | P02 | CIDER | Measure peer-vs-local score correlations on target benign | Pearson/Spearman | Non-perfect dependence in useful pairs | <1 min |
-| P03 | CIDER | Fit \(s_j\sim s_i\) on target benign and inspect held-out residual stability | residual calibration error | Stable in most pairs | <2 min |
-| P04 | CIDER | Test whether peer residual is approximately independent of local benign score | correlation / binned means | Large reduction vs raw peer score | <1 min |
-| P05 | CIDER | Compare attack residual distribution with benign residual | AUROC effect only exploratory | Positive in ≥6/9 devices | <1 min |
-| P06 | CIDER | Local-only versus best residual peer at matched target FPR | TPR@1%,5% FPR | Positive mean gain | <1 min |
+| P03 | CIDER | Fit the cheapest diagnostic \(s_j\sim s_i\) on target benign **and** estimate a held-out conditional tail/CDF calibration for \(S_j\mid S_i\) | residual + conditional calibration error | Stable/calibrated in most pairs | <2 min |
+| P04 | CIDER | Test whether conditioning removes ordinary peer/local dependence on held-out benign data | correlation / binned calibration / PIT diagnostic | Large reduction vs raw peer score; conditional tail approximately calibrated | <1 min |
+| P05 | CIDER | Compare attack conditional-surprisal distribution with benign conditional surprisal; keep residual separation as an ablation | AUROC effect only exploratory | Positive in ≥6/9 devices | <1 min |
+| P06 | CIDER | Local-only versus best conditional-surprisal peer at matched target FPR | TPR@1%,5% FPR | Positive mean gain | <1 min |
 | P07 | CIDER | Compare against max peer percentile | TPR@FPR | **CIDER ≥2 pp mean gain or clear worst-client gain** | <1 min |
-| P08 | CIDER | Compare against mean/median peer percentile | TPR@FPR | CIDER better | <1 min |
+| P08 | CIDER | Compare against mean/median peer percentile **and LSCP/DCSO-style sample-specific detector selection** | TPR@FPR | Conditional peer evidence adds value beyond generic dynamic selection | <1–5 min |
 | P09 | CIDER | Compare against raw max reconstruction score | TPR@FPR | CIDER better | <1 min |
 | P10 | CIDER | Top-1 versus top-2 residual routing | TPR/compute | Top-1 competitive preferred | <1 min |
-| P11 | CIDER | Replace conditional residual by unconditional peer z-score | TPR@FPR | Conditioning matters | <1 min |
-| P12 | CIDER | Linear vs isotonic residual expectation | TPR + benign calibration | Simpler model preferred if tied | <2 min |
-| P13 | CIDER | Quantile regression vs mean residual | tail detection | Only keep if material gain | 2–5 min |
-| P14 | CIDER | 500/2k/10k benign calibration samples | calibration error, TPR | Useful at practical sample sizes | <5 min |
-| P15 | CIDER | Separate residual-fit and threshold-calibration split | FPR calibration | No collapse after honest splitting | <2 min |
-| P16 | CIDER | Cross-fit residual estimator | matched-FPR TPR | Similar or better than naïve fit | <5 min |
+| P11 | CIDER | Replace conditional peer evidence by unconditional peer z-score / percentile | TPR@FPR | Conditioning matters | <1 min |
+| P12 | CIDER | Linear residual expectation vs isotonic/conditional-CDF estimator | TPR + benign conditional calibration | Simpler model preferred if tied; final choice must be calibrated | <2–5 min |
+| P13 | CIDER | Conditional mean-residual evidence vs conditional-quantile / conditional-CDF surprisal | tail detection + calibration | Keep the stronger formulation only if it materially improves calibration or detection | 2–5 min |
+| P14 | CIDER | 500/2k/10k benign conditional-calibration samples | calibration error, TPR | Useful at practical sample sizes | <5 min |
+| P15 | CIDER | Separate conditional-model fitting from final decision-threshold calibration | FPR calibration | No collapse after honest splitting | <2 min |
+| P16 | CIDER | Cross-fit the conditional estimator and generate out-of-fold benign peer evidence | matched-FPR TPR + PIT/calibration | Similar or better than naïve fit without optimistic calibration | <5 min |
 | P17 | CIDER | Static benign-only peer pruning | compute vs TPR | Top 2–3 retain most gain | <1 min |
 | P18 | CIDER | Device-wise forest plot | per-device effect | Gain not driven by 1–2 devices | <1 min |
 | P19 | CIDER/AFUR | Split results by botnet/attack type | TPR@FPR | Some cross-family complementarity | <2 min |
@@ -539,21 +568,21 @@ The key is that P01–P07 answer almost the entire initial decision at negligibl
 ```mermaid
 flowchart TD
     S["START: local N-BaIoT models / cached scores"] --> A["POC-A: Build target × peer cross-score matrix"]
-    A -->|Cannot evaluate peers consistently| A0["Reject CIDER/PCRF<br/>move to threat-prototype challenger"]
-    A -->|PASS| B["POC-B: Does conditional peer residual separate attacks from target benign?"]
-    B -->|No useful residual signal| B0["Reject residual family<br/>test AFUR threat-utility routing"]
-    B -->|PASS| C["POC-C: Beat max/mean percentile-normalized peer ensemble?"]
-    C -->|FAIL| C0["Reject CIDER as over-engineered<br/>do not publish residual router"]
-    C -->|PASS| D["POC-D: honest split + device-wise consistency"]
-    D -->|FPR breaks or 1–2 devices drive effect| D0["Reformulate / fallback PCRF only if stable"]
+    A -->|Cannot evaluate peers consistently| A0["Downgrade CIDER/PCRF as primary<br/>retain and test prototype/representation candidates"]
+    A -->|PASS| B["POC-B: Does conditional peer evidence separate attacks from target benign?"]
+    B -->|No useful conditional signal| B0["Downgrade conditional-evidence family<br/>retain it; test AFUR and other candidates"]
+    B -->|PASS| C["POC-C: Beat normalized peer ensemble + dynamic-selection baseline?"]
+    C -->|FAIL| C0["Do not promote CIDER as main algorithm yet<br/>retain for later audit / reformulation"]
+    C -->|PASS| D["POC-D: honest cross-fitting + device-wise consistency"]
+    D -->|FPR breaks or 1–2 devices drive effect| D0["Reformulate; compare PCRF and other retained candidates"]
     D -->|PASS| E["POC-E: leave-one-attack-type-out + DIAD capture-held-out replication"]
-    E -->|Both weak| F["Use PCRF only if primary N-BaIoT effect is strong; otherwise AFUR"]
-    E -->|At least one strong generalization test| G["IMPLEMENT FULL CIDER"]
+    E -->|Both weak| F["Keep CIDER/PCRF/AFUR in frontier; promote the candidate with strongest next evidence"]
+    E -->|At least one strong generalization test| G["PROMOTE CIDER TO FULL IMPLEMENTATION"]
 ```
 
 ### Exact discovery stopping rules
 
-The primary should be **killed early** if any of these occurs:
+CIDER should **not be promoted as the primary algorithm yet** if any of these occurs. This is a discovery-priority rule, not permanent elimination from the candidate frontier:
 
 \[
 \Delta \mathrm{TPR}_{\text{CIDER}-\text{max-peer}}
@@ -588,7 +617,7 @@ The name should be treated as **provisional** until a final naming collision che
 
 ### One-sentence identity
 
-> **We introduce CIDER, which uses target-conditioned peer residual distributions to estimate whether another participant contributes anomaly evidence not already explained by the target's local detector, and routes only reliable incremental evidence into the target's detection decision.**
+> **We introduce CIDER, which learns a target-conditioned benign response law for each peer, converts a peer's conditional tail probability into incremental evidence about the current observation, and routes only reliable peer evidence that is surprising beyond what the target detector already explains.**
 
 ### Problem formulation
 
@@ -633,82 +662,94 @@ CIDER asks instead:
 \textit{ unexpectedly large given what }s_i(x)\textit{ already says?}
 \]
 
-### Conditional benign model
+### Conditional benign peer-response model
 
-Using only a **target-local benign residual-fitting split**
-\(B_i^{R}\), estimate
+Using only a **target-local benign conditional-model split** \(B_i^{R}\), estimate the benign conditional response distribution
 
 \[
-m_{ij}(u)
+F^0_{j\mid i}(v\mid u)
 =
-\mathbb E_0
-[
-s_{j\to i}(X)
+P_0
+\left(
+s_{j\to i}(X)\le v
 \mid
 s_i(X)=u
-],
+\right).
 \]
 
-or a robust conditional location/quantile version.
+The first discovery pass should still fit the cheap linear relation
 
-Define:
+\[
+s_j=a+b\,s_i+\epsilon
+\]
+
+because it is a useful falsification test and residual ablation. However, a conditional mean alone is not the strongest final object: if the conditional variance or tail shape changes with \(s_i\), the same residual magnitude can have very different benign significance.
+
+The primary CIDER evidence therefore uses the **conditional upper-tail probability**
+
+\[
+\widehat p_{ij}(x)
+=
+1-
+\widehat F^0_{j\mid i}
+\left(
+s_{j\to i}(x)
+\mid
+s_i(x)
+\right),
+\]
+
+with the usual finite-sample clipping/smoothing needed to avoid zero probabilities.
+
+Then define target-conditioned incremental peer evidence
+
+\[
+e_{ij}(x)
+=
+-\log
+\left(
+\widehat p_{ij}(x)+\varepsilon
+\right).
+\]
+
+Interpretation:
+
+- small \(e_{ij}\): peer \(j\)'s response is ordinary under benign behavior **given what target \(i\) already says**;
+- large \(e_{ij}\): peer \(j\)'s response is unusually large after conditioning on the target response and is therefore a candidate source of incremental evidence.
+
+A simple residual
 
 \[
 r_{ij}(x)
 =
 s_{j\to i}(x)
 -
-\widehat m_{ij}(s_i(x)).
+\widehat m_{ij}(s_i(x))
 \]
 
-This residual is the core object.
+remains an explicit ablation / discovery approximation. CIDER should not claim residualization itself as novel because contextual anomaly detection and conditional-quantile anomaly scoring already occupy that general statistical territory.
 
-A peer whose score is high merely because the target's own score is high contributes little new information. A peer receives influence only when:
+### Calibration property and cross-fitting
 
-\[
-r_{ij}(x)\gg0.
-\]
-
-### Convert residuals to target-specific evidence
-
-From a separate benign residual reference set,
+If the benign conditional CDF is correctly specified and continuous, the conditional probability-integral transform gives
 
 \[
-\mathcal R_{ij}^{0}
+U_{ij}
 =
-\{r_{ij}(b):b\in B_i^R\},
+F^0_{j\mid i}(S_j\mid S_i)
+\sim
+\mathrm{Uniform}(0,1)
 \]
 
-define an empirical upper-tail probability
+under the benign null, conditionally on \(S_i\). Therefore the one-sided tail value \(P_{ij}=1-U_{ij}\) is also uniform and
 
 \[
-\widehat p_{ij}(x)
-=
-\frac{
-1+
-\sum_{b\in B_i^R}
-\mathbf 1
-[
-r_{ij}(b)\ge r_{ij}(x)
-]
-}{
-|B_i^R|+1
-}.
+E_{ij}=-\log P_{ij}
 \]
 
-Then define incremental evidence:
+has an exponential reference distribution. This is a calibration target and diagnostic, not an assumption that will be declared true without testing.
 
-\[
-e_{ij}(x)
-=
--\log
-\widehat p_{ij}(x).
-\]
-
-A score of this form is interpretable:
-
-- \(e_{ij}\approx0\): peer response is ordinary given the target response;
-- large \(e_{ij}\): peer sees something unusually strong that the target's own score does not explain.
+The conditional estimator must be **cross-fitted** within \(B_i^R\): each benign evidence value used to assess calibration or reliability should be generated out-of-fold rather than by a model fitted on that same observation. A completely separate benign split \(B_i^C\) remains reserved for the final collaborative decision threshold.
 
 ### Benign-only reliability
 
@@ -740,19 +781,33 @@ A deliberately simple first implementation is preferable:
 \right),
 \]
 
-where \(E_{ij}\) is cross-fold residual calibration error.
+where \(E_{ij}\) is cross-fold **conditional-tail calibration error** (for example, deviation of out-of-fold probability-integral-transform values from the benign reference law), not merely in-sample regression error.
 
 Do **not** begin with a neural reliability network.
 
 ### Instance-level routing
 
-For observation \(x\), rank peers by
+For observation \(x\), first bound a single peer's leverage,
+
+\[
+\widetilde e_{ij}(x)
+=
+\min
+\left(
+e_{ij}(x),
+e_{\max}
+\right),
+\]
+
+and rank peers by
 
 \[
 u_{ij}(x)
 =
-\rho_{ij}e_{ij}(x).
+\rho_{ij}\widetilde e_{ij}(x).
 \]
+
+The clipping constant is fixed on development/calibration data and is not a full Byzantine-defense claim; it only prevents a single arbitrarily inflated peer output from having unbounded influence. If no peer passes the benign-qualified reliability/evidence gate, CIDER **falls back to the target-local detector**.
 
 Let \(J_i^{(k)}(x)\) contain the top \(k\) peers among a benign-prequalified peer pool.
 
@@ -806,9 +861,9 @@ For target \(i\):
 \left\{
 f_i,
 J_i,
-\{\widehat m_{ij}\},
-\{\mathcal R^0_{ij}\},
+\{\widehat F^0_{j\mid i}\},
 \{\rho_{ij}\},
+e_{\max},
 T_i
 \right\}.
 \]
@@ -825,12 +880,12 @@ INPUT:
     peer candidate set P_i
     operating target alpha
 
-FIT TARGET-PEER RESIDUAL MODELS:
+FIT TARGET-PEER CONDITIONAL MODELS:
     for each peer j in P_i:
         evaluate f_i and f_j on B_i^R
-        fit m_ij : local score -> expected peer score
-        compute benign residuals R_ij
-        estimate benign-only reliability rho_ij
+        cross-fit F^0_{j|i} : local score -> benign conditional peer-response distribution
+        generate out-of-fold conditional-tail values / surprisal
+        estimate benign-only reliability rho_ij from support, stability, and calibration
 
 BENIGN PEER PRE-SELECTION:
     discard unsupported / unstable peers
@@ -841,11 +896,17 @@ DEFINE FIXED SCORING FUNCTION H_i(x):
 
     for each j in J_i:
         peer_score = f_j(x)
-        residual = peer_score - m_ij(f_i(x))
-        p_ij = empirical_tail_probability(residual, R_ij)
-        utility_ij = rho_ij * (-log(p_ij))
+        p_ij = conditional_upper_tail_probability(
+            peer_score,
+            local_score=f_i(x),
+            conditional_model=F^0_{j|i}
+        )
+        evidence_ij = clip(-log(p_ij + epsilon), e_max)
+        utility_ij = rho_ij * evidence_ij
 
-    choose top-k peer utilities
+    choose top-k peer utilities that pass the evidence/reliability gate
+    if none pass:
+        return local evidence
     combine local evidence with positive incremental peer evidence
     return H_i(x)
 
@@ -871,7 +932,7 @@ flowchart LR
     P1["Peer detector f_j"] -->|model/checkpoint or callable expert| T
     P2["Peer detector f_k"] -->|model/checkpoint or callable expert| T
     L["Target local detector f_i"] --> T["Target client i"]
-    B["Target-local benign calibration"] --> R["Conditional residual models m_ij"]
+    B["Target-local benign calibration"] --> R["Conditional peer-response laws F⁰_{j|i}"]
     R --> T
     T --> E["Incremental peer evidence"]
     E --> G["Top-k evidence routing"]
@@ -879,7 +940,7 @@ flowchart LR
     H --> D["Target-local decision"]
 ```
 
-Raw target traffic need not leave client \(i\) when peer models are downloadable/callable locally. This is closer to **federated inference** than standard FedAvg-style model training, and that distinction should be stated explicitly because federated inference itself is now a recognized research direction. citeturn12academia48
+If a peer model is transferred and executed locally at target \(i\), raw target traffic need not leave the target, but the peer's model/checkpoint is then exposed to that target. If instead a peer is a remote callable expert, the query representation or input may be disclosed unless a secure inference protocol is added. Therefore the first paper should describe CIDER as **collaborative inference among federated participants**, not as privacy-preserving federated inference. Federated inference is itself now a recognized research direction, and its model/input confidentiality problem is separate from CIDER's core evidence-routing contribution. citeturn12academia48
 
 ### Why the mechanism should work
 
@@ -925,7 +986,7 @@ r_{ij}(x)
 
 so the complementary component survives.
 
-This is the mechanical reason CIDER is more defensible than saying “heterogeneous devices benefit from collaboration.”
+This residual argument remains useful intuition and a special-case diagnostic. The stronger final statement is distributional: the redundant peer should have an ordinary conditional tail probability under \(F^0_{j\mid i}\), whereas a genuinely complementary peer should move into an unusually small conditional upper tail. This is the mechanical reason CIDER is more defensible than saying “heterogeneous devices benefit from collaboration.”
 
 ### Complexity
 
@@ -1000,13 +1061,13 @@ q_i(x)^\top \mathbf u_{ij}.
 
 This directly operationalizes CTK-Android's “complementary threat knowledge” insight rather than merely measuring it. fileciteturn0file0
 
-Its key scientific risk is much larger than CIDER's:
+Its key scientific risks are larger than CIDER's:
 
-> **Can a competence map learned from known attack families generalize to a genuinely unseen family without implicitly training on the answer?**
+> **Can a competence map learned from known attack types generalize to a held-out attack type without implicitly training on the answer, and can the latent threat-profile vector \(q_i(x)\) be estimated without reducing AFUR to a supervised dynamic ensemble / mixture-of-experts gate?**
 
-That is the single uncertainty preventing AFUR from ranking first.
+The unresolved object \(q_i(x)\) carries much of AFUR's difficulty and must receive its own novelty/leakage audit against META-DES, dynamic ensemble selection, LSCP/DCSO-style competence selection, and mixture-of-experts routing.
 
-The cheapest decisive test is a leave-one-attack-type-out utility experiment on N-BaIoT. Fit peer competence on all remaining attack types, freeze the router, then evaluate the omitted type. No full FL retraining is required once the cross-score matrix exists.
+The cheapest decisive test is a leave-one-attack-type-out utility experiment on N-BaIoT. Fit peer competence on all remaining attack types, freeze the router, then evaluate the omitted type. No full FL retraining is required once the cross-score matrix exists. Because N-BaIoT is dominated by Mirai and BASHLITE/Gafgyt, this result must be described as **held-out attack-type generalization**, not broad “unseen malware-family” generalization. AFUR remains in the candidate frontier even if this particular dataset is insufficient for its strongest eventual claim.
 
 **T. SAFE FALLBACK — PCRF**
 
@@ -1041,13 +1102,13 @@ Why this is safer:
 - easy to test with cached scores;
 - easy to isolate against max/mean baselines.
 
-Its weakness is novelty, not feasibility. If conditional residualization helps but instance-specific routing adds little, PCRF could still be a coherent algorithmic paper **only if the residual transformation itself delivers a substantial, cross-device operating-point benefit over unconditional peer fusion**.
+Its weakness is novelty, not feasibility. Contextual anomaly detection and outlier-ensemble literature make a static conditional-score fusion paper harder to defend on mechanism alone. PCRF should therefore remain a **first-class candidate and essential CIDER ablation/fallback**. It becomes a plausible standalone paper only if the conditional transformation itself delivers a substantial, cross-device operating-point benefit over unconditional peer fusion and survives the stronger contextual-anomaly / ensemble baselines.
 
 **U. FULL PRIMARY ALGORITHM DEFINITION**
 
 The methodological claim should be deliberately narrow:
 
-> CIDER learns, for each target–peer pair, the benign conditional response surface of the peer given the target detector; converts deviations from that surface into calibrated incremental evidence; estimates pair reliability without attack labels; and routes the strongest credible incremental evidence into the target decision.
+> CIDER learns, for each target–peer pair, the benign conditional response law \(F^0_{j\mid i}\); converts the peer's conditional upper-tail probability into calibrated incremental evidence; estimates pair reliability without attack labels; and routes the strongest credible cross-participant evidence into the target decision.
 
 Do **not** add a graph neural network, Bayesian hierarchy, conformal wrapper and reinforcement learner in the first version.
 
@@ -1057,11 +1118,15 @@ A four-equation paper is stronger here than a twelve-component framework.
 
 | Method family | What it computes | Why CIDER is not equivalent |
 |---|---|---|
-| FedAMP | Pairwise collaboration strength from model similarity / attentive message passing | CIDER's edge influence changes **per observation** according to target-conditioned residual evidence. citeturn10search0 |
+| FedAMP | Pairwise collaboration strength from model similarity / attentive message passing | CIDER's edge influence changes **per observation** according to target-conditioned conditional peer evidence. citeturn10search0 |
 | FedFomo | Client-specific weighted combinations of other client models according to estimated local benefit | CIDER does not optimize a persistent model mixture; it estimates **incremental anomaly evidence for the current observation**. citeturn4academia31 |
 | pFedCCG | Controls global collaboration geometry/matrix | CIDER has no required collaboration graph and uses conditional novelty rather than prescribed geometry. citeturn5search8 |
 | Federated Inference | Broad framework for collaborative inference between separately trained models | CIDER contributes a specific target-conditioned evidence-routing algorithm within that paradigm. citeturn12academia48 |
-| Dynamic ensemble selection | Selects classifiers according to query-local competence | CIDER's competence signal comes from benign **cross-detector conditional residuals**, not ordinary labeled local-region accuracy. |
+| Conditional Anomaly Detection / QCAD | Scores behavioral observations conditionally on contextual variables; QCAD estimates conditional quantiles | CIDER cannot claim conditioning itself as novel. Its proposed object is specifically **peer-detector response conditioned on the target-detector response**, interpreted as incremental cross-participant evidence and used to decide collaboration. |
+| LSCP / DCSO | Unsupervised query-local selection and combination of competent outlier detectors | CIDER cannot claim per-observation detector selection itself as novel. It must show that target-conditioned peer surprisal adds value beyond locality/competence-based dynamic outlier ensembles. |
+| Dynamic ensemble selection / META-DES | Selects classifiers according to query-local competence | CIDER's routing statistic is not ordinary labeled local-region accuracy; nevertheless AFUR and CIDER must be tested against this family because sample-specific competence routing is established. |
+| Federated Detection at the Edge (IEEE IoT Journal, 2026) | Collaborative IoT anomaly inference using exchanged device predictions on constrained hardware | CIDER cannot claim collaborative IoT anomaly inference itself as novel; its contribution must be the incremental-evidence computation. |
+| Robust Federated Inference (ICLR 2026) | Studies robustness of inference-time aggregation across multiple models | CIDER is not a full robust-federated-inference method, but peer-output clipping/fallback and malicious-score stress tests are necessary to avoid an obvious inference-time attack surface. |
 | FlowFuse | Learns dependency among multiple anomaly-score views | CIDER uses target-specific cross-client conditional complementarity under decentralized data ownership, rather than a generic multiview fusion model. citeturn11search0 |
 | G-PFL-ID | Graph-personalized unsupervised IoT IDS | CIDER does not learn graph representations or personalize a GNN detector. citeturn6search1 |
 | FedEP | Personalized federated low-rank/subspace models | CIDER is detector-agnostic and operates on cross-detector evidence. citeturn7view2 |
@@ -1081,12 +1146,12 @@ Use **N-BaIoT** first because the nine devices are genuine physical-client units
 Per device:
 
 1. benign model-training split;
-2. benign residual-fitting split;
+2. benign **conditional-model / cross-fitting** split;
 3. benign final-calibration split;
 4. held-out benign evaluation split;
 5. attack test data, separated by attack type where possible.
 
-The final-calibration split must never be reused to fit the residual transformation.
+Within split 2, conditional peer-response models must generate out-of-fold benign evidence for calibration/reliability estimation. The final-calibration split must never be reused to fit the conditional peer-response law.
 
 ### Secondary dataset
 
@@ -1113,9 +1178,12 @@ The journal study should include:
 | Central upper bound | pooled benign detector, explicitly non-private oracle |
 | Simple collaboration | mean peer score, max peer score, median score |
 | Fair normalized collaboration | max/mean target-benign percentile-normalized peer score |
+| Contextual-score baseline | conditional mean residual / conditional quantile or contextual anomaly score without cross-participant routing |
+| Dynamic anomaly ensemble | LSCP/DCSO-style sample-specific detector selection adapted to the same peer-score matrix |
 | Static peer | best benign-qualified fixed peer |
 | Existing project | N-BaIoT peer shrinkage |
-| CIDER ablation | unconditional residual fusion |
+| CIDER ablation | unconditional peer fusion / z-score fusion |
+| CIDER ablation | conditional-mean residual evidence |
 | CIDER ablation | static PCRF |
 | Personalized FL | one representative model-sharing method such as FedFomo/FedAMP if implementation is compatible |
 | Direct recent IDS | G-PFL-ID/FedEP-style baseline where code/data contracts make comparison scientifically fair rather than nominal |
@@ -1176,9 +1244,10 @@ The essential ablations are:
 \text{local only}\\
 \text{local + raw peer}\\
 \text{local + normalized peer}\\
-\text{local + conditional residual}\\
-\text{local + residual + reliability}\\
-\text{local + residual + reliability + routing}
+\text{local + conditional-mean residual}\\
+\text{local + conditional-tail / surprisal evidence}\\
+\text{local + conditional evidence + reliability}\\
+\text{local + conditional evidence + reliability + routing}
 \end{array}
 \]
 
@@ -1187,7 +1256,10 @@ That sequence tells the reviewer exactly which computation creates value.
 Additional ablations:
 
 - top-1 vs top-2 vs all peers;
-- linear vs isotonic conditional model;
+- conditional-mean residual vs conditional-quantile / conditional-CDF surprisal;
+- linear vs isotonic / quantile conditional estimator;
+- cross-fitting on/off **for diagnostic purposes only** (confirmatory protocol keeps cross-fitting on);
+- LSCP/DCSO-style dynamic detector selection versus CIDER routing;
 - reliability on/off;
 - peer pre-screening on/off;
 - different benign calibration sizes;
@@ -1206,7 +1278,7 @@ The most informative stress tests are:
 3. calibration-size reduction;
 4. benign calibration contamination;
 5. peer dropout;
-6. malicious score inflation/suppression;
+6. malicious score inflation/suppression, with and without evidence clipping/local-only fallback;
 7. monotone score transformation;
 8. secondary DIAD capture holdout.
 
@@ -1215,7 +1287,7 @@ The most informative stress tests are:
 The paper should have a small number of high-information figures:
 
 - target × peer incremental-utility heatmap;
-- local-versus-peer-residual scatter for benign and attacks;
+- local-score versus peer-score conditional-tail / surprisal view for benign and attacks (with residual view retained as an ablation figure if informative);
 - TPR@fixed-FPR forest plot across devices;
 - raw peer correlation versus incremental utility;
 - fraction of routed observations per target–peer pair;
@@ -1292,19 +1364,19 @@ FAIL means abandon CIDER and move to prototype/representation-transfer methods.
 
 **POC-B — Incremental-signal existence**
 
-For every target–peer pair, fit the simplest possible benign conditional relation:
+For every target–peer pair, start with the simplest possible benign conditional relation:
 
 \[
 s_j=a+b\,s_i+\epsilon
 \]
 
-first. Do **not** start with a neural network.
+as a cheap diagnostic, and in parallel estimate a simple held-out conditional tail / CDF for \(S_j\mid S_i\). Do **not** start with a neural network.
 
-Compute attack-versus-benign residual separation.
+Compute attack-versus-benign separation for both the residual diagnostic and the conditional-surprisal evidence, and inspect benign conditional calibration.
 
-PASS means useful residual signal exists in multiple targets.
+PASS means useful, calibrated conditional peer signal exists in multiple targets.
 
-FAIL means reject the entire conditional-residual family.
+FAIL means **downgrade the conditional-evidence family as the current primary**, but retain CIDER/PCRF in the frontier while the other proposals are tested.
 
 **POC-C — Trivial-baseline attack**
 
@@ -1317,23 +1389,25 @@ Compare:
 \quad
 \operatorname{mean}_j \text{percentile}(s_j),
 \quad
-\max_j \text{percentile}(r_{ij}).
+\text{LSCP/DCSO-style dynamic peer selection},
+\quad
+\max_j e_{ij}(x).
 \]
 
-Calibrate each to the same held-out benign FPR.
+Retain \(\max_j \text{percentile}(r_{ij})\) as a residual ablation. Calibrate every method to the same held-out benign FPR.
 
 This is the most important discovery experiment.
 
-PASS means conditional residualization provides value beyond merely having more detectors.
+PASS means target-conditioned peer evidence provides value beyond merely having more detectors **and** beyond generic per-observation detector selection.
 
-FAIL means **do not build CIDER**.
+FAIL means **do not promote CIDER to full implementation yet**; retain it as a candidate while testing the other frontier proposals.
 
 **POC-D — Honest calibration test**
 
 Use separate benign data for:
 
 1. detector fitting;
-2. residual fitting;
+2. conditional-model fitting with internal cross-fitting / out-of-fold evidence;
 3. final score calibration.
 
 PASS means the effect survives the protocol that would be acceptable in the paper.
@@ -1358,13 +1432,13 @@ Only after the N-BaIoT mechanism passes, rebuild the DIAD experiment with true d
 
 The ordering matters:
 
-> **Do not spend time reproducing FedAMP, implementing Bayesian routing, training a graph model, or finishing a large FL matrix until POC-C passes.**
+> **Do not promote any expensive candidate to a large confirmatory matrix before POC-C resolves the cheapest CIDER question. Keep the other proposals intact and continue their candidate-specific audits in parallel where the cost is low.**
 
 That is the highest-information decision.
 
 **Z. REMAINING UNCERTAINTIES AND RISKS**
 
-The biggest **NOVELTY RISK** is mathematical equivalence to conditional ensemble selection. The eventual paper must demonstrate that CIDER's target-conditioned incremental-evidence construction is not merely a renamed competence score. The fresh literature already establishes both personalized client collaboration and dynamic ensemble ideas, so the claim must remain narrow. citeturn10search0turn4academia31turn5search8
+The biggest **NOVELTY RISK** is mathematical or conceptual equivalence to **contextual anomaly detection plus dynamic outlier-ensemble selection**. Conditional Anomaly Detection/QCAD already establish conditional anomaly scoring, while LSCP/DCSO and broader dynamic ensemble selection already establish sample-specific expert choice. The eventual paper must therefore demonstrate that CIDER's **target-conditioned cross-participant peer surprisal** is not merely a renamed contextual anomaly score or competence score, and that it materially improves collaboration beyond those baselines. Personalized client collaboration is also already established, so the claim must remain narrow. citeturn10search0turn4academia31turn5search8
 
 The biggest **FEASIBILITY RISK** is not missing columns. N-BaIoT resolves that unusually well. The risk is that peer detectors will simply be poor cross-device experts, leaving no meaningful complementary residual after benign mismatch is removed. citeturn13search4
 
@@ -1372,7 +1446,11 @@ The biggest **EMPIRICAL RISK** is the trivial max-peer baseline. If target-calib
 
 The biggest **SCIENTIFIC-CONFOUNDING RISK** is that “complementary evidence” becomes shorthand for device-domain shift. The conditional benign cross-response and device-wise negative controls are specifically designed to distinguish those explanations.
 
-The biggest **LEAKAGE RISK** is using attack labels, test captures or test-client outcomes to choose peers, tune residual models, determine \(k\), or choose \(\lambda\). All such choices must occur on development clients/data before confirmatory evaluation.
+The biggest **LEAKAGE RISK** is using attack labels, test captures or test-client outcomes to choose peers, tune conditional models, determine \(k\), or choose \(\lambda\). All such choices must occur on development clients/data before confirmatory evaluation.
+
+The biggest **INFERENCE-ROBUSTNESS RISK** is that a compromised peer can inflate or suppress its score and manufacture extreme conditional evidence. The first CIDER version need not become a full Byzantine-inference paper, but it should bound single-peer leverage, support local-only fallback, and include malicious score inflation/suppression stress tests.
+
+The biggest **PRIVACY / INFORMATION-FLOW RISK** is architecture-dependent: downloading peer models can expose peer model IP, while querying remote peers can expose target inputs or representations. Unless a secure inference protocol is actually implemented and evaluated, the paper must not claim that CIDER itself provides privacy-preserving federated inference.
 
 The biggest **SECONDARY-DATA RISK** is CIC IoT-DIAD's capture/device/address structure. The project's current \(0.831\) dyad AUROC is insufficient evidence until capture-held-out and shortcut-removal tests are run. fileciteturn0file1 Official dataset documentation nevertheless indicates that a genuine device-identity view exists, which makes the repair worth testing. citeturn13search1
 
@@ -1420,7 +1498,7 @@ The research-backed action is therefore:
 }
 \]
 
-If conditional residual evidence cannot beat a target-calibrated trivial peer ensemble, reject CIDER within minutes to hours rather than weeks.
+If target-conditioned peer evidence cannot beat both a target-calibrated trivial peer ensemble and a generic dynamic-selection baseline, **downgrade CIDER as the current primary within minutes to hours rather than weeks**, but keep it in the candidate frontier while the other proposals are audited and tested.
 
 If it does, the project has something the current EMHI program does not yet possess:
 
